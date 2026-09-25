@@ -52,6 +52,7 @@ from wisper.config_validation import validate_config
 from wisper import branding
 from wisper import models as whisper_models
 from wisper import ollama as ollama_api
+from wisper.system_hotkeys import SystemHotkeys
 from wisper import ui_kit as uk
 from wisper.ui_kit import Theme
 
@@ -939,6 +940,7 @@ class FloatingTranscriberApp:
         self._window_visible = False
         self._prompt_mode = False
         self._shutting_down = False
+        self._system_hotkeys = SystemHotkeys()
 
         self._build_ui()
         self._fit_window()
@@ -1011,10 +1013,18 @@ class FloatingTranscriberApp:
     # ------------------------------------------------------------------ hotkeys
 
     def _register_hotkeys(self) -> None:
-        for combo, handler, label in (
+        """Erst ueber `RegisterHotKey` (uebersteht Standby und lange Pausen),
+        nur was dort scheitert, ueber den Hook der `keyboard`-Bibliothek."""
+        eintraege = (
             (CFG.hotkey_transcript, self.toggle_recording, "Transkript"),
             (CFG.hotkey_prompt, self.toggle_recording_generate, "Prompt"),
-        ):
+        )
+        gescheitert = self._system_hotkeys.register(
+            [(combo, lambda h=handler: self._ui_call(h)) for combo, handler, _ in eintraege])
+        for combo, handler, label in eintraege:
+            if combo not in gescheitert:
+                logger.info("Hotkey registered: %s (%s, System)", combo, label)
+                continue
             try:
                 keyboard.add_hotkey(combo, lambda h=handler: self._ui_call(h))
                 logger.info("Hotkey registered: %s (%s)", combo, label)
@@ -1292,6 +1302,7 @@ class FloatingTranscriberApp:
             except Exception:
                 logger.exception("Stream cleanup failed")
             self.stream = None
+        self._system_hotkeys.stop()
         try:
             keyboard.unhook_all_hotkeys()
         except Exception:
