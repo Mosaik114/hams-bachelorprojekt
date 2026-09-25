@@ -45,8 +45,34 @@ class TestCatalog:
 
 
 class TestCacheDetection:
-    def test_turbo_is_installed_here(self):
-        assert "turbo" in models.installed_whisper_models()
+    def _real_cache(self, monkeypatch, tmp_path, names):
+        """Echter Cache-Ordner, so wie huggingface_hub ihn anlegt, im Temp-Ordner.
+
+        Die anderen Faelle bauen die Antwort von scan_cache_dir nach. Nur hier
+        laeuft die echte Funktion: aendert eine neue huggingface_hub-Version den
+        Aufbau ihrer Antwort, faellt es hier auf und nicht erst beim Nutzer.
+        """
+        import inspect
+
+        import huggingface_hub
+
+        repo = models.find("tiny").repo_id
+        snapshot = tmp_path / ("models--" + repo.replace("/", "--")) / "snapshots" / "abc123"
+        snapshot.mkdir(parents=True)
+        for name in names:
+            (snapshot / name).write_bytes(b"x" * 64)
+        (snapshot.parent.parent / "refs").mkdir()
+        (snapshot.parent.parent / "refs" / "main").write_text("abc123")
+        cache_module = inspect.getmodule(huggingface_hub.scan_cache_dir)
+        monkeypatch.setattr(cache_module, "HF_HUB_CACHE", str(tmp_path))
+
+    def test_real_cache_with_model_file_counts(self, monkeypatch, tmp_path):
+        self._real_cache(monkeypatch, tmp_path, ["config.json", "model.bin"])
+        assert models.installed_whisper_models() == {"tiny"}
+
+    def test_real_cache_without_model_file_does_not_count(self, monkeypatch, tmp_path):
+        self._real_cache(monkeypatch, tmp_path, ["config.json", "tokenizer.json"])
+        assert models.installed_whisper_models() == set()
 
     def test_returns_only_catalog_ids(self):
         assert models.installed_whisper_models() <= set(models.catalog_ids())
