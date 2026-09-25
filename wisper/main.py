@@ -817,7 +817,7 @@ class FloatingTranscriberApp:
     and LLM cleanup/prompt generation.
     """
 
-    WINDOW_WIDTH = 340         # logisch
+    WINDOW_WIDTH = 360         # logisch; Platz fuer beide Kurzbefehle als Tasten
     WINDOW_MIN_HEIGHT = 190    # logisch; die echte Hoehe kommt aus dem Layout
 
     def __init__(self, root: tk.Tk) -> None:
@@ -833,7 +833,7 @@ class FloatingTranscriberApp:
             uk.Scale.dpi, uk.Scale.factor,
             float(self.root.tk.call("tk", "scaling")),
         )
-        self.root.overrideredirect(True)  # randlos für das eigene Apple-Design
+        self.root.overrideredirect(True)  # randlos für das eigene Mosaik-Design
         self._window_size = (uk.px(self.WINDOW_WIDTH), uk.px(self.WINDOW_MIN_HEIGHT))
         self._window_pos = window_position(
             CFG.window_x, CFG.window_y, *self._window_size, uk.work_areas())
@@ -1078,10 +1078,10 @@ class FloatingTranscriberApp:
                 continue
             history_items.append(pystray.MenuItem(label, self._history_action(idx)))
         if not history_items:
-            history_items.append(pystray.MenuItem("(leer)", None, enabled=False))
+            history_items.append(pystray.MenuItem("Noch keine Transkripte", None, enabled=False))
 
         return pystray.Menu(
-            pystray.MenuItem("Zeigen / Verstecken", self._toggle_visibility, default=True),
+            pystray.MenuItem("Fenster zeigen oder ausblenden", self._toggle_visibility, default=True),
             pystray.MenuItem("Einstellungen …", self._open_settings),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Letzte Transkripte", pystray.Menu(*history_items)),
@@ -1318,7 +1318,7 @@ class FloatingTranscriberApp:
         self.status_label.pack(side="left", padx=(uk.px(uk.Space.MD), 0))
         self.elapsed_label = tk.Label(status_row, text="", anchor="e",
                                       bg=Theme.WINDOW_BG, fg=Theme.TEXT_SECONDARY,
-                                      font=uk.font("shortcut"))
+                                      font=uk.font("status"))
         self.elapsed_label.pack(side="right")
 
         # --- 3. Pegel: immer an derselben Stelle, im Ruhezustand dunkel ---
@@ -1332,16 +1332,59 @@ class FloatingTranscriberApp:
         )
         self.main_button.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
 
-        # --- 5. Fußzeile: Kurzbefehle, im Fehlerfall der Hinweistext ---
-        self.footer_label = tk.Label(
-            card, text=self._shortcut_hint(), anchor="w", justify="left",
-            bg=Theme.WINDOW_BG, fg=Theme.TEXT_TERTIARY, font=uk.font("description"),
-        )
-        self.footer_label.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
+        # --- 5. Fußzeile: beide Kurzbefehle als Tasten, im Fehlerfall der Hinweis ---
+        # Feste Höhe: der Hinweis tritt an die Stelle der Tasten, und das
+        # Fenster darf dabei nicht springen.
+        self.footer = tk.Frame(card, bg=Theme.WINDOW_BG,
+                               height=uk.px(self.FOOTER_HEIGHT))
+        self.footer.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
+        self.footer.pack_propagate(False)
 
-    def _shortcut_hint(self) -> str:
-        """Eine leise Zeile statt der früheren Vier-Label-Tabelle."""
-        return f"{CFG.hotkey_transcript}  Transkript   ·   +Alt  KI"
+        self.shortcut_box = tk.Frame(self.footer, bg=Theme.WINDOW_BG)
+        self.shortcut_box.grid_columnconfigure(0, weight=1)
+        self.shortcut_keys = {}
+        for row, (key, text, combo) in enumerate(self.shortcuts()):
+            gap = (uk.px(uk.Space.SM) if row else 0, 0)
+            tk.Label(self.shortcut_box, text=text, anchor="w", bd=0, padx=0, pady=0,
+                     bg=Theme.WINDOW_BG, fg=Theme.TEXT_TERTIARY,
+                     font=uk.font("description")).grid(row=row, column=0,
+                                                       sticky="w", pady=gap)
+            keys = uk.KeyCombo(self.shortcut_box, bg_under=Theme.WINDOW_BG, combo=combo)
+            keys.grid(row=row, column=1, sticky="e", pady=gap)
+            self.shortcut_keys[key] = keys
+        self.shortcut_box.pack(fill="x")
+
+        self.footer_label = tk.Label(
+            self.footer, text="", anchor="nw", justify="left", bd=0, padx=0, pady=0,
+            bg=Theme.WINDOW_BG, fg=Theme.ERROR, font=uk.font("description"),
+        )
+        # Der Hinweis bricht um statt abzuschneiden („… läuft der Dien“).
+        self.footer.bind("<Configure>", lambda e: self.footer_label.configure(
+            wraplength=max(1, e.width)), add="+")
+
+    #: Zwei Tastenreihen plus Abstand dazwischen, in logischen Pixeln.
+    FOOTER_HEIGHT = 2 * uk.Height.KEYCAP + uk.Space.SM
+
+    @staticmethod
+    def shortcuts() -> tuple:
+        """(Schlüssel, Bezeichnung, Tastenkürzel) für Fußzeile und Einstellungen.
+
+        Kurze Bezeichnungen mit Absicht: vier Tasten brauchen bei 100 % schon
+        249 px der 320 px Innenbreite; „Prompt an KI“ passte daneben nicht mehr.
+        """
+        return (("transcript", "Diktieren", CFG.hotkey_transcript),
+                ("prompt", "Prompt", CFG.hotkey_prompt))
+
+    def _show_footer_hint(self, hint: Optional[str]) -> None:
+        """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe."""
+        if hint:
+            self.footer_label.configure(text=hint, fg=Theme.ERROR)
+            self.shortcut_box.pack_forget()
+            self.footer_label.pack(fill="both", expand=True)
+        else:
+            self.footer_label.configure(text="")
+            self.footer_label.pack_forget()
+            self.shortcut_box.pack(fill="x")
 
     def _fit_window(self) -> None:
         """Fensterhöhe aus den fünf Zonen berechnen.
@@ -1352,7 +1395,7 @@ class FloatingTranscriberApp:
         jede Zone ihren Platz behält, ändert sich die Höhe danach nie wieder.
         """
         line = self._line_height("status")
-        footer = self._line_height("description")
+        footer = self.FOOTER_HEIGHT
         ring = 2 * (uk.Space.XS + uk.Space.XS)      # Fokusring des Buttons
 
         logical = (
@@ -1361,13 +1404,16 @@ class FloatingTranscriberApp:
             + uk.Space.XL + line + 2 * uk.Space.SM   # Statuszeile
             + uk.Space.LG + uk.SignalMeter.HEIGHT    # Pegel
             + uk.Space.LG + uk.Height.PRIMARY + ring  # Hauptaktion
-            + uk.Space.LG + footer                   # Kurzbefehle
+            + uk.Space.LG + footer                   # Kurzbefehle als Tasten
             + uk.Space.WINDOW                        # Rand unten
         )
         width = uk.px(self.WINDOW_WIDTH)
         height = uk.px(max(logical, self.WINDOW_MIN_HEIGHT))
         self._window_size = (width, height)
         self.root.geometry(f"{width}x{height}")
+        footer_widget = getattr(self, "footer", None)
+        if footer_widget is not None:
+            footer_widget.configure(height=uk.px(self.FOOTER_HEIGHT))
 
     def _line_height(self, role: str) -> int:
         """Zeilenhöhe einer Schriftrolle in *logischen* Pixeln."""
@@ -1384,12 +1430,14 @@ class FloatingTranscriberApp:
         # Bedienbar, obwohl das Modell noch laedt: die Aufnahme braucht es
         # nicht (siehe `start_recording`), nur die Auswertung danach. Die
         # Statuszeile nennt den Zustand, der Knopf die moegliche Aktion.
-        "model_loading": ("idle", "Modell wird geladen", "primary", "Aufnahme starten", True),
+        "model_loading": ("idle", "Modell wird geladen …", "primary", "Aufnahme starten", True),
         "ready": ("ready", None, "primary", "Aufnahme starten", True),
-        # Aufnahme bewusst ohne gefuellte Signalflaeche: die Semantik tragen der
-        # Statuspunkt und das Stop-Symbol, nicht ein roter Vollflaechenbutton.
-        "recording": ("recording", "Aufnahme läuft", "secondary", "Stoppen", True),
-        "recording_prompt": ("ai", "Prompt-Modus · Aufnahme", "secondary", "Stoppen", True),
+        # Waehrend der Aufnahme ist Stoppen die einzige sinnvolle Handlung —
+        # deshalb eine gefuellte Flaeche in der Farbe des Zustands: rot fuer
+        # Diktat, lila fuer den Prompt-Modus. Das weisse Stop-Symbol davor
+        # sagt es zusaetzlich ohne Farbe.
+        "recording": ("recording", "Aufnahme läuft", "recording", "Stoppen", True),
+        "recording_prompt": ("ai", "Prompt-Modus · Aufnahme", "ai", "Stoppen", True),
         # Waehrend der Verarbeitung nennt der Button weiter die Aktion und ist
         # gesperrt; was gerade laeuft, sagt allein die Statuszeile.
         "transcribing": ("processing", "Transkribiere …", "secondary", "Aufnahme starten", False),
@@ -1423,7 +1471,8 @@ class FloatingTranscriberApp:
         elif text is not None:
             label = text
         elif state == "ready":
-            label = f"Bereit · {CFG.model_size}"
+            info = whisper_models.find(CFG.model_size)
+            label = f"Bereit · {info.label if info else CFG.model_size}"
         else:
             label = ""
         self.status_label.config(text=label)
@@ -1431,19 +1480,15 @@ class FloatingTranscriberApp:
         self.main_button.set_role(role)
         self.main_button.config(text=button_text)
         self.main_button.set_enabled(enabled)
+        # Ohne eigene Farbe: das Symbol nimmt die Schriftfarbe der Flaeche an.
         self.main_button.set_icon(
-            "stop" if state in self.RECORDING_STATES else None,
-            Theme.RECORDING if state == "recording" else Theme.AI,
-        )
+            "stop" if state in self.RECORDING_STATES else None)
 
         if state not in self.RECORDING_STATES:
             self.elapsed_label.config(text="")
             self.level_meter.set_level(0.0)
 
-        self.footer_label.config(
-            text=hint if hint is not None else self._shortcut_hint(),
-            fg=Theme.ERROR if hint is not None else Theme.TEXT_TERTIARY,
-        )
+        self._show_footer_hint(hint)
         self._set_tray_icon(self._tray_colour(state))
         self._cancel_done_reset()
         if state == "done":
@@ -2341,23 +2386,23 @@ class FloatingTranscriberApp:
 
 
 class SettingsWindow:
-    """Randloses Einstellungsfenster im Wisper-Design.
+    """Randloses Einstellungsfenster im Mosaik-Design.
 
     Zeigt Mikrofon-Auswahl mit Live-Pegel, Status-Lampen (Modell/Ollama/Mikro)
     und Schnell-Schalter. Öffnet einen eigenen Monitor-Stream, solange es offen
     ist und nicht aufgenommen wird, damit man den Pegel *vor* dem Sprechen sieht.
     """
 
-    WIDTH = 400                 # logisch
-    HEIGHT = 620                # logisch
+    WIDTH = 440                 # logisch
+    HEIGHT = 680                # logisch
     OLLAMA_INTERVAL_MS = 5000   # sparsam, aber nicht nur einmal
-    CONTROL_WIDTH = 150         # logisch; sonst draengt das Control den Titel raus
-    MODEL_WIDTH = 170           # logisch; der Modellname traegt eine Meta-Zeile
+    #: Breite der Controls, die *neben* dem Text stehen (Pegel, Darstellung,
+    #: Loeschauswahl). Auswahlfelder mit langen Werten stehen gestapelt darunter.
+    CONTROL_WIDTH = 160         # logisch
     MODEL_HINT = "Tempo und Genauigkeit"
     APPEARANCE_LABELS = {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
-    #: Kurz halten: neben der Schaltflaeche bleiben rund 26 Zeichen, alles
-    #: darueber schnitt die Zeile zu „Wenn Kurzbefehle nicht me…" ab.
-    RESTART_HINT = "Wenn Kurzbefehle streiken"
+    #: Die Beschreibung bricht um, sie darf also ein ganzer Satz sein.
+    RESTART_HINT = "Wenn Kurzbefehle nicht reagieren"
     RESTART_WIDTH = 108         # logisch; „Neu starten" plus Luft
     DELETE_PLACEHOLDER = "Löschen …"
     DELETE_WIDTH = 88           # logisch; „Löschen" plus Luft
@@ -2520,7 +2565,7 @@ class SettingsWindow:
 
         self._close_btn = uk.IconButton(head, "close", self.close,
                                         bg_under=Theme.WINDOW_BG,
-                                        tooltip="Einstellungen schliessen")
+                                        tooltip="Einstellungen schließen")
         self._close_btn.set_hover_colour(Theme.ERROR)
         self._close_btn.pack(side="right")
 
@@ -2539,6 +2584,7 @@ class SettingsWindow:
         self._build_recording(body)
         self._build_transcription(body)
         self._build_ai(body)
+        self._build_shortcuts(body)
         self._build_general(body)
 
         # Die Tabulatorkette folgt der Stapelreihenfolge, und die entspricht der
@@ -2547,24 +2593,34 @@ class SettingsWindow:
         # Ende der Kette; sichtbar bleibt sie oben, weil das die Packung regelt.
         head.lift()
 
-    def _group(self, master: tk.Misc, title: str) -> uk.GroupSurface:
-        """Abschnittsüberschrift plus zugehörige Gruppenfläche."""
+    def _group(self, master: tk.Misc, title: str, *, first: bool = False) -> uk.GroupSurface:
+        """Abschnittsüberschrift plus zugehörige Gruppenfläche.
+
+        Die Überschrift steht bündig mit dem Zeilentext darunter (Gruppeneinzug
+        plus Zeilenabstand), nicht mit der Gruppenkante. Rechts endet die Gruppe
+        um die Scroll-Rinne früher, damit beide Fensterränder gleich breit sind.
+        """
+        text_x = uk.Space.GROUP_INSET + uk.Space.ROW_X
+        right = uk.Space.WINDOW - uk.ScrollArea.gutter_width()
+        top = uk.Space.MD if first else uk.Space.SECTION_GAP
         uk.SectionHeader(master, title, bg_under=Theme.WINDOW_BG).pack(
-            fill="x", padx=(uk.px(uk.Space.XS), uk.px(uk.Space.WINDOW)),
-            pady=(uk.px(uk.Space.SECTION_GAP), uk.px(uk.Space.MD)))
+            fill="x", padx=(uk.px(text_x), uk.px(right)),
+            pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP)))
         group = uk.GroupSurface(master, bg_under=Theme.WINDOW_BG)
-        group.pack(fill="x", padx=(0, uk.px(uk.Space.WINDOW)))
+        group.pack(fill="x", padx=(0, uk.px(right)))
         return group
 
     def _build_recording(self, master: tk.Misc) -> None:
-        group = self._group(master, "Aufnahme")
+        group = self._group(master, "Aufnahme", first=True)
 
-        self.row_mic = uk.SettingRow(group.body, "Mikrofon", variant="status")
+        # Geraetenamen sind lang; das Feld steht deshalb in voller Breite unter
+        # Titel und Status.
+        self.row_mic = uk.SettingRow(group.body, "Mikrofon", variant="status",
+                                     stacked=True)
         self.row_mic.pack(fill="x")
         self.mic_select = uk.Select(
             group.body, bg_under=Theme.GROUP_SURFACE,
             on_change=self._select_device, placeholder="Kein Mikrofon gefunden")
-        uk.keep_logical_width(self.mic_select, self.CONTROL_WIDTH)
         self.row_mic.set_control(self.mic_select)
 
         self.row_level = uk.SettingRow(group.body, "Eingangspegel",
@@ -2581,12 +2637,11 @@ class SettingsWindow:
 
         self.row_model = uk.SettingRow(
             group.body, "Whisper-Modell", variant="description",
-            description=self.MODEL_HINT)
+            description=self.MODEL_HINT, stacked=True)
         self.row_model.pack(fill="x")
         self.model_select = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE, two_line=True,
+            group.body, bg_under=Theme.GROUP_SURFACE,
             on_change=self._select_model)
-        uk.keep_logical_width(self.model_select, self.MODEL_WIDTH)
         self.row_model.set_control(self.model_select)
         # Waehrend eines Downloads tritt dieses Kreuz an die Stelle des
         # Auswahlfeldes; es wird erst dann eingehaengt. Bewusst nur ein Icon:
@@ -2601,13 +2656,14 @@ class SettingsWindow:
         # Eine eigene Zeile fuer den Bestand auf der Platte. Bewusst nicht als
         # Papierkorb neben dem Auswahlfeld: das zeigt immer das *eingestellte*
         # Modell, und genau das darf man nicht loeschen. Eine Loeschung braucht
-        # deshalb eine eigene Auswahl.
+        # deshalb eine eigene Auswahl — und die erscheint nur, wenn es etwas zu
+        # loeschen gibt.
         self.row_storage = uk.SettingRow(
-            group.body, "Modelle löschen", variant="description",
+            group.body, "Gespeicherte Modelle", variant="description",
             description="—")
         self.row_storage.pack(fill="x")
         self.select_delete = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE, two_line=True,
+            group.body, bg_under=Theme.GROUP_SURFACE,
             on_change=self._choose_delete, placeholder=self.DELETE_PLACEHOLDER)
         uk.keep_logical_width(self.select_delete, self.CONTROL_WIDTH)
         self.row_storage.set_control(self.select_delete)
@@ -2616,6 +2672,7 @@ class SettingsWindow:
         # Kniff wie beim Download-Abbruch. Zwei Schaltflaechen nebeneinander
         # brauchen einen Rahmen, weil eine Zeile nur ein Control aufnimmt.
         self._delete_box = tk.Frame(group.body, bg=Theme.GROUP_SURFACE)
+        self._delete_box.focus_ring = True      # die Knoepfe darin tragen ihn
         self.delete_button = uk.SecondaryButton(
             self._delete_box, "Löschen", self._confirm_delete,
             bg_under=Theme.GROUP_SURFACE, role="recording",
@@ -2636,8 +2693,8 @@ class SettingsWindow:
         group = self._group(master, "KI")
 
         self.row_cleanup = uk.SettingRow(
-            group.body, "Text-Cleanup", variant="description",
-            description="Bereinigt das Transkript automatisch",
+            group.body, "Text bereinigen", variant="description",
+            description="Glättet das Transkript nach jeder Aufnahme",
             interactive=True, command=self._toggle_cleanup)
         self.row_cleanup.pack(fill="x")
         self.switch_cleanup = uk.Switch(group.body, bg_under=Theme.GROUP_SURFACE,
@@ -2648,47 +2705,44 @@ class SettingsWindow:
         # Zwei getrennte Auswahlfelder, kein gemeinsames "KI-Modell": Cleanup
         # laeuft oft mit einem kleinen schnellen Modell, der Prompt-Modus mit
         # einem groesseren. Gleiches Bedienelement, getrennte Werte.
-        self.row_cleanup_model = uk.SettingRow(group.body, "Cleanup-Modell",
-                                               variant="status")
+        self.row_cleanup_model = uk.SettingRow(
+            group.body, "Modell zum Bereinigen", variant="status", stacked=True)
         self.row_cleanup_model.pack(fill="x")
         self.select_cleanup_model = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE, two_line=True,
+            group.body, bg_under=Theme.GROUP_SURFACE,
             value=CFG.ollama_model_cleanup, on_change=self._select_cleanup_model,
             placeholder="Kein Modell")
-        uk.keep_logical_width(self.select_cleanup_model, self.MODEL_WIDTH)
         self.row_cleanup_model.set_control(self.select_cleanup_model)
 
         self.row_prompt_model = uk.SettingRow(
-            group.body, "Prompt-Modell", variant="description",
-            description="Für den Prompt-Modus", hairline=False)
+            group.body, "Modell für Prompts", variant="description",
+            description="Beantwortet gesprochene Prompts",
+            hairline=False, stacked=True)
         self.row_prompt_model.pack(fill="x")
         self.select_prompt_model = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE, two_line=True,
+            group.body, bg_under=Theme.GROUP_SURFACE,
             value=CFG.ollama_model_prompt, on_change=self._select_prompt_model,
             placeholder="Kein Modell")
-        uk.keep_logical_width(self.select_prompt_model, self.MODEL_WIDTH)
         self.row_prompt_model.set_control(self.select_prompt_model)
         self._refresh_ollama_models()
         self._show_ollama_status()
 
-    def _build_general(self, master: tk.Misc) -> None:
-        group = self._group(master, "Allgemein")
+    def _build_shortcuts(self, master: tk.Misc) -> None:
+        """Beide Kurzbefehle als Tasten — und der Neustart, falls sie ausfallen.
 
-        self.row_sound = uk.SettingRow(
-            group.body, "Sound-Feedback", variant="description",
-            description="Kurzer Ton bei Start und Stopp",
-            interactive=True, command=self._toggle_sound)
-        self.row_sound.pack(fill="x")
-        self.switch_sound = uk.Switch(group.body, bg_under=Theme.GROUP_SURFACE,
-                                      value=CFG.sound_feedback,
-                                      command=self._on_sound)
-        self.row_sound.set_control(self.switch_sound)
+        Vorher standen beide Kombinationen als roher Konfigurationswert
+        untereinander in einer Zeile („ctrl+shift+space“). Ohne Beschriftung
+        war nicht zu erkennen, welche wofuer ist.
+        """
+        group = self._group(master, "Kurzbefehle")
 
-        shortcuts = uk.SettingRow(
-            group.body, "Kurzbefehle", variant="display",
-            value="\n".join((CFG.hotkey_transcript, CFG.hotkey_prompt)))
-        shortcuts.pack(fill="x")
-        shortcuts.value_label.configure(font=uk.font("shortcut"))
+        self.shortcut_keys = {}
+        for key, title, combo in FloatingTranscriberApp.shortcuts():
+            row = uk.SettingRow(group.body, title)
+            row.pack(fill="x")
+            keys = uk.KeyCombo(group.body, bg_under=Theme.GROUP_SURFACE, combo=combo)
+            row.set_control(keys)
+            self.shortcut_keys[key] = keys
 
         # Steht bewusst direkt unter den Kurzbefehlen: das ist der Fall, in dem
         # man ihn braucht. Windows kann den Tastaturhook entfernen, ohne dass
@@ -2698,13 +2752,26 @@ class SettingsWindow:
         # ein frischer Prozess dagegen schon.
         self.row_restart = uk.SettingRow(
             group.body, "Neustart", variant="description",
-            description=self.RESTART_HINT)
+            description=self.RESTART_HINT, hairline=False)
         self.row_restart.pack(fill="x")
         self.restart_button = uk.SecondaryButton(
             group.body, "Neu starten", self._restart_app,
             bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD)
         uk.keep_logical_width(self.restart_button, self.RESTART_WIDTH)
         self.row_restart.set_control(self.restart_button)
+
+    def _build_general(self, master: tk.Misc) -> None:
+        group = self._group(master, "Allgemein")
+
+        self.row_sound = uk.SettingRow(
+            group.body, "Signalton", variant="description",
+            description="Kurzer Ton bei Start und Stopp",
+            interactive=True, command=self._toggle_sound)
+        self.row_sound.pack(fill="x")
+        self.switch_sound = uk.Switch(group.body, bg_under=Theme.GROUP_SURFACE,
+                                      value=CFG.sound_feedback,
+                                      command=self._on_sound)
+        self.row_sound.set_control(self.switch_sound)
 
         # Zwei Entscheidungen an dieser Zeile:
         #
@@ -2713,10 +2780,8 @@ class SettingsWindow:
         # Modi gleichrangig — und laesst spaeter Platz fuer ein drittes
         # „System", ohne die Zeile umzubauen.
         #
-        # Einzeilig, ohne Unterzeile. Neben dem 150 px breiten Auswahlfeld
-        # bleiben rund 150 px fuer den Text, und jede Erklaerung, die den Modus
-        # benennt, wurde dort abgeschnitten — gemessen an „Helle oder dunkle
-        # Obe...". Das Auswahlfeld sagt ohnehin selbst, worum es geht.
+        # Einzeilig, ohne Unterzeile: „Hell“ und „Dunkel“ sind kurz, das Feld
+        # darf neben dem Titel stehen und sagt selbst, worum es geht.
         self.row_appearance = uk.SettingRow(
             group.body, "Darstellung", hairline=False)
         self.row_appearance.pack(fill="x")
@@ -2731,7 +2796,7 @@ class SettingsWindow:
     # ---------------------------------------------------------- Kopfzeilenlinie
 
     def _on_scroll(self, offset: int) -> None:
-        """Apple-Detail: die Linie erscheint erst, wenn etwas darunter liegt."""
+        """Die Linie erscheint erst, wenn etwas darunter liegt."""
         self._head_line.configure(
             bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
 
@@ -2801,7 +2866,13 @@ class SettingsWindow:
         elif active is not None and chosen != active:
             self.row_model.set_description("Wird beim nächsten Start verwendet")
         else:
-            self.row_model.set_description(self.MODEL_HINT)
+            self.row_model.set_description(self.model_hint(chosen))
+
+    @classmethod
+    def model_hint(cls, model_id: str) -> str:
+        """Einordnung des Modells — steht nicht mehr im Feld, sondern darunter."""
+        info = whisper_models.find(model_id)
+        return info.meta if info is not None else cls.MODEL_HINT
 
     def _select_model(self, model_id: str) -> None:
         """Auswahl uebernehmen — aber nur, wenn das Modell wirklich da ist.
@@ -2874,7 +2945,7 @@ class SettingsWindow:
         self._delete_target = ""
         bestand = list(whisper_models.cached_whisper_models())
         loeschbar = self.deletable_models()
-        self.row_storage.set_control(self.select_delete)
+        self.row_storage.set_control(self.select_delete if loeschbar else None)
         self.select_delete.set_options([
             uk.Option(eintrag.model_id, eintrag.label, meta=eintrag.meta)
             for eintrag in loeschbar])

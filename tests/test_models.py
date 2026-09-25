@@ -127,6 +127,7 @@ class _StubWindow:
     on_download_finished = SW.on_download_finished
     download_text = staticmethod(SW.download_text)
     MODEL_HINT = SW.MODEL_HINT
+    model_hint = SW.model_hint
     CANCELLED = None
 
     def _refresh_storage(self):
@@ -285,7 +286,7 @@ class TestHint:
         config("turbo")
         window = _StubWindow({"turbo"}, active="turbo")
         window._update_model_hint()
-        assert window.description == SW.MODEL_HINT
+        assert window.description == models.find("turbo").meta
 
     def test_chosen_differs_from_active(self, config):
         """Aktiv und für den nächsten Start gewählt sind zwei Zustände."""

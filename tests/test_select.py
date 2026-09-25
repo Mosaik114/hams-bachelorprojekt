@@ -117,12 +117,12 @@ class TestSelect:
         root.update()
         assert select.has_state(state) or state in (State.HOVER, State.PRESSED)
 
-    def test_two_line_variant(self, window, root):
-        widget = Select(window, bg_under=BG, options=make_options(), value="v0",
-                        two_line=True)
+    def test_is_always_single_line(self, window, root):
+        """Die Einordnung steht in der Zeile darüber, nicht im Feld."""
+        widget = Select(window, bg_under=BG, options=make_options(), value="v0")
         widget.pack(fill="x")
         root.update()
-        assert widget._two_line
+        assert widget._logical_height == uk.Height.STANDARD
 
 
 class TestEllipsize:

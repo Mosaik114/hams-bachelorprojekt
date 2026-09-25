@@ -257,7 +257,7 @@ class TestHitAreas:
         assert Popover.current is not None
 
     def test_control_heights_are_at_least_the_minimum(self):
-        for name in ("PRIMARY", "STANDARD", "ROW_SIMPLE", "ROW_DETAIL"):
+        for name in ("PRIMARY", "STANDARD", "ROW_MIN"):
             assert getattr(uk.Height, name) >= self.MINIMUM
 
 
@@ -272,6 +272,7 @@ TEXT_PAIRS = [
     ("Popover-Titel im Hover", "TEXT_PRIMARY", "CONTROL_HOVER"),
     ("Popover-Meta im Hover", "TEXT_SECONDARY", "CONTROL_HOVER"),
     ("Select-Text", "TEXT_PRIMARY", "CONTROL_SURFACE"),
+    ("Tasten-Chip", "TEXT_PRIMARY", "CONTROL_SURFACE"),
     ("Select-Meta", "TEXT_SECONDARY", "CONTROL_SURFACE"),
     ("Zeilenbeschreibung", "TEXT_TERTIARY", "GROUP_SURFACE"),
     ("Zeilenwert", "TEXT_SECONDARY", "GROUP_SURFACE"),
@@ -307,7 +308,7 @@ MODES = list(Theme.MODES)
 class TestContrastOfTheWholeSurface:
     """Getrennte Kontrastmatrix je Modus.
 
-    Getrennt, weil das eine das andere nicht mittraegt: Apples helles Gruen
+    Getrennt, weil das eine das andere nicht mittraegt: Ein leuchtendes Gruen wie
     #30D158 kommt auf dem dunklen Grund auf 8,60:1 und auf der hellen
     Gruppenflaeche auf 1,73:1 — es fiele dort selbst als Punkt durch.
     """

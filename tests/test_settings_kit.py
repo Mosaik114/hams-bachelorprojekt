@@ -176,7 +176,11 @@ class TestGroupSurface:
         group = GroupSurface(window, bg_under=BG)
         group.pack(fill="x")
         root.update()
-        assert group.inset == uk.px(uk.Radius.GROUP)
+        assert group.inset == uk.px(uk.Space.GROUP_INSET)
+        # (4, 4) liegt innerhalb des Viertelkreises um (10, 10): die Zeile
+        # bleibt drinnen, die Rundung sichtbar.
+        corner = uk.Radius.GROUP - uk.Space.GROUP_INSET
+        assert (corner ** 2 * 2) ** 0.5 < uk.Radius.GROUP - 1
 
     def test_plate_has_rounded_corners(self):
         plate = uk.render_surface(300, 120, uk.px(uk.Radius.GROUP),
@@ -200,7 +204,7 @@ class TestSectionHeader:
         header.pack()
         root.update()
         assert header.cget("text") == "Aufnahme"
-        assert header.cget("fg") == Theme.TEXT_SECONDARY
+        assert header.cget("fg") == Theme.TEXT_PRIMARY
 
     def test_is_not_all_caps_grey_noise(self, window):
         """Die alte schwache MIKROFON-Typografie entfällt."""
@@ -209,18 +213,46 @@ class TestSectionHeader:
 
 
 class TestSettingRow:
-    @pytest.mark.parametrize("variant,height", [
-        ("simple", Height.ROW_SIMPLE),
-        ("description", Height.ROW_DETAIL),
-        ("status", Height.ROW_DETAIL),
-        ("display", Height.ROW_SIMPLE),
-    ])
-    def test_variant_heights(self, window, root, variant, height):
+    @pytest.mark.parametrize("variant", ["simple", "description", "status", "display"])
+    def test_every_variant_has_the_same_minimum_height(self, window, root, variant):
         row = SettingRow(window, "Titel", variant=variant,
                          description="Text", value="Wert")
         row.pack(fill="x")
         root.update()
-        assert int(row._line.cget("height")) == uk.px(height)
+        assert row._line.winfo_height() == uk.px(Height.ROW_MIN)
+
+    def test_padding_is_symmetric(self, window, root):
+        row = SettingRow(window, "Titel", variant="description", description="Text")
+        row.pack(fill="x")
+        root.update()
+        assert int(str(row._line.cget("pady"))) == uk.px(uk.Space.ROW_Y)
+
+    def test_long_description_wraps_instead_of_truncating(self, window, root):
+        text = "Eine lange Beschreibung, die nie und nimmer in eine Zeile passt"
+        window.geometry("260x400")
+        row = SettingRow(window, "Titel", variant="description", description=text)
+        row.pack(fill="x")
+        for _ in range(3):
+            root.update()
+        assert row.sub_label.cget("text") == text
+        assert "…" not in row.sub_label.cget("text")
+        assert row._line.winfo_height() > uk.px(Height.ROW_MIN)
+
+    def test_stacked_control_sits_below_the_text(self, window, root):
+        window.geometry("400x400")
+        row = SettingRow(window, "Mikrofon", variant="status", stacked=True)
+        row.pack(fill="x")
+        control = uk.Select(window, bg_under=Theme.GROUP_SURFACE,
+                            options=[uk.Option("a", "Ein sehr langer Gerätename")],
+                            value="a")
+        row.set_control(control)
+        for _ in range(3):
+            root.update()
+        assert control.winfo_y() > row._text_box.winfo_y() + row._text_box.winfo_height()
+        # volle Breite, sichtbare Kante bündig mit dem Titel
+        inset = uk.px(uk.ControlStyle.RING_WIDTH) + uk.px(uk.ControlStyle.RING_GAP)
+        assert control.winfo_x() + inset == row._text_box.winfo_x()
+        assert control.winfo_width() >= row._text_box.winfo_width()
 
     def test_status_variant_has_a_dot(self, window, root):
         row = SettingRow(window, "Mikrofon", variant="status")
@@ -309,10 +341,10 @@ class TestDisabledRow:
                          description="Text")
         row.pack(fill="x")
         root.update()
-        before = int(row._line.cget("height"))
+        before = row._line.winfo_height()
         row.set_enabled(False)
         root.update()
-        assert int(row._line.cget("height")) == before
+        assert row._line.winfo_height() == before
 
     def test_text_loses_contrast(self, window, root):
         row = SettingRow(window, "Cleanup-Modell", variant="description",
@@ -352,18 +384,18 @@ class TestDpi:
         row = SettingRow(window, "Titel", variant="description", description="x")
         row.pack(fill="x")
         root.update()
-        assert int(row._line.cget("height")) == uk.px(Height.ROW_DETAIL)
+        assert row._line.winfo_height() == uk.px(Height.ROW_MIN)
 
     def test_runtime_scale_change_grows_rows(self, window, root):
         row = SettingRow(window, "Titel", variant="description", description="x")
         row.pack(fill="x")
         root.update()
-        before = int(row._line.cget("height"))
+        before = row._line.winfo_height()
         start = uk.Scale.dpi
         try:
             uk.Scale.apply(root, start * 2)
             root.update()
-            after = int(row._line.cget("height"))
+            after = row._line.winfo_height()
         finally:
             uk.Scale.apply(root, start)
             root.update()

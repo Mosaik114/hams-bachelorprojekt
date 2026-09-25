@@ -223,6 +223,24 @@ class TestPersistence:
 
 
 class TestPaletteSwitch:
+    def test_no_value_carries_two_roles(self):
+        """`remap` erkennt Tokens am Wert. Ein Wert, der in der einen Palette
+        Schrift und in der anderen Fenstergrund ist, bliebe beim Wechsel
+        stehen — so blieben Überschriften nach Dunkel dunkel."""
+        light, dark = Theme.palette(Theme.LIGHT), Theme.palette(Theme.DARK)
+        for mode, here, there in (("hell", light, dark), ("dunkel", dark, light)):
+            for name, value in here.items():
+                for other, other_value in there.items():
+                    # Geteilte Werte sind nur harmlos, wenn das andere Token in
+                    # beiden Modi denselben Wert hat (#FFFFFF, Terrakotta).
+                    # ON_SUCCESS wechselt bewusst Weiss gegen Dunkel und wird
+                    # von keinem Widget als rohe Option getragen (test_tokens).
+                    if "ON_SUCCESS" in (name, other):
+                        continue
+                    if other_value.upper() == value.upper():
+                        assert here[other].upper() == value.upper(), (
+                            f"{value}: {mode} {name}, anders {other}")
+
     def test_apply_reports_whether_something_changed(self):
         Theme.apply(Theme.LIGHT)
         assert Theme.apply(Theme.DARK) is True
@@ -289,7 +307,7 @@ class TestEveryComponentFollows:
         assert surface["scroll"].canvas.cget("bg") == palette["WINDOW_BG"]
         assert surface["scroll"].body.cget("bg") == palette["WINDOW_BG"]
         assert surface["section"].cget("bg") == palette["WINDOW_BG"]
-        assert surface["section"].cget("fg") == palette["TEXT_SECONDARY"]
+        assert surface["section"].cget("fg") == palette["TEXT_PRIMARY"]
         assert surface["group"].cget("bg") == palette["WINDOW_BG"]
         assert surface["group"].body.cget("bg") == palette["GROUP_SURFACE"]
         assert surface["row"].cget("bg") == palette["GROUP_SURFACE"]
@@ -351,10 +369,9 @@ class TestEveryComponentFollows:
         assert surface["row"]._line.cget("bg") == Theme.palette(ziel)["CONTROL_SURFACE"]
 
     @pytest.mark.parametrize("ziel", MODES)
-    def test_the_meter_redraws_its_segments(self, surface, root, ziel):
+    def test_the_meter_redraws_its_track(self, surface, root, ziel):
         wechsel(surface["window"], ziel, root)
-        assert surface["meter"].segments > 0
-        assert len(surface["meter"]._images) == surface["meter"].segments
+        assert surface["meter"]._images, "Pegelspur fehlt nach dem Wechsel"
 
     def test_no_widget_keeps_a_colour_of_the_other_palette(self, surface, root):
         """Die eigentliche Zusage: keine halb helle, halb dunkle Oberfläche."""
@@ -654,7 +671,7 @@ class TestApplicationWiring:
         quelle = open(wm.__file__, encoding="utf-8").read()
         block = quelle[quelle.index("def _build_general"):]
         block = block[:block.index("\n    def ", 1)]
-        assert block.index("row_appearance") > block.index("Kurzbefehle")
+        assert block.index("row_appearance") > block.index("row_sound")
         assert "hairline=False" in block[block.index("row_appearance"):]
 
     def test_choosing_persists_before_it_switches(self, monkeypatch):

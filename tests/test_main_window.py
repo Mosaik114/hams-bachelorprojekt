@@ -8,6 +8,7 @@ Modell-Ladethread und gehört deshalb nicht in die Testsuite.
 
 import pytest
 
+from wisper import ui_kit as uk
 from wisper.main import FloatingTranscriberApp as App
 from wisper.ui_kit import ControlStyle, StatusDot
 
@@ -40,10 +41,10 @@ class TestStateTable:
 
 
 class TestSemantics:
-    def test_recording_uses_no_filled_signal_surface(self):
-        """Kein roter Vollflächenbutton — die Semantik trägt Punkt und Symbol."""
-        for state in App.RECORDING_STATES:
-            assert TABLE[state][2] == "secondary", f"{state} füllt die Fläche"
+    def test_stopping_is_a_filled_surface_in_the_state_colour(self):
+        """Während der Aufnahme ist Stoppen die einzige Handlung — gefüllt."""
+        assert TABLE["recording"][2] == "recording"
+        assert TABLE["recording_prompt"][2] == "ai"
 
     def test_recording_states_show_the_right_dot(self):
         assert TABLE["recording"][0] == "recording"
@@ -89,23 +90,29 @@ class TestSemantics:
 
 class TestGeometry:
     def test_window_width_is_the_planned_size(self):
-        assert App.WINDOW_WIDTH == 340
+        assert App.WINDOW_WIDTH == 360
 
     def test_minimum_height_is_compact(self):
         assert App.WINDOW_MIN_HEIGHT <= 220
 
 
 class TestShortcutHint:
-    def test_is_a_single_line(self):
-        hint = App._shortcut_hint(None)
-        assert "\n" not in hint
-
     def test_names_both_shortcuts(self):
-        hint = App._shortcut_hint(None)
-        assert "Transkript" in hint and "KI" in hint
+        names = [title for _key, title, _combo in App.shortcuts()]
+        assert names == ["Diktieren", "Prompt"]
+
+    def test_keys_use_german_names(self):
+        assert uk.key_labels("ctrl+shift+space") == ["Strg", "Umschalt", "Leertaste"]
+        assert uk.key_labels("ctrl+shift+alt+space") == ["Strg", "Umschalt", "Alt",
+                                                         "Leertaste"]
 
     def test_uses_no_macos_symbols(self):
-        """Wisper bleibt Windows-Software — keine ⌘/⌥/⇧-Zeichen."""
-        hint = App._shortcut_hint(None)
-        for symbol in ("⌘", "⌥", "⇧", "⌃"):
-            assert symbol not in hint
+        """Hams bleibt Windows-Software — keine ⌘/⌥/⇧-Zeichen."""
+        for _key, _title, combo in App.shortcuts():
+            for label in uk.key_labels(combo):
+                for symbol in ("⌘", "⌥", "⇧", "⌃"):
+                    assert symbol not in label
+
+    def test_footer_keeps_its_height_for_the_hint(self):
+        """Tasten und Fehlerhinweis teilen sich dieselbe feste Fläche."""
+        assert App.FOOTER_HEIGHT == 2 * uk.Height.KEYCAP + uk.Space.SM

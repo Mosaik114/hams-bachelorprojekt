@@ -1,8 +1,9 @@
-"""Wisper UI-Kit — ein kleines, modernes Design-System für tkinter.
+"""Hams UI-Kit — das Mosaik-Design für tkinter.
 
-Ziel: ein klares, ruhiges Apple-artiges Erscheinungsbild (dunkel, viel
-Weißraum, weiche Rundungen, dezente Akzente). tkinter kann das nicht von Haus
-aus, daher:
+Ziel ist das Mosaik-Design (siehe `Mosaik-Design.md` im Projektordner): warmes
+Creme oder warmes Dunkel, Terrakotta als einziger Akzent, Überschriften in
+Serifenschrift, flache Flächen mit feinem Rand, viel Luft und wenig Fettung.
+tkinter kann das nicht von Haus aus, daher:
 
 * Runde Ecken für Controls werden als anti-aliaste PIL-Bilder gerendert und auf
   einen *soliden* Hintergrund gelegt — so verschmelzen die Ecken sauber mit der
@@ -77,8 +78,9 @@ class Theme:
 
     Der helle Modus ist die Voreinstellung und keine Umkehrung des dunklen: die
     Flaechen sind eigenstaendig gestuft, und die Semantikfarben sind deutlich
-    dunkler, weil Apples helle Systemtoene (`#30D158`, `#FF9F0A`) auf Weiss nur
-    rund 1,7:1 bis 1,9:1 erreichen und damit selbst als Punkt durchfielen.
+    dunkler, weil leuchtende Systemtoene wie `#30D158` oder `#FF9F0A` auf
+    hellem Grund nur rund 1,7:1 bis 1,9:1 erreichen und damit selbst als Punkt
+    durchfielen.
 
     Beide Paletten sind in `tests/test_tokens.py` getrennt gegen WCAG AA
     geprueft — was im Dunkeln reicht, reicht auf Weiss noch lange nicht.
@@ -94,96 +96,94 @@ class Theme:
 
     _PALETTES: dict = {
         DARK: {
-            # --- Flaechen: vier Ebenen mit kleinen Helligkeitsschritten ------
-            "WINDOW_BG": "#1A1A1C",        # Fenstergrund
-            "GROUP_SURFACE": "#232326",    # Einstellungsgruppen
-            "CONTROL_SURFACE": "#2E2E32",  # Controls, deaktivierte Flaechen
-            "CONTROL_HOVER": "#38383C",    # Control unter dem Zeiger
-            "POPOVER_SURFACE": "#2A2A2E",  # schwebende Ebene
-            "HAIRLINE": "#343436",         # Trennlinie innerhalb einer Gruppe
-            "EDGE_HIGHLIGHT": "#3B3B3E",   # 1-px-Lichtkante oben auf einer Flaeche
-            "CONTROL_OUTLINE": "#787880",  # 3,58:1 auf GROUP_SURFACE — Schalterspur
+            # --- Flaechen: warmes Dunkel, vier Ebenen mit kleinen Schritten --
+            "WINDOW_BG": "#1F1E1D",        # Fenstergrund
+            "GROUP_SURFACE": "#2A2927",    # Einstellungsgruppen, 1,15:1
+            "CONTROL_SURFACE": "#363532",  # Controls, deaktivierte Flaechen
+            "CONTROL_HOVER": "#42413D",    # Control unter dem Zeiger
+            "POPOVER_SURFACE": "#302F2C",  # schwebende Ebene
+            "HAIRLINE": "#3D3C38",         # Trennlinie und Gruppenrand
+            "CONTROL_OUTLINE": "#8C887E",  # >= 3:1 auf GROUP_SURFACE — Schalterspur
 
-            # --- Text --------------------------------------------------------
-            "TEXT_PRIMARY": "#F2F2F5",     # 15,55:1 auf WINDOW_BG
-            "TEXT_SECONDARY": "#A8A8AE",   #  7,35:1
-            "TEXT_TERTIARY": "#8A8A91",    #  5,07:1 auf WINDOW_BG, 4,57:1 auf Gruppe
+            # --- Text: warmes Weiss, keine kalten Grautoene --------------------
+            "TEXT_PRIMARY": "#F5F4EE",
+            "TEXT_SECONDARY": "#B8B4A9",   # 8,04:1 auf WINDOW_BG
+            "TEXT_TERTIARY": "#9D998E",    # 5,85:1 auf WINDOW_BG, 5,11:1 auf Gruppe
 
-            # --- Akzent ------------------------------------------------------
-            "ACCENT_SURFACE": "#0A6FE8",   # Fuellung, ON_ACCENT 4,72:1
-            "ACCENT_HOVER": "#0964D1",
-            "ACCENT_PRESSED": "#0857B5",
-            "ACCENT_TINT": "#0A84FF",      # Punkte, Icons, Fokusring
+            # --- Akzent: Terrakotta ------------------------------------------
+            "ACCENT_SURFACE": "#B4532F",   # Fuellung, ON_ACCENT 4,98:1
+            "ACCENT_HOVER": "#A34A29",
+            "ACCENT_PRESSED": "#8F4124",
+            "ACCENT_TINT": "#D97757",      # Punkte, Icons, Fokusring; 5,33:1
 
             # --- Semantik ----------------------------------------------------
-            "SUCCESS": "#30D158",          # 8,60:1 als Punkt
-            "WARNING": "#FF9F0A",          # 8,45:1
-            "ERROR": "#FF453A",            # 5,10:1 als Punkt
-            "ERROR_SURFACE": "#CC372E",    # gefuellt, ON_FILL 5,28:1
-            "RECORDING": "#FF453A",        # eigene Semantik, gleicher Ton wie ERROR
-            "RECORDING_SURFACE": "#CC372E",
-            "RECORDING_HOVER": "#B83229",
-            "RECORDING_PRESSED": "#9F2B24",
-            "AI": "#BF5AF2",               # 4,93:1 als Punkt
-            "AI_SURFACE": "#9B49C4",       # gefuellt, ON_FILL 5,29:1
-            "AI_HOVER": "#8C42B0",
-            "AI_PRESSED": "#793999",
+            "SUCCESS": "#7DBE7A",          # Salbeigruen
+            "WARNING": "#E3A94B",          # Ocker
+            "ERROR": "#F0806A",            # 6,34:1 — traegt auch als Text
+            "ERROR_SURFACE": "#B0392A",    # gefuellt, ON_FILL 6,06:1
+            "RECORDING": "#F0806A",        # eigene Semantik, gleicher Ton wie ERROR
+            "RECORDING_SURFACE": "#B0392A",
+            "RECORDING_HOVER": "#9C3225",
+            "RECORDING_PRESSED": "#872B20",
+            "AI": "#C49AD6",               # gedaempftes Heidekraut, 7,09:1
+            "AI_SURFACE": "#8A5A9E",       # gefuellt, ON_FILL 5,20:1
+            "AI_HOVER": "#7B508D",
+            "AI_PRESSED": "#6B457B",
 
             # --- Text auf gefuellten Flaechen --------------------------------
-            "ON_ACCENT": "#FFFFFF",        # 4,72:1 auf ACCENT_SURFACE
+            "ON_ACCENT": "#FFFFFF",
             "ON_FILL": "#FFFFFF",          # auf Rot, Violett und Fehlerflaechen
-            "ON_SUCCESS": "#0A1F12",       # 8,53:1 auf SUCCESS
+            "ON_SUCCESS": "#14210F",       # 7,59:1 auf SUCCESS
             "KNOB": "#FFFFFF",             # Schaltknopf des Toggles
         },
         LIGHT: {
-            # --- Flaechen ----------------------------------------------------
+            # --- Flaechen: Creme statt Weiss ---------------------------------
             # Dieselbe Bauart wie im Dunkeln, nur andersherum: der Fenstergrund
-            # ist die ruhigste Ebene, jede weitere Ebene tritt einen kleinen
-            # Schritt aus ihm heraus — hier nach unten. Bewusst kein reines
-            # Weiss als Grund; die Flaechen im Einstellungsfenster sind gross.
-            "WINDOW_BG": "#F2F2F6",        # kuehles Off-White
-            "GROUP_SURFACE": "#E5E5EB",    # 1,12:1 gegen den Fenstergrund
-            "CONTROL_SURFACE": "#D8D8E0",  # 1,13:1 gegen die Gruppenflaeche
-            "CONTROL_HOVER": "#C8C8D2",    # dunkler, nicht heller
-            # Die schwebende Ebene ist die einzige fast weisse Flaeche. Ihre
-            # Tiefe traegt zur Haelfte der 1-px-Rahmen (1,49:1 gegen die
-            # Flaeche) — im Hellen die verlaesslichere Kante als Helligkeit.
-            "POPOVER_SURFACE": "#FDFDFF",
-            "HAIRLINE": "#CECED7",         # 1,25:1 auf der Gruppenflaeche
-            "EDGE_HIGHLIGHT": "#FEFEFE",   # Lichtkante auf Controls, 1,41:1
-            "CONTROL_OUTLINE": "#82828A",  # 3,29:1 auf GROUP_SURFACE
+            # ist die ruhigste Ebene, jede weitere tritt einen kleinen Schritt
+            # nach unten heraus. Alle Toene warm, wie ungebleichtes Papier.
+            "WINDOW_BG": "#FAF9F5",
+            "GROUP_SURFACE": "#F0EEE6",    # 1,10:1 gegen den Fenstergrund
+            "CONTROL_SURFACE": "#E3E0D5",  # 1,14:1 gegen die Gruppenflaeche
+            "CONTROL_HOVER": "#D6D2C5",    # dunkler, nicht heller
+            # Die schwebende Ebene ist die einzige fast weisse Flaeche; ihre
+            # Kante traegt der 1-px-Rahmen in HAIRLINE.
+            "POPOVER_SURFACE": "#FFFEFB",
+            "HAIRLINE": "#DAD6CA",         # Trennlinie und Gruppenrand
+            "CONTROL_OUTLINE": "#8A857A",  # >= 3:1 auf GROUP_SURFACE
 
-            # --- Text --------------------------------------------------------
-            "TEXT_PRIMARY": "#1C1C1E",     # 14,63:1 auf WINDOW_BG
-            "TEXT_SECONDARY": "#52525B",   #  6,71:1
-            "TEXT_TERTIARY": "#62626B",    #  5,18:1 auf WINDOW_BG, 4,52:1 auf Gruppe
+            # --- Text: warmes Tintenschwarz ----------------------------------
+            # Einen Hauch vom dunklen WINDOW_BG (#1F1E1D) entfernt: `remap`
+            # erkennt Tokens am Wert, und ein Wert mit zwei Rollen bliebe beim
+            # Wechsel nach Dunkel stehen — dunkle Schrift auf dunklem Grund.
+            "TEXT_PRIMARY": "#1F1E1C",
+            "TEXT_SECONDARY": "#56534C",   # 7,28:1 auf WINDOW_BG
+            "TEXT_TERTIARY": "#67635A",    # 5,68:1 auf WINDOW_BG, 5,15:1 auf Gruppe
 
-            # --- Akzent ------------------------------------------------------
-            "ACCENT_SURFACE": "#0A6FE8",   # dieselbe Fuellung wie im Dunkeln
-            "ACCENT_HOVER": "#0963D0",
-            "ACCENT_PRESSED": "#0857B5",
-            # Dunkler als im Dark Mode: #0A84FF erreicht auf dem hellen Grund
-            # nur 3,07:1 und faellt als Text durch.
-            "ACCENT_TINT": "#0A5FC7",      # 5,20:1 auf WINDOW_BG
+            # --- Akzent: Terrakotta ------------------------------------------
+            "ACCENT_SURFACE": "#B4532F",   # dieselbe Fuellung wie im Dunkeln
+            "ACCENT_HOVER": "#A34A29",
+            "ACCENT_PRESSED": "#8F4124",
+            # Dunkler als im Dunkeln: #D97757 erreicht auf Creme nur 2,9:1.
+            "ACCENT_TINT": "#AD4F2C",      # 5,07:1 auf WINDOW_BG
 
             # --- Semantik ----------------------------------------------------
-            "SUCCESS": "#1A8038",          # 4,31:1 als Punkt
-            "WARNING": "#96590A",          # 4,83:1
-            "ERROR": "#C2261B",            # 4,97:1 — traegt auch als Text
-            "ERROR_SURFACE": "#B8241A",    # gefuellt, ON_FILL 6,31:1
-            "RECORDING": "#C2261B",
-            "RECORDING_SURFACE": "#B8241A",
-            "RECORDING_HOVER": "#A11F16",
-            "RECORDING_PRESSED": "#8A1B13",
-            "AI": "#8028B8",               # 5,90:1 als Punkt
-            "AI_SURFACE": "#7322A6",
-            "AI_HOVER": "#651E92",
-            "AI_PRESSED": "#57197E",
+            "SUCCESS": "#3B7A3E",
+            "WARNING": "#8F5B12",
+            "ERROR": "#B3261E",            # 6,20:1 — traegt auch als Text
+            "ERROR_SURFACE": "#A8231C",    # gefuellt, ON_FILL 7,19:1
+            "RECORDING": "#B3261E",
+            "RECORDING_SURFACE": "#A8231C",
+            "RECORDING_HOVER": "#961F19",
+            "RECORDING_PRESSED": "#801A15",
+            "AI": "#7A4A8C",               # 6,26:1
+            "AI_SURFACE": "#6E4380",
+            "AI_HOVER": "#613A71",
+            "AI_PRESSED": "#533262",
 
             # --- Text auf gefuellten Flaechen --------------------------------
             "ON_ACCENT": "#FFFFFF",
             "ON_FILL": "#FFFFFF",
-            "ON_SUCCESS": "#FFFFFF",       # 5,01:1 auf SUCCESS
+            "ON_SUCCESS": "#FFFFFF",       # 5,20:1 auf SUCCESS
             "KNOB": "#FFFFFF",
         },
     }
@@ -205,7 +205,6 @@ class Theme:
     CONTROL_HOVER = _PALETTES[DEFAULT_MODE]["CONTROL_HOVER"]
     POPOVER_SURFACE = _PALETTES[DEFAULT_MODE]["POPOVER_SURFACE"]
     HAIRLINE = _PALETTES[DEFAULT_MODE]["HAIRLINE"]
-    EDGE_HIGHLIGHT = _PALETTES[DEFAULT_MODE]["EDGE_HIGHLIGHT"]
     CONTROL_OUTLINE = _PALETTES[DEFAULT_MODE]["CONTROL_OUTLINE"]
     TEXT_PRIMARY = _PALETTES[DEFAULT_MODE]["TEXT_PRIMARY"]
     TEXT_SECONDARY = _PALETTES[DEFAULT_MODE]["TEXT_SECONDARY"]
@@ -429,14 +428,17 @@ class Space:
     XXL = 20
 
     # Rollen
-    WINDOW = 16        # Fensterrand
-    SECTION_GAP = 20   # zwischen zwei Abschnitten
-    GROUP_GAP = 16     # zwischen Überschrift und Gruppe
-    ROW_X = 12         # Zeileninnenabstand waagerecht
-    ROW_Y = 9          # Zeileninnenabstand senkrecht
-    CONTROL_GAP = 8    # zwischen zwei Controls
-    TEXT_GAP = 2       # zwischen Titel und Beschreibung
-    ICON_GAP = 6       # zwischen Icon und Text
+    WINDOW = 20        # Fensterrand
+    SECTION_GAP = 24   # zwischen zwei Abschnitten
+    GROUP_GAP = 8      # zwischen Überschrift und Gruppe
+    GROUP_INSET = 4    # Gruppenrand bis Zeile; die Zeile bleibt innerhalb der Rundung
+    ROW_X = 12         # Zeileninnenabstand waagerecht (plus Gruppeneinzug = 16)
+    ROW_Y = 12         # Zeileninnenabstand senkrecht, oben und unten gleich
+    CONTROL_GAP = 12   # zwischen Text und Control
+    STACK_GAP = 8      # zwischen Text und einem darunter stehenden Control
+    KEY_GAP = 4        # zwischen zwei Tasten-Chips
+    TEXT_GAP = 2       # zwischen Titel und Beschreibung (optisch, Teil der Zeile)
+    ICON_GAP = 8       # zwischen Icon und Text
 
 
 class Radius:
@@ -447,6 +449,7 @@ class Radius:
     GROUP = 10
     CONTROL = 8
     BUTTON = 8
+    KEYCAP = 4
     SEGMENT = 2
 
     @staticmethod
@@ -462,8 +465,15 @@ class Height:
     STANDARD = 32       # Select, Icon-Button, Zeilencontrol
     COMPACT = 24        # kompakte Anzeige
 
-    ROW_SIMPLE = 44     # Einstellungszeile mit einer Textzeile
-    ROW_DETAIL = 56     # Einstellungszeile mit Beschreibung oder Status
+    KEYCAP = 22         # Tasten-Chip; Anzeige, kein Control
+
+    #: Mindesthöhe einer einzeiligen Einstellungszeile: Titel plus einzeilige
+    #: Beschreibung (21 + 2 + 20 = 43 px bei 100 %, gerundet auf 44) plus
+    #: `Space.ROW_Y` oben und unten. Das Standard-Control mit Fokusring-Rand
+    #: (32 + 2·4 = 40) passt darunter. So sind Zeilen mit und ohne
+    #: Beschreibung, mit Schalter, Auswahl oder Tasten gleich hoch. Mehr
+    #: Inhalt macht die Zeile höher, nie enger.
+    ROW_MIN = 68
 
 
 # ---------------------------------------------------------------- DPI / Skalierung
@@ -770,17 +780,27 @@ def init_animations() -> bool:
 
 _FONTS: dict[str, tkfont.Font] = {}
 
-# Rolle -> (Familienschlüssel, Punktgröße, Schnitt). "display" und "text" werden
-# beim Initialisieren gegen die tatsächlich installierten Familien aufgelöst.
+#: Serifenschriften für Überschriften, in dieser Reihenfolge gesucht. Georgia
+#: liegt jedem Windows bei; die übrigen sind nur Rückfall.
+SERIF_FAMILIES = ("Georgia", "Cambria", "Times New Roman")
+
+#: Halbfetter Schnitt für Schaltflächen. Tk kennt nur „normal“ und „bold“;
+#: Windows legt die Zwischenschnitte als eigene Familien ab.
+SEMIBOLD_FAMILIES = ("Segoe UI Variable Text Semibold", "Segoe UI Semibold")
+
+# Rolle -> (Familienschlüssel, Punktgröße, Schnitt). Die Schlüssel werden beim
+# Initialisieren gegen die tatsächlich installierten Familien aufgelöst.
+# Mosaik-Design: vier Größen (16, 13, 12, 11 pt). Überschriften tragen die
+# Serifenschrift, Schaltflächen den halbfetten Schnitt; fett ist nichts.
 _FONT_ROLES: dict[str, tuple] = {
-    "window_title": ("text", 13, "bold"),     # Fensterbeschriftung, keine Ueberschrift
-    "section": ("small", 11, "bold"),         # Abschnittslabel in den Einstellungen
+    "window_title": ("serif", 16, "normal"),  # Fenstertitel — Serifenschrift
+    "section": ("serif", 13, "normal"),       # Abschnittsueberschrift in den Einstellungen
     "row_title": ("text", 12, "normal"),      # Titel einer Einstellungszeile
     "description": ("small", 11, "normal"),   # Hilfstext unter einem Titel
     "status": ("text", 12, "normal"),         # die eine Statuszeile
-    "button": ("text", 13, "bold"),
-    "shortcut": ("mono", 11, "normal"),       # Tastenkuerzel
-    "meta": ("small", 10, "normal"),          # Chip, Zusatzangaben
+    "button": ("semibold", 12, "normal"),     # Beschriftung von Schaltflächen
+    "shortcut": ("small", 11, "normal"),      # Tasten-Chips
+    "meta": ("small", 11, "normal"),          # Zusatzangaben im Popover
     "icon": ("text", 13, "normal"),           # Glyph in Icon-Buttons
 }
 
@@ -812,7 +832,9 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
         "display": "Segoe UI Variable Display" if "Segoe UI Variable Display" in families else "Segoe UI",
         "text": "Segoe UI Variable Text" if "Segoe UI Variable Text" in families else "Segoe UI",
         "small": "Segoe UI Variable Small" if "Segoe UI Variable Small" in families else "Segoe UI",
+        "semibold": next((f for f in SEMIBOLD_FAMILIES if f in families), "Segoe UI"),
         "mono": "Cascadia Mono" if "Cascadia Mono" in families else "Consolas",
+        "serif": next((f for f in SERIF_FAMILIES if f in families), "Times New Roman"),
     }
     if _FONTS and not force:
         return _FONTS
@@ -856,8 +878,7 @@ dem Verkleinern wieder verschwunden. Beides nie miteinander multiplizieren.
 SQUIRCLE_EXPONENT = 4.2
 """Exponent der Superellipse. 2 wäre ein Kreisbogen, gegen unendlich eine Ecke.
 
-4,2 liegt nah an Apples durchgehender Eckenkrümmung: sichtbar weicher als ein
-Kreisbogen, ohne dass die Ecke ausfranst.
+4,2 ist sichtbar weicher als ein Kreisbogen, ohne dass die Ecke ausfranst.
 """
 
 CACHE_LIMIT = 256
@@ -1116,8 +1137,7 @@ def rounded_image(
 ) -> ImageTk.PhotoImage:
     """Schlichte abgerundete Fläche — Kurzform von `surface()`.
 
-    Bleibt erhalten, weil die vorhandenen Controls sie benutzen; sie wandern in
-    Phase 7 auf `surface()` mit Lichtkante und Verlauf.
+    Bleibt erhalten, weil die vorhandenen Controls sie benutzen.
     """
     return surface(w, h, radius, fill, border=border, border_w=border_w)
 
@@ -1808,9 +1828,10 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
 
 
 class _SurfaceControl(BaseControl):
-    """Control mit gefüllter Fläche, Lichtkante und Fokusring."""
+    """Control mit flacher, gefüllter Fläche und Fokusring."""
 
-    GRADIENT = 0.025
+    #: In einer gestapelten Zeile nicht auf volle Breite ziehen.
+    stretch_stacked = False
 
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:
         fill, _foreground = self.colours()
@@ -1818,8 +1839,6 @@ class _SurfaceControl(BaseControl):
         return surface(
             width, height + 2 * (ring_w + ring_gap), px(self._logical_radius),
             fill if fill is not None else self._bg_under,
-            edge=Theme.EDGE_HIGHLIGHT if fill is not None else None,
-            gradient=self.GRADIENT if fill is not None else 0.0,
             squircle=self._squircle,
             ring=self.ring(), ring_width=ring_w, ring_gap=ring_gap,
         )
@@ -1896,6 +1915,8 @@ class IconButton(BaseControl):
     Im Ruhezustand ohne Fläche; erst der Zeiger legt eine dezente Fläche unter.
     """
 
+    stretch_stacked = False
+
     def __init__(self, master: tk.Misc, icon_name: str, command: Callable[[], None], *,
                  bg_under: str, size: int = Height.STANDARD,
                  icon_size: int = ICON_BOX, tooltip: str = "") -> None:
@@ -1955,7 +1976,6 @@ class IconButton(BaseControl):
             plate = ImageTk.getimage(surface(
                 side, side, px(Radius.CONTROL),
                 fill if fill is not None else self._bg_under,
-                edge=Theme.EDGE_HIGHLIGHT if fill is not None else None,
                 squircle=True, ring=ring, ring_width=ring_w, ring_gap=ring_gap,
             ))
         glyph_size = px(self._icon_size)
@@ -1966,7 +1986,7 @@ class IconButton(BaseControl):
 
 
 class Switch(tk.Canvas, StateMixin, FocusMixin):
-    """Schalter im Apple-Zuschnitt.
+    """Schalter mit gleitendem Knopf.
 
     Der Zustand wird doppelt kodiert — Spurfarbe *und* Knopfposition. Farbe
     allein reicht nicht; in Graustufen bliebe sonst nur ein Grauwertunterschied.
@@ -2097,7 +2117,7 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         if not self.enabled:
             return Theme.CONTROL_SURFACE
         off = Theme.CONTROL_HOVER if self.has_state(State.HOVER) else Theme.CONTROL_SURFACE
-        return blend(off, Theme.SUCCESS, self._progress)
+        return blend(off, Theme.ACCENT_TINT, self._progress)
 
     def _draw(self) -> None:
         self.delete("all")
@@ -2107,12 +2127,12 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
 
         # Die ausgeschaltete Spur hebt sich mit 1,16:1 kaum vom Zeilengrund ab —
         # ohne Umriss wäre nicht zu sehen, dass dort überhaupt ein Bedienelement
-        # sitzt. Eingeschaltet trägt die Fläche selbst 7,75:1, dann verschwindet
-        # der Umriss in ihr.
+        # sitzt. Eingeschaltet trägt die Akzentfläche selbst mindestens 3:1,
+        # dann verschwindet der Umriss in ihr.
         track = surface(
             width + 2 * pad, height + 2 * pad, Radius.pill(height),
             self._track_colour(), squircle=False,
-            border=blend(Theme.CONTROL_OUTLINE, Theme.SUCCESS, self._progress),
+            border=blend(Theme.CONTROL_OUTLINE, Theme.ACCENT_TINT, self._progress),
             border_w=max(1, px(1)),
             ring=self.ring(), ring_width=ring_w, ring_gap=ring_gap,
         )
@@ -2134,15 +2154,15 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
 
 
 class SignalMeter(tk.Canvas):
-    """Segmentierter Pegel — dauerhaft sichtbar, im Ruhezustand dunkel.
+    """Pegel als durchgehender Balken — dauerhaft sichtbar, im Ruhezustand leer.
 
-    Die Segmentzahl folgt der verfügbaren Breite, damit die Segmentbreite über
-    alle Skalierungen und Fensterbreiten gleich bleibt.
+    Früher 22 einzelne Segmente; im Ruhezustand sah das aus wie eine
+    gestrichelte Platzhalterlinie. Jetzt ist es eine ruhige Spur, in die der
+    Pegel von links hineinläuft. Die Farbe folgt der Aussteuerung: bis 60 %
+    Bereit-Grün, darüber Warnung, ab 82 % Fehler.
     """
 
-    SEGMENT_WIDTH = 9      # logisch, Zielbreite eines Segments
-    GAP = 3                # logisch
-    HEIGHT = 8             # logisch
+    HEIGHT = 6             # logisch
 
     def __init__(self, master: tk.Misc, *, bg_under: str,
                  height: int = HEIGHT) -> None:
@@ -2150,6 +2170,7 @@ class SignalMeter(tk.Canvas):
         self._logical_height = height
         self._level = 0.0
         self._last_width = 0
+        self._images: list = []
         super().__init__(master, height=px(height), bg=bg_under, bd=0,
                          highlightthickness=0)
         self.bind("<Configure>", self._on_configure, add="+")
@@ -2167,11 +2188,12 @@ class SignalMeter(tk.Canvas):
         return self._level
 
     @property
-    def segments(self) -> int:
-        if self._last_width <= 1:
+    def filled_width(self) -> int:
+        """Breite des gefüllten Teils in Pixeln — 0 im Ruhezustand."""
+        if self._last_width <= 1 or self._level <= 0.0:
             return 0
-        step = px(self.SEGMENT_WIDTH) + px(self.GAP)
-        return max(4, (self._last_width + px(self.GAP)) // step)
+        height = px(self._logical_height)
+        return max(height, int(round(self._level * self._last_width)))
 
     def _on_configure(self, event: tk.Event) -> None:
         if event.width != self._last_width:
@@ -2198,32 +2220,156 @@ class SignalMeter(tk.Canvas):
         self._draw()
 
     @staticmethod
-    def _segment_colour(position: float) -> str:
-        if position > 0.82:
+    def level_colour(level: float) -> str:
+        if level > 0.82:
             return Theme.ERROR
-        if position > 0.60:
+        if level > 0.60:
             return Theme.WARNING
         return Theme.SUCCESS
 
     def _draw(self) -> None:
         self.delete("all")
-        count = self.segments
-        if not count:
-            return
-        gap = px(self.GAP)
-        height = px(self._logical_height)
-        seg_width = max(2, (self._last_width - gap * (count - 1)) // count)
-        lit = int(round(self._level * count))
         self._images = []
-        for index in range(count):
-            position = index / max(1, count - 1)
-            colour = (self._segment_colour(position) if index < lit
-                      else Theme.CONTROL_SURFACE)
-            image = surface(seg_width, height,
-                            min(px(Radius.SEGMENT), seg_width // 2), colour,
-                            squircle=False)
-            self._images.append(image)
-            self.create_image(index * (seg_width + gap), 0, anchor="nw", image=image)
+        if self._last_width <= 1:
+            return
+        height = px(self._logical_height)
+        radius = Radius.pill(height)
+        track = surface(self._last_width, height, radius, Theme.CONTROL_SURFACE,
+                        squircle=False)
+        self._images.append(track)
+        self.create_image(0, 0, anchor="nw", image=track)
+        filled = self.filled_width
+        if filled:
+            # Zwei runde Kappen aus dem Bildspeicher plus ein Rechteck. Ein
+            # eigenes Bild je Pegelbreite legte bei 20 Messungen pro Sekunde
+            # laufend neue Eintraege in den Speicher und verdraengte die
+            # wiederverwendbaren Flaechen aller anderen Controls.
+            colour = self.level_colour(self._level)
+            cap = surface(height, height, radius, colour, squircle=False)
+            self._images.append(cap)
+            half = height / 2
+            if filled > height:
+                self.create_rectangle(half, 0, filled - half, height,
+                                      fill=colour, outline="")
+            self.create_image(0, 0, anchor="nw", image=cap)
+            self.create_image(filled - height, 0, anchor="nw", image=cap)
+
+
+# ---------------------------------------------------------------- Tasten-Chips
+
+#: Tastennamen, wie sie auf einer deutschen Tastatur stehen.
+KEY_NAMES = {
+    "ctrl": "Strg", "control": "Strg", "strg": "Strg",
+    "shift": "Umschalt", "alt": "Alt", "altgr": "AltGr",
+    "win": "Win", "windows": "Win", "cmd": "Win", "super": "Win",
+    "space": "Leertaste", "enter": "Eingabe", "return": "Eingabe",
+    "esc": "Esc", "escape": "Esc", "tab": "Tab",
+    "backspace": "Rücktaste", "delete": "Entf", "del": "Entf",
+    "insert": "Einfg", "home": "Pos1", "end": "Ende",
+    "page up": "Bild auf", "page down": "Bild ab",
+    "up": "↑", "down": "↓", "left": "←", "right": "→",
+}
+
+
+def key_labels(combo: str) -> list[str]:
+    """Zerlegt ein Tastenkürzel wie ``ctrl+shift+space`` in Tastenbeschriftungen.
+
+    Unbekannte Tasten erscheinen, wie sie heißen — ein einzelner Buchstabe
+    groß, wie auf der Taste.
+    """
+    labels = []
+    for part in str(combo or "").split("+"):
+        key = part.strip().lower()
+        if not key:
+            continue
+        if key in KEY_NAMES:
+            labels.append(KEY_NAMES[key])
+        elif len(key) == 1 or (key[0] == "f" and key[1:].isdigit()):
+            labels.append(key.upper())
+        else:
+            labels.append(part.strip().capitalize())
+    return labels
+
+
+class KeyCombo(tk.Canvas):
+    """Ein Tastenkürzel als Reihe kleiner Tasten — Anzeige, kein Control.
+
+    Vorher stand das Kürzel als roher Konfigurationswert in Monoschrift da
+    (``ctrl+shift+space``). Tasten-Chips lesen sich wie die Tastatur selbst
+    und brauchen keine Übersetzung im Kopf.
+    """
+
+    EMPTY = "Nicht belegt"
+
+    def __init__(self, master: tk.Misc, *, bg_under: str, combo: str = "") -> None:
+        self._bg_under = bg_under
+        self._labels = key_labels(combo)
+        self._images: list = []
+        super().__init__(master, height=px(Height.KEYCAP), width=1, bg=bg_under,
+                         bd=0, highlightthickness=0)
+        self.bind("<Destroy>", self._on_destroy, add="+")
+        Scale.register(self._on_scale_change)
+        self._draw()
+
+    @property
+    def labels(self) -> list[str]:
+        return list(self._labels)
+
+    def set_combo(self, combo: str) -> None:
+        labels = key_labels(combo)
+        if labels != self._labels:
+            self._labels = labels
+            self._draw()
+
+    def _chip_width(self, text: str, tk_font) -> int:
+        inner = _text_width(self, text, tk_font)
+        return max(px(Height.KEYCAP), inner + 2 * px(Space.MD))
+
+    def natural_width(self) -> int:
+        """Breite in physischen Pixeln, die alle Tasten zusammen brauchen."""
+        tk_font = font("shortcut")
+        if not self._labels:
+            return _text_width(self, self.EMPTY, tk_font)
+        widths = [self._chip_width(label, tk_font) for label in self._labels]
+        return sum(widths) + px(Space.KEY_GAP) * (len(widths) - 1)
+
+    def _on_scale_change(self, _factor: float) -> None:
+        try:
+            self._draw()
+        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+            pass
+
+    def _on_destroy(self, event: tk.Event) -> None:
+        if event.widget is self:
+            Scale.unregister(self._on_scale_change)
+
+    def _on_theme_change(self) -> None:
+        self._bg_under = Theme.remap(self._bg_under)
+        try:
+            self.configure(bg=self._bg_under)
+        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+            return
+        self._draw()
+
+    def _draw(self) -> None:
+        self.delete("all")
+        self._images = []
+        tk_font = font("shortcut")
+        height = px(Height.KEYCAP)
+        self.configure(width=max(1, self.natural_width()), height=height)
+        if not self._labels:
+            self.create_text(0, height // 2, anchor="w", text=self.EMPTY,
+                             font=tk_font, fill=Theme.TEXT_TERTIARY)
+            return
+        x = 0
+        for label in self._labels:
+            width = self._chip_width(label, tk_font)
+            chip = surface(width, height, px(Radius.KEYCAP), Theme.CONTROL_SURFACE)
+            self._images.append(chip)
+            self.create_image(x, 0, anchor="nw", image=chip)
+            self.create_text(x + width // 2, height // 2, anchor="center",
+                             text=label, font=tk_font, fill=Theme.TEXT_PRIMARY)
+            x += width + px(Space.KEY_GAP)
 
 
 # ---------------------------------------------------------------- Einstellungs-Bausteine
@@ -2257,6 +2403,11 @@ class ScrollArea(tk.Frame):
 
         self.bar = tk.Canvas(self, width=px(self.BAR_WIDTH + 2 * self.BAR_INSET),
                              bg=bg_under, bd=0, highlightthickness=0, takefocus=0)
+        # Platzhalter in Leistenbreite: ohne ihn wuerde der Inhalt breiter,
+        # sobald die Leiste verschwindet, und der rechte Rand waere ein anderer
+        # als der linke.
+        self._gutter = tk.Frame(self, width=px(self.gutter_width()), bg=bg_under)
+        self._gutter.pack(side="right", fill="y", before=self.canvas)
 
         self.body.bind("<Configure>", self._on_body_configure, add="+")
         self.canvas.bind("<Configure>", self._on_canvas_configure, add="+")
@@ -2266,6 +2417,11 @@ class ScrollArea(tk.Frame):
         self.canvas.bind("<Leave>", self._release_wheel, add="+")
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
+
+    @classmethod
+    def gutter_width(cls) -> int:
+        """Breite der Leistenrinne in logischen Pixeln."""
+        return cls.BAR_WIDTH + 2 * cls.BAR_INSET
 
     # ------------------------------------------------------------ Scrollen
 
@@ -2345,9 +2501,11 @@ class ScrollArea(tk.Frame):
         if visible and self.bar.winfo_manager() != "pack":
             # `before` ist noetig: der Canvas ist mit expand=True gepackt und
             # liesse der Leiste sonst keine Breite uebrig.
+            self._gutter.pack_forget()
             self.bar.pack(side="right", fill="y", before=self.canvas)
         elif not visible and self.bar.winfo_manager() == "pack":
             self.bar.pack_forget()
+            self._gutter.pack(side="right", fill="y", before=self.canvas)
 
     def _draw_bar(self) -> None:
         self.bar.delete("all")
@@ -2367,7 +2525,8 @@ class ScrollArea(tk.Frame):
 
     def _on_scale_change(self, _factor: float) -> None:
         try:
-            self.bar.configure(width=px(self.BAR_WIDTH + 2 * self.BAR_INSET))
+            self.bar.configure(width=px(self.gutter_width()))
+            self._gutter.configure(width=px(self.gutter_width()))
             self._draw_bar()
         except tk.TclError:      # pragma: no cover
             pass
@@ -2395,8 +2554,8 @@ class SectionHeader(tk.Label):
     """Abschnittsüberschrift über einer Gruppe."""
 
     def __init__(self, master: tk.Misc, text: str, *, bg_under: str) -> None:
-        super().__init__(master, text=text, bg=bg_under, fg=Theme.TEXT_SECONDARY,
-                         font=font("section"), anchor="w")
+        super().__init__(master, text=text, bg=bg_under, fg=Theme.TEXT_PRIMARY,
+                         font=font("section"), anchor="w", bd=0, padx=0, pady=0)
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
 
@@ -2414,9 +2573,10 @@ class SectionHeader(tk.Label):
 class GroupSurface(tk.Canvas):
     """Eine abgerundete Fläche, die mehrere Zeilen zusammenfasst.
 
-    Die Zeilen liegen in einem Frame, das um den Eckenradius eingerückt im
-    Canvas sitzt — sonst würden seine rechteckigen Ecken die Rundung wieder
-    zudecken. Der Einzug ist zugleich der seitliche Innenabstand der Gruppe.
+    Die Zeilen liegen in einem Frame, das um `Space.GROUP_INSET` eingerückt im
+    Canvas sitzt. Das genügt: bei 10 px Radius liegt die Ecke (4, 4) noch
+    innerhalb der Rundung, der Rand bleibt also frei. Den sichtbaren Abstand
+    zum Text liefert die Zeile selbst mit `Space.ROW_X`.
     """
 
     def __init__(self, master: tk.Misc, *, bg_under: str) -> None:
@@ -2433,7 +2593,7 @@ class GroupSurface(tk.Canvas):
 
     @property
     def inset(self) -> int:
-        return px(Radius.GROUP)
+        return px(Space.GROUP_INSET)
 
     def _sync_height(self) -> None:
         try:
@@ -2455,7 +2615,8 @@ class GroupSurface(tk.Canvas):
     def _render(self, width: int, height: int) -> None:
         self.delete("plate")
         image = surface(width, height, px(Radius.GROUP), Theme.GROUP_SURFACE,
-                        edge=Theme.EDGE_HIGHLIGHT, squircle=True)
+                        border=Theme.HAIRLINE, border_w=max(1, px(1)),
+                        squircle=True)
         self._plate = image
         self.create_image(0, 0, anchor="nw", image=image, tags="plate")
         self.tag_lower("plate")
@@ -2499,6 +2660,15 @@ class SettingRow(tk.Frame):
     * `status`      Titel / Statuspunkt + Text — Control
     * `display`     Titel — Wert, kein Control
 
+    Bei `stacked=True` steht das Control nicht rechts, sondern in voller Breite
+    unter dem Text. Das ist die Form für Auswahlfelder mit langen Werten
+    (Geräte, Modelle): nebeneinander blieben für Titel, Beschreibung und Wert
+    je nur rund 140 px, und alle drei wurden abgeschnitten.
+
+    Die Höhe ergibt sich aus dem Inhalt: oben und unten `Space.ROW_Y`, dazwischen
+    Text oder Control, mindestens `Height.ROW_MIN`. Eine Beschreibung bricht um,
+    statt gekürzt zu werden.
+
     Bei `interactive=True` ist die ganze Zeile Auslöser (für Schalter). Bei
     Auswahlzeilen bleibt das ausdrücklich aus: ein Klick auf die Beschreibung
     soll kein Popover öffnen.
@@ -2508,11 +2678,12 @@ class SettingRow(tk.Frame):
                  description: str = "", value: str = "",
                  interactive: bool = False,
                  command: Optional[Callable[[], None]] = None,
-                 hairline: bool = True) -> None:
+                 hairline: bool = True, stacked: bool = False) -> None:
         super().__init__(master, bg=Theme.GROUP_SURFACE)
         self._variant = variant
         self._interactive = interactive
         self._command = command
+        self._stacked = stacked
         self._enabled = True
         self._hovered = False
         self._control: Optional[tk.Misc] = None
@@ -2521,54 +2692,53 @@ class SettingRow(tk.Frame):
         self._sub_text = description
 
         tall = variant in ("description", "status")
-        self._logical_height = Height.ROW_DETAIL if tall else Height.ROW_SIMPLE
 
-        self._line = tk.Frame(self, bg=Theme.GROUP_SURFACE, height=px(self._logical_height))
+        self._line = tk.Frame(self, bg=Theme.GROUP_SURFACE)
         self._line.pack(fill="x")
-        self._line.pack_propagate(False)
+        self._line.grid_columnconfigure(0, weight=1)
 
         self._text_box = tk.Frame(self._line, bg=Theme.GROUP_SURFACE)
-        self._text_box.pack(side="left", fill="both", expand=True,
-                            padx=(px(Space.ROW_X), 0))
+        self._text_box.grid(row=0, column=0, sticky="ew")
 
         self.title_label = tk.Label(self._text_box, text=title, bg=Theme.GROUP_SURFACE,
                                     fg=Theme.TEXT_PRIMARY, font=font("row_title"),
-                                    anchor="w")
-        self.title_label.pack(anchor="w", pady=(px(Space.ROW_Y), 0) if not tall
-                              else (px(Space.MD), 0))
+                                    anchor="w", bd=0, padx=0, pady=0)
+        self.title_label.pack(anchor="w")
 
         self.sub_box: Optional[tk.Frame] = None
         self.status_dot: Optional[StatusDot] = None
         self.sub_label: Optional[tk.Label] = None
         if tall:
             self.sub_box = tk.Frame(self._text_box, bg=Theme.GROUP_SURFACE)
-            self.sub_box.pack(anchor="w", pady=(px(Space.TEXT_GAP), 0))
+            self.sub_box.pack(anchor="w", fill="x", pady=(px(Space.TEXT_GAP), 0))
             if variant == "status":
                 self.status_dot = StatusDot(self.sub_box, bg_under=Theme.GROUP_SURFACE,
                                             size=StatusDot.SIZE_ROW)
-                self.status_dot.pack(side="left", padx=(0, px(Space.ICON_GAP)))
+                self.status_dot.pack(side="left", anchor="n", padx=(0, px(Space.ICON_GAP)))
             self.sub_label = tk.Label(self.sub_box, text=description,
                                       bg=Theme.GROUP_SURFACE, fg=Theme.TEXT_TERTIARY,
-                                      font=font("description"), anchor="w")
-            self.sub_label.pack(side="left")
+                                      font=font("description"), anchor="w",
+                                      justify="left", bd=0, padx=0, pady=0)
+            self.sub_label.pack(side="left", fill="x")
 
         self.value_label: Optional[tk.Label] = None
         if variant == "display":
             self.value_label = tk.Label(self._line, text=value, bg=Theme.GROUP_SURFACE,
                                         fg=Theme.TEXT_SECONDARY, font=font("row_title"),
-                                        anchor="e", justify="right")
-            self.value_label.pack(side="right", before=self._text_box,
-                                  padx=(px(Space.CONTROL_GAP), px(Space.ROW_X)))
+                                        anchor="e", justify="right", bd=0, padx=0, pady=0)
+            self.value_label.grid(row=0, column=1, sticky="e")
 
         self.hairline: Optional[tk.Frame] = None
         if hairline:
             holder = tk.Frame(self, bg=Theme.GROUP_SURFACE)
             holder.pack(fill="x")
             self.hairline = tk.Frame(holder, bg=Theme.HAIRLINE, height=max(1, px(1)))
-            self.hairline.pack(fill="x", padx=(px(Space.ROW_X), 0))
+            self.hairline.pack(fill="x", padx=px(Space.ROW_X))
+
+        self._apply_metrics()
 
         # Der Textblock bekommt erst nach dem Einhängen des Controls seine
-        # endgültige Breite; vorher lässt sich nicht kürzen.
+        # endgültige Breite; vorher lässt sich weder kürzen noch umbrechen.
         self._text_box.bind("<Configure>", self._refit, add="+")
 
         if interactive:
@@ -2591,14 +2761,62 @@ class SettingRow(tk.Frame):
         """
         if self._control is not None and self._control is not control:
             try:
-                self._control.pack_forget()
+                self._control.grid_forget()
             except tk.TclError:      # pragma: no cover - bereits zerstoert
                 pass
         self._control = control
-        # `before` ist noetig: der Textblock ist mit expand=True gepackt und
-        # bekaeme sonst den ganzen Platz, das Control wuerde abgeschnitten.
-        control.pack(in_=self._line, side="right", before=self._text_box,
-                     padx=(px(Space.CONTROL_GAP), px(Space.ROW_X)))
+        if control is None:
+            return
+        # Controls mit Fokusring halten dafür ringsum Platz frei; ihre sichtbare
+        # Kante liegt um diesen Rand weiter innen. Die Zeile rückt sie deshalb
+        # um genau so viel nach außen, damit Feld, Titel und Tasten-Chips auf
+        # einer Linie stehen. Controls ohne Ring bekommen den Rand zurück.
+        inset = self._ring_inset()
+        ringed = isinstance(control, FocusMixin) or getattr(control, "focus_ring", False)
+        outer = 0 if ringed else inset
+        if self._stacked:
+            # Auswahlfelder und Pegel nehmen die volle Breite; eine Schaltfläche,
+            # die vorübergehend an ihre Stelle tritt, behält ihre eigene.
+            sticky = "ew" if getattr(control, "stretch_stacked", True) else "w"
+            control.grid(in_=self._line, row=1, column=0, columnspan=2, sticky=sticky,
+                         padx=(outer, outer),
+                         pady=(px(Space.STACK_GAP) - (inset if ringed else 0), 0))
+        else:
+            control.grid(in_=self._line, row=0, column=1, sticky="e",
+                         padx=(px(Space.CONTROL_GAP) - (inset if ringed else 0), outer))
+        # Tk stapelt nach Erzeugungsreihenfolge; ein spaeter erzeugtes Control
+        # laege sonst hinter dem Zeilengrund.
+        # `tk.Misc.lift`, nicht `control.lift`: an einer Canvas hebt das Tags.
+        tk.Misc.lift(control, self._line)
+
+    @staticmethod
+    def _ring_inset() -> int:
+        """Rand, den ein Control mit Fokusring um seine sichtbare Fläche lässt."""
+        return px(ControlStyle.RING_WIDTH) + px(ControlStyle.RING_GAP)
+
+    def _apply_metrics(self) -> None:
+        """Innenabstände und Mindesthöhe — beim Aufbau und bei jedem DPI-Wechsel.
+
+        Die Zeile selbst rückt um den Ringrand weniger ein; Text und Wert holen
+        ihn als eigenen Abstand zurück. So stehen alle sichtbaren Kanten bei
+        `Space.ROW_X`, auch die eines Controls mit Fokusring.
+        """
+        inset = self._ring_inset()
+        self._line.configure(padx=px(Space.ROW_X) - inset, pady=px(Space.ROW_Y))
+        # Gestapelt bestimmt der Text selbst die Höhe der ersten Reihe; eine
+        # Mindesthöhe schöbe nur Luft zwischen Text und Feld.
+        self._line.grid_rowconfigure(
+            0, minsize=0 if self._stacked else px(Height.ROW_MIN - 2 * Space.ROW_Y))
+        self._text_box.grid_configure(padx=(inset, inset if self._stacked else 0))
+        if self._control is not None:
+            self.set_control(self._control)
+        if self.value_label is not None:
+            self.value_label.grid_configure(padx=(px(Space.CONTROL_GAP), inset))
+        if self.status_dot is not None:
+            # Mittig zur ersten Textzeile, nicht an deren Oberkante.
+            line = _line_height(font("description"), self)
+            self.status_dot.pack_configure(
+                pady=(max(0, (line - px(StatusDot.SIZE_ROW)) // 2), 0))
 
     def _hover_widgets(self) -> list:
         widgets = [self._line, self._text_box, self.title_label]
@@ -2611,11 +2829,11 @@ class SettingRow(tk.Frame):
     # ------------------------------------------------------------ Zustand
 
     def _refit(self, _event=None) -> None:
-        """Kürzt Titel und Unterzeile auf den Platz, der wirklich übrig ist.
+        """Passt Titel und Unterzeile an den Platz an, der wirklich übrig ist.
 
-        Ohne das schnitt der Rahmen den Text mitten im Wort ab — gemessen an
-        „Tempo und Genauigkeit“ neben dem Modell-Auswahlfeld. Ein Auslassungs-
-        zeichen sagt wenigstens, dass da noch etwas steht.
+        Die Unterzeile bricht um — früher wurde sie gekürzt, und gerade die
+        Hinweise („Ollama wird gepr…“) waren dann nicht mehr lesbar. Nur der
+        Titel wird im Notfall gekürzt; er ist kurz und passt praktisch immer.
         """
         try:
             width = self._text_box.winfo_width()
@@ -2630,8 +2848,16 @@ class SettingRow(tk.Frame):
         used = 0
         if self.status_dot is not None:
             used = px(StatusDot.SIZE_ROW) + px(Space.ICON_GAP)
-        self.sub_label.configure(
-            text=_fit_text(self, self._sub_text, font("description"), width - used))
+        wrap = max(1, width - used)
+        if int(str(self.sub_label.cget("wraplength")) or 0) != wrap:
+            self.sub_label.configure(wraplength=wrap)
+        if self.sub_label.cget("text") != self._sub_text:
+            self.sub_label.configure(text=self._sub_text)
+
+    @property
+    def sub_text(self) -> str:
+        """Die vollständige Unterzeile, unabhängig vom Umbruch."""
+        return self._sub_text
 
     def set_status(self, status: str, text: str) -> None:
         if self.status_dot is not None:
@@ -2718,7 +2944,7 @@ class SettingRow(tk.Frame):
 
     def _on_scale_change(self, _factor: float) -> None:
         try:
-            self._line.configure(height=px(self._logical_height))
+            self._apply_metrics()
             self.title_label.configure(font=font("row_title"))
             if self.sub_label is not None:
                 self.sub_label.configure(font=font("description"))
@@ -2727,6 +2953,7 @@ class SettingRow(tk.Frame):
             self._refit()
             if self.hairline is not None:
                 self.hairline.configure(height=max(1, px(1)))
+                self.hairline.pack_configure(padx=px(Space.ROW_X))
         except tk.TclError:      # pragma: no cover
             pass
 
@@ -2921,7 +3148,7 @@ class Popover(tk.Toplevel):
 
     Tiefe entsteht ohne nativen Schatten — den gibt Windows für randlose
     Fenster nicht her (in Phase 9 gemessen). Stattdessen: eigene hellere
-    Fläche, feine Umrandung, Lichtkante oben, Rundung und Abstand.
+    Fläche, feine Umrandung, Rundung und Abstand.
     """
 
     MAX_VISIBLE = 8          # Einträge, danach wird gescrollt
@@ -2954,8 +3181,6 @@ class Popover(tk.Toplevel):
 
         inner = tk.Frame(self, bg=Theme.POPOVER_SURFACE)
         inner.pack(fill="both", expand=True, padx=max(1, px(1)), pady=max(1, px(1)))
-        # Lichtkante: eine Spur heller als die Fläche, nur oben.
-        tk.Frame(inner, bg=Theme.EDGE_HIGHLIGHT, height=max(1, px(1))).pack(fill="x")
 
         self._body_holder = tk.Frame(inner, bg=Theme.POPOVER_SURFACE)
         self._body_holder.pack(fill="both", expand=True, pady=px(Space.SM))
@@ -3186,24 +3411,24 @@ class Popover(tk.Toplevel):
 class Select(BaseControl):
     """Auswahlfeld mit eigenem Popover — Ersatz für das alte tk.Menu.
 
-    Ein- oder zweizeilig; der Chevron ist ein echtes Icon und sitzt immer
-    rechtsbündig, statt als Zeichen an den Text gehängt zu werden.
+    Immer einzeilig und 32 px hoch. Zusatzangaben wie „Schnell · sehr gut“
+    stehen im Popover und in der Beschreibung der Zeile, nicht im Feld: eine
+    zweite Zeile in 44 px war nur in 10 pt lesbar und wurde trotzdem gekürzt.
+    Der Chevron ist ein echtes Icon und sitzt immer rechtsbündig.
     """
 
     def __init__(self, master: tk.Misc, *, bg_under: str,
                  options: Optional[list] = None, value=None,
                  on_change: Optional[Callable[[object], None]] = None,
-                 two_line: bool = False, placeholder: str = "—") -> None:
+                 placeholder: str = "—") -> None:
         # Nicht `_options` nennen: das ist eine Methode von tkinter.Misc und
         # wuerde vor super().__init__() ueberschrieben.
         self._option_list: list = options or []
         self._value = value
         self._on_change = on_change
-        self._two_line = two_line
         self._placeholder = placeholder
-        height = Height.ROW_DETAIL - 12 if two_line else Height.STANDARD
         super().__init__(master, bg_under=bg_under, role="secondary",
-                         height=height, radius=Radius.CONTROL,
+                         height=Height.STANDARD, radius=Radius.CONTROL,
                          command=self.toggle_popover, font_role="row_title")
 
     # ------------------------------------------------------------ Daten
@@ -3266,7 +3491,7 @@ class Select(BaseControl):
         plate = ImageTk.getimage(surface(
             width, height + 2 * (ring_w + ring_gap), px(self._logical_radius),
             fill if fill is not None else self._bg_under,
-            edge=Theme.EDGE_HIGHLIGHT, gradient=0.02, squircle=True,
+            squircle=True,
             ring=self.ring(), ring_width=ring_w, ring_gap=ring_gap,
         ))
 
@@ -3277,34 +3502,32 @@ class Select(BaseControl):
 
         selected = self._selected()
         label = selected.label if selected is not None else self._placeholder
-        meta = selected.meta if selected is not None and self._two_line else ""
         self.configure(text="")
-        self._draw_text(plate, label, meta, foreground, chevron_size)
+        self._draw_text(plate, label, foreground, chevron_size)
         composed = ImageTk.PhotoImage(plate)
         self._composed = composed
         return composed
 
-    def _draw_text(self, plate, label: str, meta: str, colour: str,
-                   chevron: int) -> None:
+    def _draw_text(self, plate, label: str, colour: str, chevron: int) -> None:
         """Beschriftung ins Bild setzen — so bleibt der Chevron rechtsbündig."""
-        available = plate.width - chevron - 3 * px(Space.MD)
+        x = px(Space.LG)
+        available = plate.width - chevron - px(Space.MD) - x - px(Space.MD)
         draw = ImageDraw.Draw(plate)
         title_font = _pil_font(font("row_title"))
-        meta_font = _pil_font(font("meta"))
-        x = px(Space.MD)
-        if meta:
-            total = title_font.size + meta_font.size + px(2)
-            top = (plate.height - total) // 2
-            draw.text((x, top), _ellipsize(draw, label, title_font, available),
-                      font=title_font, fill=colour)
-            draw.text((x, top + title_font.size + px(2)),
-                      _ellipsize(draw, meta, meta_font, available),
-                      font=meta_font, fill=Theme.TEXT_SECONDARY)
-        else:
-            text = _ellipsize(draw, label, title_font, available)
-            box = draw.textbbox((0, 0), text, font=title_font)
-            draw.text((x, (plate.height - (box[3] - box[1])) // 2 - box[1]),
-                      text, font=title_font, fill=colour)
+        text = _ellipsize(draw, label, title_font, available)
+        # Nach den Oberlaengen der Schrift zentriert, nicht nach dem Text:
+        # sonst saesse „Hell“ hoeher als „gut“, je nach Unterlaengen.
+        ascent, descent = title_font.getmetrics()
+        draw.text((x, (plate.height - ascent - descent) // 2), text,
+                  font=title_font, fill=colour)
+
+
+def _line_height(tk_font, widget: tk.Misc) -> int:
+    """Zeilenhöhe einer Schrift in Pixeln."""
+    try:
+        return int(widget.tk.call("font", "metrics", tk_font, "-linespace"))
+    except tk.TclError:      # pragma: no cover
+        return px(16)
 
 
 def _text_width(widget: tk.Misc, text: str, tk_font) -> int:

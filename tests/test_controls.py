@@ -208,10 +208,10 @@ class TestSwitch:
         # Der Abstand muss deutlich sein, nicht nur ein paar Pixel
         assert on_x - off_x >= uk.px(12)
 
-    def test_track_colour_uses_success(self, controls):
+    def test_track_colour_uses_accent(self, controls):
         switch = controls["switch"]
         switch.set(True)
-        assert switch._track_colour() == Theme.SUCCESS
+        assert switch._track_colour() == Theme.ACCENT_TINT
 
     def test_track_neutral_when_off(self, controls):
         switch = controls["switch"]
@@ -228,13 +228,16 @@ class TestSwitch:
 
 class TestSignalMeter:
     @pytest.mark.parametrize("level", [0.0, 0.25, 0.5, 0.75, 1.0])
-    def test_levels_light_the_right_share(self, controls, root, level):
+    def test_levels_fill_the_right_share(self, controls, root, level):
         meter = controls["meter"]
         meter.set_level(level)
         root.update()
         assert meter.level == pytest.approx(level, abs=0.01)
-        assert meter.segments > 0
-        assert len(meter.find_all()) == meter.segments
+        width = meter.winfo_width()
+        if level == 0.0:
+            assert meter.filled_width == 0
+        else:
+            assert meter.filled_width == pytest.approx(level * width, abs=uk.px(6))
 
     def test_level_is_clamped(self, controls, root):
         meter = controls["meter"]
@@ -243,14 +246,20 @@ class TestSignalMeter:
         meter.set_level(-3.0)
         assert meter.level == 0.0
 
-    def test_segments_follow_width(self, controls, root, window):
+    def test_fill_follows_width(self, controls, root, window):
         meter = controls["meter"]
+        meter.set_level(0.5)
         window.geometry("500x360")
         root.update()
-        wide = meter.segments
+        wide = meter.filled_width
         window.geometry("240x360")
         root.update()
-        assert meter.segments < wide
+        assert 0 < meter.filled_width < wide
+
+    @pytest.mark.parametrize("level,token", [(0.3, "SUCCESS"), (0.7, "WARNING"),
+                                             (0.9, "ERROR")])
+    def test_colour_follows_the_drive(self, level, token):
+        assert uk.SignalMeter.level_colour(level) == getattr(Theme, token)
 
     def test_always_visible_at_rest(self, controls, root):
         """Kein pack_forget — der Pegel behält seine Höhe auch bei Pegel null."""

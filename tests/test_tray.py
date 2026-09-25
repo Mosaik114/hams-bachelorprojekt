@@ -63,7 +63,7 @@ def history_submenu(menu):
 class TestBuilding:
     def test_an_empty_history_builds(self, app):
         menu = app._build_tray_menu()
-        assert "(leer)" in entries(history_submenu(menu))
+        assert "Noch keine Transkripte" in entries(history_submenu(menu))
 
     def test_one_entry_builds(self, app):
         app._history = [("12:00:00", "Ein Satz", "Ein Satz.")]
@@ -91,7 +91,7 @@ class TestBuilding:
 
     def test_the_fixed_items_are_all_there(self, app):
         labels = entries(app._build_tray_menu())
-        assert "Zeigen / Verstecken" in labels
+        assert "Fenster zeigen oder ausblenden" in labels
         assert "Einstellungen …" in labels
         assert "Letzte Transkripte" in labels
         assert "Beenden" in labels
@@ -142,7 +142,7 @@ class TestRobustness:
 
     def test_only_broken_entries_still_give_a_menu(self, app):
         app._history = [None, 42]
-        assert "(leer)" in entries(history_submenu(app._build_tray_menu()))
+        assert "Noch keine Transkripte" in entries(history_submenu(app._build_tray_menu()))
 
     def test_a_click_beyond_the_history_is_harmless(self, app, monkeypatch):
         monkeypatch.undo()

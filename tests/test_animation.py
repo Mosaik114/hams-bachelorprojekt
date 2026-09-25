@@ -255,9 +255,9 @@ class TestSwitchAnimation:
         switch.toggle()
         spin(root, 0.05)
         colour = switch._track_colour()
-        assert colour not in (Theme.CONTROL_SURFACE, Theme.SUCCESS), colour
+        assert colour not in (Theme.CONTROL_SURFACE, Theme.ACCENT_TINT), colour
         assert settle(root, switch)
-        assert switch._track_colour() == Theme.SUCCESS
+        assert switch._track_colour() == Theme.ACCENT_TINT
 
     def test_disabled_does_not_move(self, animated, window, root):
         switch = self._switch(window, root)

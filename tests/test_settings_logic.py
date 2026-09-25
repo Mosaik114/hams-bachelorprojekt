@@ -237,4 +237,4 @@ class TestIntervals:
         assert 2000 <= SW.OLLAMA_INTERVAL_MS <= 30000
 
     def test_window_is_larger_than_before(self):
-        assert (SW.WIDTH, SW.HEIGHT) == (400, 620)
+        assert (SW.WIDTH, SW.HEIGHT) == (440, 680)

@@ -123,7 +123,7 @@ class TestPalettes:
 class TestContrast:
     """Getrennte Matrix je Modus — das eine traegt das andere nicht.
 
-    Apples helles Gruen `#30D158` kommt auf dem dunklen Fenstergrund auf
+    Ein leuchtendes Gruen wie `#30D158` kommt auf dem dunklen Fenstergrund auf
     8,60:1 und auf der hellen Gruppenflaeche auf 1,73:1. Ein gemeinsamer Test
     ueber „die“ Palette haette den hellen Modus nie geprueft.
     """
@@ -214,13 +214,8 @@ class TestSurfaceLadder:
         assert contrast(palette["HAIRLINE"], palette["GROUP_SURFACE"]) >= 1.2
 
     @pytest.mark.parametrize("mode", MODES)
-    def test_edge_highlight_is_brighter_than_control(self, mode):
-        palette = Theme.palette(mode)
-        assert luminance(palette["EDGE_HIGHLIGHT"]) > luminance(palette["CONTROL_SURFACE"])
-
-    @pytest.mark.parametrize("mode", MODES)
     def test_steps_stay_subtle(self, mode):
-        """Apple-artig heißt kleine Schritte — kein harter Sprung zwischen Ebenen."""
+        """Ruhig heißt kleine Schritte — kein harter Sprung zwischen Ebenen."""
         palette = Theme.palette(mode)
         assert contrast(palette["GROUP_SURFACE"], palette["WINDOW_BG"]) < 1.5
         assert contrast(palette["CONTROL_SURFACE"], palette["GROUP_SURFACE"]) < 1.5
@@ -277,14 +272,25 @@ class TestFontRoles:
     def test_all_required_roles_exist(self):
         assert self.REQUIRED <= set(_FONT_ROLES)
 
-    def test_only_titles_and_buttons_are_bold(self):
-        """Apple-artig: wenig Fettung."""
+    def test_nothing_is_bold(self):
+        """Mosaik-Design: Überschriften tragen die Serifenschrift, Schaltflächen
+        den Semibold-Schnitt. Echtes Fett wirkte in 12 pt klobig."""
         bold = {r for r, (_f, _s, w) in _FONT_ROLES.items() if w == "bold"}
-        assert bold == {"window_title", "section", "button"}
+        assert bold == set()
+        assert _FONT_ROLES["button"][0] == "semibold"
+
+    def test_four_sizes_at_most(self):
+        """Eine ruhige Schriftskala: 16 / 13 / 12 / 11 pt."""
+        sizes = {size for _f, size, _w in _FONT_ROLES.values()}
+        assert sizes <= {16, 13, 12, 11}
+
+    def test_headings_use_the_serif(self):
+        for role in ("window_title", "section"):
+            assert _FONT_ROLES[role][0] == "serif"
 
     def test_small_optical_size_for_small_text(self):
         """Segoe UI Variable Small ist für 8–12 pt gezeichnet."""
-        for role in ("description", "meta", "section"):
+        for role in ("description", "meta"):
             assert _FONT_ROLES[role][0] == "small"
 
     def test_sizes_are_plausible(self):
