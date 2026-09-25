@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import urllib.error
 import urllib.request
 
@@ -26,6 +27,38 @@ TIMEOUT = 2.0
 
 #: Hinweiszeile im Popover. Kein auswählbarer Eintrag — nur eine Auskunft.
 PULL_HINT = "Weitere Modelle per ollama pull"
+
+
+#: Schreibweisen, die sich nicht aus dem Namen ergeben.
+_WORD_NAMES = {"gpt": "GPT", "oss": "OSS", "deepseek": "DeepSeek", "qwq": "QwQ"}
+
+
+def display_name(name: str) -> str:
+    """Macht aus dem Ollama-Namen einen lesbaren: `qwen2.5:7b` → `Qwen 2.5 · 7B`.
+
+    Nur für die Anzeige. Gespeichert und an Ollama geschickt wird weiter der
+    rohe Name. Ein Namensraum (`hf.co/nutzer/modell`) entfällt, `latest` auch.
+    """
+    base, _, tag = name.strip().rpartition(":") if ":" in name else (name.strip(), "", "")
+    base = base.rsplit("/", 1)[-1]
+    words = []
+    for part in re.split(r"[-_]", base):
+        if not part:
+            continue
+        # Buchstaben und Versionsnummer trennen: "llama3.2" → "Llama 3.2".
+        # Kurze Kürzel bleiben zusammen: "r1" → "R1".
+        match = re.fullmatch(r"([a-zA-Z]{3,})(\d[\d.]*)", part)
+        pieces = match.groups() if match else (part,)
+        for piece in pieces:
+            words.append(_WORD_NAMES.get(piece.lower(), piece[:1].upper() + piece[1:]))
+    label = " ".join(words) or name
+    tag = tag.strip()
+    # Größenangabe vorn groß: "7b" → "7B", "4b-it-qat" → "4B-it-qat"
+    tag = re.sub(r"^(\d+(?:\.\d+)?)([bm])(?=$|-)", lambda m: m[1] + m[2].upper(),
+                 tag, flags=re.IGNORECASE)
+    if tag and tag.lower() != "latest":
+        label = f"{label} · {tag}"
+    return label
 
 
 class OllamaModel:

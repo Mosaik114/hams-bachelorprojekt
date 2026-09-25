@@ -3323,7 +3323,7 @@ class SettingsWindow:
         entfernter Modelle, also wird auch keiner erfunden.
         """
         options = [
-            uk.Option(model.name, model.name, meta=model.meta,
+            uk.Option(model.name, ollama_api.display_name(model.name), meta=model.meta,
                       group="Installierte Modelle",
                       trailing="im Speicher" if model.name in state.warm else "")
             for model in state.models
@@ -3338,7 +3338,8 @@ class SettingsWindow:
                 meta = state.error
             else:
                 meta = ""      # noch nie gefragt — nichts behaupten
-            options.insert(0, uk.Option(current, current, meta=meta,
+            options.insert(0, uk.Option(current, ollama_api.display_name(current),
+                                        meta=meta,
                                         group="Installierte Modelle", enabled=False))
         if state.online and options:
             options.append(uk.Option("", ollama_api.PULL_HINT, enabled=False))

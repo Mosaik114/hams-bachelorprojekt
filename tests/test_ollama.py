@@ -472,3 +472,31 @@ class TestApplyState:
         assert chosen == ["a:1b", "b:2b"]
         assert window.select_cleanup_model.value == "a:1b"
         assert window.select_prompt_model.value == "b:2b"
+
+
+class TestDisplayName:
+    """Die Auswahl zeigt lesbare Namen, gespeichert bleibt der rohe."""
+
+    @pytest.mark.parametrize("raw,shown", [
+        ("qwen2.5:7b", "Qwen 2.5 · 7B"),
+        ("ministral-3:8b", "Ministral 3 · 8B"),
+        ("llama3.2:3b", "Llama 3.2 · 3B"),
+        ("deepseek-r1:14b", "DeepSeek R1 · 14B"),
+        ("gpt-oss:20b", "GPT OSS · 20B"),
+        ("mistral:latest", "Mistral"),
+        ("gemma3:4b-it-qat", "Gemma 3 · 4B-it-qat"),
+        ("hf.co/nutzer/phi3:mini", "Phi 3 · mini"),
+    ])
+    def test_readable(self, raw, shown):
+        assert ollama.display_name(raw) == shown
+
+    def test_options_show_the_readable_name_but_keep_the_raw_value(self):
+        state = ollama.OllamaState(True, models=[ollama.OllamaModel("qwen2.5:7b")])
+        option = SW.ollama_options(state, "qwen2.5:7b")[0]
+        assert option.value == "qwen2.5:7b"
+        assert option.label == "Qwen 2.5 · 7B"
+
+    def test_a_missing_model_is_shown_readably_too(self):
+        state = ollama.OllamaState(True, models=[])
+        option = SW.ollama_options(state, "llama3.2:3b")[0]
+        assert (option.value, option.label) == ("llama3.2:3b", "Llama 3.2 · 3B")
