@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Hams Bildmarke</title>
+  <desc id="desc">Abstrakte, von der arabischen Initialform inspirierte Schleife mit einem einzelnen weichen Sprachimpuls.</desc>
+  <g fill="none" stroke="#0A84FF" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 320 676 C 270 586 330 466 443 414 C 576 353 747 395 821 516 C 895 637 848 786 727 839 C 628 883 547 839 457 805 L 342 856" stroke-width="136"/>
+    <path d="M 632 397 L 632 218" stroke-width="136"/>
+    <path d="M 458 625 C 505 656 522 578 568 578 C 614 578 631 656 678 625" stroke-width="64"/>
+  </g>
+</svg>
