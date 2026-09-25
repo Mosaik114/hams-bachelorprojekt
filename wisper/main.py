@@ -810,6 +810,29 @@ def restart_command() -> list:
 TRAY_PALETTE = Theme.palette(Theme.DARK)
 
 
+_DOT_MSG = ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand")
+
+
+def _notify_cursor_dot(state: str, level: Optional[float] = None) -> None:
+    """Meldet der Mosaiks-Suche Zustand und Pegel fuer die Soundbar am Mauszeiger.
+
+    1 = Diktat (rot), 2 = Prompt (lila), 0 = aus; der Pegel (0..1) kommt ab
+    Bit 8 als Wert + 1 dazu. PostMessage wartet nicht; laeuft die Mosaiks-Suche
+    nicht, passiert einfach nichts. Die eigene Prozess-ID reist mit, damit die
+    Anzeige verschwindet, falls Hams abstuerzt.
+    """
+    mode = {"recording": 1, "recording_prompt": 2}.get(state, 0)
+    if level is not None:
+        mode |= (int(max(0.0, min(1.0, level)) * 255) + 1) << 8
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, "Mosaiks-Suche")
+        if hwnd and _DOT_MSG:
+            user32.PostMessageW(hwnd, _DOT_MSG, mode, os.getpid())
+    except OSError:
+        pass
+
+
 def _create_tray_icon_image(color: Optional[str] = None) -> Image.Image:
     """Das Tray-Symbol im aktuellen Zustand.
 
@@ -1500,6 +1523,7 @@ class FloatingTranscriberApp:
 
         self._show_footer_hint(hint)
         self._set_tray_icon(self._tray_colour(state))
+        _notify_cursor_dot(state)
         self._cancel_done_reset()
         if state == "done":
             self._done_job = self.root.after(3000, self._back_to_ready)
@@ -1975,6 +1999,7 @@ class FloatingTranscriberApp:
         # RMS in [0..1], wahrnehmungsorientiert skalieren (sqrt hebt leise Pegel an)
         level = min(1.0, float(np.sqrt(self._rms_level)) * 1.5)
         self.level_meter.set_level(level)
+        _notify_cursor_dot(self._state, level)
         self._level_tick_job = self.root.after(50, self._level_tick)
 
     def start_recording(self) -> None:
