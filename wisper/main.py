@@ -543,15 +543,25 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
 
 def _list_input_devices() -> list[tuple[str, str]]:
     """Eingabegeräte als (Anzeigename, Such-String) — pro physischem Mikro nur
-    einmal (bevorzugt die Standard-Host-API)."""
+    einmal (bevorzugt die Standard-Host-API).
+
+    Gibt es WASAPI, zählen nur dessen Geräte: das ist genau die Liste, die auch
+    Windows unter Eingabe zeigt. MME kürzt Namen auf 31 Zeichen, und WDM-KS
+    führt sogar Geräte auf, die in Windows deaktiviert sind (Kamera-Mikrofon,
+    Stereomix) — beides ergab doppelte und unerwünschte Einträge.
+    """
     try:
         devices = sd.query_devices()
         default_hostapi = sd.default.hostapi
+        wasapi = next((i for i, api in enumerate(sd.query_hostapis())
+                       if "WASAPI" in str(api.get("name", ""))), None)
     except Exception:
         return []
     seen: dict[str, tuple[str, str, int]] = {}
     for dev in devices:
         if dev.get("max_input_channels", 0) <= 0:
+            continue
+        if wasapi is not None and dev.get("hostapi") != wasapi:
             continue
         name = str(dev.get("name", "")).strip()
         if not name:

@@ -6,8 +6,11 @@ Aufnahme und Pegelmonitor braucht dagegen echte Audio-Streams und wurde als
 Integrationslauf geprüft.
 """
 
+import types
+
 import pytest
 
+from wisper import main
 from wisper.main import FloatingTranscriberApp as App
 from wisper.main import SettingsWindow as SW
 
@@ -128,6 +131,46 @@ class TestDeviceState:
         for label, value in _Stub([], None).device_options():
             assert isinstance(label, str)
             assert value is None or isinstance(value, str)
+
+
+class _FakeSd:
+    """sounddevice-Ersatz: dasselbe Mikro über mehrere Host-APIs."""
+
+    def __init__(self, apis, devices):
+        self._apis = [{"name": name} for name in apis]
+        self._devices = devices
+        self.default = types.SimpleNamespace(hostapi=0)
+
+    def query_hostapis(self):
+        return self._apis
+
+    def query_devices(self):
+        return self._devices
+
+
+class TestInputDeviceList:
+    def _dev(self, name, hostapi, inputs=1):
+        return {"name": name, "hostapi": hostapi, "max_input_channels": inputs}
+
+    def test_only_wasapi_devices_are_listed(self, monkeypatch):
+        """Nur was Windows unter Eingabe zeigt — kein gekürzter MME-Name,
+        kein in Windows deaktiviertes WDM-KS-Gerät."""
+        fake = _FakeSd(["MME", "Windows DirectSound", "Windows WASAPI", "Windows WDM-KS"], [
+            self._dev("Microsoft Soundmapper - Input", 0),
+            self._dev("Personal Mix (Elgato Virtual Au", 0),
+            self._dev("Mikrofon (3- Shure MV7+)", 1),
+            self._dev("Mikrofon (3- Shure MV7+)", 2),
+            self._dev("Lautsprecher (Realtek(R) Audio)", 2, inputs=0),
+            self._dev("Mikrofon (UGREEN Camera)", 3),
+        ])
+        monkeypatch.setattr("wisper.main.sd", fake)
+        assert main._list_input_devices() == [
+            ("Mikrofon (3- Shure MV7+)", "Mikrofon (3- Shure MV7+)")]
+
+    def test_without_wasapi_every_host_api_counts(self, monkeypatch):
+        fake = _FakeSd(["MME"], [self._dev("3- Shure MV7+", 0)])
+        monkeypatch.setattr("wisper.main.sd", fake)
+        assert main._list_input_devices() == [("Shure MV7+", "3- Shure MV7+")]
 
 
 class TestMicStatus:
