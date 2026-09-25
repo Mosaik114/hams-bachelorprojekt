@@ -146,8 +146,8 @@ class Config:
 
     #: Bewusst die Zahlenadresse statt `localhost`: siehe `ipv4_loopback`.
     ollama_url: str = "http://127.0.0.1:11434/api/generate"
-    ollama_model_cleanup: str = "ministral-3:8b"
-    ollama_model_prompt: str = "ministral-3:8b"
+    ollama_model_cleanup: str = "qwen3.5:9b"
+    ollama_model_prompt: str = "qwen3.5:9b"
     ollama_timeout_cleanup: int = 30
     ollama_timeout_prompt: int = 60
     ollama_stream_prompt: bool = True
@@ -2110,6 +2110,10 @@ class FloatingTranscriberApp:
             "prompt": prompt,
             "stream": stream,
             "keep_alive": CFG.ollama_keep_alive,
+            # Denkende Modelle (Qwen 3.5, Granite 4.2) überlegen sonst erst
+            # sekundenlang, bevor sie antworten. Für Diktat und Prompt zählt
+            # die Zeit. Modelle ohne Denkmodus übergehen das Feld.
+            "think": False,
         }
         if system:
             body["system"] = system

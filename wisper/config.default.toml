@@ -54,8 +54,8 @@ url = "http://127.0.0.1:11434/api/generate"
 # Cleanup- und Prompt-Modell werden in den Einstellungen gewählt und in der
 # Nutzerkonfiguration abgelegt. Ein bestimmtes Modell hier vorzugeben hiesse
 # anzunehmen, dass es auf dem Rechner installiert ist.
-# model_transcript_cleanup = "qwen2.5:3b"
-# model_prompt_generate = "qwen2.5:7b"
+# model_transcript_cleanup = "qwen3.5:9b"
+# model_prompt_generate = "qwen3.5:9b"
 timeout_cleanup = 30
 timeout_prompt = 60
 # Cleanup komplett abschalten → Whisper-Rohtext wird direkt eingefügt (maximal schnell).

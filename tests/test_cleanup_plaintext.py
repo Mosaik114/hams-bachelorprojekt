@@ -6,6 +6,7 @@ und Unterstriche, die zum Inhalt gehören.
 """
 
 import ast
+import json
 
 import pytest
 
@@ -221,3 +222,28 @@ class TestPrompt:
 
     def test_it_is_the_file_the_configuration_points_at(self):
         assert "Klartext" in wm.CFG.cleanup_prompt_template
+
+
+class TestRequest:
+    def test_thinking_is_switched_off(self, monkeypatch):
+        """Qwen 3.5 dachte ohne das Feld 7 s über ein „ok“ nach."""
+        gesendet = {}
+
+        class _Antwort:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return b'{"response": "ok"}'
+
+        def urlopen(req, timeout):
+            gesendet.update(json.loads(req.data))
+            return _Antwort()
+
+        monkeypatch.setattr(wm.urllib.request, "urlopen", urlopen)
+        app = object.__new__(wm.FloatingTranscriberApp)
+        assert app._ollama_generate(prompt="Hallo", model="qwen3.5:9b", timeout=5) == "ok"
+        assert gesendet["think"] is False
