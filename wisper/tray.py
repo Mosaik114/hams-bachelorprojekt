@@ -28,7 +28,7 @@ from wisper.config import logger
 TRAY_PALETTE = Theme.palette(Theme.DARK)
 
 
-# Die Mosaiks-Suche gibt es nur unter Windows; unter Linux bleibt die Meldung aus.
+# Unter Linux geht die Meldung über einen Socket (linux.notify_search).
 _DOT_MSG = (ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand")
             if sys.platform == "win32" else 0)
 
@@ -41,6 +41,10 @@ def _notify_cursor_dot(state: str, level: Optional[float] = None) -> None:
     nicht, passiert einfach nichts. Die eigene Prozess-ID reist mit, damit die
     Anzeige verschwindet, falls Hams abstuerzt.
     """
+    if sys.platform != "win32":
+        from wisper import linux
+        linux.notify_search({"recording": 1, "recording_prompt": 2}.get(state, 0), level)
+        return
     if not _DOT_MSG:
         return
     mode = {"recording": 1, "recording_prompt": 2}.get(state, 0)

@@ -85,6 +85,32 @@ def service_unit(python: str, main_py: str) -> str:
     ]) + "\n"
 
 
+# ---------------------------------------------------------------- Mosaiks-Suche
+
+#: Hier lauscht die Mosaiks-Suche (Mosaiks-Suche/linux/mosaiks_suche/nachrichten.py).
+SEARCH_SOCKET = _runtime_dir() / "mosaiks-suche.sock"
+
+_search_socket = None
+
+
+def notify_search(mode: int, level: Optional[float]) -> None:
+    """Zustand und Pegel an die Suche (Soundbar am Mauszeiger).
+
+    Ersetzt PostMessage an „Mosaiks-Suche“: wartet nicht, und läuft die Suche
+    nicht, passiert einfach nichts. Format: „hams <modus> <pegel> <pid>“.
+    """
+    global _search_socket
+    if _search_socket is None:
+        import socket
+        _search_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+        _search_socket.setblocking(False)
+    pegel = -1 if level is None else round(max(0.0, min(1.0, level)), 3)
+    try:
+        _search_socket.sendto(f"hams {mode} {pegel} {os.getpid()}".encode(), str(SEARCH_SOCKET))
+    except OSError:
+        pass
+
+
 # ---------------------------------------------------------------- Einzelinstanz
 
 _LOCK_FILE = None
