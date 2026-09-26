@@ -15,7 +15,7 @@ import threading
 import pystray
 import pytest
 
-from wisper.main import FloatingTranscriberApp as App
+from wisper.app import FloatingTranscriberApp as App
 
 
 class _FakeIcon:

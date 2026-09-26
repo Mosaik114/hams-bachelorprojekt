@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from wisper.config_validation import validate_config
-from wisper.main import Config, _apply_toml
+from wisper.config import Config, _apply_toml
 
 PROJECT_ROOT = Path(__file__).parent.parent
 

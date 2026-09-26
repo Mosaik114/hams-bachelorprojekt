@@ -15,7 +15,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Die Testsuite darf die persoenliche Konfiguration des Nutzers weder lesen
-# noch beschreiben. `WISPER_CONFIG` muss stehen, *bevor* wisper.main importiert
+# noch beschreiben. `WISPER_CONFIG` muss stehen, *bevor* wisper.config importiert
 # wird — conftest laeuft vor den Testmodulen, deshalb hier auf Modulebene.
 _config_dir = tempfile.mkdtemp(prefix="wisper-tests-")
 _config_file = Path(_config_dir) / "config.toml"
@@ -78,6 +78,23 @@ def no_animation():
     _uk.Animator.enabled = False
     yield
     _uk.Animator.enabled = before
+
+
+@pytest.fixture
+def patch_everywhere(monkeypatch):
+    """Ersetzt eine Funktion aus wisper.config in jedem Modul, das sie importiert hat.
+
+    Fuer Pruefungen der Art "nirgends wird gespeichert": ein Patch an nur
+    einer Stelle liesse jeden anderen Aufrufer unbemerkt durch.
+    """
+    def patch(name, value):
+        from wisper import config
+        original = getattr(config, name)
+        for module in list(sys.modules.values()):
+            if (getattr(module, "__name__", "").startswith("wisper")
+                    and getattr(module, name, None) is original):
+                monkeypatch.setattr(module, name, value)
+    return patch
 
 
 @pytest.fixture(scope="session")

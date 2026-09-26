@@ -15,19 +15,19 @@ Gemessen war die wahrgenommene Startzeit dadurch 3,0 s statt 0,8 s: der Nutzer
 wartete auf etwas, das er zum Sprechen gar nicht braucht.
 """
 
-import ast
 import threading
 import time
 
 import pytest
 
-from wisper import main as wm
+from wisper.app import FloatingTranscriberApp
+import inspect
 
 
 @pytest.fixture
 def app():
     """Eine Instanz ohne Fenster, Tray und Modell-Ladethread."""
-    a = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+    a = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
     a.model_ready = threading.Event()
     a.model_error = None
     a._switching_to = None
@@ -57,12 +57,12 @@ class TestDieSperreFaelltWeg:
         assert app._may_record() is True
 
     def test_the_hotkey_records_instead_of_refusing(self, app):
-        wm.FloatingTranscriberApp.toggle_recording(app)
+        FloatingTranscriberApp.toggle_recording(app)
         assert app._gestartet == [True], "Die Aufnahme haette starten muessen"
         assert app._fehler_gezeigt == []
 
     def test_the_prompt_hotkey_does_the_same(self, app):
-        wm.FloatingTranscriberApp.toggle_recording_generate(app)
+        FloatingTranscriberApp.toggle_recording_generate(app)
         assert app._gestartet == [True]
         assert app._prompt_mode is True
 
@@ -120,11 +120,7 @@ class TestDieAnnahmeDahinter:
 
     @staticmethod
     def _rumpf(name: str) -> str:
-        quelle = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
-        for knoten in ast.walk(ast.parse(quelle)):
-            if isinstance(knoten, ast.FunctionDef) and knoten.name == name:
-                return ast.get_source_segment(quelle, knoten)
-        raise AssertionError(f"{name} nicht gefunden")
+        return inspect.getsource(getattr(FloatingTranscriberApp, name))
 
     def test_start_recording_never_touches_the_model(self):
         """Faellt das, ist die Aufnahme vor dem Modell nicht mehr sicher."""

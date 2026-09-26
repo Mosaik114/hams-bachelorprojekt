@@ -9,7 +9,7 @@ Modell-Ladethread und gehört deshalb nicht in die Testsuite.
 import pytest
 
 from wisper import ui_kit as uk
-from wisper.main import FloatingTranscriberApp as App
+from wisper.app import FloatingTranscriberApp as App
 from wisper.ui_kit import ControlStyle, StatusDot
 
 TABLE = App.STATE_TABLE

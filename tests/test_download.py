@@ -11,8 +11,8 @@ import time
 import pytest
 
 from wisper import models
-from wisper.main import FloatingTranscriberApp as App
-from wisper.main import SettingsWindow as SW
+from wisper.app import FloatingTranscriberApp as App
+from wisper.settings_window import SettingsWindow as SW
 
 TINY = models.find("tiny")
 LARGE = models.find("large-v3")
@@ -492,7 +492,7 @@ class _StubWindow:
 
 @pytest.fixture
 def config(monkeypatch):
-    monkeypatch.setattr("wisper.main.CFG.model_size", "turbo")
+    monkeypatch.setattr("wisper.config.CFG.model_size", "turbo")
 
 
 class TestSettingsDownload:

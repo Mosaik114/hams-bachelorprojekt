@@ -6,13 +6,11 @@ zweiter Monitor, verschwundener Monitor und kaputte Werte prüfen, ohne
 Bildschirme umzustecken. Der Lauf gegen die echten Monitore steht daneben.
 """
 
-import tkinter as tk
 
 import pytest
 
 from wisper import ui_kit as uk
-from wisper.main import (MIN_VISIBLE_H, MIN_VISIBLE_W, POSITION_FALLBACK,
-                         _clean_coordinate, _visible_enough, window_position)
+from wisper.window_position import MIN_VISIBLE_H, MIN_VISIBLE_W, POSITION_FALLBACK, _clean_coordinate, _visible_enough, window_position
 
 #: Ein üblicher Verbund: Hauptbildschirm plus einer rechts daneben.
 PRIMARY = (0, 0, 2560, 1392)
@@ -212,14 +210,15 @@ class TestApplication:
 
     @pytest.fixture
     def app(self, monkeypatch):
-        from wisper.main import CFG, FloatingTranscriberApp as App
+        from wisper.config import CFG
+        from wisper.app import FloatingTranscriberApp as App
 
         instance = App.__new__(App)
         instance.root = self._FakeRoot()
         instance._window_pos = (100, 200)
         instance._position_job = None
         instance.written = []
-        monkeypatch.setattr("wisper.main._persist_config_value",
+        monkeypatch.setattr("wisper.app._persist_config_value",
                             lambda section, key, value:
                             instance.written.append((section, key, value)) or True)
         monkeypatch.setattr(CFG, "window_x", None)
@@ -244,7 +243,7 @@ class TestApplication:
         assert app.written == [("ui", "window_x", 812), ("ui", "window_y", 377)]
 
     def test_an_unchanged_position_writes_nothing(self, app, monkeypatch):
-        from wisper.main import CFG
+        from wisper.config import CFG
 
         monkeypatch.setattr(CFG, "window_x", 812)
         monkeypatch.setattr(CFG, "window_y", 377)

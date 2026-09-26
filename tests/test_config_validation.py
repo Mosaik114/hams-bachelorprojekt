@@ -1,8 +1,7 @@
 """Tests for configuration validation."""
 
-import pytest
-from wisper.config_validation import validate_config, ConfigValidationError
-from wisper.main import Config
+from wisper.config_validation import validate_config
+from wisper.config import Config
 
 
 class TestValidateConfig:

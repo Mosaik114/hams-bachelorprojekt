@@ -1,0 +1,290 @@
+"""Einstellungen: Mikrofon, Live-Pegel und Ollama."""
+
+import re
+import threading
+from typing import Optional
+
+
+import numpy as np
+import sounddevice as sd
+
+from wisper import ollama as ollama_api
+from wisper import ui_kit as uk
+from wisper.config import CFG, _list_input_devices, _persist_config_value, _resolve_mic_device, logger
+
+
+class StatusSectionMixin:
+    """Einstellungen: Mikrofon, Live-Pegel und Ollama-Status."""
+
+    def device_options(self) -> list:
+        """(Anzeigename, Wert) je Eingabegerät — Logik ohne Widget.
+
+        Phase 12 tauscht nur das Control aus; diese Liste bleibt unverändert.
+        """
+        options = [("System-Standard", None)]
+        options += [(pretty, pretty) for pretty, _full in _list_input_devices()]
+        return options
+
+    def refresh_device_state(self) -> None:
+        """Geräteliste neu einlesen und den Zustand daraus ableiten."""
+        self._devices = _list_input_devices()
+        selected = CFG.mic_device_raw
+        if not self._devices:
+            self._device_error = "Kein Mikrofon gefunden"
+        elif isinstance(selected, str) and selected.strip().lower() not in ("", "default"):
+            # Die Config speichert einen Teilstring des Geraetenamens, keinen
+            # exakten Namen - genau so sucht auch _resolve_mic_device().
+            needle = selected.strip().lower()
+            found = any(needle in pretty.lower() or needle in full.lower()
+                        for pretty, full in self._devices)
+            self._device_error = "" if found else f"„{selected}“ ist nicht verbunden"
+        else:
+            self._device_error = ""
+
+    def _current_device_label(self) -> str:
+        raw = CFG.mic_device_raw
+        if not (isinstance(raw, str) and raw.strip() and raw.strip().lower() != "default"):
+            return "System-Standard"
+        return re.sub(r"^\d+-\s*", "", raw)
+
+    def _refresh_devices(self) -> None:
+        """Geräteliste einlesen und ins Select geben — Logik bleibt getrennt."""
+        self.refresh_device_state()
+        options = [uk.Option(value, label) for label, value in self.device_options()]
+        self.mic_select.set_options(options)
+        self.mic_select.set_value(self._selected_device_value())
+        self.mic_select.set_enabled(bool(self._devices))
+
+    def _selected_device_value(self):
+        """Der Config-Wert als Optionswert — Teilstring auf Anzeigename gemappt."""
+        raw = CFG.mic_device_raw
+        if not (isinstance(raw, str) and raw.strip()
+                and raw.strip().lower() != "default"):
+            return None
+        needle = raw.strip().lower()
+        for pretty, full in self._devices:
+            if needle in pretty.lower() or needle in full.lower():
+                return pretty
+        return raw
+
+    def _select_device(self, pretty: Optional[str]) -> None:
+        if pretty is None:
+            CFG.mic_device_raw = "default"
+            CFG.mic_device = None
+            _persist_config_value("audio", "device", "default")
+        else:
+            CFG.mic_device_raw = pretty
+            CFG.mic_device = _resolve_mic_device(pretty)
+            _persist_config_value("audio", "device", pretty)
+        logger.info("Mikrofon gewählt: %r -> %r", CFG.mic_device_raw, CFG.mic_device)
+        self.refresh_device_state()
+        self._restart_monitor()
+
+    # ---------------------------------------------------------- monitor stream
+
+    def _start_monitor(self) -> None:
+        if self._suspended or self.app.is_recording or self._mon_stream is not None:
+            return
+        if not self._devices and self._device_error:
+            return      # kein Eingabegerät — gar nicht erst versuchen
+        try:
+            dev = _resolve_mic_device(CFG.mic_device_raw)
+
+            def cb(indata: np.ndarray, _frames: int, _time, _status) -> None:
+                self._mon_rms = float(np.mean(indata.astype(np.float32) ** 2))
+
+            self._mon_stream = sd.InputStream(
+                samplerate=CFG.sample_rate, channels=CFG.channels, device=dev,
+                dtype="float32", callback=cb,
+            )
+            self._mon_stream.start()
+        except Exception as exc:
+            logger.warning("Monitor-Stream fehlgeschlagen: %s", exc)
+            self._mon_stream = None
+
+    def _stop_monitor(self) -> None:
+        if self._mon_stream is not None:
+            try:
+                self._mon_stream.stop()
+                self._mon_stream.close()
+            except Exception:
+                pass
+            self._mon_stream = None
+        self._mon_rms = 0.0
+
+    def _restart_monitor(self) -> None:
+        self._stop_monitor()
+        self._start_monitor()
+
+    # ---------------------------------------------------------- Mikrofon-Teilhabe
+
+    def suspend_microphone(self) -> None:
+        """Die Aufnahme braucht das Gerät — Monitor anhalten."""
+        self._suspended = True
+        self._stop_monitor()
+
+    def resume_microphone(self) -> None:
+        """Aufnahme vorbei — Monitor darf zurückkehren, sofern noch offen."""
+        self._suspended = False
+        if self.alive() and not self.app.is_recording:
+            self._start_monitor()
+
+    # ---------------------------------------------------------- ticks / status
+
+    def _tick(self) -> None:
+        if not self.alive():
+            return
+        if self.app.is_recording:
+            rms = self.app._rms_level
+        else:
+            if self._mon_stream is None and not self._suspended:
+                self._start_monitor()
+            rms = self._mon_rms
+        level = min(1.0, (rms ** 0.5) * 1.5)
+        self.meter.set_level(level)
+        self._update_mic_status(level)
+        self._tick_job = self.win.after(60, self._tick)
+
+    def _update_mic_status(self, level: float) -> None:
+        """Mikrofonstatus als Punkt *und* Text — nie allein über die Farbe."""
+        if self._device_error:
+            self.row_mic.set_status("error", self._device_error)
+        elif self._mon_stream is None and not self.app.is_recording:
+            self.row_mic.set_status("warning", "Gerät nicht verfügbar")
+        elif level < 0.015:
+            self.row_mic.set_status("error", "Kein Signal")
+        elif level < 0.08:
+            self.row_mic.set_status("warning", "Leiser Pegel")
+        else:
+            self.row_mic.set_status("ready", "Gutes Signal")
+
+    def _refresh_status(self) -> None:
+        if not self.alive():
+            return
+        app = self.app
+        if app.model_error:
+            self.row_hardware.set_value("Fehler beim Laden")
+        elif app.model_ready.is_set():
+            device = app._active_device or "?"
+            label = "GPU" if device == "cuda" else device.upper()
+            self.row_hardware.set_value(f"Automatisch · {label}")
+        else:
+            self.row_hardware.set_value("Modell wird geladen …")
+            self.win.after(800, self._refresh_status)
+
+    def _schedule_ollama_check(self) -> None:
+        """Alle paar Sekunden nachsehen — sparsam, aber nicht nur einmal.
+
+        Bisher wurde genau beim Öffnen geprüft; startete Ollama danach, blieb
+        die Anzeige dauerhaft falsch.
+        """
+        if not self.alive():
+            return
+        threading.Thread(target=self._check_ollama, daemon=True,
+                         name="ollama-check").start()
+        self._ollama_job = self.win.after(self.OLLAMA_INTERVAL_MS,
+                                          self._schedule_ollama_check)
+
+    def _check_ollama(self) -> None:
+        """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
+        state = ollama_api.probe(ollama_api.base_url(CFG.ollama_url))
+        try:
+            self.win.after(0, lambda: self._apply_ollama_state(state))
+        except Exception:      # pragma: no cover - Fenster ist schon weg
+            pass
+
+    def _show_ollama_status(self) -> None:
+        """Statuszeile aus dem bekannten Stand — ohne selbst zu fragen.
+
+        Solange in dieser Sitzung noch nie geantwortet wurde, steht dort
+        "wird geprüft". Einen Ausfall zu behaupten, den niemand gemessen hat,
+        waere schlicht falsch.
+        """
+        if not self.app.ollama_checked:
+            self.row_cleanup_model.set_status("idle", "Ollama wird geprüft …")
+            return
+        state = self._ollama_state
+        self.row_cleanup_model.set_status(
+            "ready" if state.online else "error",
+            "Ollama erreichbar" if state.online
+            else state.error or "Ollama nicht erreichbar")
+
+    def _apply_ollama_state(self, state) -> None:
+        """Uebernimmt eine Antwort — auf dem Tk-Thread."""
+        if not self.alive():
+            return
+        self.app.ollama_state = state
+        self.app.ollama_checked = True
+        self._ollama_online = state.online
+        if state.signature() != self._ollama_signature:
+            popover = uk.Popover.current
+            if popover is not None and popover.trigger in (self.select_cleanup_model,
+                                                           self.select_prompt_model):
+                self._show_ollama_status()
+                return      # geoeffnete Auswahl nicht unter den Fingern austauschen
+            self._ollama_state = state
+            self._ollama_signature = state.signature()
+            self._refresh_ollama_models()
+        self._show_ollama_status()
+        self._sync_cleanup_dependency()
+
+    # ---------------------------------------------------------- Ollama-Modelle
+
+    @staticmethod
+    def ollama_options(state, current: str) -> list:
+        """Auswahlliste aus einer Dienstantwort — Logik ohne Widget.
+
+        Nur installierte Modelle. Ollama kennt ueber diese API keinen Katalog
+        entfernter Modelle, also wird auch keiner erfunden.
+        """
+        options = [
+            uk.Option(model.name, ollama_api.display_name(model.name), meta=model.meta,
+                      group="Installierte Modelle",
+                      trailing="im Speicher" if model.name in state.warm else "")
+            for model in state.models
+        ]
+        if current and current not in state.names:
+            # Das konfigurierte Modell fehlt. Es bleibt sichtbar und bleibt
+            # gespeichert: stillschweigend ein anderes zu waehlen waere eine
+            # Entscheidung, die dem Nutzer gehoert.
+            if state.online:
+                meta = "Nicht installiert"
+            elif state.error:
+                meta = state.error
+            else:
+                meta = ""      # noch nie gefragt — nichts behaupten
+            options.insert(0, uk.Option(current, ollama_api.display_name(current),
+                                        meta=meta,
+                                        group="Installierte Modelle", enabled=False))
+        if state.online and options:
+            options.append(uk.Option("", ollama_api.PULL_HINT, enabled=False))
+        return options
+
+    def _refresh_ollama_models(self) -> None:
+        if not self.alive():
+            return
+        state = self._ollama_state
+        self.select_cleanup_model.set_options(
+            self.ollama_options(state, CFG.ollama_model_cleanup))
+        self.select_cleanup_model.set_value(CFG.ollama_model_cleanup)
+        self.select_prompt_model.set_options(
+            self.ollama_options(state, CFG.ollama_model_prompt))
+        self.select_prompt_model.set_value(CFG.ollama_model_prompt)
+
+    def _select_cleanup_model(self, name: str) -> None:
+        """Schreibt ausschliesslich den Cleanup-Schluessel."""
+        if not name or name == CFG.ollama_model_cleanup:
+            return
+        CFG.ollama_model_cleanup = name
+        _persist_config_value("ollama", "model_transcript_cleanup", name)
+        logger.info("Cleanup-Modell: %s", name)
+        self.select_cleanup_model.set_value(name)
+
+    def _select_prompt_model(self, name: str) -> None:
+        """Schreibt ausschliesslich den Prompt-Schluessel."""
+        if not name or name == CFG.ollama_model_prompt:
+            return
+        CFG.ollama_model_prompt = name
+        _persist_config_value("ollama", "model_prompt_generate", name)
+        logger.info("Prompt-Modell: %s", name)
+        self.select_prompt_model.set_value(name)

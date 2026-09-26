@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from wisper.ui_kit import Height, Radius, Space, Theme, _FONT_ROLES
+from source_code import all_source, module_files
 
 PROJECT = Path(__file__).parent.parent
 
@@ -301,10 +302,11 @@ class TestFontRoles:
 class TestNoRawValues:
     """Nach dem Aufräumen darf außerhalb des Token-Blocks keine Rohfarbe stehen."""
 
-    def test_main_has_no_hex_colors(self):
-        source = (PROJECT / "wisper" / "main.py").read_text(encoding="utf-8")
-        found = re.findall(r'"#[0-9A-Fa-f]{3,8}"', source)
-        assert not found, f"Rohfarben in main.py: {found}"
+    def test_no_module_besides_ui_kit_has_hex_colors(self):
+        found = {path.name: re.findall(r'"#[0-9A-Fa-f]{3,8}"', path.read_text(encoding="utf-8"))
+                 for path in module_files() if path.name != "ui_kit.py"}
+        found = {name: colors for name, colors in found.items() if colors}
+        assert not found, f"Rohfarben außerhalb von ui_kit.py: {found}"
 
     def test_ui_kit_hex_colors_only_inside_theme(self):
         source = (PROJECT / "wisper" / "ui_kit.py").read_text(encoding="utf-8")
@@ -313,5 +315,4 @@ class TestNoRawValues:
         assert not found, f"Rohfarben außerhalb der Token-Klasse: {found}"
 
     def test_old_palette_is_gone(self):
-        source = (PROJECT / "wisper" / "main.py").read_text(encoding="utf-8")
-        assert "COLOR_" not in source
+        assert "COLOR_" not in all_source()

@@ -6,13 +6,19 @@ ist), und dass in der sichtbaren Oberfläche kein alter Produktname steht.
 """
 
 import ast
-import pathlib
 
 import pytest
 from PIL import Image
 
 from wisper import branding
-from wisper import main as wm
+from wisper.app import FloatingTranscriberApp
+from wisper import config as config_mod
+from wisper import instance as instance_mod
+from wisper import tray as tray_mod
+import inspect
+from source_code import all_source
+from wisper import app as app_mod
+from wisper import settings_window as settings_window_mod
 
 MARK_SIZES = (16, 20, 24, 32, 64)
 
@@ -25,19 +31,19 @@ class TestName:
         assert branding.PRODUCT_NAME_AR == "همس"
 
     def test_the_window_title_uses_it(self):
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
+        source = inspect.getsource(app_mod)
         assert 'self.root.title(branding.PRODUCT_NAME)' in source
         assert 'self.root.title("Wisper")' not in source
 
     def test_the_settings_title_uses_it(self):
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
+        source = inspect.getsource(settings_window_mod)
         assert 'f"{branding.PRODUCT_NAME} — Einstellungen"' in source
 
 
 class TestAssets:
     def test_the_asset_folder_ships_with_the_package(self):
         assert branding.ASSET_DIR.is_dir()
-        assert branding.ASSET_DIR.parent.parent == wm.APP_DIR
+        assert branding.ASSET_DIR.parent.parent == config_mod.APP_DIR
 
     def test_the_windows_icon_exists(self):
         assert branding.icon_path() is not None
@@ -99,7 +105,7 @@ class TestTrayImage:
         assert branding.tray_image("#0A84FF", 128).size == (128, 128)
 
     def test_the_application_asks_for_the_mark(self):
-        image = wm._create_tray_icon_image("#0A84FF")
+        image = tray_mod._create_tray_icon_image("#0A84FF")
         assert image.size == branding.tray_image("#0A84FF", 64).size
         assert image.tobytes() == branding.tray_image("#0A84FF", 64).tobytes()
 
@@ -108,7 +114,7 @@ class TestTrayImage:
         ("generating", None),
     ])
     def test_every_state_produces_a_mark(self, state, colour):
-        chosen = colour or wm.FloatingTranscriberApp._tray_colour(state)
+        chosen = colour or FloatingTranscriberApp._tray_colour(state)
         alpha = branding.tray_image(chosen, 32).getchannel("A")
         assert sum(1 for p in alpha.getdata() if p > 0) > 100
 
@@ -116,14 +122,12 @@ class TestTrayImage:
 class TestNoOldLetter:
     def test_no_letter_is_drawn_any_more(self):
         """Frueher stand hier `draw.text(..., "W", ...)` als Symbol."""
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
+        source = inspect.getsource(tray_mod)
         assert 'draw.text' not in source
         assert '"W"' not in source
 
     def test_the_tray_helper_delegates_to_the_brand(self):
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
-        start = source.index("def _create_tray_icon_image")
-        body = source[start:start + 700]
+        body = inspect.getsource(tray_mod._create_tray_icon_image)
         assert "branding.tray_image" in body
         assert "ellipse" not in body
 
@@ -139,7 +143,7 @@ OLD_NAMES = ("Wisper", "Transcriber")
 
 def visible_strings() -> list:
     found = []
-    for path in sorted((wm.APP_DIR).glob("*.py")):
+    for path in sorted((config_mod.APP_DIR).glob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -171,7 +175,7 @@ class TestNoOldBrandInTheInterface:
         assert not offenders, "\n".join(offenders)
 
     def test_the_tooltip_carries_the_new_name(self):
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
+        source = inspect.getsource(tray_mod)
         assert "base = branding.PRODUCT_NAME" in source
 
 
@@ -179,15 +183,14 @@ class TestKeptInternally:
     """Was bewusst `Wisper` heisst und es bleiben soll."""
 
     def test_the_package_keeps_its_name(self):
-        assert wm.APP_DIR.name == "wisper"
+        assert config_mod.APP_DIR.name == "wisper"
 
     def test_the_configuration_stays_where_it_is(self):
         """Ein Umzug nach %APPDATA%\\Hams waere eine eigene Migration."""
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
-        assert '"Hams" / "config.toml"' not in source
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
+        assert '"Hams" / "config.toml"' not in all_source()
+        source = inspect.getsource(config_mod)
         assert '"Wisper" / "config.toml"' in source
 
     def test_the_single_instance_lock_keeps_its_name(self):
         """Ein neuer Name liesse eine zweite Instanz neben einer alten starten."""
-        assert "Wisper" in wm.MUTEX_NAME
+        assert "Wisper" in instance_mod.MUTEX_NAME

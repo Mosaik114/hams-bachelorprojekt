@@ -14,6 +14,8 @@ import pytest
 
 from conftest import fokus_erzwingen
 
+import inspect
+from source_code import module_files
 from wisper import ui_kit as uk
 from wisper.ui_kit import (ControlStyle, IconButton, Option, Popover, PrimaryButton,
                            SecondaryButton, Select, StatusDot, Switch, Theme)
@@ -421,13 +423,14 @@ class TestGreyscale:
             assert abs(values["idle"] - values["ready"]) > 0.02, mode
 
     def test_every_status_dot_has_a_text_beside_it(self):
-        """Geprüft am Quelltext: `set_status` verlangt immer beides."""
-        source = (SOURCE / "ui_kit.py").read_text(encoding="utf-8")
-        marker = "def set_status(self, status: str, text: str) -> None:"
-        assert marker in source, "SettingRow.set_status muss Text mitfuehren"
+        """`set_status` verlangt immer beides - ohne Text laesst er sich nicht rufen."""
+        parameter = inspect.signature(uk.SettingRow.set_status).parameters
+        assert list(parameter)[1:] == ["status", "text"]
+        assert parameter["text"].default is inspect.Parameter.empty, (
+            "SettingRow.set_status muss Text mitfuehren")
 
     def test_a_download_shows_numbers_not_only_a_bar(self):
-        from wisper.main import SettingsWindow as SW
+        from wisper.settings_window import SettingsWindow as SW
 
         text = SW.download_text("Tiny", 13_000_000, 78_000_000, 17)
         assert "17 %" in text and "13/78 MB" in text
@@ -509,7 +512,7 @@ class TestLanguage:
         assert not offenders, "\n".join(offenders)
 
     def test_the_window_titles_are_german(self):
-        from wisper.main import SettingsWindow as SW
+        from wisper.settings_window import SettingsWindow as SW
 
         assert "Einstellungen" in SW.MODEL_HINT or SW.MODEL_HINT
         assert SW.MODEL_HINT == "Tempo und Genauigkeit"
@@ -519,7 +522,7 @@ class TestNoLegacyGlyphs:
     #: Zeichen, die frueher als Ersatz fuer echte Icons dienten.
     GLYPHS = ["⚙", "⌄", "✕", "▾", "▼", "●", "✔"]
 
-    @pytest.mark.parametrize("path", ["ui_kit.py", "main.py", "models.py", "ollama.py"])
+    @pytest.mark.parametrize("path", [path.name for path in module_files()])
     def test_no_glyph_hacks_left(self, path):
         source = (SOURCE / path).read_text(encoding="utf-8")
         lines = [line for line in source.splitlines()
@@ -530,7 +533,7 @@ class TestNoLegacyGlyphs:
 
     def test_the_download_marker_is_a_deliberate_character(self):
         """Der Pfeil vor der Groesse ist Text, kein Icon-Ersatz — und bleibt."""
-        from wisper.main import SettingsWindow as SW
+        from wisper.settings_window import SettingsWindow as SW
         from wisper import models
 
         window = object.__new__(SW)

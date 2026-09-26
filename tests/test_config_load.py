@@ -1,8 +1,6 @@
 """Tests for config loading."""
 
-import pytest
-from pathlib import Path
-from wisper.main import _load_config, Config
+from wisper.config import _load_config, Config
 
 
 class TestLoadConfig:
@@ -10,7 +8,7 @@ class TestLoadConfig:
 
     def test_defaults_when_no_config(self, tmp_path, monkeypatch):
         """Should return defaults when config file doesn't exist."""
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", tmp_path / "nonexistent.toml")
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", tmp_path / "nonexistent.toml")
         cfg = _load_config()
 
         assert isinstance(cfg, Config)
@@ -31,7 +29,7 @@ model_transcript_cleanup = "ministral-3:8b"
         config_file = tmp_path / "config.toml"
         config_file.write_text(config_content)
 
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", config_file)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", config_file)
         cfg = _load_config()
 
         assert cfg.sample_rate == 44100
@@ -43,7 +41,7 @@ model_transcript_cleanup = "ministral-3:8b"
         config_file = tmp_path / "invalid.toml"
         config_file.write_text("this is not valid toml = [")
 
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", config_file)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", config_file)
         cfg = _load_config()
 
         assert isinstance(cfg, Config)

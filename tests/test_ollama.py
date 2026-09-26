@@ -12,7 +12,7 @@ import urllib.request
 import pytest
 
 from wisper import ollama
-from wisper.main import SettingsWindow as SW
+from wisper.settings_window import SettingsWindow as SW
 
 TAGS = {
     "models": [
@@ -348,24 +348,24 @@ def window(monkeypatch):
     win.row_prompt_model = _Row()
     win.select_cleanup_model = _Select("a:1b")
     win.select_prompt_model = _Select("b:2b")
-    monkeypatch.setattr("wisper.main.CFG.ollama_model_cleanup", "a:1b")
-    monkeypatch.setattr("wisper.main.CFG.ollama_model_prompt", "b:2b")
+    monkeypatch.setattr("wisper.config.CFG.ollama_model_cleanup", "a:1b")
+    monkeypatch.setattr("wisper.config.CFG.ollama_model_prompt", "b:2b")
     win.written = []
-    monkeypatch.setattr("wisper.main._persist_config_value",
+    monkeypatch.setattr("wisper.settings_status._persist_config_value",
                         lambda section, key, value: win.written.append((section, key, value)))
     return win
 
 
 class TestSelection:
     def test_cleanup_writes_only_its_own_key(self, window):
-        from wisper.main import CFG
+        from wisper.config import CFG
 
         window._select_cleanup_model("b:2b")
         assert window.written == [("ollama", "model_transcript_cleanup", "b:2b")]
         assert CFG.ollama_model_cleanup == "b:2b"
 
     def test_cleanup_does_not_touch_the_prompt_model(self, window):
-        from wisper.main import CFG
+        from wisper.config import CFG
 
         before = CFG.ollama_model_prompt
         window._select_cleanup_model("b:2b")
@@ -373,14 +373,14 @@ class TestSelection:
         assert all(key != "model_prompt_generate" for _s, key, _v in window.written)
 
     def test_prompt_writes_only_its_own_key(self, window):
-        from wisper.main import CFG
+        from wisper.config import CFG
 
         window._select_prompt_model("a:1b")
         assert window.written == [("ollama", "model_prompt_generate", "a:1b")]
         assert CFG.ollama_model_prompt == "a:1b"
 
     def test_prompt_does_not_touch_the_cleanup_model(self, window):
-        from wisper.main import CFG
+        from wisper.config import CFG
 
         before = CFG.ollama_model_cleanup
         window._select_prompt_model("a:1b")
@@ -388,7 +388,7 @@ class TestSelection:
         assert all(key != "model_transcript_cleanup" for _s, key, _v in window.written)
 
     def test_the_two_stay_different(self, window):
-        from wisper.main import CFG
+        from wisper.config import CFG
 
         window._select_cleanup_model("a:1b")      # bereits gesetzt -> nichts
         window._select_prompt_model("b:2b")       # bereits gesetzt -> nichts

@@ -18,12 +18,14 @@ Die Schwelle ist deshalb kein Geschmack, sondern die Stelle, an der die
 Messung kippt.
 """
 
-import ast
 
 import numpy as np
 import pytest
 
-from wisper import main as wm
+from wisper.app import FloatingTranscriberApp
+from wisper import config as config_mod
+from wisper import transcription as transcription_mod
+import inspect
 
 
 class Aufzeichnung:
@@ -48,7 +50,7 @@ class GebatchteAufzeichnung:
 
 @pytest.fixture
 def app(monkeypatch):
-    a = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+    a = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
     a.root = type("R", (), {"after": staticmethod(lambda *args, **kw: None)})()
     a._prompt_mode = False
     return a
@@ -57,14 +59,14 @@ def app(monkeypatch):
 @pytest.fixture
 def modell(monkeypatch):
     protokoll = Aufzeichnung()
-    monkeypatch.setattr(wm, "BatchedInferencePipeline",
+    monkeypatch.setattr(transcription_mod, "BatchedInferencePipeline",
                         lambda model: GebatchteAufzeichnung(protokoll))
     return protokoll
 
 
 def _audio(sekunden: float) -> np.ndarray:
     rng = np.random.default_rng(7)
-    return (0.2 * rng.standard_normal(int(sekunden * wm.CFG.sample_rate))).astype(np.float32)
+    return (0.2 * rng.standard_normal(int(sekunden * config_mod.CFG.sample_rate))).astype(np.float32)
 
 
 class TestWelcherWegGenommenWird:
@@ -81,7 +83,7 @@ class TestWelcherWegGenommenWird:
 
     def test_the_threshold_is_where_the_measurement_turns(self):
         """Unter 24 s war der Gewinn null, ab 48 s deutlich."""
-        assert 24 <= wm.BATCHED_MIN_SECONDS <= 48
+        assert 24 <= transcription_mod.BATCHED_MIN_SECONDS <= 48
 
 
 class TestBeideWegeBekommenDasselbe:
@@ -92,7 +94,7 @@ class TestBeideWegeBekommenDasselbe:
         app._run_transcription(modell, _audio(60))
         (_, kurz), (_, lang) = modell.aufrufe
         lang = dict(lang)
-        assert lang.pop("batch_size") == wm.BATCH_SIZE
+        assert lang.pop("batch_size") == transcription_mod.BATCH_SIZE
         assert kurz == lang
 
     @pytest.mark.parametrize("schluessel", [
@@ -116,12 +118,6 @@ class TestDieVoraussetzungFuersBatchen:
         Ergebnis von der Reihenfolge abhaengig — und der Vergleich, auf dem
         die Schwelle oben beruht, hinfaellig.
         """
-        assert wm.Config().transcription_condition_on_previous_text is False
-        quelle = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
-        for knoten in ast.walk(ast.parse(quelle)):
-            if isinstance(knoten, ast.FunctionDef) and knoten.name == "_run_transcription":
-                rumpf = ast.get_source_segment(quelle, knoten)
-                break
-        else:
-            raise AssertionError("_run_transcription nicht gefunden")
+        assert config_mod.Config().transcription_condition_on_previous_text is False
+        rumpf = inspect.getsource(FloatingTranscriberApp._run_transcription)
         assert "condition_on_previous_text" in rumpf

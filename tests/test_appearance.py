@@ -16,11 +16,17 @@ import pytest
 
 from conftest import fokus_erzwingen
 
-from wisper import main as wm
+import inspect
+from source_code import all_source
+from wisper.app import FloatingTranscriberApp
+from wisper.settings_window import SettingsWindow
+from wisper import config as config_mod
+from wisper import settings_window as settings_window_mod
+from wisper import tray as tray_mod
 from wisper import ui_kit as uk
 from wisper.ui_kit import (GroupSurface, IconButton, Option, Popover, PrimaryButton,
                            ScrollArea, SectionHeader, SecondaryButton, Select,
-                           SettingRow, SignalMeter, StatusDot, Switch, Theme)
+                           SettingRow, SignalMeter, Switch, Theme)
 
 MODES = list(Theme.MODES)
 
@@ -139,13 +145,13 @@ class TestDefault:
 
         Keine Migration, kein Fehler — es gilt schlicht hell.
         """
-        cfg = wm.Config()
-        wm._apply_toml(cfg, {"ui": {"sound_feedback": True}})
+        cfg = config_mod.Config()
+        config_mod._apply_toml(cfg, {"ui": {"sound_feedback": True}})
         assert cfg.appearance == Theme.LIGHT
 
     def test_an_empty_file_gives_light(self):
-        cfg = wm.Config()
-        wm._apply_toml(cfg, {})
+        cfg = config_mod.Config()
+        config_mod._apply_toml(cfg, {})
         assert cfg.appearance == Theme.LIGHT
 
     @pytest.mark.parametrize("wert", ["", "Hell", "system", "auto", None, 3, "  "])
@@ -161,7 +167,7 @@ class TestDefault:
         assert Theme.normalise(wert) == erwartet
 
     def test_the_repository_default_is_light(self):
-        from wisper.main import DEFAULT_CONFIG_PATH
+        from wisper.config import DEFAULT_CONFIG_PATH
 
         text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
         assert 'appearance = "light"' in text
@@ -172,8 +178,7 @@ class TestDefault:
         Geprüft am Quelltext: die beiden Registry-Werte, über die Windows sein
         eigenes Theme meldet, dürfen nirgends vorkommen.
         """
-        text = (open(uk.__file__, encoding="utf-8").read()
-                + open(wm.__file__, encoding="utf-8").read())
+        text = all_source()
         for schluessel in ("AppsUseLightTheme", "SystemUsesLightTheme"):
             assert schluessel not in text, schluessel
 
@@ -184,36 +189,36 @@ class TestDefault:
 class TestPersistence:
     @pytest.fixture(autouse=True)
     def restore_file(self):
-        vorher = wm.CFG.appearance
+        vorher = config_mod.CFG.appearance
         yield
-        wm._persist_config_value("ui", "appearance", vorher)
+        config_mod._persist_config_value("ui", "appearance", vorher)
 
     def test_dark_survives_a_restart(self):
         """Hell -> Dunkel, Anwendung neu starten -> Dunkel."""
-        assert wm._persist_config_value("ui", "appearance", "dark") is True
-        assert wm._load_config().appearance == Theme.DARK
+        assert config_mod._persist_config_value("ui", "appearance", "dark") is True
+        assert config_mod._load_config().appearance == Theme.DARK
 
     def test_light_survives_a_restart(self):
-        wm._persist_config_value("ui", "appearance", "dark")
-        assert wm._persist_config_value("ui", "appearance", "light") is True
-        assert wm._load_config().appearance == Theme.LIGHT
+        config_mod._persist_config_value("ui", "appearance", "dark")
+        assert config_mod._persist_config_value("ui", "appearance", "light") is True
+        assert config_mod._load_config().appearance == Theme.LIGHT
 
     def test_the_value_lands_in_the_ui_section(self):
-        wm._persist_config_value("ui", "appearance", "dark")
-        text = wm.CONFIG_PATH.read_text(encoding="utf-8")
+        config_mod._persist_config_value("ui", "appearance", "dark")
+        text = config_mod.CONFIG_PATH.read_text(encoding="utf-8")
         abschnitt = text[text.index("[ui]"):]
         ende = abschnitt.find("\n[", 1)
         abschnitt = abschnitt if ende < 0 else abschnitt[:ende]
         assert 'appearance = "dark"' in abschnitt
 
     def test_a_broken_value_in_the_file_still_starts_light(self):
-        wm._persist_config_value("ui", "appearance", "dunkelblau")
-        assert wm._load_config().appearance == Theme.LIGHT
+        config_mod._persist_config_value("ui", "appearance", "dunkelblau")
+        assert config_mod._load_config().appearance == Theme.LIGHT
 
     def test_writing_does_not_disturb_the_rest_of_the_file(self):
-        vorher = wm._load_config()
-        wm._persist_config_value("ui", "appearance", "dark")
-        nachher = wm._load_config()
+        vorher = config_mod._load_config()
+        config_mod._persist_config_value("ui", "appearance", "dark")
+        nachher = config_mod._load_config()
         assert nachher.sound_feedback == vorher.sound_feedback
         assert nachher.model_size == vorher.model_size
         assert nachher.hotkey_transcript == vorher.hotkey_transcript
@@ -630,47 +635,44 @@ class TestApplicationWiring:
     def test_the_mode_is_applied_before_the_first_widget(self):
         """Beim Import steht der Modus bereits — sonst entstünde das erste
         Fenster in der falschen Palette und müsste sofort neu gezeichnet."""
-        quelle = open(wm.__file__, encoding="utf-8").read()
+        quelle = inspect.getsource(config_mod)
         laden = quelle.index("CFG = _load_config()")
         anwenden = quelle.index("Theme.apply(CFG.appearance)")
-        klasse = quelle.index("class FloatingTranscriberApp")
-        assert laden < anwenden < klasse
+        assert laden < anwenden
 
     def test_set_appearance_paints_both_windows(self, monkeypatch, root):
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         app.root = tk.Toplevel(root)
         app.root.configure(bg=Theme.WINDOW_BG)
         app.settings_win = None
         try:
             Theme.apply(Theme.LIGHT)
-            wm.FloatingTranscriberApp.set_appearance(app, Theme.DARK)
+            FloatingTranscriberApp.set_appearance(app, Theme.DARK)
             assert Theme.mode == Theme.DARK
-            assert wm.CFG.appearance == Theme.DARK
+            assert config_mod.CFG.appearance == Theme.DARK
             assert app.root.cget("bg") == Theme.palette(Theme.DARK)["WINDOW_BG"]
         finally:
             app.root.destroy()
             root.update()
 
     def test_set_appearance_ignores_an_unknown_value(self, root):
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         app.root = tk.Toplevel(root)
         app.settings_win = None
         try:
             Theme.apply(Theme.DARK)
-            wm.FloatingTranscriberApp.set_appearance(app, "regenbogen")
+            FloatingTranscriberApp.set_appearance(app, "regenbogen")
             assert Theme.mode == Theme.LIGHT      # normalisiert auf hell
         finally:
             app.root.destroy()
             root.update()
 
     def test_the_settings_window_offers_the_two_labels(self):
-        assert wm.SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell",
+        assert SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell",
                                                        Theme.DARK: "Dunkel"}
 
     def test_the_appearance_row_is_the_last_one_under_general(self):
-        quelle = open(wm.__file__, encoding="utf-8").read()
-        block = quelle[quelle.index("def _build_general"):]
-        block = block[:block.index("\n    def ", 1)]
+        block = inspect.getsource(SettingsWindow._build_general)
         assert block.index("row_appearance") > block.index("row_sound")
         assert "hairline=False" in block[block.index("row_appearance"):]
 
@@ -678,27 +680,27 @@ class TestApplicationWiring:
         """Erst schreiben, dann umschalten — sonst fiele ein Schreibfehler
         mitten in einen halb neu gezeichneten Baum."""
         ablauf = []
-        monkeypatch.setattr(wm, "_persist_config_value",
+        monkeypatch.setattr(settings_window_mod, "_persist_config_value",
                             lambda *a: ablauf.append(("schreiben", a[2])) or True)
 
         class _App:
             def set_appearance(self, mode):
                 ablauf.append(("umschalten", mode))
 
-        fenster = wm.SettingsWindow.__new__(wm.SettingsWindow)
+        fenster = SettingsWindow.__new__(SettingsWindow)
         fenster.app = _App()
         Theme.apply(Theme.LIGHT)
-        wm.SettingsWindow._select_appearance(fenster, Theme.DARK)
+        SettingsWindow._select_appearance(fenster, Theme.DARK)
         assert ablauf == [("schreiben", "dark"), ("umschalten", "dark")]
 
     def test_choosing_the_current_mode_does_nothing(self, monkeypatch):
         ablauf = []
-        monkeypatch.setattr(wm, "_persist_config_value",
+        monkeypatch.setattr(settings_window_mod, "_persist_config_value",
                             lambda *a: ablauf.append(a) or True)
-        fenster = wm.SettingsWindow.__new__(wm.SettingsWindow)
+        fenster = SettingsWindow.__new__(SettingsWindow)
         fenster.app = None
         Theme.apply(Theme.LIGHT)
-        wm.SettingsWindow._select_appearance(fenster, Theme.LIGHT)
+        SettingsWindow._select_appearance(fenster, Theme.LIGHT)
         assert ablauf == []
 
 
@@ -710,24 +712,24 @@ class TestTrayStaysIndependent:
 
     def test_the_tray_colours_do_not_follow_the_app_theme(self):
         Theme.apply(Theme.LIGHT)
-        hell = {zustand: wm.FloatingTranscriberApp._tray_colour(zustand)
+        hell = {zustand: FloatingTranscriberApp._tray_colour(zustand)
                 for zustand in ("ready", "recording", "generating", "error")}
         Theme.apply(Theme.DARK)
-        dunkel = {zustand: wm.FloatingTranscriberApp._tray_colour(zustand)
+        dunkel = {zustand: FloatingTranscriberApp._tray_colour(zustand)
                   for zustand in ("ready", "recording", "generating", "error")}
         assert hell == dunkel
 
     def test_the_tray_keeps_its_semantic_meaning(self):
-        farben = wm.TRAY_PALETTE
-        assert wm.FloatingTranscriberApp._tray_colour("recording") == farben["RECORDING"]
-        assert wm.FloatingTranscriberApp._tray_colour("generating") == farben["AI"]
-        assert wm.FloatingTranscriberApp._tray_colour("error") == farben["ERROR"]
-        assert wm.FloatingTranscriberApp._tray_colour("ready") == farben["ACCENT_TINT"]
+        farben = tray_mod.TRAY_PALETTE
+        assert FloatingTranscriberApp._tray_colour("recording") == farben["RECORDING"]
+        assert FloatingTranscriberApp._tray_colour("generating") == farben["AI"]
+        assert FloatingTranscriberApp._tray_colour("error") == farben["ERROR"]
+        assert FloatingTranscriberApp._tray_colour("ready") == farben["ACCENT_TINT"]
 
     def test_the_tray_image_is_built_in_both_modes(self):
         for modus in MODES:
             Theme.apply(modus)
-            bild = wm._create_tray_icon_image()
+            bild = tray_mod._create_tray_icon_image()
             assert bild.size[0] > 0 and bild.mode == "RGBA"
 
     def test_the_tray_mask_is_untouched_by_the_theme(self):
@@ -735,7 +737,7 @@ class TestTrayStaysIndependent:
         from wisper import branding
 
         Theme.apply(Theme.LIGHT)
-        hell = branding.tray_image(wm.TRAY_PALETTE["ACCENT_TINT"], 32)
+        hell = branding.tray_image(tray_mod.TRAY_PALETTE["ACCENT_TINT"], 32)
         Theme.apply(Theme.DARK)
-        dunkel = branding.tray_image(wm.TRAY_PALETTE["ACCENT_TINT"], 32)
+        dunkel = branding.tray_image(tray_mod.TRAY_PALETTE["ACCENT_TINT"], 32)
         assert list(hell.getdata()) == list(dunkel.getdata())

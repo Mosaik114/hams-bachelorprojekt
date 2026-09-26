@@ -4,7 +4,7 @@ import tomllib
 
 import pytest
 
-from wisper.main import _persist_config_value, _toml_scalar, _trailing_comment
+from wisper.config import _persist_config_value, _toml_scalar, _trailing_comment
 
 
 SAMPLE = """# Wisper-Konfiguration
@@ -31,7 +31,7 @@ def config(tmp_path, monkeypatch):
     """Legt eine Beispiel-Config an und hängt CONFIG_PATH darauf um."""
     path = tmp_path / "config.toml"
     path.write_text(SAMPLE, encoding="utf-8", newline="")
-    monkeypatch.setattr("wisper.main.CONFIG_PATH", path)
+    monkeypatch.setattr("wisper.config.CONFIG_PATH", path)
     return path
 
 
@@ -64,7 +64,7 @@ class TestSectionAwareness:
             encoding="utf-8",
             newline="",
         )
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", path)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", path)
 
         assert _persist_config_value("audio", "device", "Yeti") is True
 
@@ -109,7 +109,7 @@ class TestMissingEntries:
     def test_file_without_trailing_newline(self, tmp_path, monkeypatch):
         path = tmp_path / "config.toml"
         path.write_text('[ui]\nsound_feedback = true', encoding="utf-8", newline="")
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", path)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", path)
 
         assert _persist_config_value("ui", "window_x", 5) is True
         assert tomllib.loads(read(path))["ui"]["window_x"] == 5
@@ -137,7 +137,7 @@ class TestFormatPreservation:
             encoding="utf-8",
             newline="",
         )
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", path)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", path)
 
         _persist_config_value("ui", "sound_feedback", False)
 
@@ -150,7 +150,7 @@ class TestFormatPreservation:
         path.write_text(
             '[audio]\r\ndevice = "default"\r\n', encoding="utf-8", newline=""
         )
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", path)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", path)
 
         _persist_config_value("audio", "device", "Yeti")
 
@@ -211,7 +211,7 @@ class TestFailureModes:
     def test_a_missing_user_file_is_created(self, tmp_path, monkeypatch):
         """Seit Phase 20 ist die fehlende Nutzerdatei der normale Erststart."""
         target = tmp_path / "gibtsnicht.toml"
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", target)
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", target)
         assert _persist_config_value("audio", "device", "Yeti") is True
         assert target.exists()
         assert 'device = "Yeti"' in target.read_text(encoding="utf-8")
@@ -220,7 +220,7 @@ class TestFailureModes:
         """Liegt eine Datei im Weg, laesst sich das Verzeichnis nicht anlegen."""
         blocker = tmp_path / "blockiert"
         blocker.write_text("keine Datei zum Hineinschreiben", encoding="utf-8")
-        monkeypatch.setattr("wisper.main.CONFIG_PATH", blocker / "config.toml")
+        monkeypatch.setattr("wisper.config.CONFIG_PATH", blocker / "config.toml")
         assert _persist_config_value("audio", "device", "Yeti") is False
 
     def test_write_error_leaves_original_untouched(self, config, monkeypatch):
@@ -229,7 +229,7 @@ class TestFailureModes:
         def boom(*_args, **_kwargs):
             raise OSError("Simulierter Schreibfehler")
 
-        monkeypatch.setattr("wisper.main.os.replace", boom)
+        monkeypatch.setattr("wisper.config.os.replace", boom)
 
         assert _persist_config_value("audio", "device", "Yeti") is False
         assert read(config) == before
@@ -238,7 +238,7 @@ class TestFailureModes:
         def boom(*_args, **_kwargs):
             raise OSError("Simulierter Schreibfehler")
 
-        monkeypatch.setattr("wisper.main.os.replace", boom)
+        monkeypatch.setattr("wisper.config.os.replace", boom)
         _persist_config_value("audio", "device", "Yeti")
 
         assert not (config.parent / "config.toml.tmp").exists()

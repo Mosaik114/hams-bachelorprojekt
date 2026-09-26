@@ -5,13 +5,15 @@ Die Regel ist eng: entfernt werden ein Codeblock um die ganze Antwort und die
 und Unterstriche, die zum Inhalt gehören.
 """
 
-import ast
 import json
 
 import pytest
 
-from wisper import main as wm
-from wisper.main import plain_text
+import urllib.request
+from wisper.app import FloatingTranscriberApp
+from wisper import config as config_mod
+from wisper.transcription import plain_text
+import inspect
 
 
 class TestBold:
@@ -128,33 +130,33 @@ class TestPosition:
     """Die Normalisierung sitzt zwischen Ollama und allen Ausgabewegen."""
 
     def test_cleanup_normalises_its_answer(self, monkeypatch):
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
-        monkeypatch.setattr(wm.FloatingTranscriberApp, "_ollama_generate",
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
                             lambda self, **kwargs: "Das ist **wichtig**.")
-        monkeypatch.setattr(wm.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
+        monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         assert app._cleanup_text("das ist wichtig") == "Das ist wichtig."
 
     def test_the_prompt_mode_is_plain_too(self, monkeypatch):
         """Auch die KI-Antwort wird unveraendert eingefuegt."""
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
-        monkeypatch.setattr(wm.FloatingTranscriberApp, "_ollama_generate",
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
                             lambda self, **kwargs: "Die Antwort ist **42**.")
         assert app._generate_from_prompt("Frage") == "Die Antwort ist 42."
 
     def test_the_prompt_mode_keeps_its_paragraphs(self, monkeypatch):
         """Zeilenumbrueche tragen dort Bedeutung — Hervorhebungen nicht."""
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         antwort = "Erstens: **Oslo**.\nZweitens: Bergen.\n\nSoweit dazu."
-        monkeypatch.setattr(wm.FloatingTranscriberApp, "_ollama_generate",
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
                             lambda self, **kwargs: antwort)
         assert app._generate_from_prompt("Frage") == (
             "Erstens: Oslo.\nZweitens: Bergen.\n\nSoweit dazu.")
 
     def test_the_dictated_prompt_goes_out_untouched(self, monkeypatch):
         """Die Regel steht im Systemfeld, nicht im Prompt des Nutzers."""
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         gesehen = {}
-        monkeypatch.setattr(wm.FloatingTranscriberApp, "_ollama_generate",
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
                             lambda self, **kwargs: gesehen.update(kwargs) or "ok")
         app._generate_from_prompt("Nenne die Hauptstadt von Norwegen.")
         assert gesehen["prompt"] == "Nenne die Hauptstadt von Norwegen."
@@ -163,11 +165,11 @@ class TestPosition:
 
     def test_the_cleanup_does_not_send_a_system_instruction(self, monkeypatch):
         """Dort steht die Regel bereits im Prompt selbst."""
-        app = wm.FloatingTranscriberApp.__new__(wm.FloatingTranscriberApp)
+        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         gesehen = {}
-        monkeypatch.setattr(wm.FloatingTranscriberApp, "_ollama_generate",
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
                             lambda self, **kwargs: gesehen.update(kwargs) or "ok")
-        monkeypatch.setattr(wm.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
+        monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         app._cleanup_text("text")
         assert "system" not in gesehen
 
@@ -179,13 +181,7 @@ class TestPosition:
         heraus, sobald jemand oben etwas einfuegt, und der Test scheitert
         dann an seiner eigenen Mechanik statt an der Regel.
         """
-        source = (wm.APP_DIR / "main.py").read_text(encoding="utf-8")
-        body = None
-        for knoten in ast.walk(ast.parse(source)):
-            if isinstance(knoten, ast.FunctionDef) and knoten.name == "_transcribe_audio":
-                body = ast.get_source_segment(source, knoten)
-                break
-        assert body is not None, "_transcribe_audio nicht gefunden"
+        body = inspect.getsource(FloatingTranscriberApp._transcribe_audio)
         order = [body.index("self._add_to_history(text)"),
                  body.index("self._copy_and_paste(text)"),
                  body.index("args=(text,)")]
@@ -198,7 +194,7 @@ class TestPrompt:
 
     @pytest.fixture
     def prompt(self):
-        return (wm.APP_DIR / "prompts" / "cleanup.txt").read_text(encoding="utf-8")
+        return (config_mod.APP_DIR / "prompts" / "cleanup.txt").read_text(encoding="utf-8")
 
     def test_it_demands_plain_text(self, prompt):
         assert "Klartext" in prompt
@@ -221,7 +217,7 @@ class TestPrompt:
         assert all(ord(char) < 0x2E00 for char in prompt), "fremde Schriftzeichen"
 
     def test_it_is_the_file_the_configuration_points_at(self):
-        assert "Klartext" in wm.CFG.cleanup_prompt_template
+        assert "Klartext" in config_mod.CFG.cleanup_prompt_template
 
 
 class TestRequest:
@@ -243,7 +239,7 @@ class TestRequest:
             gesendet.update(json.loads(req.data))
             return _Antwort()
 
-        monkeypatch.setattr(wm.urllib.request, "urlopen", urlopen)
-        app = object.__new__(wm.FloatingTranscriberApp)
+        monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+        app = object.__new__(FloatingTranscriberApp)
         assert app._ollama_generate(prompt="Hallo", model="qwen3.5:9b", timeout=5) == "ok"
         assert gesendet["think"] is False

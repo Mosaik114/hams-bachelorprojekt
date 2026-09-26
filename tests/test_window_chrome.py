@@ -9,7 +9,6 @@ Tests sichern den Plattformpfad und den Rückfall ab.
 
 import tkinter as tk
 
-import pytest
 
 from wisper import ui_kit as uk
 

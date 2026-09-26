@@ -245,7 +245,8 @@ class TestFocusRing:
                                   ring_width=2, ring_gap=2)
         ringed = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE,
                                    ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
-        ink = lambda img: sum(p[3] for p in img.getdata())
+        def ink(img):
+            return sum(p[3] for p in img.getdata())
         assert ink(ringed) > ink(plain) * 1.05
 
     def test_shape_does_not_jump_when_focused(self):

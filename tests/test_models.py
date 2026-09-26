@@ -4,8 +4,8 @@ import pytest
 
 from wisper import models
 from wisper.config_validation import validate_config
-from wisper.main import SettingsWindow as SW
-from wisper.main import Config
+from wisper.settings_window import SettingsWindow as SW
+from wisper.config import Config
 
 
 class TestCatalog:
@@ -216,7 +216,7 @@ class _StubWindow:
 @pytest.fixture
 def config(monkeypatch):
     def _set(model_id):
-        monkeypatch.setattr("wisper.main.CFG.model_size", model_id)
+        monkeypatch.setattr("wisper.config.CFG.model_size", model_id)
 
     return _set
 
@@ -258,34 +258,34 @@ class TestOptions:
 
 
 class TestSelection:
-    def test_installed_model_triggers_a_switch(self, config, monkeypatch):
+    def test_installed_model_triggers_a_switch(self, config, patch_everywhere):
         """Gespeichert wird erst nach erfolgreichem Wechsel, nicht beim Klick."""
         config("turbo")
         written = {}
-        monkeypatch.setattr("wisper.main._persist_config_value",
-                            lambda s, k, v: written.update({(s, k): v}))
+        patch_everywhere("_persist_config_value",
+                         lambda s, k, v: written.update({(s, k): v}))
         window = _StubWindow({"turbo", "small"})
         window._select_model("small")
         assert window.app.switched == ["small"]
         assert written == {}, "Config darf noch nicht auf das neue Modell zeigen"
 
-    def test_uninstalled_model_is_not_persisted(self, config, monkeypatch):
+    def test_uninstalled_model_is_not_persisted(self, config, patch_everywhere):
         """Sonst zöge der nächste Start wortlos mehrere Gigabyte nach."""
         config("turbo")
         written = {}
-        monkeypatch.setattr("wisper.main._persist_config_value",
-                            lambda s, k, v: written.update({(s, k): v}))
+        patch_everywhere("_persist_config_value",
+                         lambda s, k, v: written.update({(s, k): v}))
         window = _StubWindow({"turbo"})
         window._select_model("large-v3")
         assert written == {}
         assert window.selected == "turbo", "Auswahl muss zurückspringen"
         assert window.app.started == ["large-v3"], "Auswahl startet den Download"
 
-    def test_choosing_the_active_model_changes_nothing(self, config, monkeypatch):
+    def test_choosing_the_active_model_changes_nothing(self, config, patch_everywhere):
         config("turbo")
         written = {}
-        monkeypatch.setattr("wisper.main._persist_config_value",
-                            lambda s, k, v: written.update({(s, k): v}))
+        patch_everywhere("_persist_config_value",
+                         lambda s, k, v: written.update({(s, k): v}))
         window = _StubWindow({"turbo"})
         window._select_model("turbo")
         assert written == {}

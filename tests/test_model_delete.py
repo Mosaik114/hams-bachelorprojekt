@@ -7,7 +7,7 @@ Installation des Nutzers — und beim zweiten Lauf haette er nichts mehr zu tun.
 
 import pytest
 
-from wisper import main as wm
+from wisper.settings_window import SettingsWindow
 from wisper import models as whisper_models
 from wisper import ui_kit as uk
 
@@ -223,7 +223,7 @@ class _App:
 
 
 def _fenster(aktiv=None):
-    fenster = wm.SettingsWindow.__new__(wm.SettingsWindow)
+    fenster = SettingsWindow.__new__(SettingsWindow)
     fenster.app = _App(aktiv)
     return fenster
 
@@ -231,7 +231,7 @@ def _fenster(aktiv=None):
 class TestDeletableRules:
     @pytest.fixture(autouse=True)
     def konfiguriert(self, monkeypatch):
-        monkeypatch.setattr("wisper.main.CFG.model_size", "turbo")
+        monkeypatch.setattr("wisper.config.CFG.model_size", "turbo")
 
     def test_the_loaded_model_stays(self, cache):
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]),
@@ -265,43 +265,43 @@ class TestStorageText:
     def test_it_counts_the_models_and_adds_up_their_size(self):
         bestand = [whisper_models.CachedModel("turbo", "Turbo", 1_621_665_983, True, ()),
                    whisper_models.CachedModel("tiny", "Tiny", 78_203_619, True, ())]
-        assert wm.SettingsWindow.storage_text(bestand) == "2 Modelle · 1,7 GB"
+        assert SettingsWindow.storage_text(bestand) == "2 Modelle · 1,7 GB"
 
     def test_one_model_is_singular(self):
         bestand = [whisper_models.CachedModel("tiny", "Tiny", 78_203_619, True, ())]
-        assert wm.SettingsWindow.storage_text(bestand) == "1 Modell · 78 MB"
+        assert SettingsWindow.storage_text(bestand) == "1 Modell · 78 MB"
 
     def test_an_empty_disk_says_so(self):
-        assert wm.SettingsWindow.storage_text([]) == "Noch nichts gespeichert"
+        assert SettingsWindow.storage_text([]) == "Noch nichts gespeichert"
 
     def test_leftovers_count_towards_the_total(self):
         bestand = [whisper_models.CachedModel("base", "Base", 12_000_000, False, ())]
-        assert "12 MB" in wm.SettingsWindow.storage_text(bestand)
+        assert "12 MB" in SettingsWindow.storage_text(bestand)
 
     def test_the_line_stays_short_enough_for_the_row(self):
         """Neben dem Auswahlfeld bleiben rund 150 px — etwa 34 Zeichen."""
         bestand = [whisper_models.CachedModel(i.model_id, i.label, 3_000_000_000,
                                               True, ())
                    for i in whisper_models.CATALOG]
-        assert len(wm.SettingsWindow.storage_text(bestand)) <= 34
+        assert len(SettingsWindow.storage_text(bestand)) <= 34
 
 
 class TestConfirmText:
     def test_a_complete_model_names_the_space_it_frees(self):
         eintrag = whisper_models.CachedModel("turbo", "Turbo", 1_621_665_983, True, ())
-        assert wm.SettingsWindow.confirm_text(eintrag) == "Turbo löschen? 1,6 GB frei"
+        assert SettingsWindow.confirm_text(eintrag) == "Turbo löschen? 1,6 GB frei"
 
     def test_a_leftover_asks_without_a_number(self):
         """Bei 0 B waere „gibt 0 B frei" eine Meldung ueber nichts."""
         eintrag = whisper_models.CachedModel("base", "Base", 0, False, ())
-        assert wm.SettingsWindow.confirm_text(eintrag) == "Rest von Base entfernen?"
+        assert SettingsWindow.confirm_text(eintrag) == "Rest von Base entfernen?"
 
     def test_both_forms_fit_the_row(self):
         for eintrag in (whisper_models.CachedModel("large-v3", "Large v3",
                                                    3_090_835_702, True, ()),
                         whisper_models.CachedModel("large-v3", "Large v3", 0,
                                                    False, ())):
-            assert len(wm.SettingsWindow.confirm_text(eintrag)) <= 34
+            assert len(SettingsWindow.confirm_text(eintrag)) <= 34
 
 
 # ------------------------------------------------------------------- Symbol

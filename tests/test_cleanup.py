@@ -1,8 +1,6 @@
 """Tests for cleanup text processing."""
 
-import pytest
-from unittest.mock import patch, MagicMock
-from wisper.main import FloatingTranscriberApp, CFG
+from wisper.config import CFG
 
 
 class TestCleanupText:

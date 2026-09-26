@@ -27,6 +27,7 @@ import inspect
 import keyboard
 import keyboard._generic
 import keyboard._winkeyboard
+from source_code import all_source
 
 
 class TestWhyReRegisteringCannotHelp:
@@ -73,7 +74,7 @@ class TestWhyALivenessCheckWouldMislead:
 
 class TestTheApplicationDrawsTheRightConclusion:
     def test_the_restart_is_documented_as_the_repair(self):
-        from wisper.main import FloatingTranscriberApp
+        from wisper.app import FloatingTranscriberApp
 
         doku = FloatingTranscriberApp.restart_app.__doc__ or ""
         assert "Hook" in doku
@@ -81,8 +82,7 @@ class TestTheApplicationDrawsTheRightConclusion:
 
     def test_the_application_never_pokes_the_private_listener_state(self):
         """`listening = False` liesse die alten Threads fuer immer laufen."""
-        from wisper import main as wm
 
-        quelle = open(wm.__file__, encoding="utf-8").read()
+        quelle = all_source()
         assert "_listener" not in quelle
         assert "listening =" not in quelle
