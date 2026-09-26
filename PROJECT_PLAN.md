@@ -1,99 +1,26 @@
-# Whisperflow-by-Nerway — Projekt-Plan
+# Hams – Stand und Pläne
 
-## Status: **Entwicklung (nicht öffentlich)**
+Hams (Paketname `wisper`) ist Teil von [Mosaiks-Desktop](../README.md) und nur
+für den eigenen Rechner gedacht. Aufbau, Einrichtung und Fehlersuche stehen im
+[README](README.md), die Änderungen im [CHANGELOG](CHANGELOG.md).
 
----
+## Erledigt
 
-## Was wurde erledigt ✅
+- Paket mit `pyproject.toml`, Start über `start_wisper.vbs` und Autostart
+- Prüfung der Einstellungen, Protokoll ohne diktierte Inhalte
+- Code in kleine Module zerlegt (keine Datei über ~700 Zeilen)
+- Über 1500 Tests, 91 % Abdeckung, CI verlangt mindestens 85 %
+- Feste Paketversionen mit Prüfsumme, `pip-audit` und Dependabot
+- Ollama-Adresse: unverschlüsselt nur auf dem eigenen Rechner
 
-### Grundprojekt
-- [x] Wisper als Python-Paket strukturiert (`wisper/` Verzeichnis)
-- [x] `pyproject.toml` für pip-Installation erstellt
-- [x] MIT LICENSE hinzugefügt
-- [x] README.md aktualisiert
-- [x] Git Repo initialisiert (lokal)
+## Offen (optional)
 
-### Transcription-Problem behoben
-- [x] Cleanup-Prompt neu formuliert (strengere Anweisungen gegen Über-Korrektur)
-- [x] Cleanup- und Prompt-Modell auf `ministral-3:8b` gesetzt
-
-### Verteilung vorbereitet
-- [x] Projekt als pip-Paket vorbereitet
-- [x] Entry-Point `wisper` funktioniert
-
-### Phase 1: Code-Qualität ✅
-- [x] Config-Validierung hinzugefügt (`wisper/config_validation.py`)
-- [x] Logging-Struktur verbessert (DEBUG level, Console + File handler)
-- [x] Fehlerbehandlung verbessert (war bereits gut, minimale Anpassungen)
-- [x] Docstrings für wichtige Funktionen hinzugefügt
-
-### Phase 2: Testing ✅
-- [x] Unit-Tests für Config-Parsing (3 tests)
-- [x] Unit-Tests für Config-Validierung (8 tests)
-- [x] Unit-Tests für Cleanup-Logik (3 tests)
-- [x] CI/CD Pipeline eingerichtet (GitHub Actions)
-
-### Phase 3: Plattform-Reife
-- [ ] `pyproject.toml` — GitHub URL von Platzhalter korrigieren
-- [ ] PyInstaller-Build für .exe erstellen
-- [ ] Linux/macOS Kompatibilität (optional)
-
-### Phase 4: Veröffentlichung
-- [x] README erweitert (Entwicklung, Tests, CI/CD Sektion)
-- [x] `CHANGELOG.md` erstellt
-- [ ] Auf PyPI hochladen (`twine upload dist/*`)
-- [ ] GitHub Repo öffentlich machen
-
-### Phase 5: Andere Nutzer
-- [x] Troubleshooting-Sektion in README
-- [x] Config-Doku in README
-- [ ] Installations-Anleitung für Ollama-Modelle (bereits in README)
-
----
-
-## Projekt-Struktur (aktuell)
-```
-Wisper/
-├── .git/                      # Lokales Git-Repo
-├── .github/workflows/ci.yml    # CI/CD Pipeline
-├── wisper/                    # Hauptpaket
-│   ├── __init__.py
-│   ├── main.py                # App-Logik
-│   ├── setup_autostart.py     # Windows Autostart
-│   ├── config.toml            # Konfiguration
-│   ├── config_validation.py   # Config-Validierung
-│   └── prompts/
-│       ├── __init__.py
-│       └── cleanup.txt        # Cleanup-Prompt
-├── tests/                     # Unit-Tests (15 tests)
-│   ├── conftest.py
-│   ├── test_config_validation.py
-│   ├── test_config_load.py
-│   └── test_cleanup.py
-├── LICENSE                    # MIT License
-├── README.md                  # Dokumentation
-├── CHANGELOG.md               # Änderungsprotokoll
-├── pyproject.toml             # pip-Paket-Konfiguration
-├── requirements.txt           # Dependencies
-├── PROJECT_PLAN.md            # Dieser Plan
-└── start_wisper.vbs          # Starter-Skript
-```
-
----
-
-## Nächste Schritte (Reihenfolge)
-
-1. **Config-Validierung einbauen** — Config wird aktuell einfach geparst ohne Validierung
-2. **Test-Struktur aufsetzen** — `pytest` + erste Tests
-3. **README erweitern** — Screenshots, bessere Doku
-4. **GitHub Repo erstellen** — `git remote add origin ...` (wie von dir vorbereitet)
-5. **PyPI Upload** — wenn gewünscht
-
----
+- Eigenständige `.exe` mit PyInstaller, damit Hams ohne Python-Installation läuft
+- Linux/macOS: nicht geplant, Hams nutzt Win32-Schnittstellen und VBScript
+- Veröffentlichung auf PyPI: nicht geplant, das Repo ist privat
 
 ## Notizen
 
--ollama Version: 0.21.1
-- Cleanup-Modell: ministral-3:8b
-- Prompt-Modell: ministral-3:8b
-- Windows-spezifisch (Win32 API, VBScript)
+- Bereinigungs- und Prompt-Modell: `ministral-3:8b`
+- Ollama unter `http://localhost:11434` (Standard)
+- Nur Windows

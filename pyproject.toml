@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
-    {name = "Wisper Contributors"}
+    {name = "Mosaik114"}
 ]
 keywords = ["speech-to-text", "transcription", "voice", "whisper", "ollama"]
 classifiers = [
@@ -67,8 +67,8 @@ fail_under = 85
 wisper = "wisper.main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/wisper"
-Repository = "https://github.com/yourusername/wisper"
+Homepage = "https://github.com/Mosaik114/Mosaiks-Desktop/tree/main/Hams"
+Repository = "https://github.com/Mosaik114/Mosaiks-Desktop"
 
 [tool.setuptools]
 packages = ["wisper", "wisper.ui_kit"]

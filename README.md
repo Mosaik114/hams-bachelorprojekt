@@ -1,13 +1,15 @@
-# Wisper
+# Hams
 
-Always-on-top Sprach-zu-Text Tool für Windows mit zwei Betriebsmodi:
+Sprach-zu-Text für Windows, immer im Vordergrund, mit zwei Betriebsarten
+(Paketname `wisper`):
 
 - **Transkription** — Aufnahme wird bereinigt und direkt an der Cursor-Position eingefügt
 - **Prompt-Modus** — Aufnahme wird als Prompt an ein lokales LLM geschickt, die Antwort landet an der Cursor-Position
 
-Die App läuft im System-Tray und reagiert auf globale Hotkeys.
+Die App läuft im Infobereich der Taskleiste und reagiert auf globale Kurzbefehle.
+Mit der [Tastenbelegung](../Tastenbelegung/) liegen sie auf Bild↓ und den Maus-Seitentasten.
 
-## Features
+## Funktionen
 
 - `faster-whisper` mit CUDA (Standard: `turbo`-Modell, Deutsch)
 - Zwei globale Hotkeys für Transkript-Bereinigung und Prompt-Generierung
@@ -30,7 +32,7 @@ Die App läuft im System-Tray und reagiert auf globale Hotkeys.
   sich dagegen meist ein stärkeres Modell.
 - Ollama muss auf `http://localhost:11434` erreichbar sein (Standard)
 
-## 1) Setup
+## 1) Einrichten
 
 ```powershell
 python -m venv .venv
@@ -52,7 +54,7 @@ verändertes Paket lässt pip dann gar nicht erst ein. Erzeugt wird sie mit
 
 Das `[cuda]`-Extra installiert `nvidia-cublas-cu12` und `nvidia-cudnn-cu12`.
 CTranslate2 — der Motor hinter `faster-whisper` — braucht beide für die GPU,
-bringt sie aber nicht mit. Ohne sie läuft Wisper auf der CPU weiter.
+bringt sie aber nicht mit. Ohne sie läuft Hams auf der CPU weiter.
 
 **Eine eigene Umgebung lohnt sich messbar.** Liegt `torch` im selben
 Interpreter, zieht `ctranslate2` es beim Start mit; das kostet 1,5 s pro Start
@@ -88,7 +90,7 @@ Alternativ: Klick aufs Tray-Icon → Fenster anzeigen → Button verwenden.
 
 ## Konfiguration
 
-Alle Einstellungen liegen in [wisper/config.toml](wisper/config.toml). Die wichtigsten Hebel:
+Alle Einstellungen liegen in `%APPDATA%\Wisper\config.toml`, die Vorlage mit allen Standardwerten in [wisper/config.default.toml](wisper/config.default.toml). Die wichtigsten Hebel:
 
 | Abschnitt | Schlüssel | Zweck |
 |-----------|-----------|-------|
@@ -105,7 +107,7 @@ Alle Einstellungen liegen in [wisper/config.toml](wisper/config.toml). Die wicht
 
 Den Cleanup-Prompt selbst kannst du in [wisper/prompts/cleanup.txt](wisper/prompts/cleanup.txt) anpassen.
 
-### Performance-Tipps
+### Tipps für Tempo
 
 - **Maximal schnell**: `cleanup_enabled = false` → Rohtext landet direkt im Ziel, kein Ollama-Rundtrip.
 - **Schnell mit Cleanup**: kleines lokales Ollama-Modell, `keep_alive = "30m"`, `warmup_on_start = true`.
@@ -126,7 +128,7 @@ python setup_autostart.py --remove
 Der Autostart registriert die App in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 und startet sie beim Login über `start_wisper.vbs` ohne Konsolenfenster.
 
-## Troubleshooting
+## Fehlersuche
 
 - **Modell lädt nicht** → GPU-Speicher prüfen, ggf. unter `[model]` in der Konfiguration `size` auf `medium` oder `small` stellen.
 - **Ollama-Fehler** → Ollama-Service läuft? `ollama list` zeigt die installierten Modelle.
@@ -143,17 +145,17 @@ pip install --no-deps -e .
 pytest tests/ --cov=wisper
 ```
 
-### Code linten
+### Stilprüfung
 
 ```powershell
 ruff check wisper tests
 ```
 
-### CI/CD
+### Prüfungen auf GitHub
 
 Das Projekt nutzt GitHub Actions für automatische Tests bei jedem Push. Die Pipeline ist in `.github/workflows/ci.yml` definiert und verlangt mindestens 85 % Testabdeckung. Danach prüft `pip-audit` die festgelegten Pakete auf bekannte Sicherheitslücken.
 
-### Projekt-Struktur
+### Aufbau
 
 ```
 wisper/
@@ -190,4 +192,4 @@ tests/
 
 ## Lizenz
 
-MIT License — see [LICENSE](LICENSE)
+MIT-Lizenz, siehe [LICENSE](LICENSE). Stand und Pläne: [PROJECT_PLAN.md](PROJECT_PLAN.md), Änderungen: [CHANGELOG.md](CHANGELOG.md).

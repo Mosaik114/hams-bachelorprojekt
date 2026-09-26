@@ -1,41 +1,40 @@
-# Changelog
+# Änderungen
 
-All notable changes to this project will be documented in this file.
+Alle wichtigen Änderungen an Hams. Aufbau nach
+[Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach
+[Semantic Versioning](https://semver.org/lang/de/).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [Unveröffentlicht]
 
-## [Unreleased]
+### Neu
+- Feste Paketversionen mit Prüfsumme: `requirements.txt` und `requirements-dev.txt`, erzeugt mit `pip-compile --generate-hashes`
+- CI prüft die Pakete mit `pip-audit` auf bekannte Sicherheitslücken
+- Tests für die laufende Anwendung (Start, Diktat, Einstellungsfenster); über 1500 Tests, Abdeckung 91 %
+- CI verlangt mindestens 85 % Testabdeckung
+- Prüfung der Einstellungen (`wisper/config_validation.py`) mit Warnungen im Protokoll
 
-### Added
-- Config validation module (`wisper/config_validation.py`)
-- Logging validation warnings for invalid config values
-- Console handler for ERROR-level logs (in addition to file handler)
-- Unit tests with pytest (15 tests passing)
-- GitHub Actions CI/CD pipeline
-- Development section in README
-- CHANGELOG.md
+### Geändert
+- `main.py` und `ui_kit.py` in Module zerlegt (`app`, `recording`, `transcription`, `whisper_model`, `settings_*`, `ui_kit/…`)
+- Pakete mit bekannten Lücken angehoben (u. a. Pillow 12.3, pygments 2.20)
+- Bereinigungs-Prompt strenger gegen Überkorrektur
+- Standardmodell für Bereinigung und Prompt: `ministral-3:8b`
+- Protokoll: Datei ab DEBUG, Konsole ab WARNING
 
-### Changed
-- Logging level increased to DEBUG (file) / WARNING (console)
-- Improved docstrings for main classes and methods
-- Cleanup prompt rewritten with stricter instructions against over-correction
-- Ollama defaults switched to `ministral-3:8b` for cleanup and prompt generation
+### Sicherheit
+- Diktate gehen unverschlüsselt (`http://`) nur an den eigenen Rechner. Eine Ollama-Adresse auf einem anderen Rechner muss `https://` sein, sonst bleibt die Standardadresse und das Protokoll warnt.
+- Im Protokoll stehen nur Textlängen, nie der diktierte Text.
 
-### Fixed
-- Minor code quality improvements
+## [0.1.0] – erste Version
 
-## [0.1.0] - Initial Release
-
-### Added
-- Always-on-top floating window with dark theme
-- System tray integration with status colors
-- Global hotkeys (`Ctrl+Shift+Space` for transcript, `Ctrl+Shift+Alt+Space` for prompt)
-- Audio recording with level meter
-- Faster-Whisper integration with CUDA support
-- Ollama integration for text cleanup and prompt generation
-- Clipboard automation (copy + paste)
-- Transcript history in tray menu
-- Auto-start setup script
-- Comprehensive config.toml documentation
-- Acoustic feedback (start/stop beeps)
+### Neu
+- Schwebendes Fenster, immer im Vordergrund
+- Tray-Symbol mit Statusfarben
+- Globale Kurzbefehle: Strg+Shift+Leer für Diktat, Strg+Shift+Alt+Leer für Prompt
+- Aufnahme mit Pegelanzeige
+- Faster-Whisper mit CUDA
+- Ollama für Bereinigung und Prompt-Antworten
+- Einfügen über die Zwischenablage
+- Verlauf der Diktate im Tray-Menü
+- Autostart-Skript
+- Dokumentierte `config.toml`
+- Signaltöne bei Start und Stopp
