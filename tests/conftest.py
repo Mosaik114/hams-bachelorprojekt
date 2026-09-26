@@ -97,6 +97,91 @@ def patch_everywhere(monkeypatch):
     return patch
 
 
+@pytest.fixture
+def hams(monkeypatch, patch_everywhere, tmp_path):
+    """Alle Attrappen fuer die echte Anwendung, siehe tests/live_app.py."""
+    from types import SimpleNamespace
+
+    from live_app import (FakeClipboard, FakeHotkeys, FakeKeyboard, FakeStream,
+                          FakeTray, fake_sounddevice)
+    from wisper import app as app_mod
+    from wisper import ollama as ollama_api
+    from wisper import recording as recording_mod
+    from wisper import settings_status as status_mod
+    from wisper import transcription as transcription_mod
+    from wisper.app import FloatingTranscriberApp as App
+    from wisper.config import CFG
+
+    fakes = SimpleNamespace(hotkeys=None, keyboard=FakeKeyboard(), clipboard=FakeClipboard(),
+                            dots=[], beeps=[], saved=[], loads=0, streams=FakeStream.opened,
+                            devices=[("Headset", "Headset (USB Audio)")],
+                            probe=ollama_api.OllamaState(False, error="aus"))
+
+    class Hotkeys(FakeHotkeys):
+        def __init__(self):
+            super().__init__()
+            fakes.hotkeys = self
+
+    def dot(state, level=None):
+        fakes.dots.append((state, level))
+
+    def load(self):
+        fakes.loads += 1
+
+    FakeStream.opened.clear()
+    FakeStream.fail_with = None
+    FakeHotkeys.failing = set()
+    snapshot = dict(vars(CFG))
+    monkeypatch.setattr(app_mod, "SystemHotkeys", Hotkeys)
+    monkeypatch.setattr(app_mod, "keyboard", fakes.keyboard)
+    monkeypatch.setattr(transcription_mod, "keyboard", fakes.keyboard)
+    monkeypatch.setattr(transcription_mod, "pyperclip", fakes.clipboard)
+    monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", tmp_path / "transkripte")
+    monkeypatch.setattr(app_mod, "winsound",
+                        SimpleNamespace(Beep=lambda f, d: fakes.beeps.append((f, d))))
+    monkeypatch.setattr(app_mod, "_notify_cursor_dot", dot)
+    monkeypatch.setattr(recording_mod, "_notify_cursor_dot", dot)
+    monkeypatch.setattr(recording_mod, "sd", fake_sounddevice())
+    monkeypatch.setattr(recording_mod, "_resolve_mic_device", lambda raw: 7)
+    monkeypatch.setattr(status_mod, "sd", fake_sounddevice())
+    monkeypatch.setattr(status_mod, "_resolve_mic_device", lambda raw: 7)
+    monkeypatch.setattr(status_mod, "_list_input_devices", lambda: list(fakes.devices))
+    monkeypatch.setattr(ollama_api, "probe", lambda base, timeout=None: fakes.probe)
+    patch_everywhere("_persist_config_value", lambda *args: fakes.saved.append(args))
+    monkeypatch.setattr(App, "_load_model_async", load)
+    monkeypatch.setattr(App, "_warmup_ollama_async", lambda self: None)
+    monkeypatch.setattr(App, "_setup_tray", lambda self: setattr(self, "tray_icon", FakeTray()))
+    CFG.sound_feedback = True
+    yield fakes
+    for name, value in snapshot.items():
+        setattr(CFG, name, value)
+
+
+@pytest.fixture
+def live_app(root, hams):
+    """Die echte Anwendung in einem eigenen, versteckten Fenster."""
+    from wisper import ui_kit as _uk
+    from wisper.app import FloatingTranscriberApp as App
+
+    theme = _uk.Theme.mode
+    window = tk.Toplevel(root)
+    app = App(window)
+    _uk.Animator.enabled = False          # init_animations folgt dem System
+    root.update()
+    yield app
+    app._shutting_down = True
+    if app.settings_win is not None and app.settings_win.alive():
+        app.settings_win.close()
+    app._release_resources()
+    app._cancel_position_job()
+    try:
+        window.destroy()
+    except tk.TclError:
+        pass
+    _uk.Theme.apply(theme)
+    root.update()
+
+
 @pytest.fixture(scope="session")
 def root():
     """Eine einzige Tk-Wurzel fuer die gesamte Testsitzung.

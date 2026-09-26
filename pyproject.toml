@@ -39,6 +39,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+    "pytest-cov",
     "ruff",
 ]
 # Fuer die Transkription auf der GPU. ctranslate2 braucht cuBLAS und cuDNN,
@@ -57,6 +58,10 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
+
+# Untergrenze fuer die CI: faellt die Abdeckung darunter, schlaegt der Lauf fehl.
+[tool.coverage.report]
+fail_under = 85
 
 [project.scripts]
 wisper = "wisper.main:main"
