@@ -142,6 +142,26 @@ def popen(monkeypatch):
     return _fake
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="systemd gibt es nur unter Linux")
+class TestRestartUnderTheService:
+    """Als Dienst startet systemd neu; ein eigener Nachfolger wuerde beim
+    Dienststopp mit beendet."""
+
+    def test_no_successor_is_started(self, app, popen, monkeypatch):
+        from wisper import linux
+        monkeypatch.setattr(linux, "under_systemd", lambda: True)
+        monkeypatch.setattr(linux, "restart_requested", False)
+        assert app.restart_app() == ""
+        assert popen.aufrufe == []
+        assert linux.restart_requested is True
+
+    def test_the_service_restarts_on_the_agreed_code(self):
+        from wisper import linux
+        unit = linux.service_unit("/py", "/main.py")
+        assert "Restart=on-failure" in unit
+        assert f"RestartForceExitStatus={linux.RESTART_EXIT_CODE}" in unit
+
+
 class TestRestartApp:
     def test_it_starts_a_successor_and_steps_aside(self, app, popen):
         assert app.restart_app() == ""

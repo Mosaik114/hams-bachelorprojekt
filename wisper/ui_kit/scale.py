@@ -224,10 +224,11 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
     }
     if sys.platform != "win32":
         # Segoe UI und Georgia gibt es nur unter Windows.
-        from wisper.linux import FONT_SUBSTITUTES
+        from wisper.linux import FONT_SUBSTITUTES, font_available
 
         def pick(key: str) -> str:
-            return next((f for f in FONT_SUBSTITUTES[key] if f in families), "TkDefaultFont")
+            return next((f for f in FONT_SUBSTITUTES[key] if font_available(f, families)),
+                        "TkDefaultFont")
 
         resolved.update(display=pick("text"), text=pick("text"), small=pick("text"),
                         semibold=pick("semibold"), mono=pick("mono"), serif=pick("serif"))

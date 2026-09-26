@@ -2,8 +2,6 @@
 
 import tkinter as tk
 
-import sys
-
 import pytest
 
 from conftest import fokus_erzwingen
@@ -214,16 +212,9 @@ class TestSectionHeader:
         assert header.cget("text") != header.cget("text").upper()
 
 
-plex_row = pytest.mark.xfail(
-    sys.platform != "win32", strict=False,
-    reason="IBM Plex Sans ist je Zeile 1 px hoeher als Segoe UI; Titel plus "
-           "Beschreibung ergeben unter Linux 69 statt 68 px")
-
 
 class TestSettingRow:
-    @pytest.mark.parametrize("variant", ["simple",
-                                         pytest.param("description", marks=plex_row),
-                                         pytest.param("status", marks=plex_row), "display"])
+    @pytest.mark.parametrize("variant", ["simple", "description", "status", "display"])
     def test_every_variant_has_the_same_minimum_height(self, window, root, variant):
         row = SettingRow(window, "Titel", variant=variant,
                          description="Text", value="Wert")
@@ -388,7 +379,7 @@ class TestDisabledRow:
 
 
 class TestDpi:
-    @pytest.mark.parametrize("scale", [pytest.param(1.0, marks=plex_row), 1.5, 2.0])
+    @pytest.mark.parametrize("scale", [1.0, 1.5, 2.0])
     def test_row_height_scales(self, window, root, factor, scale):
         factor(scale)
         row = SettingRow(window, "Titel", variant="description", description="x")

@@ -40,6 +40,51 @@ def autostart_dir() -> Path:
     return Path(base) / "autostart"
 
 
+# ---------------------------------------------------------------- Dienst
+
+#: Name des systemd-Benutzerdienstes. Das Präfix „app-“ plus APP_ID lässt das
+#: Portal das Programm am Dienst erkennen.
+SERVICE = f"app-{APP_ID}.service"
+
+#: Mit diesem Code beendet sich Hams, wenn es neu gestartet werden will; der
+#: Dienst startet es dann sofort wieder (RestartForceExitStatus).
+RESTART_EXIT_CODE = 75
+
+#: Vom Neustart-Knopf gesetzt; main() beendet sich dann mit RESTART_EXIT_CODE.
+restart_requested = False
+
+
+def under_systemd() -> bool:
+    """Läuft Hams in seinem eigenen Dienst? Steht in der cgroup des Prozesses.
+
+    INVOCATION_ID allein reicht nicht: die erbt jeder Prozess, der irgendwo
+    unter einem Dienst gestartet wurde, etwa ein Terminal im Editor.
+    """
+    try:
+        return f"/{SERVICE}" in Path("/proc/self/cgroup").read_text()
+    except OSError:
+        return False
+
+
+def service_unit(python: str, main_py: str) -> str:
+    return "\n".join([
+        "[Unit]",
+        "Description=Hams (Sprache zu Text)",
+        "PartOf=graphical-session.target",
+        "After=graphical-session.target",
+        "",
+        "[Service]",
+        f'ExecStart="{python}" "{main_py}"',
+        # Absturz: sofort wieder da. Beenden über das Tray-Menü: bleibt aus.
+        "Restart=on-failure",
+        f"RestartForceExitStatus={RESTART_EXIT_CODE}",
+        "RestartSec=2",
+        "",
+        "[Install]",
+        "WantedBy=graphical-session.target",
+    ]) + "\n"
+
+
 # ---------------------------------------------------------------- Einzelinstanz
 
 _LOCK_FILE = None
@@ -126,13 +171,26 @@ def monitor_areas() -> list:
 
 # ---------------------------------------------------------------- Schriften
 
-#: Windows-Familie -> Linux-Ersatz, in dieser Reihenfolge gesucht.
+#: Windows-Familie -> Linux-Ersatz, in dieser Reihenfolge gesucht. Inter und
+#: Source Serif 4 kommen dem Vorbild des Mosaik-Designs am nächsten (Claude:
+#: Styrene und Tiempos) und sind frei; die übrigen sind nur Rückfall.
 FONT_SUBSTITUTES = {
-    "text": ("IBM Plex Sans", "Noto Sans", "DejaVu Sans"),
-    "semibold": ("IBM Plex Sans SmBld", "IBM Plex Sans", "Noto Sans", "DejaVu Sans"),
-    "serif": ("Noto Serif", "DejaVu Serif"),
+    "text": ("Inter", "IBM Plex Sans", "Noto Sans", "DejaVu Sans"),
+    "semibold": ("Inter SemiBold", "IBM Plex Sans SmBld", "IBM Plex Sans", "Noto Sans"),
+    "serif": ("Source Serif 4", "Noto Serif", "DejaVu Serif"),
     "mono": ("IBM Plex Mono", "DejaVu Sans Mono"),
 }
+
+#: Schnitte, die fontconfig über den Namen findet, Tk aber nicht als eigene
+#: Familie aufzählt: gilt als vorhanden, wenn die Grundfamilie da ist.
+WEIGHT_STYLES = ("SemiBold", "Medium")
+
+
+def font_available(family: str, families) -> bool:
+    if family in families:
+        return True
+    base, _, style = family.rpartition(" ")
+    return style in WEIGHT_STYLES and base in families
 
 
 @lru_cache(maxsize=None)
@@ -283,18 +341,15 @@ winsound = _WinsoundShim()
 
 # ---------------------------------------------------------------- Autostart
 
-def desktop_entry(python: str, main_py: str, icon: str, autostart: bool) -> str:
-    lines = [
+def desktop_entry(exec_line: str, icon: str) -> str:
+    return "\n".join([
         "[Desktop Entry]",
         "Type=Application",
         "Name=Hams",
         "Comment=Sprache zu Text: diktieren und an der Cursorposition einfügen",
-        f'Exec="{python}" "{main_py}"',
+        f"Exec={exec_line}",
         f"Icon={icon}",
         "Terminal=false",
         "Categories=Utility;Accessibility;",
         "StartupNotify=false",
-    ]
-    if autostart:
-        lines.append("X-KDE-autostart-phase=2")
-    return "\n".join(lines) + "\n"
+    ]) + "\n"

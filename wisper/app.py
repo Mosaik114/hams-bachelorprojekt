@@ -302,6 +302,20 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         if not _release_single_instance_mutex():
             return "Neustart nicht möglich"
 
+        if sys.platform != "win32" and linux.under_systemd():
+            # Der Dienst startet neu, sobald sich Hams mit dem vereinbarten Code
+            # beendet; ein selbst gestarteter Nachfolger fiele dem Dienststopp zum Opfer.
+            logger.info("Neustart über den Dienst angefordert")
+            linux.restart_requested = True
+            self._shutting_down = True
+            self._release_resources()
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                logger.exception("Tray stop failed")
+            self.root.after(0, self.root.destroy)
+            return ""
+
         befehl = restart_command()
         if sys.platform == "win32":
             loesen = {"creationflags": (subprocess.DETACHED_PROCESS

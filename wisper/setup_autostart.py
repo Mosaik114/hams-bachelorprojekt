@@ -66,11 +66,23 @@ def _linux_paths() -> dict:
     return {
         "menu": data / "applications" / f"{linux.APP_ID}.desktop",
         "icon": data / "icons" / "hicolor" / "256x256" / "apps" / f"{linux.APP_ID}.png",
+        # früherer Weg, wird beim Einrichten des Dienstes entfernt
         "autostart": linux.autostart_dir() / f"{linux.APP_ID}.desktop",
+        "service": Path.home() / ".local" / "share" / "systemd" / "user" / linux.SERVICE,
     }
 
 
+def _systemctl(*args: str) -> None:
+    import subprocess
+    subprocess.run(["systemctl", "--user", *args], check=True)
+
+
 def add_autostart_linux() -> None:
+    """Hams als Benutzerdienst: startet mit der Sitzung und nach einem Absturz neu.
+
+    Der Startmenü-Eintrag startet den Dienst, statt Hams daneben ein zweites
+    Mal zu starten.
+    """
     from wisper import linux
     paths = _linux_paths()
     python = PROJECT_ROOT / ".venv" / "bin" / "python"
@@ -78,16 +90,25 @@ def add_autostart_linux() -> None:
     paths["icon"].parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(PROJECT_ROOT / "wisper" / "assets" / "branding" / "hams_app_icon.png",
                     paths["icon"])
-    for key, autostart in (("menu", False), ("autostart", True)):
-        paths[key].parent.mkdir(parents=True, exist_ok=True)
-        paths[key].write_text(linux.desktop_entry(str(python), str(main_py),
-                                                  linux.APP_ID, autostart), encoding="utf-8")
-    print("Startmenü-Eintrag und Autostart eingerichtet.")
+    paths["menu"].parent.mkdir(parents=True, exist_ok=True)
+    paths["menu"].write_text(linux.desktop_entry(
+        f"systemctl --user start {linux.SERVICE}", linux.APP_ID), encoding="utf-8")
+    paths["service"].parent.mkdir(parents=True, exist_ok=True)
+    paths["service"].write_text(linux.service_unit(str(python), str(main_py)), encoding="utf-8")
+    paths["autostart"].unlink(missing_ok=True)
+    _systemctl("daemon-reload")
+    _systemctl("enable", linux.SERVICE)
+    print(f"Dienst {linux.SERVICE} eingerichtet (startet mit der Sitzung und nach Abstürzen).")
     print(f"Befehl: {python} {main_py}")
 
 
 def remove_autostart_linux() -> None:
+    from wisper import linux
     paths = _linux_paths()
+    if paths["service"].exists():
+        _systemctl("disable", linux.SERVICE)
+        paths["service"].unlink()
+        _systemctl("daemon-reload")
     paths["autostart"].unlink(missing_ok=True)
     if "--alles" in sys.argv:
         paths["menu"].unlink(missing_ok=True)

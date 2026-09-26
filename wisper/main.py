@@ -55,6 +55,10 @@ def main() -> None:
         # Beim Neustart ist das Schloss schon freigegeben; dann ist hier nichts
         # mehr zu tun und der Nachfolger haelt es bereits.
         _release_single_instance_mutex()
+    if sys.platform != "win32":
+        from wisper import linux
+        if linux.restart_requested:
+            sys.exit(linux.RESTART_EXIT_CODE)
 
 
 if __name__ == "__main__":
