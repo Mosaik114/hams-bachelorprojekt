@@ -37,7 +37,6 @@ KAPUTTE_DATEIEN = {
     "beam_size": '[transcription]\nbeam_size = 99\n',
     "timeout_cleanup": '[ollama]\ntimeout_cleanup = 0\n',
     "paste_timeout": '[clipboard]\npaste_timeout = -1.0\n',
-    "url": '[ollama]\nurl = "ftp://127.0.0.1:11434/api/generate"\n',
 }
 
 
@@ -113,3 +112,11 @@ class TestDieRegelnSindAbgedeckt:
         _apply_toml(cfg, tomllib.loads(KAPUTTE_DATEIEN[regel]))
 
         assert len(validate_config(cfg)) == 1
+
+    def test_a_broken_url_is_refused_already_while_loading(self):
+        """Die Adresse bekommt jedes Diktat - sie wird gar nicht erst uebernommen."""
+        cfg = Config()
+        _apply_toml(cfg, tomllib.loads('[ollama]\nurl = "ftp://127.0.0.1:11434/api/generate"\n'))
+
+        assert cfg.ollama_url == Config().ollama_url
+        assert validate_config(cfg) == []

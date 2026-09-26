@@ -20,7 +20,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
     import tomli as tomllib  # type: ignore[import-not-found]
 
-from wisper.config_validation import validate_config
+from wisper.config_validation import ollama_url_problem, validate_config
 from wisper import branding
 from wisper.ui_kit import Theme
 from wisper.window_position import _clean_coordinate
@@ -478,7 +478,13 @@ def _apply_toml(cfg: Config, data: dict) -> None:
     cfg.hotkey_prompt = str(hotkeys.get("prompt", cfg.hotkey_prompt))
 
     ollama = data.get("ollama", {})
-    cfg.ollama_url = ipv4_loopback(str(ollama.get("url", cfg.ollama_url)))
+    url = ipv4_loopback(str(ollama.get("url", cfg.ollama_url)))
+    problem = ollama_url_problem(url)
+    if problem:
+        # Nur melden reicht nicht: die Adresse bekaeme trotzdem jedes Diktat.
+        logger.warning("Config: %s - using %s instead", problem, cfg.ollama_url)
+    else:
+        cfg.ollama_url = url
     cfg.ollama_model_cleanup = str(ollama.get("model_transcript_cleanup", cfg.ollama_model_cleanup))
     cfg.ollama_model_prompt = str(ollama.get("model_prompt_generate", cfg.ollama_model_prompt))
     cfg.ollama_timeout_cleanup = int(ollama.get("timeout_cleanup", cfg.ollama_timeout_cleanup))

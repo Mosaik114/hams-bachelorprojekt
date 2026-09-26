@@ -1,11 +1,42 @@
 """Configuration validation for Wisper."""
 
+import ipaddress
+import urllib.parse
 from typing import Any
 
 
 class ConfigValidationError(ValueError):
     """Raised when configuration values are invalid."""
     pass
+
+
+def ollama_url_problem(url: str) -> str:
+    """Warum diese Ollama-Adresse nicht benutzt werden darf - oder "".
+
+    Hams schickt jedes Diktat an diese Adresse. Unverschluesselt darf sie
+    deshalb nur auf den eigenen Rechner zeigen; ein fremder Rechner muss
+    https sprechen, sonst liest jeder im Netz mit. Andere Schemata wie
+    `file:` wuerden `urlopen` lokale Dateien lesen lassen.
+    """
+    try:
+        parts = urllib.parse.urlsplit(url)
+        host = parts.hostname or ""
+    except ValueError:
+        return f"ollama.url is not a valid URL, got {url}"
+    if parts.scheme not in ("http", "https") or not host:
+        return f"ollama.url should start with http:// or https:// and name a host, got {url}"
+    if parts.scheme == "http" and not _is_loopback(host):
+        return f"ollama.url must use https for another computer, got {url}"
+    return ""
+
+
+def _is_loopback(host: str) -> bool:
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def validate_config(cfg: Any) -> list[str]:
@@ -39,7 +70,8 @@ def validate_config(cfg: Any) -> list[str]:
     if cfg.clipboard_paste_timeout < 0:
         errors.append(f"clipboard.paste_timeout should be non-negative, got {cfg.clipboard_paste_timeout}")
 
-    if not cfg.ollama_url.startswith("http://") and not cfg.ollama_url.startswith("https://"):
-        errors.append(f"ollama.url should start with http:// or https://, got {cfg.ollama_url}")
+    problem = ollama_url_problem(cfg.ollama_url)
+    if problem:
+        errors.append(problem)
 
     return errors

@@ -12,6 +12,7 @@ wird auf `127.0.0.1` gelegt, und sonst wird an keiner Adresse etwas geaendert.
 import pytest
 
 from wisper.config import Config, _apply_toml, ipv4_loopback
+from wisper.config_validation import ollama_url_problem
 from wisper import ollama as ollama_api
 
 
@@ -79,3 +80,43 @@ class TestDieKonfigurationBenutztEs:
         cfg = Config()
         _apply_toml(cfg, {"ollama": {"url": "http://localhost:11434/api/generate"}})
         assert ollama_api.base_url(cfg.ollama_url) == "http://127.0.0.1:11434"
+
+
+class TestDiktateBleibenImHaus:
+    """Jedes Diktat geht an diese Adresse. Unverschluesselt nur an den eigenen Rechner."""
+
+    @pytest.mark.parametrize("url", [
+        "http://127.0.0.1:11434/api/generate",
+        "http://127.8.0.1:11434/api/generate",
+        "http://[::1]:11434/api/generate",
+        "http://localhost:11434/api/generate",
+        "https://ollama.lan/api/generate",
+        "https://192.168.1.5:11434/api/generate",
+    ])
+    def test_local_or_encrypted_is_allowed(self, url):
+        assert ollama_url_problem(url) == ""
+
+    @pytest.mark.parametrize("url, reason", [
+        ("http://192.168.1.5:11434/api/generate", "https"),
+        ("http://ollama.lan:11434/api/generate", "https"),
+        ("http://localhost.example.com/api/generate", "https"),
+        ("file:///C:/Windows/win.ini", "http://"),
+        ("ftp://127.0.0.1/api/generate", "http://"),
+        ("http:///api/generate", "http://"),
+        ("kein-url", "http://"),
+        ("http://[zz/api", "valid"),
+    ])
+    def test_everything_else_is_refused_with_a_reason(self, url, reason):
+        assert reason in ollama_url_problem(url)
+
+    def test_a_refused_address_is_not_used(self, caplog):
+        cfg = Config()
+        with caplog.at_level("WARNING", logger="wisper"):
+            _apply_toml(cfg, {"ollama": {"url": "http://192.168.1.5:11434/api/generate"}})
+        assert cfg.ollama_url == Config().ollama_url
+        assert "must use https" in caplog.text
+
+    def test_an_encrypted_remote_address_is_used(self):
+        cfg = Config()
+        _apply_toml(cfg, {"ollama": {"url": "https://ollama.lan/api/generate"}})
+        assert cfg.ollama_url == "https://ollama.lan/api/generate"

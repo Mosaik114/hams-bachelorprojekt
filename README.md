@@ -38,6 +38,18 @@ python -m venv .venv
 pip install -e ".[cuda]"
 ```
 
+Wer genau die geprüften Versionen will (so installiert auch die CI):
+
+```powershell
+pip install --require-hashes -r requirements.txt
+pip install --no-deps -e .
+```
+
+`requirements.txt` legt jede Paketversion samt Prüfsumme fest; ein
+verändertes Paket lässt pip dann gar nicht erst ein. Erzeugt wird sie mit
+`pip-compile --generate-hashes pyproject.toml` (für die Entwicklung zusätzlich
+`--extra dev -o requirements-dev.txt`).
+
 Das `[cuda]`-Extra installiert `nvidia-cublas-cu12` und `nvidia-cudnn-cu12`.
 CTranslate2 — der Motor hinter `faster-whisper` — braucht beide für die GPU,
 bringt sie aber nicht mit. Ohne sie läuft Wisper auf der CPU weiter.
@@ -126,20 +138,20 @@ und startet sie beim Login über `start_wisper.vbs` ohne Konsolenfenster.
 ### Tests ausführen
 
 ```powershell
-pip install -e ".[dev]"
+pip install --require-hashes -r requirements-dev.txt
+pip install --no-deps -e .
 pytest tests/ --cov=wisper
 ```
 
 ### Code linten
 
 ```powershell
-pip install ruff
-ruff check wisper/
+ruff check wisper tests
 ```
 
 ### CI/CD
 
-Das Projekt nutzt GitHub Actions für automatische Tests bei jedem Push. Die Pipeline ist in `.github/workflows/ci.yml` definiert und verlangt mindestens 85 % Testabdeckung.
+Das Projekt nutzt GitHub Actions für automatische Tests bei jedem Push. Die Pipeline ist in `.github/workflows/ci.yml` definiert und verlangt mindestens 85 % Testabdeckung. Danach prüft `pip-audit` die festgelegten Pakete auf bekannte Sicherheitslücken.
 
 ### Projekt-Struktur
 
