@@ -32,6 +32,36 @@ Mit der [Tastenbelegung](../Tastenbelegung/) liegen sie auf Bild↓ und den Maus
   sich dagegen meist ein stärkeres Modell.
 - Ollama muss auf `http://localhost:11434` erreichbar sein (Standard)
 
+## Linux (Kubuntu, KDE Plasma mit Wayland)
+
+Hams läuft auch unter Linux. Was dort anders ist:
+
+| Windows | Linux |
+|---|---|
+| Kurzbefehle über `RegisterHotKey` | über das Desktop-Portal (`GlobalShortcuts`); KDE fragt beim ersten Start einmal nach, danach stehen sie unter Systemeinstellungen → Tastatur → Kurzbefehle → Hams |
+| Strg+V über die `keyboard`-Bibliothek | über eine eigene virtuelle Tastatur (`/dev/uinput`), weil Wayland fremde Tastendrücke sonst nicht zulässt |
+| `winsound.Beep` | kurzer Sinuston über `sounddevice` |
+| Konfiguration unter `%APPDATA%\Wisper` | unter `~/.config/Wisper/config.toml` |
+| Autostart über die Registry | `~/.config/autostart/de.mosaik.Hams.desktop` |
+
+Die Meldung an die Mosaiks-Suche (Soundbar am Mauszeiger) und runde
+Fensterecken gibt es unter Linux nicht.
+
+Einrichten:
+
+```bash
+sudo bash linux/system-einrichten.sh     # einmal: Tk, Audio, Zwischenablage, NVIDIA-Treiber, uinput-Recht; danach neu starten
+uv venv --system-site-packages --python /usr/bin/python3 .venv
+uv pip install --python .venv/bin/python -e ".[cuda,dev]"
+.venv/bin/python wisper/setup_autostart.py   # Startmenü-Eintrag und Autostart
+```
+
+`--system-site-packages`, weil Tk und die GTK-Anbindung fürs Tray-Symbol aus
+den Systempaketen kommen. cuBLAS und cuDNN lädt Hams unter Linux selbst aus den
+NVIDIA-Paketen im venv vor.
+
+Ollama läuft als Benutzerdienst (`systemctl --user status ollama`).
+
 ## 1) Einrichten
 
 ```powershell

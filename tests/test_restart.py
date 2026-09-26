@@ -45,11 +45,16 @@ class TestRestartCommand:
 # -------------------------------------------------------------------- Schloss
 
 
+windows_only = pytest.mark.skipif(sys.platform != "win32",
+                                  reason="benanntes Mutex gibt es nur unter Windows")
+
+
 class TestMutex:
     def test_releasing_nothing_succeeds(self, monkeypatch):
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", None)
         assert instance_mod._release_single_instance_mutex() is True
 
+    @windows_only
     def test_releasing_closes_the_handle_and_forgets_it(self, monkeypatch):
         geschlossen = []
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", 4711)
@@ -59,12 +64,14 @@ class TestMutex:
         assert geschlossen == [4711]
         assert instance_mod._MUTEX_HANDLE is None
 
+    @windows_only
     def test_releasing_twice_is_harmless(self, monkeypatch):
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", 4711)
         monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: 1)
         assert instance_mod._release_single_instance_mutex() is True
         assert instance_mod._release_single_instance_mutex() is True
 
+    @windows_only
     def test_a_failure_is_reported_not_swallowed(self, monkeypatch):
         """Sonst startete der Nachfolger und faende das Schloss noch belegt."""
         def _kaputt(_handle):
@@ -154,6 +161,9 @@ class TestRestartApp:
         """Sonst haengt er am sterbenden Elternprozess."""
         app.restart_app()
         _befehl, kwargs = popen.aufrufe[0]
+        if sys.platform != "win32":
+            assert kwargs["start_new_session"] is True
+            return
         flags = kwargs["creationflags"]
         assert flags & subprocess.DETACHED_PROCESS
         assert flags & subprocess.CREATE_NEW_PROCESS_GROUP
@@ -264,6 +274,7 @@ class TestRestartRow:
 # ------------------------------------------------- Die Annahme dahinter
 
 
+@windows_only
 class TestTheHandoverActuallyWorks:
     """Der Neustart ruht darauf, dass der Nachfolger das Schloss sofort bekommt.
 

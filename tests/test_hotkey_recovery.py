@@ -23,11 +23,18 @@ Deshalb: neuer Prozess.
 """
 
 import inspect
+import sys
 
-import keyboard
-import keyboard._generic
-import keyboard._winkeyboard
-from source_code import all_source
+import pytest
+
+if sys.platform != "win32":
+    pytest.skip("die keyboard-Bibliothek gibt es nur unter Windows",
+                allow_module_level=True)
+
+import keyboard  # noqa: E402
+import keyboard._generic  # noqa: E402
+import keyboard._winkeyboard  # noqa: E402
+from source_code import all_source  # noqa: E402
 
 
 class TestWhyReRegisteringCannotHelp:

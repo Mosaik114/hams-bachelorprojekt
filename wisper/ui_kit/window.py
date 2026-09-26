@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 import tkinter as tk
 
 
@@ -66,6 +67,8 @@ def round_window_corners(root: tk.Misc, radius: int = Radius.WINDOW) -> str:
     Beide Verfahren werden nie gleichzeitig angewandt — die Region wird vor dem
     DWM-Weg ausdrücklich entfernt.
     """
+    if sys.platform != "win32":
+        return "keine"      # XWayland-Fenster formt KWin selbst; Rundung ist kosmetisch
     try:
         root.update_idletasks()
         hwnd = _window_handle(root)

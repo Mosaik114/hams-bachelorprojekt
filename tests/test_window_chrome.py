@@ -9,12 +9,19 @@ Tests sichern den Plattformpfad und den Rückfall ab.
 
 import ctypes
 import inspect
+import sys
 import tkinter as tk
 
+
+import pytest
 
 from source_code import ui_kit_source
 from wisper.ui_kit import window as window_mod
 from wisper import ui_kit as uk
+
+
+windows_only = pytest.mark.skipif(sys.platform != "win32",
+                                  reason="DWM und Fensterregionen gibt es nur unter Windows")
 
 
 class TestWindowsBuild:
@@ -22,10 +29,12 @@ class TestWindowsBuild:
         build = uk._windows_build()
         assert build == 0 or 7000 < build < 100000
 
+    @windows_only
     def test_this_machine_is_windows_11(self):
         assert uk._windows_build() >= uk._WIN11_BUILD
 
 
+@windows_only
 class TestCornerPath:
     def test_uses_dwm_on_windows_11(self, root):
         window = tk.Toplevel(root)
@@ -80,6 +89,7 @@ class TestCornerPath:
             window.destroy()
 
 
+@windows_only
 class TestNoDoubleMechanism:
     def test_region_is_cleared_before_dwm(self, root, monkeypatch):
         """Beide Verfahren gleichzeitig wären ein Fehler — die Maske muss weg."""

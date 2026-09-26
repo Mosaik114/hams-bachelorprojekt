@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 import tkinter as tk
 from tkinter import font as tkfont
 from typing import Callable
@@ -104,10 +105,15 @@ class Scale:
             return False
         cls.dpi = dpi
         cls.factor = dpi / cls.BASE_DPI
-        try:
-            root.tk.call("tk", "scaling", dpi / 72.0)
-        except tk.TclError:
-            pass
+        # Unter X11 rechnet Tk Pixelgrößen über `tk scaling` in Punkt um, Xft
+        # aber mit dem festen Server-DPI zurück; ein geändertes scaling hebt die
+        # neue Pixelgröße dort wieder auf. Die Schriften sind in Pixeln gesetzt
+        # und brauchen es nicht.
+        if sys.platform == "win32":
+            try:
+                root.tk.call("tk", "scaling", dpi / 72.0)
+            except tk.TclError:
+                pass
         _img_cache.clear()          # Bilder gelten immer nur für einen Faktor
         init_fonts(root, force=True)
         for callback in list(cls._callbacks):
@@ -216,6 +222,15 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
         "mono": "Cascadia Mono" if "Cascadia Mono" in families else "Consolas",
         "serif": next((f for f in SERIF_FAMILIES if f in families), "Times New Roman"),
     }
+    if sys.platform != "win32":
+        # Segoe UI und Georgia gibt es nur unter Windows.
+        from wisper.linux import FONT_SUBSTITUTES
+
+        def pick(key: str) -> str:
+            return next((f for f in FONT_SUBSTITUTES[key] if f in families), "TkDefaultFont")
+
+        resolved.update(display=pick("text"), text=pick("text"), small=pick("text"),
+                        semibold=pick("semibold"), mono=pick("mono"), serif=pick("serif"))
     if _FONTS and not force:
         return _FONTS
 

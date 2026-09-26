@@ -2,6 +2,7 @@
 
 import json
 import re
+import sys
 import threading
 import time
 import urllib.error
@@ -11,9 +12,13 @@ from datetime import datetime
 from typing import Optional
 
 
-import keyboard
 import numpy as np
 import pyperclip
+
+if sys.platform == "win32":
+    import keyboard
+else:
+    from wisper.linux import keyboard
 
 from wisper.backend import BatchedInferencePipeline
 from wisper.config import CFG, OUTPUT_DIR, logger

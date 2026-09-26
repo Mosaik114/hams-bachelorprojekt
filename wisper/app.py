@@ -1,13 +1,11 @@
 """Das Hauptfenster von Hams und seine Zustaende."""
 
 import subprocess
+import sys
 import threading
 import tkinter as tk
 from typing import Optional
 
-import winsound
-
-import keyboard
 import numpy as np
 import sounddevice as sd
 
@@ -15,7 +13,6 @@ from wisper.backend import WhisperModel
 from wisper import branding
 from wisper import models as whisper_models
 from wisper import ollama as ollama_api
-from wisper.system_hotkeys import SystemHotkeys
 from wisper import ui_kit as uk
 from wisper.ui_kit import Theme
 from wisper.config import APP_DIR, CFG, CONFIG_PATH, _persist_config_value, logger
@@ -26,6 +23,18 @@ from wisper.transcription import TranscriptionMixin
 from wisper.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
 from wisper.whisper_model import WhisperModelMixin
 from wisper.window_position import POSITION_SAVE_DELAY_MS, window_position
+
+if sys.platform == "win32":
+    import winsound
+
+    import keyboard
+
+    from wisper.system_hotkeys import SystemHotkeys
+else:
+    # Gleiche Namen, Linux dahinter: der Ablauf unten bleibt fuer beide Systeme derselbe.
+    from wisper import linux
+    from wisper.linux import keyboard, winsound
+    from wisper.portal_hotkeys import PortalSystemHotkeys as SystemHotkeys
 
 
 class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, TranscriptionMixin):
@@ -125,6 +134,10 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self._prompt_mode = False
         self._shutting_down = False
         self._system_hotkeys = SystemHotkeys()
+        if sys.platform != "win32":
+            # Das Geraet frueh anlegen: KWin braucht einen Moment, bis es es kennt.
+            threading.Thread(target=linux.KEYBOARD.open, daemon=True,
+                             name="uinput").start()
 
         self._build_ui()
         self._fit_window()
@@ -290,12 +303,13 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
             return "Neustart nicht möglich"
 
         befehl = restart_command()
+        if sys.platform == "win32":
+            loesen = {"creationflags": (subprocess.DETACHED_PROCESS
+                                        | subprocess.CREATE_NEW_PROCESS_GROUP)}
+        else:
+            loesen = {"start_new_session": True}
         try:
-            subprocess.Popen(
-                befehl, cwd=str(APP_DIR.parent), close_fds=True,
-                creationflags=(subprocess.DETACHED_PROCESS
-                               | subprocess.CREATE_NEW_PROCESS_GROUP),
-            )
+            subprocess.Popen(befehl, cwd=str(APP_DIR.parent), close_fds=True, **loesen)
         except Exception:
             logger.exception("Neustart fehlgeschlagen: %s", befehl)
             _acquire_single_instance_mutex()      # Zustand zuruecknehmen

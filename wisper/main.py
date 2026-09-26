@@ -29,6 +29,10 @@ def main() -> None:
     mutex_handle = _acquire_single_instance_mutex()
     if mutex_handle is None:
         logger.warning("Another Wisper instance is already running — exiting")
+        if sys.platform != "win32":
+            from wisper import linux
+            linux.notify(branding.PRODUCT_NAME, f"{branding.PRODUCT_NAME} läuft bereits.")
+            sys.exit(0)
         try:
             ctypes.windll.user32.MessageBoxW(
                 0,

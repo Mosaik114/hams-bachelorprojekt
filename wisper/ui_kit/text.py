@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import tkinter as tk
 
 from PIL import ImageFont
@@ -42,7 +43,11 @@ def _pil_font(tk_font):
         size = abs(int(tk_font.cget("size")))
     except AttributeError:
         family, size = "Segoe UI", px(12)
-    for candidate in (family, "Segoe UI Variable Text", "Segoe UI", "arial.ttf"):
+    candidates = [family, "Segoe UI Variable Text", "Segoe UI", "arial.ttf"]
+    if sys.platform != "win32":
+        from wisper.linux import font_file
+        candidates = [font_file(family), font_file("sans-serif")]
+    for candidate in filter(None, candidates):
         try:
             return ImageFont.truetype(candidate, size)
         except (OSError, IOError):

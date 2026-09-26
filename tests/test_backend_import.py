@@ -162,8 +162,9 @@ class TestDieCudaBibliothekenBleibenErreichbar:
         ordner = add_cuda_libraries()
         if not ordner:
             pytest.skip("hier liegen keine CUDA-Bibliotheken")
+        muster = "*.dll" if sys.platform == "win32" else "*.so*"
         for o in ordner:
-            assert list(Path(o).glob("*.dll")), o
+            assert list(Path(o).glob(muster)), o
 
     def test_the_standalone_packages_come_first(self):
         """Wer nvidia-cublas-cu12 installiert, soll nicht doch torch ziehen.

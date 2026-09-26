@@ -318,6 +318,8 @@ def add_cuda_libraries() -> tuple[str, ...]:
         bleibt es beim bisherigen Verhalten — CUDA scheitert und
         `_build_model` faellt auf die naechste Stufe der Geraeteliste zurueck.
     """
+    if sys.platform != "win32":
+        return _preload_cuda_libraries_linux()
     angemeldet: list[str] = []
     for paket, unterordner in CUDA_LIBRARY_PACKAGES:
         ordner = _paket_verzeichnis(paket, unterordner)
@@ -334,6 +336,42 @@ def add_cuda_libraries() -> tuple[str, ...]:
                        "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
                        "nvidia-cudnn-cu12?")
     return tuple(angemeldet)
+
+
+#: Unter Linux: Paket -> Bibliotheken, in dieser Reihenfolge geladen.
+CUDA_LIBRARIES_LINUX = (
+    ("nvidia.cublas", ("libcublasLt.so.12", "libcublas.so.12")),
+    ("nvidia.cudnn", ("libcudnn.so.9",)),
+)
+
+
+def _preload_cuda_libraries_linux() -> tuple[str, ...]:
+    """Laedt cuBLAS und cuDNN aus den NVIDIA-Paketen vor.
+
+    Linux kennt kein `add_dll_directory`. ctranslate2 sucht die Bibliotheken
+    ueber ihren Namen; ist eine Bibliothek dieses Namens schon im Prozess,
+    nimmt der Lader sie. cuDNN findet seine Teilbibliotheken selbst, weil sie
+    neben ihm liegen.
+    """
+    import ctypes
+    geladen: list[str] = []
+    for paket, dateien in CUDA_LIBRARIES_LINUX:
+        ordner = _paket_verzeichnis(paket, "lib")
+        if ordner is None:
+            continue
+        for datei in dateien:
+            try:
+                ctypes.CDLL(str(ordner / datei), mode=ctypes.RTLD_GLOBAL)
+            except OSError:
+                logger.warning("CUDA-Bibliothek %s nicht ladbar", ordner / datei)
+            else:
+                if str(ordner) not in geladen:
+                    geladen.append(str(ordner))
+    if not geladen:
+        logger.warning("Keine CUDA-Bibliotheken gefunden — Transkription "
+                       "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
+                       "nvidia-cudnn-cu12?")
+    return tuple(geladen)
 
 
 class _AbgeschalteteImporte:

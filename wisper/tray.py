@@ -2,6 +2,7 @@
 
 import ctypes
 import os
+import sys
 import threading
 import tkinter as tk
 from datetime import datetime
@@ -27,7 +28,9 @@ from wisper.config import logger
 TRAY_PALETTE = Theme.palette(Theme.DARK)
 
 
-_DOT_MSG = ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand")
+# Die Mosaiks-Suche gibt es nur unter Windows; unter Linux bleibt die Meldung aus.
+_DOT_MSG = (ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand")
+            if sys.platform == "win32" else 0)
 
 
 def _notify_cursor_dot(state: str, level: Optional[float] = None) -> None:
@@ -38,6 +41,8 @@ def _notify_cursor_dot(state: str, level: Optional[float] = None) -> None:
     nicht, passiert einfach nichts. Die eigene Prozess-ID reist mit, damit die
     Anzeige verschwindet, falls Hams abstuerzt.
     """
+    if not _DOT_MSG:
+        return
     mode = {"recording": 1, "recording_prompt": 2}.get(state, 0)
     if level is not None:
         mode |= (int(max(0.0, min(1.0, level)) * 255) + 1) << 8
@@ -80,7 +85,7 @@ class TrayMixin:
         randloses Fenster zeigt selbst kein Symbol — deshalb keine zusaetzliche
         native Schicht dafuer.
         """
-        icon = branding.icon_path()
+        icon = branding.icon_path() if sys.platform == "win32" else None
         if icon is not None:
             try:
                 self.root.iconbitmap(default=str(icon))

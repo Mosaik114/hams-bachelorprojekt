@@ -62,6 +62,9 @@ def _user_config_path() -> Path:
     override = os.environ.get("WISPER_CONFIG")
     if override:
         return Path(override)
+    if sys.platform != "win32":
+        base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+        return Path(base) / "Wisper" / "config.toml"
     base = os.environ.get("APPDATA")
     if base:
         return Path(base) / "Wisper" / "config.toml"

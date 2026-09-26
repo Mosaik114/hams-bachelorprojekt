@@ -7,6 +7,7 @@ Wegwerfpfad (siehe conftest).
 """
 
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -56,6 +57,7 @@ def paths(tmp_path, monkeypatch):
 
 
 class TestUserConfigPath:
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-Pfad")
     def test_it_lands_under_appdata(self, monkeypatch):
         monkeypatch.delenv("WISPER_CONFIG", raising=False)
         monkeypatch.setenv("APPDATA", r"C:\Users\test\AppData\Roaming")

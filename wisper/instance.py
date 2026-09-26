@@ -2,7 +2,6 @@
 
 import ctypes
 import sys
-from ctypes import wintypes
 from typing import Optional
 
 
@@ -23,6 +22,13 @@ def _acquire_single_instance_mutex() -> Optional[int]:
     """Return mutex handle on success, None if another instance is running.
     The returned handle must be kept alive for the lifetime of the process."""
     global _MUTEX_HANDLE
+    if sys.platform != "win32":
+        from wisper import linux
+        if not linux.acquire_lock():
+            return None
+        _MUTEX_HANDLE = 1
+        return _MUTEX_HANDLE
+    from ctypes import wintypes
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
     kernel32.CreateMutexW.restype = wintypes.HANDLE
@@ -43,6 +49,12 @@ def _release_single_instance_mutex() -> bool:
     """
     global _MUTEX_HANDLE
     if _MUTEX_HANDLE is None:
+        return True
+    if sys.platform != "win32":
+        from wisper import linux
+        if not linux.release_lock():
+            return False
+        _MUTEX_HANDLE = None
         return True
     try:
         ctypes.windll.kernel32.CloseHandle(_MUTEX_HANDLE)
