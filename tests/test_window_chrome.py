@@ -7,9 +7,13 @@ verändern aber kein Pixel. Deshalb setzt der Code nur die Ecken — und diese
 Tests sichern den Plattformpfad und den Rückfall ab.
 """
 
+import ctypes
+import inspect
 import tkinter as tk
 
 
+from source_code import ui_kit_source
+from wisper.ui_kit import window as window_mod
 from wisper import ui_kit as uk
 
 
@@ -34,7 +38,7 @@ class TestCornerPath:
             window.destroy()
 
     def test_falls_back_to_region_on_older_windows(self, root, monkeypatch):
-        monkeypatch.setattr(uk, "_windows_build", lambda: 19045)   # Windows 10
+        monkeypatch.setattr(window_mod, "_windows_build", lambda: 19045)   # Windows 10
         window = tk.Toplevel(root)
         window.overrideredirect(True)
         window.geometry("200x120+400+400")
@@ -50,9 +54,9 @@ class TestCornerPath:
             def DwmSetWindowAttribute(self, *_args):
                 return -2147024891      # E_ACCESSDENIED
 
-        monkeypatch.setattr(uk.ctypes, "windll", type(
-            "W", (), {"dwmapi": _Failing(), "user32": uk.ctypes.windll.user32,
-                      "gdi32": uk.ctypes.windll.gdi32, "ntdll": uk.ctypes.windll.ntdll})())
+        monkeypatch.setattr(ctypes, "windll", type(
+            "W", (), {"dwmapi": _Failing(), "user32": ctypes.windll.user32,
+                      "gdi32": ctypes.windll.gdi32, "ntdll": ctypes.windll.ntdll})())
         window = tk.Toplevel(root)
         window.overrideredirect(True)
         window.geometry("200x120+400+400")
@@ -80,7 +84,7 @@ class TestNoDoubleMechanism:
     def test_region_is_cleared_before_dwm(self, root, monkeypatch):
         """Beide Verfahren gleichzeitig wären ein Fehler — die Maske muss weg."""
         calls = []
-        real_user32 = uk.ctypes.windll.user32
+        real_user32 = ctypes.windll.user32
 
         class _Spy:
             def __getattr__(self, name):
@@ -94,10 +98,10 @@ class TestNoDoubleMechanism:
 
                 return wrapper
 
-        monkeypatch.setattr(uk.ctypes, "windll", type(
-            "W", (), {"user32": _Spy(), "dwmapi": uk.ctypes.windll.dwmapi,
-                      "gdi32": uk.ctypes.windll.gdi32,
-                      "ntdll": uk.ctypes.windll.ntdll})())
+        monkeypatch.setattr(ctypes, "windll", type(
+            "W", (), {"user32": _Spy(), "dwmapi": ctypes.windll.dwmapi,
+                      "gdi32": ctypes.windll.gdi32,
+                      "ntdll": ctypes.windll.ntdll})())
         window = tk.Toplevel(root)
         window.overrideredirect(True)
         window.geometry("200x120+400+400")
@@ -116,11 +120,10 @@ class TestDocumentedLimits:
     @staticmethod
     def _code_lines() -> str:
         """Nur echte Codezeilen — im Kommentar stehen die Namen absichtlich."""
-        with open(uk.__file__, encoding="utf-8") as handle:
-            lines = [
-                line for line in handle.read().splitlines()
-                if not line.lstrip().startswith("#")
-            ]
+        lines = [
+            line for line in ui_kit_source().splitlines()
+            if not line.lstrip().startswith("#")
+        ]
         return chr(10).join(lines)
 
     def test_no_border_colour_call(self):
@@ -133,6 +136,5 @@ class TestDocumentedLimits:
             assert forbidden not in code, f"{forbidden} sollte nicht verwendet werden"
 
     def test_limits_are_documented(self):
-        with open(uk.__file__, encoding="utf-8") as handle:
-            code = handle.read()
+        code = inspect.getsource(window_mod)
         assert "wirkungslos" in code, "Die gemessenen Grenzen fehlen im Kommentar"

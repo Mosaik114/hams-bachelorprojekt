@@ -6,6 +6,8 @@ import pytest
 
 from conftest import fokus_erzwingen
 
+from source_code import ui_kit_source
+from wisper.ui_kit import popover as popover_mod
 from wisper import ui_kit as uk
 from wisper.ui_kit import Option, Popover, Select, State, Theme
 
@@ -339,7 +341,7 @@ class TestClickOutside:
 
     def test_the_trigger_gets_the_focus_back(self, select, root, monkeypatch):
         returned = []
-        monkeypatch.setattr(uk, "return_focus_to", returned.append)
+        monkeypatch.setattr(popover_mod, "return_focus_to", returned.append)
         popover = self.open_popover(select, root)
         self.click(popover, popover.winfo_rootx() - 40, popover.winfo_rooty() + 10)
         root.update()
@@ -371,7 +373,7 @@ class TestFocusReturn:
         Fenster den Systemfokus hat, entscheidet Windows und nicht der Test.
         """
         returned = []
-        monkeypatch.setattr(uk, "return_focus_to", returned.append)
+        monkeypatch.setattr(popover_mod, "return_focus_to", returned.append)
         select.open_popover()
         root.update()
         popover = Popover.current
@@ -409,7 +411,7 @@ class TestFocusReturn:
 
 class TestPlacement:
     def _place_with_area(self, select, root, area, monkeypatch):
-        monkeypatch.setattr(uk, "work_area", lambda _w: area)
+        monkeypatch.setattr(popover_mod, "work_area", lambda _w: area)
         select.open_popover()
         root.update()
         popover = Popover.current
@@ -458,12 +460,9 @@ class TestNoLegacy:
         assert not hasattr(uk, "Dropdown")
 
     def test_no_unicode_chevron_in_the_kit(self):
-        with open(uk.__file__, encoding="utf-8") as handle:
-            code = handle.read()
-        assert "⌄" not in code
+        assert "⌄" not in ui_kit_source()
 
     def test_no_tk_menu_popup_left(self):
-        with open(uk.__file__, encoding="utf-8") as handle:
-            lines = [line for line in handle.read().splitlines()
-                     if not line.lstrip().startswith("#")]
+        lines = [line for line in ui_kit_source().splitlines()
+                 if not line.lstrip().startswith("#")]
         assert "tk_popup" not in chr(10).join(lines)

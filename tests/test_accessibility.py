@@ -7,7 +7,6 @@ steht im Bericht unter den offenen manuellen Prüfungen.
 """
 
 import ast
-import pathlib
 import tkinter as tk
 
 import pytest
@@ -15,13 +14,12 @@ import pytest
 from conftest import fokus_erzwingen
 
 import inspect
-from source_code import module_files
+from source_code import WISPER, module_files
 from wisper import ui_kit as uk
 from wisper.ui_kit import (ControlStyle, IconButton, Option, Popover, PrimaryButton,
                            SecondaryButton, Select, StatusDot, Switch, Theme)
 
 BG = Theme.GROUP_SURFACE
-SOURCE = pathlib.Path(uk.__file__).parent
 
 
 # ------------------------------------------------------------------ Werkzeug
@@ -485,7 +483,7 @@ def ui_strings() -> list:
     Logmeldungen bleiben aussen vor — die sind seit jeher englisch.
     """
     found = []
-    for path in sorted(SOURCE.glob("*.py")):
+    for path in module_files():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -522,9 +520,9 @@ class TestNoLegacyGlyphs:
     #: Zeichen, die frueher als Ersatz fuer echte Icons dienten.
     GLYPHS = ["⚙", "⌄", "✕", "▾", "▼", "●", "✔"]
 
-    @pytest.mark.parametrize("path", [path.name for path in module_files()])
+    @pytest.mark.parametrize("path", [path.relative_to(WISPER).as_posix() for path in module_files()])
     def test_no_glyph_hacks_left(self, path):
-        source = (SOURCE / path).read_text(encoding="utf-8")
+        source = (WISPER / path).read_text(encoding="utf-8")
         lines = [line for line in source.splitlines()
                  if not line.lstrip().startswith("#")]
         body = "\n".join(lines)
