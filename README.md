@@ -116,9 +116,9 @@ und startet sie beim Login über `start_wisper.vbs` ohne Konsolenfenster.
 
 ## Troubleshooting
 
-- **Modell lädt nicht** → GPU-Speicher prüfen, ggf. `MODEL_SIZE` auf `medium` oder `small` stellen.
+- **Modell lädt nicht** → GPU-Speicher prüfen, ggf. unter `[model]` in der Konfiguration `size` auf `medium` oder `small` stellen.
 - **Ollama-Fehler** → Ollama-Service läuft? `ollama list` zeigt die installierten Modelle.
-- **Hotkey funktioniert nicht** → Andere Anwendung blockiert ihn möglicherweise. `HOTKEY_*` in `main.py` anpassen.
+- **Hotkey funktioniert nicht** → Andere Anwendung blockiert ihn möglicherweise. Unter `[hotkeys]` in der Konfiguration eine andere Kombination eintragen.
 - **Kein Einfügen** → Zielanwendung muss `Ctrl+V` akzeptieren; Transkript ist trotzdem im Clipboard und unter `transcripts/`.
 
 ## Entwicklung
@@ -126,8 +126,8 @@ und startet sie beim Login über `start_wisper.vbs` ohne Konsolenfenster.
 ### Tests ausführen
 
 ```powershell
-pip install pytest
-pytest tests/ -v
+pip install -e ".[dev]"
+pytest tests/ --cov=wisper
 ```
 
 ### Code linten
@@ -139,24 +139,41 @@ ruff check wisper/
 
 ### CI/CD
 
-Das Projekt nutzt GitHub Actions für automatische Tests bei jedem Push. Die Pipeline ist in `.github/workflows/ci.yml` definiert.
+Das Projekt nutzt GitHub Actions für automatische Tests bei jedem Push. Die Pipeline ist in `.github/workflows/ci.yml` definiert und verlangt mindestens 85 % Testabdeckung.
 
 ### Projekt-Struktur
 
 ```
 wisper/
-├── __init__.py
-├── main.py              # Hauptanwendung
-├── setup_autostart.py   # Windows Autostart
-├── config.toml          # Konfiguration
-├── config_validation.py # Config-Validierung
-└── prompts/
-    └── cleanup.txt      # Cleanup-Prompt
+├── main.py                # Startpunkt: Konfiguration, eine Instanz, Fenster
+├── app.py                 # Hauptfenster und seine Zustände
+├── recording.py           # Aufnahme vom Mikrofon bis zur Tonspur
+├── transcription.py       # Whisper, Bereinigung mit Ollama, Einfügen
+├── whisper_model.py       # Modell laden, wechseln, herunterladen
+├── models.py              # Katalog der Whisper-Modelle, Installationsstand
+├── ollama.py              # Auskunft über den lokalen Ollama-Dienst
+├── settings_window.py     # Einstellungsfenster: Aufbau und Schalter
+├── settings_status.py     #   … Mikrofon, Live-Pegel, Ollama
+├── settings_models.py     #   … Whisper-Modelle, Download, Löschen
+├── system_hotkeys.py      # Kurzbefehle über RegisterHotKey
+├── tray.py                # Tray-Symbol, Meldung an die Mosaiks-Suche
+├── window_position.py     # Fensterlage prüfen und zurückholen
+├── instance.py            # Nur eine Instanz, Selbstneustart
+├── config.py              # Pfade, TOML-Einstellungen, Log
+├── config_validation.py   # Prüfung der Einstellungen
+├── config.default.toml    # Vorlage der Konfiguration
+├── backend.py, branding.py
+├── setup_autostart.py     # Windows-Autostart
+├── prompts/cleanup.txt    # Bereinigungs-Prompt
+└── ui_kit/                # Mosaik-Design für tkinter
+    ├── theme.py           #   Farben und Maße
+    ├── scale.py           #   DPI und Schriftrollen
+    ├── buttons.py, controls.py, popover.py, layout.py
+    └── …                  #   Flächen, Icons, Zustände, Fensterecken
 tests/
-├── conftest.py
-├── test_config_validation.py
-├── test_config_load.py
-└── test_cleanup.py
+├── conftest.py            # Gemeinsame Fixtures
+├── live_app.py            # Attrappen für die echte Anwendung
+└── test_*.py
 ```
 
 ## Lizenz

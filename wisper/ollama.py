@@ -1,6 +1,6 @@
 """Auskunft über den lokalen Ollama-Dienst: installierte und warme Modelle.
 
-Bewusst nur Lesezugriffe. Das Erzeugen von Text bleibt in `main.py` — hier
+Bewusst nur Lesezugriffe. Das Erzeugen von Text bleibt in `transcription.py` — hier
 steht ausschließlich, was Wisper über den Dienst *weiß*, damit die Oberfläche
 nichts erfinden muss.
 
