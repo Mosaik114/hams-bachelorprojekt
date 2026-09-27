@@ -2,8 +2,6 @@
 
 import re
 import threading
-from typing import Optional
-
 
 import numpy as np
 import sounddevice as sd
@@ -67,7 +65,7 @@ class StatusSectionMixin:
                 return pretty
         return raw
 
-    def _select_device(self, pretty: Optional[str]) -> None:
+    def _select_device(self, pretty: str | None) -> None:
         if pretty is None:
             CFG.mic_device_raw = "default"
             CFG.mic_device = None

@@ -3,12 +3,17 @@
 import tkinter as tk
 
 import pytest
-
 from conftest import fokus_erzwingen
 
 from wisper import ui_kit as uk
 from wisper.ui_kit import (
-    IconButton, PrimaryButton, SecondaryButton, SignalMeter, State, Switch, Theme,
+    IconButton,
+    PrimaryButton,
+    SecondaryButton,
+    SignalMeter,
+    State,
+    Switch,
+    Theme,
 )
 
 BG = Theme.WINDOW_BG
@@ -160,13 +165,13 @@ class TestKeyboard:
     def test_tab_chain(self, controls, root):
         order = [controls["primary"], controls["secondary"],
                  controls["icon"], controls["switch"]]
-        for first, second in zip(order, order[1:]):
+        for first, second in zip(order, order[1:], strict=False):
             assert first.tk_focusNext() is second
 
     def test_shift_tab_chain(self, controls, root):
         order = [controls["primary"], controls["secondary"],
                  controls["icon"], controls["switch"]]
-        for first, second in zip(order, order[1:]):
+        for first, second in zip(order, order[1:], strict=False):
             assert second.tk_focusPrev() is first
 
     def test_focus_sets_state_and_ring(self, controls, root):
@@ -297,7 +302,7 @@ class TestDpi:
         finally:
             uk.Scale.apply(root, start)
             root.update()
-        assert all(a > b for a, b in zip(after, before)), f"{before} -> {after}"
+        assert all(a > b for a, b in zip(after, before, strict=False)), f"{before} -> {after}"
 
     def test_scale_callbacks_are_removed_on_destroy(self, root, window):
         before = len(uk.Scale._callbacks)

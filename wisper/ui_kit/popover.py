@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from PIL import ImageDraw, ImageTk
 
@@ -19,7 +19,6 @@ from wisper.ui_kit.text import _ellipsize, _fit_text, _pil_font, _text_width
 from wisper.ui_kit.theme import Height, Radius, Space, Theme
 from wisper.ui_kit.window import round_window_corners
 
-
 # ---------------------------------------------------------------- Select und Popover
 
 
@@ -33,7 +32,7 @@ class Option:
 
     __slots__ = ("value", "label", "meta", "icon", "enabled", "group", "trailing")
 
-    def __init__(self, value, label: str, *, meta: str = "", icon: Optional[str] = None,
+    def __init__(self, value, label: str, *, meta: str = "", icon: str | None = None,
                  enabled: bool = True, group: str = "", trailing: str = "") -> None:
         self.value = value
         self.label = label
@@ -140,7 +139,7 @@ class Popover(tk.Toplevel):
     #: wert — Funktion vor Symmetrie.
     FADE_MS = 110
 
-    current: Optional["Popover"] = None
+    current: Popover | None = None
 
     def __init__(self, trigger: tk.Misc, options: list, value, *,
                  on_choose: Callable[[Option], None]) -> None:
@@ -163,7 +162,7 @@ class Popover(tk.Toplevel):
 
         self._body_holder = tk.Frame(inner, bg=Theme.POPOVER_SURFACE)
         self._body_holder.pack(fill="both", expand=True, pady=px(Space.SM))
-        self._scroll: Optional[ScrollArea] = None
+        self._scroll: ScrollArea | None = None
         self._width = self._measure_width(options)
         self._build_items(options, value)
 
@@ -397,8 +396,8 @@ class Select(BaseControl):
     """
 
     def __init__(self, master: tk.Misc, *, bg_under: str,
-                 options: Optional[list] = None, value=None,
-                 on_change: Optional[Callable[[object], None]] = None,
+                 options: list | None = None, value=None,
+                 on_change: Callable[[object], None] | None = None,
                  placeholder: str = "—") -> None:
         # Nicht `_options` nennen: das ist eine Methode von tkinter.Misc und
         # wuerde vor super().__init__() ueberschrieben.
@@ -430,7 +429,7 @@ class Select(BaseControl):
     def options(self) -> list:
         return list(self._option_list)
 
-    def _selected(self) -> Optional[Option]:
+    def _selected(self) -> Option | None:
         for option in self._option_list:
             if option.value == self._value:
                 return option

@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageTk
 
 from wisper.ui_kit.caches import _img_cache
 from wisper.ui_kit.scale import Scale
-
 
 # ---------------------------------------------------------------- Flächen-Rendering
 
@@ -99,13 +97,13 @@ def render_surface(
     radius: int,
     fill: str,
     *,
-    edge: Optional[str] = None,
+    edge: str | None = None,
     gradient: float = 0.0,
-    shadow: Optional[tuple[float, float, float]] = None,
+    shadow: tuple[float, float, float] | None = None,
     squircle: bool = False,
-    border: Optional[str] = None,
+    border: str | None = None,
     border_w: int = 0,
-    ring: Optional[str] = None,
+    ring: str | None = None,
     ring_width: int = 0,
     ring_gap: int = 0,
     dither: bool = True,
@@ -232,13 +230,13 @@ def surface(
     radius: int,
     fill: str,
     *,
-    edge: Optional[str] = None,
+    edge: str | None = None,
     gradient: float = 0.0,
-    shadow: Optional[tuple[float, float, float]] = None,
+    shadow: tuple[float, float, float] | None = None,
     squircle: bool = False,
-    border: Optional[str] = None,
+    border: str | None = None,
     border_w: int = 0,
-    ring: Optional[str] = None,
+    ring: str | None = None,
     ring_width: int = 0,
     ring_gap: int = 0,
     dither: bool = True,
@@ -275,7 +273,7 @@ def rounded_image(
     h: int,
     radius: int,
     fill: str,
-    border: Optional[str] = None,
+    border: str | None = None,
     border_w: int = 0,
     scale: int = SUPERSAMPLE,
 ) -> ImageTk.PhotoImage:

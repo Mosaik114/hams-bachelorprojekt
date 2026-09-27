@@ -3,12 +3,9 @@
 import gc
 import threading
 import tkinter as tk
-from typing import Optional
 
-
-
-from wisper.backend import WhisperModel
 from wisper import models as whisper_models
+from wisper.backend import WhisperModel
 from wisper.config import CFG, _persist_config_value, logger
 
 
@@ -26,7 +23,7 @@ class WhisperModelMixin:
     def is_switching_model(self) -> bool:
         return self._switching_to is not None
 
-    def current_model(self) -> Optional[WhisperModel]:
+    def current_model(self) -> WhisperModel | None:
         """Stabile Referenz auf das aktive Modell.
 
         Ein Transkriptionslauf holt sie sich genau einmal und arbeitet danach
@@ -140,7 +137,7 @@ class WhisperModelMixin:
     # ------------------------------------------------------------------ Modell-Download
 
     @property
-    def downloading_model(self) -> Optional[str]:
+    def downloading_model(self) -> str | None:
         """Welches Modell gerade geladen wird — oder None."""
         return self.downloader.model_id if self.downloader.active else None
 

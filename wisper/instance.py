@@ -2,12 +2,8 @@
 
 import ctypes
 import sys
-from typing import Optional
-
-
 
 from wisper.config import APP_DIR, logger
-
 
 MUTEX_NAME = "Global\\Wisper-SingleInstance-7a3f2c1b"
 ERROR_ALREADY_EXISTS = 183
@@ -15,10 +11,10 @@ ERROR_ALREADY_EXISTS = 183
 #: Das Schloss, an dem die zweite Instanz scheitert. Modulweit, weil der
 #: Neustart es freigeben muss, *bevor* der Nachfolger startet — sonst haelt
 #: der scheidende Prozess es noch und der neue meldet „laeuft bereits".
-_MUTEX_HANDLE: Optional[int] = None
+_MUTEX_HANDLE: int | None = None
 
 
-def _acquire_single_instance_mutex() -> Optional[int]:
+def _acquire_single_instance_mutex() -> int | None:
     """Return mutex handle on success, None if another instance is running.
     The returned handle must be kept alive for the lifetime of the process."""
     global _MUTEX_HANDLE

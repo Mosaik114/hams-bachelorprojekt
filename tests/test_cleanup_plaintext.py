@@ -5,15 +5,15 @@ Die Regel ist eng: entfernt werden ein Codeblock um die ganze Antwort und die
 und Unterstriche, die zum Inhalt gehören.
 """
 
+import inspect
 import json
+import urllib.request
 
 import pytest
 
-import urllib.request
-from wisper.app import FloatingTranscriberApp
 from wisper import config as config_mod
+from wisper.app import FloatingTranscriberApp
 from wisper.transcription import plain_text
-import inspect
 
 
 class TestBold:

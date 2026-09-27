@@ -9,8 +9,6 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
-from typing import Optional
-
 
 import numpy as np
 import pyperclip
@@ -23,7 +21,6 @@ else:
 from wisper.backend import BatchedInferencePipeline
 from wisper.config import CFG, OUTPUT_DIR, logger
 from wisper.recording import MODEL_WAIT_SECONDS, _normalize_audio
-
 
 #: Ab dieser Aufnahmelaenge wird die gebatchte Auswertung benutzt.
 #: Gemessen (turbo/float16, RTX 5070, gegen bekannten Referenztext):
@@ -107,8 +104,8 @@ class TranscriptionMixin:
         model: str,
         timeout: int,
         stream: bool = False,
-        progress_label: Optional[str] = None,
-        system: Optional[str] = None,
+        progress_label: str | None = None,
+        system: str | None = None,
     ) -> str:
         """Sendet den Prompt an Ollama. stream=True ist nur für lange Antworten
         sinnvoll (Prompt-Modus); für kurze Cleanup-Antworten lohnt der Overhead
@@ -275,7 +272,7 @@ class TranscriptionMixin:
             time.sleep(0.01)
         keyboard.send("ctrl+v")
 
-    def _run_transcription(self, model, audio: np.ndarray) -> Optional[str]:
+    def _run_transcription(self, model, audio: np.ndarray) -> str | None:
         """Fuehrt Whisper mit einer *festen* Modellreferenz aus.
 
         Bewusst getrennt, damit der Aufrufer den Transkriptionslock nur um

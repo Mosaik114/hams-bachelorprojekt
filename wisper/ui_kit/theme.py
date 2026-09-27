@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
 import tkinter as tk
-from typing import Optional
-
 
 from wisper.ui_kit.caches import _icon_cache, _img_cache
 
@@ -201,7 +200,7 @@ class Theme:
         return cls.DEFAULT_MODE
 
     @classmethod
-    def palette(cls, mode: Optional[str] = None) -> dict:
+    def palette(cls, mode: str | None = None) -> dict:
         """Die Tokens eines Modus als Kopie — fuer Tests und feste Paletten."""
         return dict(cls._PALETTES[cls.normalise(mode if mode else cls.mode)])
 
@@ -243,10 +242,8 @@ class Theme:
 
     @classmethod
     def unregister(cls, callback) -> None:
-        try:
+        with contextlib.suppress(ValueError):
             cls._callbacks.remove(callback)
-        except ValueError:
-            pass
 
     @classmethod
     def remap(cls, colour):

@@ -6,19 +6,19 @@ ist), und dass in der sichtbaren Oberfläche kein alter Produktname steht.
 """
 
 import ast
+import inspect
 
 import pytest
 from PIL import Image
+from source_code import all_source
 
+from wisper import app as app_mod
 from wisper import branding
-from wisper.app import FloatingTranscriberApp
 from wisper import config as config_mod
 from wisper import instance as instance_mod
-from wisper import tray as tray_mod
-import inspect
-from source_code import all_source
-from wisper import app as app_mod
 from wisper import settings_window as settings_window_mod
+from wisper import tray as tray_mod
+from wisper.app import FloatingTranscriberApp
 
 MARK_SIZES = (16, 20, 24, 32, 64)
 

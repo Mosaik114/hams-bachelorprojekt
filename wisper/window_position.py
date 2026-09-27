@@ -1,9 +1,7 @@
 """Wo das Hauptfenster steht: gespeicherte Lage pruefen und auf einen Bildschirm holen."""
 
 import logging
-from typing import Any, Optional
-
-
+from typing import Any
 
 from wisper import ui_kit as uk
 
@@ -19,7 +17,7 @@ MIN_VISIBLE_H = 60
 POSITION_SAVE_DELAY_MS = 700
 
 
-def _clean_coordinate(value: Any) -> Optional[int]:
+def _clean_coordinate(value: Any) -> int | None:
     """Ganze Zahl oder None. Kaputte Werte werden verworfen, nie geraten.
 
     Negative Werte sind ausdruecklich gueltig: Windows setzt Monitore links

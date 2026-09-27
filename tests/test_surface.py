@@ -107,7 +107,7 @@ class TestGradient:
         """Wenige Prozent — kein sichtbarer Verlauf."""
         img = uk.render_surface(60, 40, 6, FILL, gradient=0.03, dither=False)
         top, bottom = rgb_at(img, 30, 2), rgb_at(img, 30, 38)
-        assert max(t - b for t, b in zip(top, bottom)) < 24
+        assert max(t - b for t, b in zip(top, bottom, strict=False)) < 24
 
     def test_without_gradient_column_is_flat(self):
         img = uk.render_surface(60, 40, 6, FILL, gradient=0.0, dither=False)
@@ -121,7 +121,7 @@ class TestGradient:
 
         plain = mean(uk.render_surface(80, 40, 6, FILL, gradient=0.04, dither=False))
         noisy = mean(uk.render_surface(80, 40, 6, FILL, gradient=0.04, dither=True))
-        assert all(abs(a - b) < 2.0 for a, b in zip(plain, noisy))
+        assert all(abs(a - b) < 2.0 for a, b in zip(plain, noisy, strict=False))
 
 
 class TestShadow:

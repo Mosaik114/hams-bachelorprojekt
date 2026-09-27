@@ -8,6 +8,7 @@ Programm weder die Tastatur abhoeren noch Tasten in fremde Fenster schicken.
 
 from __future__ import annotations
 
+import contextlib
 import fcntl
 import logging
 import os
@@ -17,9 +18,8 @@ import subprocess
 import sys
 import threading
 import time
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("wisper")
 
@@ -93,7 +93,7 @@ SEARCH_SOCKET = _runtime_dir() / "mosaiks-suche.sock"
 _search_socket = None
 
 
-def notify_search(mode: int, level: Optional[float]) -> None:
+def notify_search(mode: int, level: float | None) -> None:
     """Zustand und Pegel an die Suche (Soundbar am Mauszeiger).
 
     Ersetzt PostMessage an „Mosaiks-Suche“: wartet nicht, und läuft die Suche
@@ -105,10 +105,8 @@ def notify_search(mode: int, level: Optional[float]) -> None:
         _search_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         _search_socket.setblocking(False)
     pegel = -1 if level is None else round(max(0.0, min(1.0, level)), 3)
-    try:
+    with contextlib.suppress(OSError):
         _search_socket.sendto(f"hams {mode} {pegel} {os.getpid()}".encode(), str(SEARCH_SOCKET))
-    except OSError:
-        pass
 
 
 # ---------------------------------------------------------------- Einzelinstanz
@@ -219,8 +217,8 @@ def font_available(family: str, families) -> bool:
     return style in WEIGHT_STYLES and base in families
 
 
-@lru_cache(maxsize=None)
-def font_file(family: str) -> Optional[str]:
+@cache
+def font_file(family: str) -> str | None:
     """Pfad zur Schriftdatei einer Familie — PIL kennt unter Linux keine Namen."""
     try:
         out = subprocess.run(["fc-match", "-f", "%{file}", family],
@@ -257,9 +255,9 @@ class VirtualKeyboard:
     """
 
     def __init__(self) -> None:
-        self._fd: Optional[int] = None
+        self._fd: int | None = None
         self._lock = threading.Lock()
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
     def open(self) -> bool:
         try:

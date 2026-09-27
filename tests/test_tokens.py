@@ -4,9 +4,9 @@ import re
 from pathlib import Path
 
 import pytest
-
-from wisper.ui_kit import Height, Radius, Space, Theme, _FONT_ROLES
 from source_code import all_source, module_files
+
+from wisper.ui_kit import _FONT_ROLES, Height, Radius, Space, Theme
 
 PROJECT = Path(__file__).parent.parent
 THEME = PROJECT / "wisper" / "ui_kit" / "theme.py"
@@ -272,7 +272,7 @@ class TestFontRoles:
     }
 
     def test_all_required_roles_exist(self):
-        assert self.REQUIRED <= set(_FONT_ROLES)
+        assert set(_FONT_ROLES) >= self.REQUIRED
 
     def test_nothing_is_bold(self):
         """Mosaik-Design: Überschriften tragen die Serifenschrift, Schaltflächen

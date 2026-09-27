@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Callable, Optional
+from collections.abc import Callable
 
 logger = logging.getLogger("wisper")
 
@@ -33,7 +33,7 @@ _KEYS = {"space": "space", "leertaste": "space", "enter": "Return", "tab": "Tab"
          "up": "Up", "down": "Down", "left": "Left", "right": "Right", "pause": "Pause"}
 
 
-def xdg_trigger(combo: str) -> Optional[str]:
+def xdg_trigger(combo: str) -> str | None:
     """„ctrl+shift+space“ -> „CTRL+SHIFT+space“ (Schreibweise der XDG-Kurzbefehle)."""
     parts = []
     key = None
@@ -56,7 +56,7 @@ class PortalHotkeys:
 
     def __init__(self, app_id: str) -> None:
         self._app_id = app_id
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._loop = None
         self._handlers: dict[str, Callable[[], None]] = {}
 

@@ -3,8 +3,6 @@
 import threading
 import tkinter as tk
 
-
-
 from wisper import models as whisper_models
 from wisper import ui_kit as uk
 from wisper.config import CFG, logger

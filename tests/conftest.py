@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures."""
 
 import atexit
+import contextlib
 import os
 import shutil
 import sys
@@ -102,8 +103,8 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     """Alle Attrappen fuer die echte Anwendung, siehe tests/live_app.py."""
     from types import SimpleNamespace
 
-    from live_app import (FakeClipboard, FakeHotkeys, FakeKeyboard, FakeStream,
-                          FakeTray, fake_sounddevice)
+    from live_app import FakeClipboard, FakeHotkeys, FakeKeyboard, FakeStream, FakeTray, fake_sounddevice
+
     from wisper import app as app_mod
     from wisper import ollama as ollama_api
     from wisper import recording as recording_mod
@@ -174,10 +175,8 @@ def live_app(root, hams):
         app.settings_win.close()
     app._release_resources()
     app._cancel_position_job()
-    try:
+    with contextlib.suppress(tk.TclError):
         window.destroy()
-    except tk.TclError:
-        pass
     _uk.Theme.apply(theme)
     root.update()
 

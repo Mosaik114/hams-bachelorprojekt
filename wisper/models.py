@@ -19,7 +19,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("wisper")
 
@@ -273,7 +272,7 @@ CUDA_LIBRARY_PACKAGES = (
 )
 
 
-def _paket_verzeichnis(paket: str, unterordner: str) -> Optional[Path]:
+def _paket_verzeichnis(paket: str, unterordner: str) -> Path | None:
     """Wo ein Paket liegt — ohne es zu importieren.
 
     `find_spec` liest nur die Metadaten. Fuer torch macht das den Unterschied

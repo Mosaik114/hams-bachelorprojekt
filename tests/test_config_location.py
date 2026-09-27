@@ -6,15 +6,15 @@ umgehängt. Die Suite als Ganzes läuft ausserdem mit `WISPER_CONFIG` auf einem
 Wegwerfpfad (siehe conftest).
 """
 
+import inspect
 import os
 import sys
 from pathlib import Path
 
 import pytest
+from source_code import all_source
 
 from wisper import config as config_mod
-import inspect
-from source_code import all_source
 
 TEMPLATE = """[audio]
 sample_rate = 16000
@@ -321,4 +321,4 @@ class TestSuiteIsolation:
 
     def test_the_real_user_config_is_out_of_reach(self):
         real = Path(os.environ.get("APPDATA", "")) / "Wisper" / "config.toml"
-        assert config_mod.CONFIG_PATH != real
+        assert real != config_mod.CONFIG_PATH

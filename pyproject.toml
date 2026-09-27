@@ -77,17 +77,11 @@ packages = ["wisper", "wisper.ui_kit"]
 wisper = ["prompts/*.txt"]
 
 [tool.ruff]
-# Ohne diesen Abschnitt entscheidet die installierte Ruff-Version, was geprueft
-# wird — und ihre Voreinstellung aendert sich zwischen Versionen. Der
-# Lint-Schritt der CI schlaegt dann irgendwann fehl, ohne dass jemand Code
-# angefasst haette. Festgehalten ist deshalb ruffs dokumentierte
-# Standardauswahl: Fehler (E), Syntax (E9) und Pyflakes (F).
-target-version = "py310"
+# Regeln: gemeinsame ../ruff.toml an der Wurzel (Qualitätsplan Q2)
+extend = "../ruff.toml"
+target-version = "py310"   # Hams läuft auch unter Windows mit älterem Python
 
-[tool.ruff.lint]
-select = ["E4", "E7", "E9", "F"]
-
-[tool.ruff.lint.per-file-ignores]
+[tool.ruff.lint.extend-per-file-ignores]
 # E402 ist in main.py unvermeidlich und beabsichtigt: der Projekt-Root muss
 # *vor* den uebrigen Importen in sys.path, damit der direkte Skriptstart aus
 # dem Autostart-VBS die Package-Importe darunter ueberhaupt findet. (Der

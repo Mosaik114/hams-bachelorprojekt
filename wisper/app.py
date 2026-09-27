@@ -1,26 +1,26 @@
 """Das Hauptfenster von Hams und seine Zustaende."""
 
+import contextlib
 import subprocess
 import sys
 import threading
 import tkinter as tk
-from typing import Optional
 
 import numpy as np
 import sounddevice as sd
 
-from wisper.backend import WhisperModel
 from wisper import branding
 from wisper import models as whisper_models
 from wisper import ollama as ollama_api
 from wisper import ui_kit as uk
-from wisper.ui_kit import Theme
+from wisper.backend import WhisperModel
 from wisper.config import APP_DIR, CFG, CONFIG_PATH, _persist_config_value, logger
 from wisper.instance import _acquire_single_instance_mutex, _release_single_instance_mutex, restart_command
 from wisper.recording import RecordingMixin
 from wisper.settings_window import SettingsWindow
 from wisper.transcription import TranscriptionMixin
 from wisper.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
+from wisper.ui_kit import Theme
 from wisper.whisper_model import WhisperModelMixin
 from wisper.window_position import POSITION_SAVE_DELAY_MS, window_position
 
@@ -64,13 +64,13 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self._window_size = (uk.px(self.WINDOW_WIDTH), uk.px(self.WINDOW_MIN_HEIGHT))
         self._window_pos = window_position(
             CFG.window_x, CFG.window_y, *self._window_size, uk.work_areas())
-        self._position_job: Optional[str] = None
+        self._position_job: str | None = None
         self.root.geometry(f"+{self._window_pos[0]}+{self._window_pos[1]}")
         self.root.attributes("-topmost", True)
         self.root.resizable(False, False)
         self.root.configure(bg=Theme.WINDOW_BG)
         self._apply_window_icon()
-        self.settings_win: Optional["SettingsWindow"] = None
+        self.settings_win: SettingsWindow | None = None
         # Wer sonst noch das Mikrofon offen hat und es waehrend einer Aufnahme
         # freigeben muss. Klare Lebenszyklus-Schnittstelle statt Zugriff auf
         # private Methoden des Einstellungsfensters.
@@ -78,14 +78,14 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
         self.is_recording = False
         self.frames: list[np.ndarray] = []
-        self.stream: Optional[sd.InputStream] = None
+        self.stream: sd.InputStream | None = None
 
-        self.model: Optional[WhisperModel] = None
+        self.model: WhisperModel | None = None
         #: Welches Modell tatsaechlich geladen ist. CFG.model_size ist dagegen
         #: die *Auswahl* — beides faellt nach einem Wechsel auseinander.
-        self.active_model_size: Optional[str] = None
+        self.active_model_size: str | None = None
         self.model_ready = threading.Event()
-        self.model_error: Optional[str] = None
+        self.model_error: str | None = None
         #: Kurzer Schutz um self.model und die Begleitfelder.
         self._model_lock = threading.Lock()
         #: Serialisiert Transkription gegen Modellwechsel. Ein Wechsel wartet
@@ -95,7 +95,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         #: Steigt bei jedem Wechselwunsch. Ein spaet zurueckkehrender aelterer
         #: Ladevorgang erkennt daran, dass er nicht mehr gemeint ist.
         self._model_generation = 0
-        self._switching_to: Optional[str] = None
+        self._switching_to: str | None = None
         #: Der Download gehoert der Anwendung, nicht dem Einstellungsfenster:
         #: er laeuft weiter, wenn das Fenster zwischendurch geschlossen wird.
         #: Letzte Auskunft des Ollama-Dienstes. Sie gehoert der Anwendung, damit
@@ -112,20 +112,20 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         #: Der Hub meldet die Gesamtgroesse erst nach und nach; ohne diese
         #: Sperre liefe die Prozentanzeige zwischendurch rueckwaerts.
         self.download_percent = 0
-        self._active_compute_type: Optional[str] = None
-        self._active_device: Optional[str] = None
+        self._active_compute_type: str | None = None
+        self._active_device: str | None = None
 
         self.drag_start_x = 0
         self.drag_start_y = 0
         self._state = "model_loading"
-        self._done_job: Optional[str] = None
-        self._elapsed_job: Optional[str] = None
+        self._done_job: str | None = None
+        self._elapsed_job: str | None = None
 
         self._recording_start: float = 0.0
-        self._max_duration_timer: Optional[threading.Timer] = None
+        self._max_duration_timer: threading.Timer | None = None
 
         self._rms_level: float = 0.0
-        self._level_tick_job: Optional[str] = None
+        self._level_tick_job: str | None = None
 
         self._history: list[tuple[str, str, str]] = []  # (display-time, preview, full-text)
         self._history_lock = threading.Lock()
@@ -480,7 +480,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         return (("transcript", "Diktieren", CFG.hotkey_transcript),
                 ("prompt", "Prompt", CFG.hotkey_prompt))
 
-    def _show_footer_hint(self, hint: Optional[str]) -> None:
+    def _show_footer_hint(self, hint: str | None) -> None:
         """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe."""
         if hint:
             self.footer_label.configure(text=hint, fg=Theme.ERROR)
@@ -555,8 +555,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
     RECORDING_STATES = ("recording", "recording_prompt")
 
-    def _apply_state(self, state: str, detail: Optional[str] = None,
-                     hint: Optional[str] = None) -> None:
+    def _apply_state(self, state: str, detail: str | None = None,
+                     hint: str | None = None) -> None:
         """Die einzige Stelle, an der sich die Oberfläche des Hauptfensters ändert.
 
         Der Button zeigt die *Aktion*, die Statuszeile den *Zustand* — nie
@@ -618,10 +618,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
     def _cancel_done_reset(self) -> None:
         if getattr(self, "_done_job", None) is not None:
-            try:
+            with contextlib.suppress(ValueError, tk.TclError):
                 self.root.after_cancel(self._done_job)
-            except (ValueError, tk.TclError):
-                pass
             self._done_job = None
 
     def _back_to_ready(self) -> None:

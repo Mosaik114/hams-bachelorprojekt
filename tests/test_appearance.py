@@ -10,23 +10,34 @@ Was sich hier nicht prüfen lässt: wie die beiden Modi auf einem echten
 Bildschirm *wirken*. Das steht im Bericht unter der Sichtprüfung.
 """
 
+import inspect
 import tkinter as tk
 
 import pytest
-
 from conftest import fokus_erzwingen
-
-import inspect
 from source_code import all_source
-from wisper.app import FloatingTranscriberApp
-from wisper.settings_window import SettingsWindow
+
 from wisper import config as config_mod
 from wisper import settings_window as settings_window_mod
 from wisper import tray as tray_mod
 from wisper import ui_kit as uk
-from wisper.ui_kit import (GroupSurface, IconButton, Option, Popover, PrimaryButton,
-                           ScrollArea, SectionHeader, SecondaryButton, Select,
-                           SettingRow, SignalMeter, Switch, Theme)
+from wisper.app import FloatingTranscriberApp
+from wisper.settings_window import SettingsWindow
+from wisper.ui_kit import (
+    GroupSurface,
+    IconButton,
+    Option,
+    Popover,
+    PrimaryButton,
+    ScrollArea,
+    SecondaryButton,
+    SectionHeader,
+    Select,
+    SettingRow,
+    SignalMeter,
+    Switch,
+    Theme,
+)
 
 MODES = list(Theme.MODES)
 
@@ -294,7 +305,7 @@ class TestPaletteSwitch:
         Theme.register(kaputt)
         try:
             assert Theme.apply(Theme.DARK) is True
-            assert Theme.WINDOW_BG == Theme.palette(Theme.DARK)["WINDOW_BG"]
+            assert Theme.palette(Theme.DARK)["WINDOW_BG"] == Theme.WINDOW_BG
         finally:
             Theme.unregister(kaputt)
 
@@ -458,7 +469,7 @@ class TestCaches:
         assert not uk._img_cache
         assert not uk._icon_cache
 
-    def test_the_cache_key_already_carries_the_colour(self):
+    def test_the_cache_key_already_carries_the_colour(self, root):  # surface() braucht eine Tk-Wurzel
         """Zweite Sicherung: selbst ohne Leeren könnten sich Bilder nicht mischen."""
         uk._img_cache.clear()
         uk.surface(20, 20, 4, Theme.palette(Theme.LIGHT)["GROUP_SURFACE"])

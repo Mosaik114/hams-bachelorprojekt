@@ -1,16 +1,18 @@
 """Das Einstellungsfenster: Aufbau und Schalter."""
 
 import tkinter as tk
-from typing import TYPE_CHECKING, Optional
-
+from typing import TYPE_CHECKING
 
 import sounddevice as sd
 
 from wisper import branding
 from wisper import ui_kit as uk
 from wisper.ui_kit import Theme
+
 if TYPE_CHECKING:
     from wisper.app import FloatingTranscriberApp
+import contextlib
+
 from wisper.config import CFG, _persist_config_value, logger
 from wisper.settings_models import ModelSectionMixin
 from wisper.settings_status import StatusSectionMixin
@@ -59,7 +61,7 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         )
         self.win.bind("<Escape>", lambda _e: self.close())
 
-        self._mon_stream: Optional[sd.InputStream] = None
+        self._mon_stream: sd.InputStream | None = None
         self._mon_rms = 0.0
         self._suspended = False
         self._devices: list = []
@@ -70,14 +72,14 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         self._ollama_state = app.ollama_state
         self._ollama_signature = self._ollama_state.signature()
         self._ollama_online = self._ollama_state.online
-        self._ollama_job: Optional[str] = None
+        self._ollama_job: str | None = None
         self._installed_models: set = set()
         #: Modell, dessen Download dieses Fenster gerade zeigt.
         self._downloading = ""
         #: Modell, fuer das die Loeschruckfrage gerade offen steht.
         self._delete_target = ""
-        self._storage_note_job: Optional[str] = None
-        self._tick_job: Optional[str] = None
+        self._storage_note_job: str | None = None
+        self._tick_job: str | None = None
         self._alive = True
         self._drag = (0, 0)
 
@@ -139,29 +141,21 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         self._alive = False
         uk.Scale.unregister(self._on_scale_change)
         if self._ollama_job is not None:
-            try:
+            with contextlib.suppress(ValueError, tk.TclError):
                 self.win.after_cancel(self._ollama_job)
-            except (ValueError, tk.TclError):
-                pass
             self._ollama_job = None
         if self._tick_job is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.win.after_cancel(self._tick_job)
-            except Exception:
-                pass
             self._tick_job = None
         if self._storage_note_job is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self.win.after_cancel(self._storage_note_job)
-            except Exception:
-                pass
             self._storage_note_job = None
         self._stop_monitor()
         self.app.unregister_mic_consumer(self)
-        try:
+        with contextlib.suppress(Exception):
             self.win.destroy()
-        except Exception:
-            pass
         self.app.settings_win = None
 
     # ---------------------------------------------------------- drag

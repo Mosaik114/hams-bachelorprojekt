@@ -1,6 +1,6 @@
 """Tests for config loading."""
 
-from wisper.config import _load_config, Config
+from wisper.config import Config, _load_config
 
 
 class TestLoadConfig:

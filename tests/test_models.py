@@ -3,9 +3,9 @@
 import pytest
 
 from wisper import models
+from wisper.config import Config
 from wisper.config_validation import validate_config
 from wisper.settings_window import SettingsWindow as SW
-from wisper.config import Config
 
 
 class TestCatalog:

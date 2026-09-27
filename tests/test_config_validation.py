@@ -1,7 +1,7 @@
 """Tests for configuration validation."""
 
-from wisper.config_validation import validate_config
 from wisper.config import Config
+from wisper.config_validation import validate_config
 
 
 class TestValidateConfig:

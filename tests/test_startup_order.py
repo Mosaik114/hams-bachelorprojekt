@@ -18,13 +18,13 @@ import os
 import subprocess
 import sys
 import textwrap
-import tomllib
 from pathlib import Path
 
 import pytest
+import tomllib
 
-from wisper.config_validation import validate_config
 from wisper.config import Config, _apply_toml
+from wisper.config_validation import validate_config
 
 PROJECT_ROOT = Path(__file__).parent.parent
 

@@ -5,20 +5,20 @@ Ein von Windows entfernter Tastaturhook laesst sich im laufenden Prozess nicht
 neu setzen. Hier geht es nur darum, dass der Neustart selbst sauber ablaeuft.
 """
 
+import ctypes
 import os
 import subprocess
 import sys
+from ctypes import wintypes
 from pathlib import Path
 
 import pytest
 
-from ctypes import wintypes
-import ctypes
-from wisper.app import FloatingTranscriberApp
-from wisper.settings_window import SettingsWindow
 from wisper import app as app_mod
 from wisper import config as config_mod
 from wisper import instance as instance_mod
+from wisper.app import FloatingTranscriberApp
+from wisper.settings_window import SettingsWindow
 
 App = FloatingTranscriberApp
 

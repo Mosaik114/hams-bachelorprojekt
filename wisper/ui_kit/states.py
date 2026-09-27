@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Callable, Optional
-
+from collections.abc import Callable
 
 from wisper.ui_kit.theme import Theme
-
 
 # ---------------------------------------------------------------- Zustände
 
@@ -131,7 +129,7 @@ class ControlStyle:
         return list(cls._ROLES)
 
     @classmethod
-    def resolve(cls, role: str, active) -> tuple[Optional[str], str]:
+    def resolve(cls, role: str, active) -> tuple[str | None, str]:
         """(Füllung, Textfarbe) für eine Rolle im aktuellen Zustand.
 
         Füllung `None` heisst: keine eigene Fläche, der Untergrund bleibt stehen.
@@ -148,7 +146,7 @@ class ControlStyle:
         return getattr(Theme, cls.FOCUS_RING_TOKEN)
 
     @classmethod
-    def ring_colour(cls, active) -> Optional[str]:
+    def ring_colour(cls, active) -> str | None:
         return cls.focus_ring() if State.shows_focus_ring(active) else None
 
 
@@ -186,10 +184,10 @@ class StateMixin:
     def enabled(self) -> bool:
         return State.DISABLED not in self._states
 
-    def colours(self) -> tuple[Optional[str], str]:
+    def colours(self) -> tuple[str | None, str]:
         return ControlStyle.resolve(self._role, self._states)
 
-    def ring(self) -> Optional[str]:
+    def ring(self) -> str | None:
         return ControlStyle.ring_colour(self._states)
 
     def on_state_change(self) -> None:      # pragma: no cover - überschrieben
@@ -203,7 +201,7 @@ class FocusMixin:
     die anderen Controls oder den globalen Hotkeys in die Quere käme.
     """
 
-    def init_focus(self, activate: Optional[Callable[[], None]] = None) -> None:
+    def init_focus(self, activate: Callable[[], None] | None = None) -> None:
         self._activate = activate
         #: Kam der Fokus gerade vom Zeiger? Dann bleibt der Ring aus.
         self._focus_from_pointer = False
@@ -275,7 +273,7 @@ def focus_chain(window: tk.Misc, limit: int = 60) -> list:
     return chain
 
 
-def return_focus_to(widget: Optional[tk.Misc]) -> None:
+def return_focus_to(widget: tk.Misc | None) -> None:
     """Gibt den Fokus an das Element zurück, das ein Popup geöffnet hat.
 
     Regel für alle künftigen Popover: wer öffnet, bekommt den Fokus zurück.

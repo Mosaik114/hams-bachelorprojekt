@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from PIL import Image, ImageTk
 
@@ -12,7 +12,6 @@ from wisper.ui_kit.scale import Scale, font, px
 from wisper.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
 from wisper.ui_kit.surfaces import _hex_to_rgb, surface
 from wisper.ui_kit.theme import Height, Radius, Space, Theme
-
 
 # ---------------------------------------------------------------- Basis-Controls
 
@@ -33,7 +32,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         role: str = "secondary",
         height: int = Height.STANDARD,
         radius: int = Radius.CONTROL,
-        command: Optional[Callable[[], None]] = None,
+        command: Callable[[], None] | None = None,
         squircle: bool = True,
         font_role: str = "button",
         **label_kwargs,
@@ -49,7 +48,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         self._squircle = squircle
         self._command = command
         self._last_width = 0
-        self._image: Optional[ImageTk.PhotoImage] = None
+        self._image: ImageTk.PhotoImage | None = None
 
         self.init_focus(self._invoke)
         self.bind("<Configure>", self._on_configure, add="+")
@@ -191,15 +190,15 @@ class SecondaryButton(_SurfaceControl):
     """
 
     def __init__(self, master: tk.Misc, text: str, command: Callable[[], None], *,
-                 bg_under: str, icon_name: Optional[str] = None,
-                 icon_colour: Optional[str] = None,
+                 bg_under: str, icon_name: str | None = None,
+                 icon_colour: str | None = None,
                  height: int = Height.PRIMARY, role: str = "secondary") -> None:
         self._icon_name = icon_name
         self._icon_colour = icon_colour
         super().__init__(master, bg_under=bg_under, role=role, height=height,
                          radius=Radius.BUTTON, command=command, text=text)
 
-    def set_icon(self, icon_name: Optional[str], colour: Optional[str] = None) -> None:
+    def set_icon(self, icon_name: str | None, colour: str | None = None) -> None:
         self._icon_name, self._icon_colour = icon_name, colour
         self._render()
 
@@ -250,7 +249,7 @@ class IconButton(BaseControl):
                  icon_size: int = ICON_BOX, tooltip: str = "") -> None:
         self._icon_name = icon_name
         self._icon_size = icon_size
-        self._hover_colour: Optional[str] = None
+        self._hover_colour: str | None = None
         super().__init__(master, bg_under=bg_under, role="plain", height=size,
                          radius=Radius.CONTROL, command=command)
         self._side = size
@@ -258,7 +257,7 @@ class IconButton(BaseControl):
         self._last_width = px(size)
         self._render()
 
-    def set_hover_colour(self, colour: Optional[str]) -> None:
+    def set_hover_colour(self, colour: str | None) -> None:
         """Eigene Icon-Farbe im Hover — etwa Rot für das Schliessen-Kreuz."""
         self._hover_colour = colour
         self._render()

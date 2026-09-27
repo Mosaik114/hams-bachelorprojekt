@@ -50,7 +50,7 @@ def _pil_font(tk_font):
     for candidate in filter(None, candidates):
         try:
             return ImageFont.truetype(candidate, size)
-        except (OSError, IOError):
+        except OSError:
             continue
     return ImageFont.load_default()      # pragma: no cover
 

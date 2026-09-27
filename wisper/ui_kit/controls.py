@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Callable
-
+from collections.abc import Callable
 
 from wisper.ui_kit.animation import Animator, blend
 from wisper.ui_kit.scale import Scale, font, px
@@ -12,7 +11,6 @@ from wisper.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
 from wisper.ui_kit.surfaces import surface
 from wisper.ui_kit.text import _text_width
 from wisper.ui_kit.theme import Height, Radius, Space, Theme
-
 
 # ---------------------------------------------------------------- Statuspunkt
 

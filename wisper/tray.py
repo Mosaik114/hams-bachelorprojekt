@@ -6,8 +6,6 @@ import sys
 import threading
 import tkinter as tk
 from datetime import datetime
-from typing import Optional
-
 
 import pyperclip
 import pystray
@@ -15,9 +13,8 @@ from PIL import Image, ImageTk
 
 from wisper import branding
 from wisper import ui_kit as uk
-from wisper.ui_kit import Theme
 from wisper.config import logger
-
+from wisper.ui_kit import Theme
 
 #: Farben des Tray-Symbols — bewusst **fest**, nicht aus dem aktiven
 #: Darstellungsmodus. Das Hams-Fenster und die Windows-Taskleiste sind zwei
@@ -33,7 +30,7 @@ _DOT_MSG = (ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustan
             if sys.platform == "win32" else 0)
 
 
-def _notify_cursor_dot(state: str, level: Optional[float] = None) -> None:
+def _notify_cursor_dot(state: str, level: float | None = None) -> None:
     """Meldet der Mosaiks-Suche Zustand und Pegel fuer die Soundbar am Mauszeiger.
 
     1 = Diktat (rot), 2 = Prompt (lila), 0 = aus; der Pegel (0..1) kommt ab
@@ -59,7 +56,7 @@ def _notify_cursor_dot(state: str, level: Optional[float] = None) -> None:
         pass
 
 
-def _create_tray_icon_image(color: Optional[str] = None) -> Image.Image:
+def _create_tray_icon_image(color: str | None = None) -> Image.Image:
     """Das Tray-Symbol im aktuellen Zustand.
 
     Die Form ist immer die Hams-Bildmarke, die Farbe kommt aus dem Zustand.

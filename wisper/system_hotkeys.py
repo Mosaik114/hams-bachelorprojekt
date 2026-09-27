@@ -16,8 +16,8 @@ from __future__ import annotations
 import ctypes
 import logging
 import threading
+from collections.abc import Callable
 from ctypes import wintypes
-from typing import Callable, Optional
 
 logger = logging.getLogger("wisper")
 
@@ -46,7 +46,7 @@ _KEYS = {
 }
 
 
-def parse_combo(combo: str) -> Optional[tuple[int, int]]:
+def parse_combo(combo: str) -> tuple[int, int] | None:
     """„ctrl+shift+space“ -> (Modifier-Bits, virtueller Tastencode).
 
     None, wenn die Kombination nicht eindeutig in Modifier plus genau eine
@@ -82,7 +82,7 @@ class SystemHotkeys:
     """
 
     def __init__(self) -> None:
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._thread_id = 0
         self._handlers: dict[int, Callable[[], None]] = {}
 

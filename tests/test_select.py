@@ -3,13 +3,12 @@
 import tkinter as tk
 
 import pytest
-
 from conftest import fokus_erzwingen
-
 from source_code import ui_kit_source
-from wisper.ui_kit import popover as popover_mod
+
 from wisper import ui_kit as uk
 from wisper.ui_kit import Option, Popover, Select, State, Theme
+from wisper.ui_kit import popover as popover_mod
 
 BG = Theme.GROUP_SURFACE
 

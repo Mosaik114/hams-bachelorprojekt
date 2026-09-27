@@ -13,8 +13,8 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-
 from live_app import FakeHotkeys, FakeStream
+
 from wisper import recording as recording_mod
 from wisper import ui_kit as uk
 from wisper.config import CFG

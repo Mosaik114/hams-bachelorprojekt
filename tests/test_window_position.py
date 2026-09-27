@@ -10,7 +10,14 @@ Bildschirme umzustecken. Der Lauf gegen die echten Monitore steht daneben.
 import pytest
 
 from wisper import ui_kit as uk
-from wisper.window_position import MIN_VISIBLE_H, MIN_VISIBLE_W, POSITION_FALLBACK, _clean_coordinate, _visible_enough, window_position
+from wisper.window_position import (
+    MIN_VISIBLE_H,
+    MIN_VISIBLE_W,
+    POSITION_FALLBACK,
+    _clean_coordinate,
+    _visible_enough,
+    window_position,
+)
 
 #: Ein üblicher Verbund: Hauptbildschirm plus einer rechts daneben.
 PRIMARY = (0, 0, 2560, 1392)
@@ -210,8 +217,8 @@ class TestApplication:
 
     @pytest.fixture
     def app(self, monkeypatch):
-        from wisper.config import CFG
         from wisper.app import FloatingTranscriberApp as App
+        from wisper.config import CFG
 
         instance = App.__new__(App)
         instance.root = self._FakeRoot()

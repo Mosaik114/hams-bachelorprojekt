@@ -7,10 +7,9 @@ Installation des Nutzers — und beim zweiten Lauf haette er nichts mehr zu tun.
 
 import pytest
 
-from wisper.settings_window import SettingsWindow
 from wisper import models as whisper_models
 from wisper import ui_kit as uk
-
+from wisper.settings_window import SettingsWindow
 
 # ------------------------------------------------------------------ Attrappen
 

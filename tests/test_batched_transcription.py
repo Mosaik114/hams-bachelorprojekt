@@ -19,13 +19,14 @@ Messung kippt.
 """
 
 
+import inspect
+
 import numpy as np
 import pytest
 
-from wisper.app import FloatingTranscriberApp
 from wisper import config as config_mod
 from wisper import transcription as transcription_mod
-import inspect
+from wisper.app import FloatingTranscriberApp
 
 
 class Aufzeichnung:

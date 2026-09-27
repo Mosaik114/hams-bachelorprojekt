@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import sys
 import tkinter as tk
+from collections.abc import Callable
 from tkinter import font as tkfont
-from typing import Callable
-
 
 from wisper.ui_kit.caches import _img_cache
-
 
 # ---------------------------------------------------------------- DPI / Skalierung
 
@@ -92,10 +91,8 @@ class Scale:
         Controls tun das beim Zerstören — sonst hielte die Liste tote Widgets
         am Leben und würde bei jedem DPI-Wechsel länger.
         """
-        try:
+        with contextlib.suppress(ValueError):
             cls._callbacks.remove(callback)
-        except ValueError:
-            pass
 
     @classmethod
     def apply(cls, root: tk.Misc, dpi: int) -> bool:
@@ -110,10 +107,8 @@ class Scale:
         # neue Pixelgröße dort wieder auf. Die Schriften sind in Pixeln gesetzt
         # und brauchen es nicht.
         if sys.platform == "win32":
-            try:
+            with contextlib.suppress(tk.TclError):
                 root.tk.call("tk", "scaling", dpi / 72.0)
-            except tk.TclError:
-                pass
         _img_cache.clear()          # Bilder gelten immer nur für einen Faktor
         init_fonts(root, force=True)
         for callback in list(cls._callbacks):
@@ -253,7 +248,7 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
     return _FONTS
 
 
-def font(role: str) -> "tkfont.Font | tuple":
+def font(role: str) -> tkfont.Font | tuple:
     """Schriftrolle. Vor `init_fonts()` ein neutrales Tupel als Rückfall."""
     resolved = _FONTS.get(role)
     if resolved is not None:

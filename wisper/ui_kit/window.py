@@ -6,10 +6,8 @@ import ctypes
 import sys
 import tkinter as tk
 
-
 from wisper.ui_kit.scale import px
 from wisper.ui_kit.theme import Radius
-
 
 # --- Fensterecken -----------------------------------------------------------
 #

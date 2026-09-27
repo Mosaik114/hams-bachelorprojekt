@@ -5,11 +5,9 @@ from __future__ import annotations
 import ctypes
 import time
 import tkinter as tk
-from typing import Callable, Optional
-
+from collections.abc import Callable
 
 from wisper.ui_kit.surfaces import _hex_to_rgb
-
 
 # ---------------------------------------------------------------- Animation
 
@@ -50,7 +48,7 @@ def blend(start: str, end: str, fraction: float) -> str:
     """
     clamped = 0.0 if fraction < 0.0 else (1.0 if fraction > 1.0 else fraction)
     a, b = _hex_to_rgb(start), _hex_to_rgb(end)
-    mixed = tuple(int(round(x + (y - x) * clamped)) for x, y in zip(a, b))
+    mixed = tuple(int(round(x + (y - x) * clamped)) for x, y in zip(a, b, strict=False))
     return "#%02X%02X%02X" % mixed
 
 
@@ -74,7 +72,7 @@ class Animator:
     @classmethod
     def run(cls, widget: tk.Misc, key: str, duration_ms: int,
             step: Callable[[float], None],
-            done: Optional[Callable[[], None]] = None) -> bool:
+            done: Callable[[], None] | None = None) -> bool:
         """Ruft `step(t)` mit t von 0 bis 1 (bereits geglättet).
 
         Gibt True zurück, wenn tatsächlich animiert wird. Sind Animationen
@@ -136,7 +134,7 @@ class Animator:
                 pass
 
     @classmethod
-    def pending(cls, widget: Optional[tk.Misc] = None) -> int:
+    def pending(cls, widget: tk.Misc | None = None) -> int:
         """Offene Animationsjobs — für Tests und die Ruhelastprüfung."""
         if widget is None:
             return len(cls._jobs)

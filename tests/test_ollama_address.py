@@ -11,9 +11,9 @@ wird auf `127.0.0.1` gelegt, und sonst wird an keiner Adresse etwas geaendert.
 
 import pytest
 
+from wisper import ollama as ollama_api
 from wisper.config import Config, _apply_toml, ipv4_loopback
 from wisper.config_validation import ollama_url_problem
-from wisper import ollama as ollama_api
 
 
 class TestLocalhostWirdUmgelegt:

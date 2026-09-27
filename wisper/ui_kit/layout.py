@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import tkinter as tk
-from typing import Callable, Optional
-
+from collections.abc import Callable
 
 from wisper.ui_kit.controls import StatusDot
 from wisper.ui_kit.scale import Scale, font, px
@@ -12,7 +11,6 @@ from wisper.ui_kit.states import ControlStyle, FocusMixin
 from wisper.ui_kit.surfaces import surface
 from wisper.ui_kit.text import _fit_text, _line_height
 from wisper.ui_kit.theme import Height, Radius, Space, Theme, set_surface_under
-
 
 # ---------------------------------------------------------------- Einstellungs-Bausteine
 
@@ -31,7 +29,7 @@ class ScrollArea(tk.Frame):
     STEP = 40            # logisch, eine Tastenstufe
 
     def __init__(self, master: tk.Misc, *, bg_under: str,
-                 on_scroll: Optional[Callable[[float], None]] = None) -> None:
+                 on_scroll: Callable[[float], None] | None = None) -> None:
         super().__init__(master, bg=bg_under)
         self._bg_under = bg_under
         self._on_scroll = on_scroll
@@ -319,7 +317,7 @@ class SettingRow(tk.Frame):
     def __init__(self, master: tk.Misc, title: str, *, variant: str = "simple",
                  description: str = "", value: str = "",
                  interactive: bool = False,
-                 command: Optional[Callable[[], None]] = None,
+                 command: Callable[[], None] | None = None,
                  hairline: bool = True, stacked: bool = False) -> None:
         super().__init__(master, bg=Theme.GROUP_SURFACE)
         self._variant = variant
@@ -328,7 +326,7 @@ class SettingRow(tk.Frame):
         self._stacked = stacked
         self._enabled = True
         self._hovered = False
-        self._control: Optional[tk.Misc] = None
+        self._control: tk.Misc | None = None
         #: Die vollständigen Texte. Angezeigt wird, was in die Zeile passt.
         self._title_text = title
         self._sub_text = description
@@ -347,9 +345,9 @@ class SettingRow(tk.Frame):
                                     anchor="w", bd=0, padx=0, pady=0)
         self.title_label.pack(anchor="w")
 
-        self.sub_box: Optional[tk.Frame] = None
-        self.status_dot: Optional[StatusDot] = None
-        self.sub_label: Optional[tk.Label] = None
+        self.sub_box: tk.Frame | None = None
+        self.status_dot: StatusDot | None = None
+        self.sub_label: tk.Label | None = None
         if tall:
             self.sub_box = tk.Frame(self._text_box, bg=Theme.GROUP_SURFACE)
             self.sub_box.pack(anchor="w", fill="x", pady=(px(Space.TEXT_GAP), 0))
@@ -363,14 +361,14 @@ class SettingRow(tk.Frame):
                                       justify="left", bd=0, padx=0, pady=0)
             self.sub_label.pack(side="left", fill="x")
 
-        self.value_label: Optional[tk.Label] = None
+        self.value_label: tk.Label | None = None
         if variant == "display":
             self.value_label = tk.Label(self._line, text=value, bg=Theme.GROUP_SURFACE,
                                         fg=Theme.TEXT_SECONDARY, font=font("row_title"),
                                         anchor="e", justify="right", bd=0, padx=0, pady=0)
             self.value_label.grid(row=0, column=1, sticky="e")
 
-        self.hairline: Optional[tk.Frame] = None
+        self.hairline: tk.Frame | None = None
         if hairline:
             holder = tk.Frame(self, bg=Theme.GROUP_SURFACE)
             holder.pack(fill="x")

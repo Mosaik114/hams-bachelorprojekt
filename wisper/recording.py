@@ -1,16 +1,15 @@
 """Aufnahme vom Mikrofon bis zur fertigen Tonspur."""
 
+import contextlib
 import threading
 import time
 import tkinter as tk
-
 
 import numpy as np
 import sounddevice as sd
 
 from wisper.config import CFG, _resolve_mic_device, logger
 from wisper.tray import _notify_cursor_dot
-
 
 # Peak unterhalb dieser Schwelle gilt als "kein Signal" (Mikro stumm/falsches
 # Gerät). Sprache liegt typ. bei 0.05+, Grundrauschen bei ~0.0002 — 0.005 trennt
@@ -57,10 +56,8 @@ class RecordingMixin:
 
     def _stop_elapsed_ticker(self) -> None:
         if getattr(self, "_elapsed_job", None) is not None:
-            try:
+            with contextlib.suppress(ValueError, tk.TclError):
                 self.root.after_cancel(self._elapsed_job)
-            except (ValueError, tk.TclError):
-                pass
             self._elapsed_job = None
 
     # ------------------------------------------------------------------ recording
@@ -161,10 +158,8 @@ class RecordingMixin:
 
     def _stop_level_ticker(self) -> None:
         if self._level_tick_job is not None:
-            try:
+            with contextlib.suppress(ValueError, tk.TclError):
                 self.root.after_cancel(self._level_tick_job)
-            except (ValueError, tk.TclError):
-                pass
             self._level_tick_job = None
         self.level_meter.set_level(0.0)
 

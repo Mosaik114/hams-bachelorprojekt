@@ -3,12 +3,17 @@
 import tkinter as tk
 
 import pytest
-
 from conftest import fokus_erzwingen
 
 from wisper import ui_kit as uk
 from wisper.ui_kit import (
-    GroupSurface, Height, ScrollArea, SectionHeader, SettingRow, Switch, Theme,
+    GroupSurface,
+    Height,
+    ScrollArea,
+    SectionHeader,
+    SettingRow,
+    Switch,
+    Theme,
 )
 
 BG = Theme.WINDOW_BG

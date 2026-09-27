@@ -15,13 +15,13 @@ Gemessen war die wahrgenommene Startzeit dadurch 3,0 s statt 0,8 s: der Nutzer
 wartete auf etwas, das er zum Sprechen gar nicht braucht.
 """
 
+import inspect
 import threading
 import time
 
 import pytest
 
 from wisper.app import FloatingTranscriberApp
-import inspect
 
 
 @pytest.fixture

@@ -3,7 +3,6 @@
 import tkinter as tk
 
 import pytest
-
 from conftest import fokus_erzwingen
 
 from wisper import ui_kit as uk

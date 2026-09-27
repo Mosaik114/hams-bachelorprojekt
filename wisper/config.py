@@ -10,8 +10,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import Any, Optional, Union
-
+from typing import Any
 
 import sounddevice as sd
 
@@ -20,11 +19,12 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
     import tomli as tomllib  # type: ignore[import-not-found]
 
-from wisper.config_validation import ollama_url_problem, validate_config
+import contextlib
+
 from wisper import branding
+from wisper.config_validation import ollama_url_problem, validate_config
 from wisper.ui_kit import Theme
 from wisper.window_position import _clean_coordinate
-
 
 APP_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = APP_DIR / "transcripts"
@@ -89,7 +89,7 @@ DEFAULT_CLEANUP_PROMPT = (
 class Config:
     sample_rate: int = 16_000
     channels: int = 1
-    mic_device: Union[str, int, None] = None
+    mic_device: str | int | None = None
     # Roher Config-Wert (z.B. "Shure MV7+"), damit das Gerät pro Aufnahme frisch
     # aufgelöst werden kann — Indizes verschieben sich beim Aus-/Einstecken.
     mic_device_raw: Any = None
@@ -126,8 +126,8 @@ class Config:
     ollama_warmup_on_start: bool = True
     #: Zuletzt bekannte Lage des Hauptfensters in physischen Bildschirmpixeln.
     #: None heisst: noch nie gemerkt, es gilt der Rueckfall.
-    window_x: Optional[int] = None
-    window_y: Optional[int] = None
+    window_x: int | None = None
+    window_y: int | None = None
     cleanup_prompt_template: str = DEFAULT_CLEANUP_PROMPT
 
     clipboard_paste_timeout: float = 0.3
@@ -140,7 +140,7 @@ class Config:
     appearance: str = Theme.DEFAULT_MODE
 
 
-def _resolve_mic_device(raw: Any) -> Union[str, int, None]:
+def _resolve_mic_device(raw: Any) -> str | int | None:
     """Resolve microphone device from config value.
 
     Args:
@@ -282,10 +282,10 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
     header_re = re.compile(r"^\s*\[([^\]]+)\]\s*$")
     key_re = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)(.*)$")
 
-    current: Optional[str] = None
-    section_start: Optional[int] = None
-    section_end: Optional[int] = None
-    target: Optional[int] = None
+    current: str | None = None
+    section_start: int | None = None
+    section_end: int | None = None
+    target: int | None = None
 
     for idx, line in enumerate(lines):
         bare = line.rstrip("\r\n")
@@ -340,10 +340,8 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
         return True
     except OSError:
         logger.exception("Config schreiben fehlgeschlagen")
-        try:
+        with contextlib.suppress(OSError):
             tmp_path.unlink(missing_ok=True)
-        except OSError:
-            pass
         return False
 
 

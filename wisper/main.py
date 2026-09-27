@@ -11,6 +11,8 @@ _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
+import contextlib
+
 from wisper import branding
 from wisper import ui_kit as uk
 from wisper.app import FloatingTranscriberApp
@@ -33,7 +35,7 @@ def main() -> None:
             from wisper import linux
             linux.notify(branding.PRODUCT_NAME, f"{branding.PRODUCT_NAME} läuft bereits.")
             sys.exit(0)
-        try:
+        with contextlib.suppress(Exception):
             ctypes.windll.user32.MessageBoxW(
                 0,
                 f"{branding.PRODUCT_NAME} läuft bereits. "
@@ -41,8 +43,6 @@ def main() -> None:
                 branding.PRODUCT_NAME,
                 0x40,
             )
-        except Exception:
-            pass
         sys.exit(0)
 
     try:

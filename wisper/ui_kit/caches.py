@@ -6,8 +6,6 @@ from collections import OrderedDict
 
 from PIL import ImageTk
 
+_img_cache: OrderedDict[tuple, ImageTk.PhotoImage] = OrderedDict()
 
-
-_img_cache: "OrderedDict[tuple, ImageTk.PhotoImage]" = OrderedDict()
-
-_icon_cache: "OrderedDict[tuple, ImageTk.PhotoImage]" = OrderedDict()
+_icon_cache: OrderedDict[tuple, ImageTk.PhotoImage] = OrderedDict()

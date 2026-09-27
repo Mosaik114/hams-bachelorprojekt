@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from PIL import Image, ImageDraw, ImageTk
 
 from wisper.ui_kit.caches import _icon_cache
 from wisper.ui_kit.scale import Scale, px
 from wisper.ui_kit.surfaces import SUPERSAMPLE
 from wisper.ui_kit.theme import Theme
-
 
 # ---------------------------------------------------------------- Icons
 
@@ -144,7 +141,7 @@ def render_icon(name: str, size: int, color: str) -> Image.Image:
     return image.resize((size, size), Image.LANCZOS)
 
 
-def icon(name: str, size: Optional[int] = None, color: Optional[str] = None):
+def icon(name: str, size: int | None = None, color: str | None = None):
     """Wie `render_icon()`, aber als Tk-Bild und zwischengespeichert.
 
     `size` ist eine **logische** Größe und wird hier skaliert; der Cache-Schlüssel

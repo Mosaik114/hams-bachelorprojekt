@@ -7,17 +7,26 @@ steht im Bericht unter den offenen manuellen Prüfungen.
 """
 
 import ast
+import inspect
 import tkinter as tk
 
 import pytest
-
 from conftest import fokus_erzwingen
-
-import inspect
 from source_code import WISPER, module_files
+
 from wisper import ui_kit as uk
-from wisper.ui_kit import (ControlStyle, IconButton, Option, Popover, PrimaryButton,
-                           SecondaryButton, Select, StatusDot, Switch, Theme)
+from wisper.ui_kit import (
+    ControlStyle,
+    IconButton,
+    Option,
+    Popover,
+    PrimaryButton,
+    SecondaryButton,
+    Select,
+    StatusDot,
+    Switch,
+    Theme,
+)
 
 BG = Theme.GROUP_SURFACE
 
@@ -531,8 +540,8 @@ class TestNoLegacyGlyphs:
 
     def test_the_download_marker_is_a_deliberate_character(self):
         """Der Pfeil vor der Groesse ist Text, kein Icon-Ersatz — und bleibt."""
-        from wisper.settings_window import SettingsWindow as SW
         from wisper import models
+        from wisper.settings_window import SettingsWindow as SW
 
         window = object.__new__(SW)
         window._installed_models = {"turbo"}

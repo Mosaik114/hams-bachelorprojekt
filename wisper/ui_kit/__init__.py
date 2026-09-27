@@ -42,51 +42,128 @@ Das Kit ist nach Themen auf Module verteilt; dieses Paket bietet alle
 Namen wieder an, damit `from wisper import ui_kit as uk` genuegt.
 """
 
-from wisper.ui_kit.caches import (
-    _img_cache, _icon_cache,
-)
-from wisper.ui_kit.theme import (
-    Theme, TINTED_OPTIONS, set_surface_under, retint, apply_theme_tree, Space, Radius, Height,
-)
-from wisper.ui_kit.scale import (
-    enable_dpi_awareness, window_dpi, Scale, keep_logical_width, px, init_scale, _FONTS,
-    SERIF_FAMILIES, SEMIBOLD_FAMILIES, _FONT_ROLES, points_to_px, init_fonts, font,
-)
 from wisper.ui_kit.animation import (
-    SPI_GETCLIENTAREAANIMATION, FRAME_MS, system_animations_enabled, ease_out, blend, Animator,
+    FRAME_MS,
+    SPI_GETCLIENTAREAANIMATION,
+    Animator,
+    blend,
+    ease_out,
     init_animations,
-)
-from wisper.ui_kit.surfaces import (
-    SUPERSAMPLE, SQUIRCLE_EXPONENT, CACHE_LIMIT, _hex_to_rgb, _squircle_points, _shape_mask,
-    _vertical_ramp, render_surface, surface, rounded_image,
-)
-from wisper.ui_kit.states import (
-    State, ControlStyle, StateMixin, FocusMixin, focus_chain, return_focus_to,
-)
-from wisper.ui_kit.icons import (
-    ICON_BOX, ICON_STROKE, ICON_CACHE_LIMIT, _stroke, _icon_settings, _icon_close,
-    _icon_chevron, _icon_check, _icon_download, _icon_stop, _icon_trash, _ICON_PAINTERS,
-    icon_names, render_icon, icon,
-)
-from wisper.ui_kit.text import (
-    _line_height, _text_width, _fit_text, _pil_font, _ellipsize,
-)
-from wisper.ui_kit.monitors import (
-    _Rect, _MonitorInfo, MONITORINFOF_PRIMARY, work_area, work_areas,
-)
-from wisper.ui_kit.window import (
-    _DWMWA_WINDOW_CORNER_PREFERENCE, _DWMWCP_ROUND, _WIN11_BUILD, _windows_build,
-    _window_handle, round_window_corners,
+    system_animations_enabled,
 )
 from wisper.ui_kit.buttons import (
-    BaseControl, _SurfaceControl, PrimaryButton, SecondaryButton, IconButton,
+    BaseControl,
+    IconButton,
+    PrimaryButton,
+    SecondaryButton,
+    _SurfaceControl,
+)
+from wisper.ui_kit.caches import (
+    _icon_cache,
+    _img_cache,
 )
 from wisper.ui_kit.controls import (
-    StatusDot, Switch, SignalMeter, KEY_NAMES, key_labels, KeyCombo,
+    KEY_NAMES,
+    KeyCombo,
+    SignalMeter,
+    StatusDot,
+    Switch,
+    key_labels,
+)
+from wisper.ui_kit.icons import (
+    _ICON_PAINTERS,
+    ICON_BOX,
+    ICON_CACHE_LIMIT,
+    ICON_STROKE,
+    _icon_check,
+    _icon_chevron,
+    _icon_close,
+    _icon_download,
+    _icon_settings,
+    _icon_stop,
+    _icon_trash,
+    _stroke,
+    icon,
+    icon_names,
+    render_icon,
 )
 from wisper.ui_kit.layout import (
-    ScrollArea, SectionHeader, GroupSurface, SettingRow, separator,
+    GroupSurface,
+    ScrollArea,
+    SectionHeader,
+    SettingRow,
+    separator,
+)
+from wisper.ui_kit.monitors import (
+    MONITORINFOF_PRIMARY,
+    _MonitorInfo,
+    _Rect,
+    work_area,
+    work_areas,
 )
 from wisper.ui_kit.popover import (
-    Option, _PopoverItem, Popover, Select,
+    Option,
+    Popover,
+    Select,
+    _PopoverItem,
+)
+from wisper.ui_kit.scale import (
+    _FONT_ROLES,
+    _FONTS,
+    SEMIBOLD_FAMILIES,
+    SERIF_FAMILIES,
+    Scale,
+    enable_dpi_awareness,
+    font,
+    init_fonts,
+    init_scale,
+    keep_logical_width,
+    points_to_px,
+    px,
+    window_dpi,
+)
+from wisper.ui_kit.states import (
+    ControlStyle,
+    FocusMixin,
+    State,
+    StateMixin,
+    focus_chain,
+    return_focus_to,
+)
+from wisper.ui_kit.surfaces import (
+    CACHE_LIMIT,
+    SQUIRCLE_EXPONENT,
+    SUPERSAMPLE,
+    _hex_to_rgb,
+    _shape_mask,
+    _squircle_points,
+    _vertical_ramp,
+    render_surface,
+    rounded_image,
+    surface,
+)
+from wisper.ui_kit.text import (
+    _ellipsize,
+    _fit_text,
+    _line_height,
+    _pil_font,
+    _text_width,
+)
+from wisper.ui_kit.theme import (
+    TINTED_OPTIONS,
+    Height,
+    Radius,
+    Space,
+    Theme,
+    apply_theme_tree,
+    retint,
+    set_surface_under,
+)
+from wisper.ui_kit.window import (
+    _DWMWA_WINDOW_CORNER_PREFERENCE,
+    _DWMWCP_ROUND,
+    _WIN11_BUILD,
+    _window_handle,
+    _windows_build,
+    round_window_corners,
 )
