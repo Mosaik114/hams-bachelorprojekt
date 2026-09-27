@@ -11,6 +11,7 @@ Anwendung reicht den String unverändert an faster-whisper durch.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import logging
 import os
@@ -440,10 +441,8 @@ def preload_backend_without_torch() -> bool:
     except Exception:
         logger.warning("faster-whisper liess sich ohne torch nicht laden — zweiter Versuch ohne Sperre", exc_info=True)
     finally:
-        try:
+        with contextlib.suppress(ValueError):  # hat jemand anders entfernt
             sys.meta_path.remove(sperre)
-        except ValueError:  # pragma: no cover - hat jemand anders entfernt
-            pass
 
     # Aufraeumen, damit der zweite Anlauf nicht auf halb geladenen Modulen
     # aufsetzt: was die Sperre abgewiesen hat, steht sonst als kaputter

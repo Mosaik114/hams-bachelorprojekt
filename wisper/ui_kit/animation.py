@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import time
 import tkinter as tk
@@ -48,7 +49,7 @@ def blend(start: str, end: str, fraction: float) -> str:
     clamped = 0.0 if fraction < 0.0 else (1.0 if fraction > 1.0 else fraction)
     a, b = _hex_to_rgb(start), _hex_to_rgb(end)
     mixed = tuple(int(round(x + (y - x) * clamped)) for x, y in zip(a, b, strict=False))
-    return "#%02X%02X%02X" % mixed
+    return "#" + "".join(f"{v:02X}" for v in mixed)
 
 
 class Animator:
@@ -121,10 +122,8 @@ class Animator:
         job = cls._jobs.pop((id(widget), key), None)
         if job is None:
             return
-        try:
+        with contextlib.suppress(Exception):  # Widget bereits zerstört
             widget.after_cancel(job)
-        except Exception:  # pragma: no cover - Widget bereits zerstört
-            pass
 
     @classmethod
     def cancel_all(cls, widget: tk.Misc) -> None:
@@ -132,10 +131,8 @@ class Animator:
         target = id(widget)
         for token in [t for t in cls._jobs if t[0] == target]:
             job = cls._jobs.pop(token, None)
-            try:
+            with contextlib.suppress(Exception):
                 widget.after_cancel(job)
-            except Exception:  # pragma: no cover
-                pass
 
     @classmethod
     def pending(cls, widget: tk.Misc | None = None) -> int:

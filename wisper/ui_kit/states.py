@@ -120,7 +120,7 @@ class ControlStyle:
     }
 
     #: Der Fokusring ist immer der Akzentton des aktiven Modus.
-    FOCUS_RING_TOKEN = "ACCENT_TINT"
+    FOCUS_RING_TOKEN = "ACCENT_TINT"  # noqa: S105 – Name einer Farbe, kein Passwort
     RING_WIDTH = 2  # logisch
     RING_GAP = 2  # logisch
 

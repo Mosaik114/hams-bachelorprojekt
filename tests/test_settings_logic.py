@@ -14,6 +14,9 @@ from wisper import config as config_mod
 from wisper.app import FloatingTranscriberApp as App
 from wisper.settings_window import SettingsWindow as SW
 
+#: Platzhalter für „ein Mikrofon-Strom ist offen“
+_EIN_STROM = object()
+
 
 class _Stub:
     """Minimalobjekt mit den Feldern, die die geprüften Methoden anfassen."""
@@ -184,7 +187,7 @@ class TestMicStatus:
         def set_status(self, status, text):
             self.status, self.text = status, text
 
-    def _run(self, level, *, error="", stream=object(), recording=False):
+    def _run(self, level, *, error="", stream=_EIN_STROM, recording=False):
         window = SW.__new__(SW)
         window.row_mic = self._Row()
         window._device_error = error

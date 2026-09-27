@@ -220,10 +220,8 @@ class Theme:
         _img_cache.clear()
         _icon_cache.clear()
         for callback in list(cls._callbacks):
-            try:
+            with contextlib.suppress(Exception):  # ein defekter Rueckruf darf nichts blockieren
                 callback()
-            except Exception:  # ein defekter Rueckruf darf nichts blockieren
-                pass
         return True
 
     @classmethod
@@ -298,10 +296,8 @@ def set_surface_under(widget: tk.Misc, colour: str) -> None:
         for name in ("_draw", "_render"):
             zeichnen = getattr(widget, name, None)
             if callable(zeichnen):
-                try:
+                with contextlib.suppress(tk.TclError):  # schon zerstoert
                     zeichnen()
-                except tk.TclError:  # pragma: no cover - schon zerstoert
-                    pass
                 break
     try:
         kinder = widget.winfo_children()
@@ -354,10 +350,8 @@ def apply_theme_tree(widget: tk.Misc) -> int:
     retint(widget)
     hook = getattr(widget, "_on_theme_change", None)
     if callable(hook):
-        try:
+        with contextlib.suppress(tk.TclError):
             hook()
-        except tk.TclError:  # pragma: no cover
-            pass
     seen = 1
     for child in children:
         seen += apply_theme_tree(child)

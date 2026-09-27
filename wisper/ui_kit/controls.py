@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tkinter as tk
 from collections.abc import Callable
 
@@ -484,10 +485,8 @@ class KeyCombo(tk.Canvas):
         return sum(widths) + px(Space.KEY_GAP) * (len(widths) - 1)
 
     def _on_scale_change(self, _factor: float) -> None:
-        try:
+        with contextlib.suppress(tk.TclError):  # Widget bereits zerstört
             self._draw()
-        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
-            pass
 
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:

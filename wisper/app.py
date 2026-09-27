@@ -707,10 +707,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
     def _cancel_position_job(self) -> None:
         if self._position_job is None:
             return
-        try:
+        with contextlib.suppress(tk.TclError, ValueError):
             self.root.after_cancel(self._position_job)
-        except (tk.TclError, ValueError):  # pragma: no cover
-            pass
         self._position_job = None
 
     def _save_position(self) -> None:

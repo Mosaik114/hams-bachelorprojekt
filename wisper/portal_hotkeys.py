@@ -109,7 +109,7 @@ class PortalHotkeys:
         ready.wait(3)
         return result["failed"]
 
-    def _run(self, entries, ready: threading.Event, result: dict) -> None:
+    def _run(self, entries, ready: threading.Event, result: dict) -> None:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
         import gi
 
         gi.require_version("Gio", "2.0")

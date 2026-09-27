@@ -332,7 +332,7 @@ class TestNoLegacyGlyphs:
     def test_controls_carry_no_unicode_icons(self, controls):
         for name in ("primary", "secondary", "icon", "switch"):
             widget = controls[name]
-            text = widget.cget("text") if "text" in widget.keys() else ""
+            text = widget.cget("text") if "text" in widget.keys() else ""  # noqa: SIM118 – Tk-Widget, kein dict
             for glyph in ("⚙", "✕", "⌄", "✓", "↓", "×"):
                 assert glyph not in str(text), f"{name} enthält {glyph}"
 

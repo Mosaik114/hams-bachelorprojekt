@@ -406,7 +406,7 @@ class TestEveryComponentFollows:
             fremd -= {w.upper() for w in Theme.palette(ziel).values()}
             uebrig = []
 
-            def pruefe(widget):
+            def pruefe(widget, fremd=fremd, uebrig=uebrig):
                 for option in ("bg", "fg"):
                     try:
                         wert = str(widget.cget(option))
@@ -415,7 +415,7 @@ class TestEveryComponentFollows:
                     if wert.upper() in fremd:
                         uebrig.append((widget, option, wert))
                 for kind in widget.winfo_children():
-                    pruefe(kind)
+                    pruefe(kind, fremd, uebrig)
 
             pruefe(surface["window"])
             assert not uebrig, f"{ziel}: {uebrig}"

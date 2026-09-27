@@ -112,10 +112,8 @@ class Scale:
         _img_cache.clear()  # Bilder gelten immer nur für einen Faktor
         init_fonts(root, force=True)
         for callback in list(cls._callbacks):
-            try:
+            with contextlib.suppress(Exception):  # ein defekter Rückruf darf nichts blockieren
                 callback(cls.factor)
-            except Exception:  # ein defekter Rückruf darf nichts blockieren
-                pass
         return True
 
 

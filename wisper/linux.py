@@ -16,6 +16,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from functools import cache
@@ -32,7 +33,7 @@ APP_ID = "de.mosaik.Hams"
 
 
 def _runtime_dir() -> Path:
-    return Path(os.environ.get("XDG_RUNTIME_DIR") or f"/tmp/hams-{os.getuid()}")
+    return Path(os.environ.get("XDG_RUNTIME_DIR") or Path(tempfile.gettempdir()) / f"hams-{os.getuid()}")
 
 
 def autostart_dir() -> Path:
@@ -125,7 +126,7 @@ def acquire_lock() -> bool:
     global _LOCK_FILE
     path = _runtime_dir() / "hams.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(path, "w")
+    handle = open(path, "w")  # noqa: SIM115 – bleibt offen, solange die Sperre gilt
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:

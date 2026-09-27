@@ -142,8 +142,9 @@ def base_url(generate_url: str) -> str:
 
 
 def _get_json(url: str, timeout: float) -> dict:
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    request = urllib.request.Request(url, headers={"Accept": "application/json"})  # noqa: S310
+    # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
+    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
         return json.loads(response.read())
 
 

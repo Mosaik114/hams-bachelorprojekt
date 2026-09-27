@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tkinter as tk
 from collections.abc import Callable
 
@@ -159,10 +160,8 @@ class Popover(tk.Toplevel):
 
         self.overrideredirect(True)
         self.attributes("-topmost", True)
-        try:
+        with contextlib.suppress(tk.TclError):  # Alpha nicht verfügbar
             self.attributes("-alpha", 0.0)  # das Einblenden folgt unten
-        except tk.TclError:  # pragma: no cover - Alpha nicht verfügbar
-            pass
         self.configure(bg=Theme.HAIRLINE)  # 1 px Rand als äußerer Rahmen
 
         inner = tk.Frame(self, bg=Theme.POPOVER_SURFACE)
@@ -378,15 +377,11 @@ class Popover(tk.Toplevel):
         """Schliessen und den Fokus an den Auslöser zurückgeben."""
         if Popover.current is self:
             Popover.current = None
-        try:
+        with contextlib.suppress(tk.TclError):
             self.grab_release()
-        except tk.TclError:  # pragma: no cover
-            pass
         trigger = self.trigger
-        try:
+        with contextlib.suppress(tk.TclError):
             self.destroy()
-        except tk.TclError:  # pragma: no cover
-            pass
         return_focus_to(trigger)
 
     @classmethod

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tkinter as tk
 from collections.abc import Callable
 
@@ -116,10 +117,8 @@ class ScrollArea(tk.Frame):
         self.canvas.bind_all("<MouseWheel>", self._on_wheel)
 
     def _release_wheel(self, _event=None) -> None:
-        try:
+        with contextlib.suppress(tk.TclError):
             self.canvas.unbind_all("<MouseWheel>")
-        except tk.TclError:  # pragma: no cover
-            pass
 
     def _on_wheel(self, event: tk.Event) -> None:
         self.scroll_by(-int(event.delta / 120) * px(self.STEP))
@@ -179,10 +178,8 @@ class ScrollArea(tk.Frame):
         Rollposition bleibt unangetastet.
         """
         self._bg_under = Theme.remap(self._bg_under)
-        try:
+        with contextlib.suppress(tk.TclError):  # Widget bereits zerstört
             self._draw_bar()
-        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
-            pass
 
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:
@@ -209,10 +206,8 @@ class SectionHeader(tk.Label):
         Scale.register(self._on_scale_change)
 
     def _on_scale_change(self, _factor: float) -> None:
-        try:
+        with contextlib.suppress(tk.TclError):
             self.configure(font=font("section"))
-        except tk.TclError:  # pragma: no cover
-            pass
 
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:
@@ -446,10 +441,8 @@ class SettingRow(tk.Frame):
         eine Abbruch-Schaltfläche statt des Auswahlfeldes.
         """
         if self._control is not None and self._control is not control:
-            try:
+            with contextlib.suppress(tk.TclError):  # bereits zerstoert
                 self._control.grid_forget()
-            except tk.TclError:  # pragma: no cover - bereits zerstoert
-                pass
         self._control = control
         if control is None:
             return

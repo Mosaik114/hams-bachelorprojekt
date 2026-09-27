@@ -1,5 +1,6 @@
 """Einstellungen: Abschnitt Whisper-Modelle."""
 
+import contextlib
 import threading
 import tkinter as tk
 
@@ -200,10 +201,8 @@ class ModelSectionMixin:
 
     def _delete_worker(self, model_id: str) -> None:
         erfolg, _frei, meldung = whisper_models.delete_whisper_model(model_id)
-        try:
+        with contextlib.suppress(tk.TclError, RuntimeError):  # Fenster inzwischen zu
             self.win.after(0, lambda: self._delete_done(erfolg, meldung))
-        except (tk.TclError, RuntimeError):  # Fenster inzwischen zu
-            pass
 
     def _delete_done(self, erfolg: bool, meldung: str) -> None:
         if not self.alive():

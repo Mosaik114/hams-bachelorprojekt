@@ -213,7 +213,5 @@ def root():
     _uk.init_scale(window)
     _uk.init_fonts(window)
     yield window
-    try:
+    with contextlib.suppress(tk.TclError):
         window.destroy()
-    except tk.TclError:  # pragma: no cover
-        pass

@@ -1,5 +1,6 @@
 """Das Whisper-Modell der laufenden App: laden, wechseln, herunterladen."""
 
+import contextlib
 import gc
 import threading
 import tkinter as tk
@@ -183,10 +184,8 @@ class WhisperModelMixin:
         """Reicht einen Rueckruf in den Tk-Thread — auch beim Beenden gefahrlos."""
         if self._shutting_down:
             return
-        try:
+        with contextlib.suppress(tk.TclError, RuntimeError):  # Fenster ist weg
             self.root.after(0, callback)
-        except (tk.TclError, RuntimeError):  # pragma: no cover - Fenster ist weg
-            pass
 
     def _push_download_progress(self) -> None:
         if self.settings_win is not None and self.settings_win.alive():

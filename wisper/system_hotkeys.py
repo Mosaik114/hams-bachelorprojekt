@@ -108,7 +108,7 @@ class SystemHotkeys:
         self._thread_id = 0
         self._handlers: dict[int, Callable[[], None]] = {}
 
-    def register(self, entries: list[tuple[str, Callable[[], None]]]) -> list[str]:
+    def register(self, entries: list[tuple[str, Callable[[], None]]]) -> list[str]:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
         """Meldet alle Kombinationen an und gibt die zurueck, die scheiterten."""
         wanted: list[tuple[int, str, int, int, Callable[[], None]]] = []
         failed: list[str] = []

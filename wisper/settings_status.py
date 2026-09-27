@@ -1,5 +1,6 @@
 """Einstellungen: Mikrofon, Live-Pegel und Ollama."""
 
+import contextlib
 import re
 import threading
 
@@ -103,11 +104,9 @@ class StatusSectionMixin:
 
     def _stop_monitor(self) -> None:
         if self._mon_stream is not None:
-            try:
+            with contextlib.suppress(Exception):  # Strom ist schon zu oder das Gerät weg
                 self._mon_stream.stop()
                 self._mon_stream.close()
-            except Exception:
-                pass
             self._mon_stream = None
         self._mon_rms = 0.0
 
@@ -185,10 +184,8 @@ class StatusSectionMixin:
     def _check_ollama(self) -> None:
         """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
         state = ollama_api.probe(ollama_api.base_url(CFG.ollama_url))
-        try:
+        with contextlib.suppress(Exception):  # Fenster ist schon weg
             self.win.after(0, lambda: self._apply_ollama_state(state))
-        except Exception:  # pragma: no cover - Fenster ist schon weg
-            pass
 
     def _show_ollama_status(self) -> None:
         """Statuszeile aus dem bekannten Stand — ohne selbst zu fragen.

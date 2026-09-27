@@ -79,7 +79,8 @@ DEFAULT_CLEANUP_PROMPT = (
     "Korrigiere Rechtschreibung und Grammatik. "
     "Behalte die ursprüngliche Formulierung so nah wie möglich bei — "
     "keine Umschreibungen, nur eine saubere Fassung von dem was gesagt wurde. "
-    "Zensiere KEINE Wörter und ersetze NICHTS inhaltlich — schreibe jeden Begriff exakt so, wie er gesagt wurde, egal welchen Inhalt er hat. "
+    "Zensiere KEINE Wörter und ersetze NICHTS inhaltlich — schreibe jeden Begriff exakt so, "
+    "wie er gesagt wurde, egal welchen Inhalt er hat. "
     "Antworte NUR mit dem korrigierten Text, ohne Erklärungen oder Anmerkungen.\n\n"
     "Text: {text}"
 )
@@ -250,7 +251,7 @@ def ipv4_loopback(url: str) -> str:
     return urllib.parse.urlunsplit(parts._replace(netloc=f"{userinfo}{at}{host}"))
 
 
-def _persist_config_value(section: str, key: str, value: Any) -> bool:
+def _persist_config_value(section: str, key: str, value: Any) -> bool:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
     """Schreibt `key = value` in den Abschnitt `[section]` von config.toml.
 
     Abschnittsbewusst, weil derselbe Schlüsselname in mehreren Abschnitten
@@ -304,7 +305,8 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
         bare = original.rstrip("\r\n")
         line_eol = original[len(bare) :] or eol
         match = key_re.match(bare)
-        assert match is not None  # oben bereits geprüft
+        if match is None:  # oben bereits geprüft – kann nicht eintreten
+            raise ValueError(f"Zeile {target} passt nicht mehr zum Schlüssel")
         lines[target] = match.group(1) + rhs + _trailing_comment(match.group(2)) + line_eol
     elif section_start is not None:
         insert_at = section_end if section_end is not None else len(lines)

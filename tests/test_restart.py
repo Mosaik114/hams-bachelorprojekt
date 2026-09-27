@@ -299,7 +299,7 @@ class TestTheHandoverActuallyWorks:
     der Nutzer nach einem Klick ohne laufendes Hams da.
     """
 
-    NAME = "Global\\Hams-Test-Uebergabe-%d" % os.getpid()
+    NAME = f"Global\\Hams-Test-Uebergabe-{os.getpid()}"
     FRAGT = (
         "import ctypes;from ctypes import wintypes;k=ctypes.windll.kernel32;"
         "k.CreateMutexW.argtypes=[wintypes.LPVOID,wintypes.BOOL,wintypes.LPCWSTR];"

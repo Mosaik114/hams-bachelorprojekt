@@ -127,12 +127,13 @@ class TranscriptionMixin:
         if system:
             body["system"] = system
         payload = json.dumps(body).encode()
-        req = urllib.request.Request(
+        # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
+        req = urllib.request.Request(  # noqa: S310
             CFG.ollama_url,
             data=payload,
             headers={"Content-Type": "application/json"},
         )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
             if not stream:
                 result = json.loads(resp.read())
                 return result["response"].strip()
@@ -236,12 +237,13 @@ class TranscriptionMixin:
                     "keep_alive": CFG.ollama_keep_alive,
                 }
             ).encode()
-            req = urllib.request.Request(
+            # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
+            req = urllib.request.Request(  # noqa: S310
                 CFG.ollama_url,
                 data=payload,
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=60) as resp:
+            with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
                 resp.read()
             logger.info("Ollama warmed up: %s", model)
         except (urllib.error.URLError, TimeoutError) as exc:
@@ -305,7 +307,7 @@ class TranscriptionMixin:
             self._prompt_mode = False
             return None
 
-    def _transcribe_audio(self, audio: np.ndarray) -> None:
+    def _transcribe_audio(self, audio: np.ndarray) -> None:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
         """Transcription pipeline thread target.
 
         Runs Whisper transcription, optionally cleans up via LLM,
