@@ -78,9 +78,13 @@ pip install --no-deps -e .
 ```
 
 `requirements.txt` legt jede Paketversion samt Prüfsumme fest; ein
-verändertes Paket lässt pip dann gar nicht erst ein. Erzeugt wird sie mit
-`pip-compile --generate-hashes pyproject.toml` (für die Entwicklung zusätzlich
-`--extra dev -o requirements-dev.txt`).
+verändertes Paket lässt pip dann gar nicht erst ein. Erzeugt wird sie für
+Windows, Linux und macOS zugleich (Plattform-Markierungen wie `sys_platform == 'linux'`):
+
+```bash
+uv pip compile pyproject.toml --universal --generate-hashes --python-version 3.11 --no-emit-index-url -o requirements.txt
+uv pip compile pyproject.toml --extra dev --universal --generate-hashes --python-version 3.11 --no-emit-index-url -o requirements-dev.txt
+```
 
 Das `[cuda]`-Extra installiert `nvidia-cublas-cu12` und `nvidia-cudnn-cu12`.
 CTranslate2 — der Motor hinter `faster-whisper` — braucht beide für die GPU,
