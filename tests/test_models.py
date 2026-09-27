@@ -10,19 +10,25 @@ from wisper.settings_window import SettingsWindow as SW
 
 class TestCatalog:
     def test_exactly_the_six_curated_models(self):
-        assert models.catalog_ids() == (
-            "turbo", "large-v3", "medium", "small", "base", "tiny")
+        assert models.catalog_ids() == ("turbo", "large-v3", "medium", "small", "base", "tiny")
 
     def test_no_english_only_or_distil_variants(self):
         for model_id in models.catalog_ids():
             assert not model_id.endswith(".en")
             assert not model_id.startswith("distil")
-        assert "large" not in models.catalog_ids()      # der Alias fehlt bewusst
+        assert "large" not in models.catalog_ids()  # der Alias fehlt bewusst
 
-    @pytest.mark.parametrize("model_id,label", [
-        ("turbo", "Turbo"), ("large-v3", "Large v3"), ("medium", "Medium"),
-        ("small", "Small"), ("base", "Base"), ("tiny", "Tiny"),
-    ])
+    @pytest.mark.parametrize(
+        "model_id,label",
+        [
+            ("turbo", "Turbo"),
+            ("large-v3", "Large v3"),
+            ("medium", "Medium"),
+            ("small", "Small"),
+            ("base", "Base"),
+            ("tiny", "Tiny"),
+        ],
+    )
     def test_labels(self, model_id, label):
         assert models.find(model_id).label == label
 
@@ -90,26 +96,21 @@ class TestCacheDetection:
     def test_empty_cache_reports_nothing(self, monkeypatch):
         import huggingface_hub
 
-        monkeypatch.setattr(huggingface_hub, "scan_cache_dir",
-                            lambda: type("C", (), {"repos": ()})())
+        monkeypatch.setattr(huggingface_hub, "scan_cache_dir", lambda: type("C", (), {"repos": ()})())
         assert models.installed_whisper_models() == set()
 
     def test_foreign_repositories_are_ignored(self, monkeypatch):
         import huggingface_hub
 
-        repo = type("R", (), {"repo_id": "openai/whisper-large",
-                              "size_on_disk": 999, "revisions": [object()]})()
-        monkeypatch.setattr(huggingface_hub, "scan_cache_dir",
-                            lambda: type("C", (), {"repos": (repo,)})())
+        repo = type("R", (), {"repo_id": "openai/whisper-large", "size_on_disk": 999, "revisions": [object()]})()
+        monkeypatch.setattr(huggingface_hub, "scan_cache_dir", lambda: type("C", (), {"repos": (repo,)})())
         assert models.installed_whisper_models() == set()
 
     def test_empty_repo_folder_does_not_count(self, monkeypatch):
         import huggingface_hub
 
-        repo = type("R", (), {"repo_id": models.find("tiny").repo_id,
-                              "size_on_disk": 0, "revisions": []})()
-        monkeypatch.setattr(huggingface_hub, "scan_cache_dir",
-                            lambda: type("C", (), {"repos": (repo,)})())
+        repo = type("R", (), {"repo_id": models.find("tiny").repo_id, "size_on_disk": 0, "revisions": []})()
+        monkeypatch.setattr(huggingface_hub, "scan_cache_dir", lambda: type("C", (), {"repos": (repo,)})())
         assert "tiny" not in models.installed_whisper_models()
 
     def _cache_with(self, monkeypatch, names):
@@ -117,10 +118,8 @@ class TestCacheDetection:
 
         files = [type("F", (), {"file_name": name})() for name in names]
         revision = type("V", (), {"files": files})()
-        repo = type("R", (), {"repo_id": models.find("tiny").repo_id,
-                              "size_on_disk": 4096, "revisions": [revision]})()
-        monkeypatch.setattr(huggingface_hub, "scan_cache_dir",
-                            lambda: type("C", (), {"repos": (repo,)})())
+        repo = type("R", (), {"repo_id": models.find("tiny").repo_id, "size_on_disk": 4096, "revisions": [revision]})()
+        monkeypatch.setattr(huggingface_hub, "scan_cache_dir", lambda: type("C", (), {"repos": (repo,)})())
 
     def test_a_cancelled_download_does_not_count_as_installed(self, monkeypatch):
         """Ein Abbruch hinterlaesst die kleinen Dateien — nur model.bin zaehlt."""
@@ -197,17 +196,26 @@ class _StubWindow:
         self.description = SW.MODEL_HINT
         self.selected = None
         self.control = None
-        self.row_model = type("R", (), {
-            "set_description": lambda _s, text: setattr(self, "description", text),
-            "set_control": lambda _s, widget: setattr(self, "control", widget)})()
+        self.row_model = type(
+            "R",
+            (),
+            {
+                "set_description": lambda _s, text: setattr(self, "description", text),
+                "set_control": lambda _s, widget: setattr(self, "control", widget),
+            },
+        )()
         self.enabled = True
         self.cancel_enabled = True
-        self.model_select = type("S", (), {
-            "set_value": lambda _s, value: setattr(self, "selected", value),
-            "set_options": lambda _s, options: None,
-            "set_enabled": lambda _s, value: setattr(self, "enabled", value)})()
-        self.cancel_button = type("B", (), {
-            "set_enabled": lambda _s, value: setattr(self, "cancel_enabled", value)})()
+        self.model_select = type(
+            "S",
+            (),
+            {
+                "set_value": lambda _s, value: setattr(self, "selected", value),
+                "set_options": lambda _s, options: None,
+                "set_enabled": lambda _s, value: setattr(self, "enabled", value),
+            },
+        )()
+        self.cancel_button = type("B", (), {"set_enabled": lambda _s, value: setattr(self, "cancel_enabled", value)})()
 
     def alive(self):
         return True
@@ -262,8 +270,7 @@ class TestSelection:
         """Gespeichert wird erst nach erfolgreichem Wechsel, nicht beim Klick."""
         config("turbo")
         written = {}
-        patch_everywhere("_persist_config_value",
-                         lambda s, k, v: written.update({(s, k): v}))
+        patch_everywhere("_persist_config_value", lambda s, k, v: written.update({(s, k): v}))
         window = _StubWindow({"turbo", "small"})
         window._select_model("small")
         assert window.app.switched == ["small"]
@@ -273,8 +280,7 @@ class TestSelection:
         """Sonst zöge der nächste Start wortlos mehrere Gigabyte nach."""
         config("turbo")
         written = {}
-        patch_everywhere("_persist_config_value",
-                         lambda s, k, v: written.update({(s, k): v}))
+        patch_everywhere("_persist_config_value", lambda s, k, v: written.update({(s, k): v}))
         window = _StubWindow({"turbo"})
         window._select_model("large-v3")
         assert written == {}
@@ -284,8 +290,7 @@ class TestSelection:
     def test_choosing_the_active_model_changes_nothing(self, config, patch_everywhere):
         config("turbo")
         written = {}
-        patch_everywhere("_persist_config_value",
-                         lambda s, k, v: written.update({(s, k): v}))
+        patch_everywhere("_persist_config_value", lambda s, k, v: written.update({(s, k): v}))
         window = _StubWindow({"turbo"})
         window._select_model("turbo")
         assert written == {}
@@ -339,4 +344,4 @@ class TestValidator:
         config = Config()
         config.model_size = "large-v2"
         errors = [e for e in validate_config(config) if "model.size" in e]
-        assert len(errors) == 1      # nur ein Hinweis, kein Abbruch
+        assert len(errors) == 1  # nur ein Hinweis, kein Abbruch

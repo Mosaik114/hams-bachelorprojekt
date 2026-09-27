@@ -49,7 +49,7 @@ class TestMicConsumerApi:
     def test_unregister_is_safe_when_absent(self):
         app = App.__new__(App)
         app._mic_consumers = []
-        App.unregister_mic_consumer(app, object())      # darf nicht werfen
+        App.unregister_mic_consumer(app, object())  # darf nicht werfen
         assert app._mic_consumers == []
 
     def test_suspend_reaches_every_consumer(self):
@@ -81,7 +81,7 @@ class TestMicConsumerApi:
 
         app = App.__new__(App)
         app._mic_consumers = [_Broken(), _Good()]
-        App._suspend_mic_consumers(app)      # darf nicht durchschlagen
+        App._suspend_mic_consumers(app)  # darf nicht durchschlagen
         assert calls == ["ok"]
 
 
@@ -94,8 +94,7 @@ class TestDeviceState:
         assert stub._device_error == "Kein Mikrofon gefunden"
 
     def test_missing_selected_device_is_reported(self, config, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices",
-                            lambda: [("Webcam", "Webcam (USB)")])
+        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         config("Shure MV7+")
         stub = _Stub([], "Shure MV7+")
         stub.refresh_device_state()
@@ -103,31 +102,30 @@ class TestDeviceState:
 
     def test_substring_match_counts_as_present(self, config, monkeypatch):
         """Die Config speichert ein Namensfragment, keinen exakten Gerätenamen."""
-        monkeypatch.setattr("wisper.settings_status._list_input_devices",
-                            lambda: [("Mikrofon (Shure MV7+)", "3- Mikrofon (Shure MV7+)")])
+        monkeypatch.setattr(
+            "wisper.settings_status._list_input_devices",
+            lambda: [("Mikrofon (Shure MV7+)", "3- Mikrofon (Shure MV7+)")],
+        )
         config("Shure MV7+")
         stub = _Stub([], "Shure MV7+")
         stub.refresh_device_state()
         assert stub._device_error == ""
 
     def test_default_device_never_errors(self, config, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices",
-                            lambda: [("Webcam", "Webcam (USB)")])
+        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         config("default")
         stub = _Stub([], "default")
         stub.refresh_device_state()
         assert stub._device_error == ""
 
     def test_options_always_offer_the_system_default(self, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices",
-                            lambda: [("Webcam", "Webcam (USB)")])
+        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         options = _Stub([], None).device_options()
         assert options[0] == ("System-Standard", None)
         assert ("Webcam", "Webcam") in options
 
     def test_options_are_pairs_of_label_and_value(self, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices",
-                            lambda: [("A", "A full"), ("B", "B full")])
+        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("A", "A full"), ("B", "B full")])
         for label, value in _Stub([], None).device_options():
             assert isinstance(label, str)
             assert value is None or isinstance(value, str)
@@ -155,17 +153,19 @@ class TestInputDeviceList:
     def test_only_wasapi_devices_are_listed(self, monkeypatch):
         """Nur was Windows unter Eingabe zeigt — kein gekürzter MME-Name,
         kein in Windows deaktiviertes WDM-KS-Gerät."""
-        fake = _FakeSd(["MME", "Windows DirectSound", "Windows WASAPI", "Windows WDM-KS"], [
-            self._dev("Microsoft Soundmapper - Input", 0),
-            self._dev("Personal Mix (Elgato Virtual Au", 0),
-            self._dev("Mikrofon (3- Shure MV7+)", 1),
-            self._dev("Mikrofon (3- Shure MV7+)", 2),
-            self._dev("Lautsprecher (Realtek(R) Audio)", 2, inputs=0),
-            self._dev("Mikrofon (UGREEN Camera)", 3),
-        ])
+        fake = _FakeSd(
+            ["MME", "Windows DirectSound", "Windows WASAPI", "Windows WDM-KS"],
+            [
+                self._dev("Microsoft Soundmapper - Input", 0),
+                self._dev("Personal Mix (Elgato Virtual Au", 0),
+                self._dev("Mikrofon (3- Shure MV7+)", 1),
+                self._dev("Mikrofon (3- Shure MV7+)", 2),
+                self._dev("Lautsprecher (Realtek(R) Audio)", 2, inputs=0),
+                self._dev("Mikrofon (UGREEN Camera)", 3),
+            ],
+        )
         monkeypatch.setattr("wisper.config.sd", fake)
-        assert config_mod._list_input_devices() == [
-            ("Mikrofon (3- Shure MV7+)", "Mikrofon (3- Shure MV7+)")]
+        assert config_mod._list_input_devices() == [("Mikrofon (3- Shure MV7+)", "Mikrofon (3- Shure MV7+)")]
 
     def test_without_wasapi_every_host_api_counts(self, monkeypatch):
         fake = _FakeSd(["MME"], [self._dev("3- Shure MV7+", 0)])

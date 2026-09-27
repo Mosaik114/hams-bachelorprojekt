@@ -37,7 +37,7 @@ jeder Breite, jedem Zustand und jedem DPI-Faktor unbegrenzt weiter.
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
     value = value.lstrip("#")
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
 
 
 def _squircle_points(width: int, height: int, radius: int, steps: int = 24) -> list:
@@ -165,13 +165,14 @@ def render_surface(
     if gradient > 0:
         highlight = Image.new("RGBA", inner, (255, 255, 255, 255))
         body = Image.composite(
-            Image.alpha_composite(body, highlight), body,
+            Image.alpha_composite(body, highlight),
+            body,
             _vertical_ramp(inner, int(255 * gradient), 0.55),
         )
 
     # --- Lichtkante: Form minus verschobene Form = genau der obere Saum ---
     if edge is not None:
-        edge_w = max(1, scale)                       # 1 logisches Pixel
+        edge_w = max(1, scale)  # 1 logisches Pixel
         shifted = Image.new("L", inner, 0)
         shifted.paste(mask, (0, edge_w))
         rim = ImageChops.subtract(mask, shifted)
@@ -186,12 +187,16 @@ def render_surface(
             draw.line(
                 _squircle_points(inner[0], inner[1], int(radius * scale))
                 + [_squircle_points(inner[0], inner[1], int(radius * scale))[0]],
-                fill=border, width=line, joint="curve",
+                fill=border,
+                width=line,
+                joint="curve",
             )
         else:
             draw.rounded_rectangle(
                 [0, 0, inner[0] - 1, inner[1] - 1],
-                radius=int(radius * scale), outline=border, width=line,
+                radius=int(radius * scale),
+                outline=border,
+                width=line,
             )
         body = Image.alpha_composite(body, outline)
 
@@ -216,9 +221,7 @@ def render_surface(
         # a + b - 128 und zentriert das Rauschen damit auf null.
         noise = Image.effect_noise((width, height), 1.0).convert("L")
         rgb, alpha_channel = image.convert("RGB"), image.getchannel("A")
-        rgb = ImageChops.add(
-            rgb, Image.merge("RGB", (noise, noise, noise)), scale=1.0, offset=-128
-        )
+        rgb = ImageChops.add(rgb, Image.merge("RGB", (noise, noise, noise)), scale=1.0, offset=-128)
         image = Image.merge("RGBA", (*rgb.split(), alpha_channel))
 
     return image
@@ -248,23 +251,49 @@ def surface(
     `CACHE_LIMIT` begrenzt, der älteste Eintrag fliegt heraus.
     """
     width, height = max(1, int(width)), max(1, int(height))
-    key = (width, height, radius, fill, edge, round(gradient, 4), shadow,
-           squircle, border, border_w, ring, ring_width, ring_gap, dither,
-           Scale.factor)
+    key = (
+        width,
+        height,
+        radius,
+        fill,
+        edge,
+        round(gradient, 4),
+        shadow,
+        squircle,
+        border,
+        border_w,
+        ring,
+        ring_width,
+        ring_gap,
+        dither,
+        Scale.factor,
+    )
     cached = _img_cache.get(key)
     if cached is not None:
         _img_cache.move_to_end(key)
         return cached
 
     photo = ImageTk.PhotoImage(
-        render_surface(width, height, radius, fill, edge=edge, gradient=gradient,
-                       shadow=shadow, squircle=squircle, border=border,
-                       border_w=border_w, ring=ring, ring_width=ring_width,
-                       ring_gap=ring_gap, dither=dither)
+        render_surface(
+            width,
+            height,
+            radius,
+            fill,
+            edge=edge,
+            gradient=gradient,
+            shadow=shadow,
+            squircle=squircle,
+            border=border,
+            border_w=border_w,
+            ring=ring,
+            ring_width=ring_width,
+            ring_gap=ring_gap,
+            dither=dither,
+        )
     )
     _img_cache[key] = photo
     if len(_img_cache) > CACHE_LIMIT:
-        _img_cache.popitem(last=False)      # ältester Eintrag fliegt raus
+        _img_cache.popitem(last=False)  # ältester Eintrag fliegt raus
     return photo
 
 

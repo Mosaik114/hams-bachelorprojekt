@@ -8,13 +8,11 @@ import tkinter as tk
 
 
 class _Rect(ctypes.Structure):
-    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
-                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
 
 class _MonitorInfo(ctypes.Structure):
-    _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", _Rect),
-                ("rcWork", _Rect), ("dwFlags", ctypes.c_ulong)]
+    _fields_ = [("cbSize", ctypes.c_ulong), ("rcMonitor", _Rect), ("rcWork", _Rect), ("dwFlags", ctypes.c_ulong)]
 
 
 MONITORINFOF_PRIMARY = 0x1
@@ -33,7 +31,7 @@ def work_area(widget: tk.Misc) -> tuple[int, int, int, int]:
         return _linux_area(widget)
     try:
         hwnd = ctypes.windll.user32.GetParent(widget.winfo_id()) or widget.winfo_id()
-        monitor = ctypes.windll.user32.MonitorFromWindow(hwnd, 2)   # NEAREST
+        monitor = ctypes.windll.user32.MonitorFromWindow(hwnd, 2)  # NEAREST
         info = _MonitorInfo()
         info.cbSize = ctypes.sizeof(_MonitorInfo)
         if ctypes.windll.user32.GetMonitorInfoW(monitor, ctypes.byref(info)):
@@ -56,6 +54,7 @@ def work_areas() -> list:
     """
     if sys.platform != "win32":
         from wisper import linux
+
         return linux.monitor_areas() or [(0, 0, 1920, 1080)]
     found: list = []
     primary: list = []
@@ -74,16 +73,16 @@ def work_areas() -> list:
 
     try:
         callback = ctypes.WINFUNCTYPE(
-            ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p,
-            ctypes.POINTER(_Rect), ctypes.c_double)(_collect)
+            ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(_Rect), ctypes.c_double
+        )(_collect)
         ctypes.windll.user32.EnumDisplayMonitors(None, None, callback, 0)
-    except (AttributeError, OSError):      # pragma: no cover - kein Windows
+    except (AttributeError, OSError):  # pragma: no cover - kein Windows
         pass
 
     areas = primary + found
     if areas:
         return areas
-    try:      # pragma: no cover - nur wenn die Aufzaehlung versagt
+    try:  # pragma: no cover - nur wenn die Aufzaehlung versagt
         width = ctypes.windll.user32.GetSystemMetrics(0)
         height = ctypes.windll.user32.GetSystemMetrics(1)
         return [(0, 0, width, height)]
@@ -94,10 +93,11 @@ def work_areas() -> list:
 def _linux_area(widget: tk.Misc) -> tuple[int, int, int, int]:
     """Der Monitor unter der Fenstermitte; KDE meldet keine Arbeitsflaeche je Monitor."""
     from wisper import linux
+
     try:
         cx = widget.winfo_rootx() + widget.winfo_width() // 2
         cy = widget.winfo_rooty() + widget.winfo_height() // 2
-    except tk.TclError:      # pragma: no cover
+    except tk.TclError:  # pragma: no cover
         cx = cy = 0
     areas = linux.monitor_areas()
     for area in areas:

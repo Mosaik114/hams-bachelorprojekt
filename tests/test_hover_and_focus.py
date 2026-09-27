@@ -34,9 +34,15 @@ def window(root):
 
 
 def _zeile(master, root, control_bauen, **kwargs):
-    zeile = SettingRow(master, "Text-Cleanup", variant="description",
-                       description="Bereinigt das Transkript automatisch",
-                       interactive=True, command=lambda: None, **kwargs)
+    zeile = SettingRow(
+        master,
+        "Text-Cleanup",
+        variant="description",
+        description="Bereinigt das Transkript automatisch",
+        interactive=True,
+        command=lambda: None,
+        **kwargs,
+    )
     zeile.pack(fill="x")
     control = control_bauen(master)
     zeile.set_control(control)
@@ -50,32 +56,30 @@ def _zeile(master, root, control_bauen, **kwargs):
 class TestTheControlFollowsTheRow:
     def test_a_switch_shares_the_hovered_surface(self, window, root):
         zeile, schalter = _zeile(
-            window, root,
-            lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True,
-                             command=lambda _v: None))
+            window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
+        )
         assert schalter.cget("bg") == Theme.GROUP_SURFACE
 
         zeile._on_enter()
         root.update()
         assert zeile._line.cget("bg") == Theme.CONTROL_SURFACE
         assert schalter.cget("bg") == Theme.CONTROL_SURFACE, (
-            "sonst steht der Schalter als Rechteck der alten Farbe in der Zeile")
+            "sonst steht der Schalter als Rechteck der alten Farbe in der Zeile"
+        )
 
     def test_the_switch_also_remembers_the_new_underground(self, window, root):
         """`_bg_under` malt die Ecken aus — ohne Nachziehen blieben sie alt."""
         zeile, schalter = _zeile(
-            window, root,
-            lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True,
-                             command=lambda _v: None))
+            window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
+        )
         zeile._on_enter()
         root.update()
         assert schalter._bg_under == Theme.CONTROL_SURFACE
 
     def test_leaving_puts_the_group_surface_back(self, window, root):
         zeile, schalter = _zeile(
-            window, root,
-            lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=False,
-                             command=lambda _v: None))
+            window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=False, command=lambda _v: None)
+        )
         zeile._on_enter()
         root.update()
         zeile._on_leave()
@@ -85,20 +89,17 @@ class TestTheControlFollowsTheRow:
 
     def test_it_works_for_a_select_too(self, window, root):
         zeile, feld = _zeile(
-            window, root,
-            lambda m: Select(m, bg_under=Theme.GROUP_SURFACE,
-                             options=[Option("a", "A")], value="a"))
+            window, root, lambda m: Select(m, bg_under=Theme.GROUP_SURFACE, options=[Option("a", "A")], value="a")
+        )
         zeile._on_enter()
         root.update()
         assert feld.cget("bg") == Theme.CONTROL_SURFACE
         assert feld._bg_under == Theme.CONTROL_SURFACE
 
-    def test_a_disabled_row_keeps_its_control_on_the_group_surface(self, window,
-                                                                   root):
+    def test_a_disabled_row_keeps_its_control_on_the_group_surface(self, window, root):
         zeile, schalter = _zeile(
-            window, root,
-            lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True,
-                             command=lambda _v: None))
+            window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
+        )
         zeile.set_enabled(False)
         zeile._on_enter()
         root.update()
@@ -110,11 +111,9 @@ class TestSetSurfaceUnder:
         """Die Löschen-Rückfrage ist ein Rahmen mit zwei Schaltflächen darin."""
         rahmen = tk.Frame(window, bg=Theme.GROUP_SURFACE)
         rahmen.pack()
-        knopf = SecondaryButton(rahmen, "Löschen", lambda: None,
-                                bg_under=Theme.GROUP_SURFACE, role="recording")
+        knopf = SecondaryButton(rahmen, "Löschen", lambda: None, bg_under=Theme.GROUP_SURFACE, role="recording")
         knopf.pack(side="left")
-        kreuz = IconButton(rahmen, "close", lambda: None,
-                           bg_under=Theme.GROUP_SURFACE)
+        kreuz = IconButton(rahmen, "close", lambda: None, bg_under=Theme.GROUP_SURFACE)
         kreuz.pack(side="left")
         root.update()
 
@@ -124,8 +123,7 @@ class TestSetSurfaceUnder:
         assert knopf._bg_under == Theme.CONTROL_SURFACE
         assert kreuz._bg_under == Theme.CONTROL_SURFACE
 
-    def test_a_widget_without_a_remembered_underground_is_left_alone(self, window,
-                                                                     root):
+    def test_a_widget_without_a_remembered_underground_is_left_alone(self, window, root):
         label = tk.Label(window, text="nur Text", bg=Theme.GROUP_SURFACE)
         label.pack()
         root.update()
@@ -147,8 +145,7 @@ class TestSetSurfaceUnder:
 
 class TestFocusRingOnlyForTheKeyboard:
     def _schalter(self, window, root):
-        schalter = Switch(window, bg_under=Theme.WINDOW_BG, value=False,
-                          command=lambda _v: None)
+        schalter = Switch(window, bg_under=Theme.WINDOW_BG, value=False, command=lambda _v: None)
         schalter.pack(pady=10)
         root.update()
         return schalter
@@ -192,12 +189,10 @@ class TestFocusRingOnlyForTheKeyboard:
         root.update()
         schalter.focus_set()
         root.update()
-        assert schalter.ring() == Theme.ACCENT_TINT, (
-            "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten")
+        assert schalter.ring() == Theme.ACCENT_TINT, "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten"
 
     def test_it_holds_for_buttons_as_well(self, window, root):
-        knopf = SecondaryButton(window, "Neu starten", lambda: None,
-                                bg_under=Theme.WINDOW_BG)
+        knopf = SecondaryButton(window, "Neu starten", lambda: None, bg_under=Theme.WINDOW_BG)
         knopf.pack()
         nachbar = self._schalter(window, root)
         root.update()
@@ -216,8 +211,7 @@ class TestFocusRingOnlyForTheKeyboard:
         assert knopf.ring() == Theme.ACCENT_TINT
 
     def test_the_select_behaves_the_same(self, window, root):
-        feld = Select(window, bg_under=Theme.WINDOW_BG,
-                      options=[Option("a", "A")], value="a")
+        feld = Select(window, bg_under=Theme.WINDOW_BG, options=[Option("a", "A")], value="a")
         uk.keep_logical_width(feld, 150)
         feld.pack()
         root.update()

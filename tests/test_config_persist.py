@@ -57,8 +57,7 @@ class TestSectionAwareness:
     def test_device_vs_device_priority(self, tmp_path, monkeypatch):
         path = tmp_path / "config.toml"
         path.write_text(
-            '[audio]\ndevice = "default"\n\n'
-            '[model]\ndevice_priority = ["cuda", "cpu"]\n',
+            '[audio]\ndevice = "default"\n\n[model]\ndevice_priority = ["cuda", "cpu"]\n',
             encoding="utf-8",
             newline="",
         )
@@ -145,9 +144,7 @@ class TestFormatPreservation:
 
     def test_crlf_preserved(self, tmp_path, monkeypatch):
         path = tmp_path / "config.toml"
-        path.write_text(
-            '[audio]\r\ndevice = "default"\r\n', encoding="utf-8", newline=""
-        )
+        path.write_text('[audio]\r\ndevice = "default"\r\n', encoding="utf-8", newline="")
         monkeypatch.setattr("wisper.config.CONFIG_PATH", path)
 
         _persist_config_value("audio", "device", "Yeti")

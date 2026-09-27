@@ -26,7 +26,7 @@ def window(root):
     win.configure(bg=BG)
     win.deiconify()
     win.lift()
-    fokus_erzwingen(win, root)   # ohne echten Fokus kommen Tastenereignisse nicht an
+    fokus_erzwingen(win, root)  # ohne echten Fokus kommen Tastenereignisse nicht an
     root.update()
     yield win
     win.destroy()
@@ -37,8 +37,7 @@ def window(root):
 def area(window, root):
     scroll = ScrollArea(window, bg_under=BG)
     scroll.pack(fill="both", expand=True)
-    labels = [tk.Label(scroll.body, text=f"Zeile {i}", bg=BG, fg=Theme.TEXT_PRIMARY)
-              for i in range(24)]
+    labels = [tk.Label(scroll.body, text=f"Zeile {i}", bg=BG, fg=Theme.TEXT_PRIMARY) for i in range(24)]
     for label in labels:
         label.pack()
     for _ in range(3):
@@ -185,11 +184,10 @@ class TestGroupSurface:
         # (4, 4) liegt innerhalb des Viertelkreises um (10, 10): die Zeile
         # bleibt drinnen, die Rundung sichtbar.
         corner = uk.Radius.GROUP - uk.Space.GROUP_INSET
-        assert (corner ** 2 * 2) ** 0.5 < uk.Radius.GROUP - 1
+        assert (corner**2 * 2) ** 0.5 < uk.Radius.GROUP - 1
 
     def test_plate_has_rounded_corners(self):
-        plate = uk.render_surface(300, 120, uk.px(uk.Radius.GROUP),
-                                  Theme.GROUP_SURFACE, squircle=True)
+        plate = uk.render_surface(300, 120, uk.px(uk.Radius.GROUP), Theme.GROUP_SURFACE, squircle=True)
         assert plate.getpixel((0, 0))[3] < 60
         assert plate.getpixel((150, 60))[3] == 255
 
@@ -217,12 +215,10 @@ class TestSectionHeader:
         assert header.cget("text") != header.cget("text").upper()
 
 
-
 class TestSettingRow:
     @pytest.mark.parametrize("variant", ["simple", "description", "status", "display"])
     def test_every_variant_has_the_same_minimum_height(self, window, root, variant):
-        row = SettingRow(window, "Titel", variant=variant,
-                         description="Text", value="Wert")
+        row = SettingRow(window, "Titel", variant=variant, description="Text", value="Wert")
         row.pack(fill="x")
         root.update()
         assert row._line.winfo_height() == uk.px(Height.ROW_MIN)
@@ -248,9 +244,9 @@ class TestSettingRow:
         window.geometry("400x400")
         row = SettingRow(window, "Mikrofon", variant="status", stacked=True)
         row.pack(fill="x")
-        control = uk.Select(window, bg_under=Theme.GROUP_SURFACE,
-                            options=[uk.Option("a", "Ein sehr langer Gerätename")],
-                            value="a")
+        control = uk.Select(
+            window, bg_under=Theme.GROUP_SURFACE, options=[uk.Option("a", "Ein sehr langer Gerätename")], value="a"
+        )
         row.set_control(control)
         for _ in range(3):
             root.update()
@@ -294,12 +290,16 @@ class TestToggleRow:
     @pytest.fixture
     def toggle_row(self, window, root):
         fired = []
-        row = SettingRow(window, "Text-Cleanup", variant="description",
-                         description="Bereinigt automatisch", interactive=True,
-                         command=lambda: fired.append("row"))
+        row = SettingRow(
+            window,
+            "Text-Cleanup",
+            variant="description",
+            description="Bereinigt automatisch",
+            interactive=True,
+            command=lambda: fired.append("row"),
+        )
         row.pack(fill="x")
-        switch = Switch(window, bg_under=Theme.GROUP_SURFACE, value=False,
-                        command=lambda value: fired.append(value))
+        switch = Switch(window, bg_under=Theme.GROUP_SURFACE, value=False, command=lambda value: fired.append(value))
         row.set_control(switch)
         root.update()
         return row, switch, fired
@@ -343,8 +343,7 @@ class TestToggleRow:
 
 class TestDisabledRow:
     def test_height_survives_disabling(self, window, root):
-        row = SettingRow(window, "Cleanup-Modell", variant="description",
-                         description="Text")
+        row = SettingRow(window, "Cleanup-Modell", variant="description", description="Text")
         row.pack(fill="x")
         root.update()
         before = row._line.winfo_height()
@@ -353,19 +352,16 @@ class TestDisabledRow:
         assert row._line.winfo_height() == before
 
     def test_text_loses_contrast(self, window, root):
-        row = SettingRow(window, "Cleanup-Modell", variant="description",
-                         description="Text")
+        row = SettingRow(window, "Cleanup-Modell", variant="description", description="Text")
         row.pack(fill="x")
         root.update()
         row.set_enabled(False)
         assert row.title_label.cget("fg") == Theme.TEXT_TERTIARY
 
     def test_control_is_disabled_too(self, window, root):
-        row = SettingRow(window, "Cleanup-Modell", interactive=True,
-                         command=lambda: None)
+        row = SettingRow(window, "Cleanup-Modell", interactive=True, command=lambda: None)
         row.pack(fill="x")
-        switch = Switch(window, bg_under=Theme.GROUP_SURFACE, value=True,
-                        command=lambda _v: None)
+        switch = Switch(window, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
         row.set_control(switch)
         root.update()
         row.set_enabled(False)

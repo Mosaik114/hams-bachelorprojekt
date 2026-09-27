@@ -51,11 +51,12 @@ def app(monkeypatch):
     instance.states = []
     instance.persisted = []
 
-    monkeypatch.setattr(App, "_apply_state",
-                        lambda self, state, detail=None, hint=None:
-                        self.states.append((state, detail, hint)))
-    monkeypatch.setattr("wisper.whisper_model._persist_config_value",
-                        lambda section, key, value: instance.persisted.append(value))
+    monkeypatch.setattr(
+        App, "_apply_state", lambda self, state, detail=None, hint=None: self.states.append((state, detail, hint))
+    )
+    monkeypatch.setattr(
+        "wisper.whisper_model._persist_config_value", lambda section, key, value: instance.persisted.append(value)
+    )
     monkeypatch.setattr(App, "_on_model_error", lambda self: self.states.append(("error", None, None)))
     return instance
 
@@ -74,8 +75,7 @@ def fake_build(loadable=("turbo", "tiny", "small"), delay=0.0):
 def run_switch(app, model_id, monkeypatch, **kwargs):
     """Wechsel synchron ausfuehren — deterministisch statt ueber einen Thread."""
     monkeypatch.setattr(App, "_build_model", fake_build(**kwargs))
-    monkeypatch.setattr(App, "_start_switch_thread",
-                        lambda self, mid, gen: self._switch_worker(mid, gen))
+    monkeypatch.setattr(App, "_start_switch_thread", lambda self, mid, gen: self._switch_worker(mid, gen))
     return app.switch_model(model_id)
 
 
@@ -141,7 +141,7 @@ class TestConcurrency:
         with app._transcribe_lock:
             held = app.current_model()
             with app._model_lock:
-                app.model = object()          # Wechsel schreibt dazwischen
+                app.model = object()  # Wechsel schreibt dazwischen
             assert held is original
 
     def test_switch_waits_for_a_running_transcription(self, app, monkeypatch):
@@ -167,7 +167,7 @@ class TestConcurrency:
         """Ein überholter Ladevorgang darf den neueren Zustand nicht kippen."""
         monkeypatch.setattr(App, "_build_model", fake_build())
         app._model_generation = 5
-        app._switch_worker("tiny", 2)          # veraltete Generation
+        app._switch_worker("tiny", 2)  # veraltete Generation
         assert app.active_model_size == "turbo"
         assert app.persisted == []
 

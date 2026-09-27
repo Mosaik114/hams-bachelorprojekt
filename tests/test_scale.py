@@ -131,12 +131,12 @@ class TestFonts:
 
     def test_points_to_px_at_96_dpi(self, factor):
         factor(1.0)
-        assert uk.points_to_px(10) == 13   # 10 pt * 96/72
+        assert uk.points_to_px(10) == 13  # 10 pt * 96/72
         assert uk.points_to_px(16) == 21
 
     def test_points_to_px_scales_with_dpi(self, factor):
         factor(2.0)
-        assert uk.points_to_px(10) == 27   # 10 pt * 192/72
+        assert uk.points_to_px(10) == 27  # 10 pt * 192/72
 
     def test_roles_are_named_fonts(self, root):
         uk.init_fonts(root)

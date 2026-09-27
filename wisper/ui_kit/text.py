@@ -14,7 +14,7 @@ def _line_height(tk_font, widget: tk.Misc) -> int:
     """Zeilenhöhe einer Schrift in Pixeln."""
     try:
         return int(widget.tk.call("font", "metrics", tk_font, "-linespace"))
-    except tk.TclError:      # pragma: no cover
+    except tk.TclError:  # pragma: no cover
         return px(16)
 
 
@@ -22,7 +22,7 @@ def _text_width(widget: tk.Misc, text: str, tk_font) -> int:
     """Textbreite in Pixeln, über Tk gemessen."""
     try:
         return int(widget.tk.call("font", "measure", tk_font, text))
-    except tk.TclError:      # pragma: no cover
+    except tk.TclError:  # pragma: no cover
         return len(text) * px(7)
 
 
@@ -46,13 +46,14 @@ def _pil_font(tk_font):
     candidates = [family, "Segoe UI Variable Text", "Segoe UI", "arial.ttf"]
     if sys.platform != "win32":
         from wisper.linux import font_file
+
         candidates = [font_file(family), font_file("sans-serif")]
     for candidate in filter(None, candidates):
         try:
             return ImageFont.truetype(candidate, size)
         except OSError:
             continue
-    return ImageFont.load_default()      # pragma: no cover
+    return ImageFont.load_default()  # pragma: no cover
 
 
 def _ellipsize(draw, text: str, pil_font, available: int) -> str:

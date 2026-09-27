@@ -40,8 +40,7 @@ def app(monkeypatch):
     instance.model_ready = threading.Event()
     instance.model_ready.set()
     instance.copied = []
-    monkeypatch.setattr(App, "_copy_history_entry",
-                        lambda self, index: self.copied.append(index))
+    monkeypatch.setattr(App, "_copy_history_entry", lambda self, index: self.copied.append(index))
     monkeypatch.setattr(App, "_toggle_visibility", lambda self, icon=None, item=None: None)
     monkeypatch.setattr(App, "_open_settings", lambda self, icon=None, item=None: None)
     monkeypatch.setattr(App, "_quit_app", lambda self, icon=None, item=None: None)
@@ -77,7 +76,7 @@ class TestBuilding:
     def test_the_regression_itself(self, app):
         """Genau der Fall, der frueher ValueError warf."""
         app._history = [("12:00:00", "Erster", "Erster.")]
-        app._build_tray_menu()      # darf nicht mehr fliegen
+        app._build_tray_menu()  # darf nicht mehr fliegen
 
     def test_special_characters_survive(self, app):
         app._history = [("12:00:00", "Grüße & „Anführung“ — 100 %", "…")]
@@ -109,11 +108,11 @@ class TestCallbacks:
         assert action.__code__.co_argcount == 2
 
     def test_pystray_accepts_the_action(self, app):
-        pystray.MenuItem("Test", app._history_action(0))      # kein ValueError
+        pystray.MenuItem("Test", app._history_action(0))  # kein ValueError
 
     def test_pystray_would_still_refuse_the_old_lambda(self):
         """Damit der Grund dokumentiert bleibt, nicht nur die Loesung."""
-        broken = lambda _icon=None, _item=None, i=0: None      # noqa: E731
+        broken = lambda _icon=None, _item=None, i=0: None  # noqa: E731
         assert broken.__code__.co_argcount == 3
         with pytest.raises(ValueError):
             pystray.MenuItem("Test", broken)
@@ -121,7 +120,7 @@ class TestCallbacks:
     def test_clicking_copies_the_right_entry(self, app):
         app._history = [(f"12:0{i}:00", f"Satz {i}", f"Voll {i}") for i in range(3)]
         items = history_submenu(app._build_tray_menu()).items
-        items[2](None)      # pystray ruft das MenuItem mit dem Icon auf
+        items[2](None)  # pystray ruft das MenuItem mit dem Icon auf
         assert app.copied == [2]
 
     def test_each_entry_keeps_its_own_index(self, app):
@@ -135,8 +134,7 @@ class TestCallbacks:
 
 class TestRobustness:
     def test_a_broken_entry_costs_only_its_line(self, app):
-        app._history = [("12:00:00", "gut", "gut"), "kaputt",
-                        ("12:02:00", "auch gut", "auch gut")]
+        app._history = [("12:00:00", "gut", "gut"), "kaputt", ("12:02:00", "auch gut", "auch gut")]
         labels = entries(history_submenu(app._build_tray_menu()))
         assert labels == ["12:00:00  —  gut", "12:02:00  —  auch gut"]
 
@@ -147,7 +145,7 @@ class TestRobustness:
     def test_a_click_beyond_the_history_is_harmless(self, app, monkeypatch):
         monkeypatch.undo()
         app._history = []
-        app._copy_history_entry(7)      # darf nichts tun und nicht werfen
+        app._copy_history_entry(7)  # darf nichts tun und nicht werfen
 
 
 class TestRefresh:
@@ -175,9 +173,8 @@ class TestRefresh:
 
     def test_a_failing_build_does_not_escape(self, app, monkeypatch):
         """Ein Fehler gehoert ins Log, nicht in den Tk-Rueckruf."""
-        monkeypatch.setattr(App, "_build_tray_menu",
-                            lambda self: (_ for _ in ()).throw(RuntimeError("kaputt")))
-        app._refresh_tray()      # darf nicht fliegen
+        monkeypatch.setattr(App, "_build_tray_menu", lambda self: (_ for _ in ()).throw(RuntimeError("kaputt")))
+        app._refresh_tray()  # darf nicht fliegen
 
     def test_without_a_tray_nothing_happens(self, app):
         del app.tray_icon

@@ -98,22 +98,30 @@ class TestCachedModels:
 
     def test_an_incomplete_model_is_not_reported_as_installed(self, cache):
         """Der Unterschied zu `installed_whisper_models()` — beide gleichzeitig."""
-        cache([_Repo(BASE, 12_000_000, [_Revision("bbb222", REST)]),
-               _Repo(TINY, 78_203_619, [_Revision("aaa111", VOLL)])])
+        cache(
+            [_Repo(BASE, 12_000_000, [_Revision("bbb222", REST)]), _Repo(TINY, 78_203_619, [_Revision("aaa111", VOLL)])]
+        )
         bestand = {e.model_id for e in whisper_models.cached_whisper_models()}
         assert bestand == {"base", "tiny"}
         assert whisper_models.installed_whisper_models() == {"tiny"}
 
     def test_foreign_repositories_are_ignored(self, cache):
-        cache([_Repo("meta-llama/Llama-3", 9_000_000_000,
-                     [_Revision("ccc333", VOLL)]),
-               _Repo(TINY, 78_203_619, [_Revision("aaa111", VOLL)])])
+        cache(
+            [
+                _Repo("meta-llama/Llama-3", 9_000_000_000, [_Revision("ccc333", VOLL)]),
+                _Repo(TINY, 78_203_619, [_Revision("aaa111", VOLL)]),
+            ]
+        )
         assert [e.model_id for e in whisper_models.cached_whisper_models()] == ["tiny"]
 
     def test_the_order_follows_the_catalogue(self, cache):
-        cache([_Repo(TINY, 1, [_Revision("a", VOLL)]),
-               _Repo(TURBO, 2, [_Revision("b", VOLL)]),
-               _Repo(BASE, 3, [_Revision("c", VOLL)])])
+        cache(
+            [
+                _Repo(TINY, 1, [_Revision("a", VOLL)]),
+                _Repo(TURBO, 2, [_Revision("b", VOLL)]),
+                _Repo(BASE, 3, [_Revision("c", VOLL)]),
+            ]
+        )
         ids = [e.model_id for e in whisper_models.cached_whisper_models()]
         katalog = [i.model_id for i in whisper_models.CATALOG]
         assert ids == [i for i in katalog if i in set(ids)]
@@ -124,6 +132,7 @@ class TestCachedModels:
 
     def test_an_unreadable_cache_reports_nothing(self, monkeypatch):
         """Dieselbe vorsichtige Haltung wie bei der Installationserkennung."""
+
         def _kaputt():
             raise OSError("Cache nicht lesbar")
 
@@ -136,8 +145,12 @@ class TestCachedModels:
 
 class TestDelete:
     def test_it_deletes_exactly_the_revisions_of_that_model(self, cache):
-        cache([_Repo(TINY, 78_203_619, [_Revision("aaa111", VOLL)]),
-               _Repo(TURBO, 1_621_665_983, [_Revision("zzz999", VOLL)])])
+        cache(
+            [
+                _Repo(TINY, 78_203_619, [_Revision("aaa111", VOLL)]),
+                _Repo(TURBO, 1_621_665_983, [_Revision("zzz999", VOLL)]),
+            ]
+        )
         erfolg, frei, meldung = whisper_models.delete_whisper_model("tiny")
         assert erfolg is True
         assert cache.protokoll == [("aaa111",)]
@@ -155,8 +168,7 @@ class TestDelete:
         assert erfolg is True
         assert cache.protokoll == [("bbb222",)]
 
-    def test_without_freed_space_the_message_carries_no_number(self, cache,
-                                                               monkeypatch):
+    def test_without_freed_space_the_message_carries_no_number(self, cache, monkeypatch):
         gefaelscht = cache([_Repo(BASE, 0, [_Revision("bbb222", REST)])])
 
         class _Nichts:
@@ -184,15 +196,13 @@ class TestDelete:
 
     def test_a_model_in_use_gets_its_own_message(self, cache):
         """Windows gibt eine geladene Modelldatei nicht her."""
-        cache([_Repo(TURBO, 1_621_665_983, [_Revision("zzz999", VOLL)])],
-              fehler=PermissionError(32, "in Benutzung"))
+        cache([_Repo(TURBO, 1_621_665_983, [_Revision("zzz999", VOLL)])], fehler=PermissionError(32, "in Benutzung"))
         erfolg, frei, meldung = whisper_models.delete_whisper_model("turbo")
         assert erfolg is False and frei == 0
         assert meldung == "Turbo wird gerade benutzt"
 
     def test_any_other_failure_does_not_escape(self, cache):
-        cache([_Repo(TINY, 100, [_Revision("a1", VOLL)])],
-              fehler=RuntimeError("irgendwas"))
+        cache([_Repo(TINY, 100, [_Revision("a1", VOLL)])], fehler=RuntimeError("irgendwas"))
         erfolg, _frei, meldung = whisper_models.delete_whisper_model("tiny")
         assert erfolg is False
         assert "konnte nicht gelöscht werden" in meldung
@@ -207,8 +217,7 @@ class TestDelete:
             def execute(self):
                 pass
 
-        monkeypatch.setattr(gefaelscht, "delete_revisions",
-                            lambda *r: _OhneGroesse())
+        monkeypatch.setattr(gefaelscht, "delete_revisions", lambda *r: _OhneGroesse())
         erfolg, frei, _meldung = whisper_models.delete_whisper_model("tiny")
         assert erfolg is True and frei == 78_203_619
 
@@ -233,15 +242,13 @@ class TestDeletableRules:
         monkeypatch.setattr("wisper.config.CFG.model_size", "turbo")
 
     def test_the_loaded_model_stays(self, cache):
-        cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]),
-               _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
+        cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
         erlaubt = {e.model_id for e in _fenster(aktiv="turbo").deletable_models()}
         assert erlaubt == {"tiny"}
 
     def test_the_configured_model_stays_while_it_is_complete(self, cache):
         """Sonst laedt faster-whisper es beim naechsten Start wortlos nach."""
-        cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]),
-               _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
+        cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
         erlaubt = {e.model_id for e in _fenster(aktiv=None).deletable_models()}
         assert erlaubt == {"tiny"}
 
@@ -262,8 +269,10 @@ class TestDeletableRules:
 
 class TestStorageText:
     def test_it_counts_the_models_and_adds_up_their_size(self):
-        bestand = [whisper_models.CachedModel("turbo", "Turbo", 1_621_665_983, True, ()),
-                   whisper_models.CachedModel("tiny", "Tiny", 78_203_619, True, ())]
+        bestand = [
+            whisper_models.CachedModel("turbo", "Turbo", 1_621_665_983, True, ()),
+            whisper_models.CachedModel("tiny", "Tiny", 78_203_619, True, ()),
+        ]
         assert SettingsWindow.storage_text(bestand) == "2 Modelle · 1,7 GB"
 
     def test_one_model_is_singular(self):
@@ -279,9 +288,9 @@ class TestStorageText:
 
     def test_the_line_stays_short_enough_for_the_row(self):
         """Neben dem Auswahlfeld bleiben rund 150 px — etwa 34 Zeichen."""
-        bestand = [whisper_models.CachedModel(i.model_id, i.label, 3_000_000_000,
-                                              True, ())
-                   for i in whisper_models.CATALOG]
+        bestand = [
+            whisper_models.CachedModel(i.model_id, i.label, 3_000_000_000, True, ()) for i in whisper_models.CATALOG
+        ]
         assert len(SettingsWindow.storage_text(bestand)) <= 34
 
 
@@ -296,10 +305,10 @@ class TestConfirmText:
         assert SettingsWindow.confirm_text(eintrag) == "Rest von Base entfernen?"
 
     def test_both_forms_fit_the_row(self):
-        for eintrag in (whisper_models.CachedModel("large-v3", "Large v3",
-                                                   3_090_835_702, True, ()),
-                        whisper_models.CachedModel("large-v3", "Large v3", 0,
-                                                   False, ())):
+        for eintrag in (
+            whisper_models.CachedModel("large-v3", "Large v3", 3_090_835_702, True, ()),
+            whisper_models.CachedModel("large-v3", "Large v3", 0, False, ()),
+        ):
             assert len(SettingsWindow.confirm_text(eintrag)) <= 34
 
 

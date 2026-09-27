@@ -67,22 +67,27 @@ def under_systemd() -> bool:
 
 
 def service_unit(python: str, main_py: str) -> str:
-    return "\n".join([
-        "[Unit]",
-        "Description=Hams (Sprache zu Text)",
-        "PartOf=graphical-session.target",
-        "After=graphical-session.target",
-        "",
-        "[Service]",
-        f'ExecStart="{python}" "{main_py}"',
-        # Absturz: sofort wieder da. Beenden über das Tray-Menü: bleibt aus.
-        "Restart=on-failure",
-        f"RestartForceExitStatus={RESTART_EXIT_CODE}",
-        "RestartSec=2",
-        "",
-        "[Install]",
-        "WantedBy=graphical-session.target",
-    ]) + "\n"
+    return (
+        "\n".join(
+            [
+                "[Unit]",
+                "Description=Hams (Sprache zu Text)",
+                "PartOf=graphical-session.target",
+                "After=graphical-session.target",
+                "",
+                "[Service]",
+                f'ExecStart="{python}" "{main_py}"',
+                # Absturz: sofort wieder da. Beenden über das Tray-Menü: bleibt aus.
+                "Restart=on-failure",
+                f"RestartForceExitStatus={RESTART_EXIT_CODE}",
+                "RestartSec=2",
+                "",
+                "[Install]",
+                "WantedBy=graphical-session.target",
+            ]
+        )
+        + "\n"
+    )
 
 
 # ---------------------------------------------------------------- Mosaiks-Suche
@@ -102,6 +107,7 @@ def notify_search(mode: int, level: float | None) -> None:
     global _search_socket
     if _search_socket is None:
         import socket
+
         _search_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         _search_socket.setblocking(False)
     pegel = -1 if level is None else round(max(0.0, min(1.0, level)), 3)
@@ -145,21 +151,26 @@ def release_lock() -> bool:
 def notify(title: str, message: str) -> None:
     """Kurze Systemmeldung; fehlt notify-send, passiert nichts."""
     if shutil.which("notify-send"):
-        subprocess.Popen(["notify-send", "-a", title, "-i", APP_ID, title, message],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["notify-send", "-a", title, "-i", APP_ID, title, message],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
 
 # ---------------------------------------------------------------- Ton
+
 
 def beep(freq: int, duration_ms: int) -> None:
     """Ersatz fuer winsound.Beep: ein kurzer Sinuston mit weichen Kanten."""
     try:
         import numpy as np
         import sounddevice as sd
+
         rate = 44_100
         t = np.arange(int(rate * duration_ms / 1000)) / rate
         tone = 0.25 * np.sin(2 * np.pi * freq * t)
-        ramp = min(len(t) // 2, int(rate * 0.005))     # 5 ms ein- und ausblenden, sonst knackt es
+        ramp = min(len(t) // 2, int(rate * 0.005))  # 5 ms ein- und ausblenden, sonst knackt es
         if ramp:
             fade = np.linspace(0.0, 1.0, ramp)
             tone[:ramp] *= fade
@@ -171,6 +182,7 @@ def beep(freq: int, duration_ms: int) -> None:
 
 # ---------------------------------------------------------------- Bildschirme
 
+
 def monitor_areas() -> list:
     """Alle Monitore als (links, oben, rechts, unten), der primaere zuerst.
 
@@ -179,13 +191,13 @@ def monitor_areas() -> list:
     try:
         from Xlib import display
         from Xlib.ext import randr
+
         disp = display.Display()
         try:
             reply = randr.get_monitors(disp.screen().root, True)
         finally:
             disp.close()
-        areas = [(m.x, m.y, m.x + m.width_in_pixels, m.y + m.height_in_pixels, m.primary)
-                 for m in reply.monitors]
+        areas = [(m.x, m.y, m.x + m.width_in_pixels, m.y + m.height_in_pixels, m.primary) for m in reply.monitors]
         areas.sort(key=lambda a: not a[4])
         return [a[:4] for a in areas]
     except Exception:
@@ -221,8 +233,7 @@ def font_available(family: str, families) -> bool:
 def font_file(family: str) -> str | None:
     """Pfad zur Schriftdatei einer Familie — PIL kennt unter Linux keine Namen."""
     try:
-        out = subprocess.run(["fc-match", "-f", "%{file}", family],
-                             capture_output=True, text=True, timeout=2)
+        out = subprocess.run(["fc-match", "-f", "%{file}", family], capture_output=True, text=True, timeout=2)
         return out.stdout.strip() or None
     except (OSError, subprocess.SubprocessError):
         return None
@@ -264,8 +275,7 @@ class VirtualKeyboard:
             fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
         except OSError as exc:
             self.error = f"/dev/uinput: {exc.strerror}"
-            logger.error("Virtuelle Tastatur nicht moeglich (%s) — "
-                         "linux/system-einrichten.sh ausgefuehrt?", self.error)
+            logger.error("Virtuelle Tastatur nicht moeglich (%s) — linux/system-einrichten.sh ausgefuehrt?", self.error)
             return False
         try:
             fcntl.ioctl(fd, _UI_SET_EVBIT, _EV_KEY)
@@ -341,8 +351,7 @@ class _KeyboardShim:
         if keys is None:
             raise ValueError(f"Unbekannte Tastenkombination: {combo}")
         if not KEYBOARD.press_combo(*keys):
-            logger.warning("Einfuegen nicht moeglich (%s) — Text liegt in der "
-                           "Zwischenablage", KEYBOARD.error)
+            logger.warning("Einfuegen nicht moeglich (%s) — Text liegt in der Zwischenablage", KEYBOARD.error)
 
     def add_hotkey(self, combo: str, _callback) -> None:
         # Nur der Rueckfall, wenn das Portal eine Kombination ablehnt; unter
@@ -365,15 +374,21 @@ winsound = _WinsoundShim()
 
 # ---------------------------------------------------------------- Autostart
 
+
 def desktop_entry(exec_line: str, icon: str) -> str:
-    return "\n".join([
-        "[Desktop Entry]",
-        "Type=Application",
-        "Name=Hams",
-        "Comment=Sprache zu Text: diktieren und an der Cursorposition einfügen",
-        f"Exec={exec_line}",
-        f"Icon={icon}",
-        "Terminal=false",
-        "Categories=Utility;Accessibility;",
-        "StartupNotify=false",
-    ]) + "\n"
+    return (
+        "\n".join(
+            [
+                "[Desktop Entry]",
+                "Type=Application",
+                "Name=Hams",
+                "Comment=Sprache zu Text: diktieren und an der Cursorposition einfügen",
+                f"Exec={exec_line}",
+                f"Icon={icon}",
+                "Terminal=false",
+                "Categories=Utility;Accessibility;",
+                "StartupNotify=false",
+            ]
+        )
+        + "\n"
+    )

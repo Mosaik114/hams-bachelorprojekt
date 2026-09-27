@@ -105,15 +105,13 @@ class TestBootstrap:
 
     def test_a_blocked_place_is_reported(self, paths):
         paths.user.parent.parent.mkdir(parents=True, exist_ok=True)
-        (paths.user.parent.parent / "Wisper").write_text("keine Ablage",
-                                                         encoding="utf-8")
+        (paths.user.parent.parent / "Wisper").write_text("keine Ablage", encoding="utf-8")
         assert config_mod.ensure_user_config() == "fehlgeschlagen"
 
     def test_nothing_falls_back_into_the_project(self, paths):
         """Persönliche Werte gehören nicht in den Programmordner."""
         paths.user.parent.parent.mkdir(parents=True, exist_ok=True)
-        (paths.user.parent.parent / "Wisper").write_text("blockiert",
-                                                         encoding="utf-8")
+        (paths.user.parent.parent / "Wisper").write_text("blockiert", encoding="utf-8")
         before = paths.template.read_text(encoding="utf-8")
         config_mod.ensure_user_config()
         assert paths.template.read_text(encoding="utf-8") == before
@@ -192,17 +190,14 @@ class TestLayering:
 
     def test_the_window_position_survives_the_layers(self, paths):
         paths.user.parent.mkdir(parents=True)
-        paths.user.write_text("[ui]\nwindow_x = 812\nwindow_y = 377\n",
-                              encoding="utf-8")
+        paths.user.write_text("[ui]\nwindow_x = 812\nwindow_y = 377\n", encoding="utf-8")
         config = config_mod._load_config()
         assert (config.window_x, config.window_y) == (812, 377)
 
     def test_a_position_only_in_the_template_is_ignored_by_a_user_file(self, paths):
-        paths.template.write_text("[ui]\nwindow_x = 10\nwindow_y = 10\n",
-                                  encoding="utf-8")
+        paths.template.write_text("[ui]\nwindow_x = 10\nwindow_y = 10\n", encoding="utf-8")
         paths.user.parent.mkdir(parents=True)
-        paths.user.write_text("[ui]\nwindow_x = 500\nwindow_y = 600\n",
-                              encoding="utf-8")
+        paths.user.write_text("[ui]\nwindow_x = 500\nwindow_y = 600\n", encoding="utf-8")
         config = config_mod._load_config()
         assert (config.window_x, config.window_y) == (500, 600)
 
@@ -211,15 +206,18 @@ class TestLayering:
 
 
 class TestWriting:
-    @pytest.mark.parametrize("section,key,value", [
-        ("audio", "device", "Yeti"),
-        ("model", "size", "small"),
-        ("ollama", "model_transcript_cleanup", "qwen2.5:3b"),
-        ("ollama", "model_prompt_generate", "qwen2.5:7b"),
-        ("ollama", "cleanup_enabled", False),
-        ("ui", "sound_feedback", False),
-        ("ui", "window_x", 812),
-    ])
+    @pytest.mark.parametrize(
+        "section,key,value",
+        [
+            ("audio", "device", "Yeti"),
+            ("model", "size", "small"),
+            ("ollama", "model_transcript_cleanup", "qwen2.5:3b"),
+            ("ollama", "model_prompt_generate", "qwen2.5:7b"),
+            ("ollama", "cleanup_enabled", False),
+            ("ui", "sound_feedback", False),
+            ("ui", "window_x", 812),
+        ],
+    )
     def test_every_setting_lands_in_the_user_file(self, paths, section, key, value):
         config_mod.ensure_user_config()
         assert config_mod._persist_config_value(section, key, value) is True
@@ -228,9 +226,11 @@ class TestWriting:
     def test_the_template_stays_untouched(self, paths):
         before = paths.template.read_text(encoding="utf-8")
         config_mod.ensure_user_config()
-        for section, key, value in (("audio", "device", "Yeti"),
-                                    ("model", "size", "base"),
-                                    ("ui", "sound_feedback", False)):
+        for section, key, value in (
+            ("audio", "device", "Yeti"),
+            ("model", "size", "base"),
+            ("ui", "sound_feedback", False),
+        ):
             config_mod._persist_config_value(section, key, value)
         assert paths.template.read_text(encoding="utf-8") == before
 
@@ -305,8 +305,7 @@ class TestTemplateContent:
         assert "window_y" not in template.get("ui", {})
 
     def test_it_is_still_a_complete_starting_point(self, template):
-        for section in ("audio", "model", "transcription", "hotkeys", "ollama",
-                        "clipboard", "ui"):
+        for section in ("audio", "model", "transcription", "hotkeys", "ollama", "clipboard", "ui"):
             assert section in template
 
     def test_the_repository_no_longer_holds_a_live_config(self):

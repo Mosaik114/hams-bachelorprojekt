@@ -109,12 +109,12 @@ class Scale:
         if sys.platform == "win32":
             with contextlib.suppress(tk.TclError):
                 root.tk.call("tk", "scaling", dpi / 72.0)
-        _img_cache.clear()          # Bilder gelten immer nur für einen Faktor
+        _img_cache.clear()  # Bilder gelten immer nur für einen Faktor
         init_fonts(root, force=True)
         for callback in list(cls._callbacks):
             try:
                 callback(cls.factor)
-            except Exception:       # ein defekter Rückruf darf nichts blockieren
+            except Exception:  # ein defekter Rückruf darf nichts blockieren
                 pass
         return True
 
@@ -130,10 +130,11 @@ def keep_logical_width(widget: tk.Misc, logical: int) -> None:
     Der Rückruf meldet sich beim Zerstören wieder ab, damit die Liste nicht mit
     toten Widgets wächst.
     """
+
     def apply(_factor: float = 0.0) -> None:
         try:
             widget.configure(width=px(logical))
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             Scale.unregister(apply)
 
     def forget(event: tk.Event) -> None:
@@ -175,14 +176,14 @@ SEMIBOLD_FAMILIES = ("Segoe UI Variable Text Semibold", "Segoe UI Semibold")
 # Serifenschrift, Schaltflächen den halbfetten Schnitt; fett ist nichts.
 _FONT_ROLES: dict[str, tuple] = {
     "window_title": ("serif", 16, "normal"),  # Fenstertitel — Serifenschrift
-    "section": ("serif", 13, "normal"),       # Abschnittsueberschrift in den Einstellungen
-    "row_title": ("text", 12, "normal"),      # Titel einer Einstellungszeile
-    "description": ("small", 11, "normal"),   # Hilfstext unter einem Titel
-    "status": ("text", 12, "normal"),         # die eine Statuszeile
-    "button": ("semibold", 12, "normal"),     # Beschriftung von Schaltflächen
-    "shortcut": ("small", 11, "normal"),      # Tasten-Chips
-    "meta": ("small", 11, "normal"),          # Zusatzangaben im Popover
-    "icon": ("text", 13, "normal"),           # Glyph in Icon-Buttons
+    "section": ("serif", 13, "normal"),  # Abschnittsueberschrift in den Einstellungen
+    "row_title": ("text", 12, "normal"),  # Titel einer Einstellungszeile
+    "description": ("small", 11, "normal"),  # Hilfstext unter einem Titel
+    "status": ("text", 12, "normal"),  # die eine Statuszeile
+    "button": ("semibold", 12, "normal"),  # Beschriftung von Schaltflächen
+    "shortcut": ("small", 11, "normal"),  # Tasten-Chips
+    "meta": ("small", 11, "normal"),  # Zusatzangaben im Popover
+    "icon": ("text", 13, "normal"),  # Glyph in Icon-Buttons
 }
 
 
@@ -222,11 +223,16 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
         from wisper.linux import FONT_SUBSTITUTES, font_available
 
         def pick(key: str) -> str:
-            return next((f for f in FONT_SUBSTITUTES[key] if font_available(f, families)),
-                        "TkDefaultFont")
+            return next((f for f in FONT_SUBSTITUTES[key] if font_available(f, families)), "TkDefaultFont")
 
-        resolved.update(display=pick("text"), text=pick("text"), small=pick("text"),
-                        semibold=pick("semibold"), mono=pick("mono"), serif=pick("serif"))
+        resolved.update(
+            display=pick("text"),
+            text=pick("text"),
+            small=pick("text"),
+            semibold=pick("semibold"),
+            mono=pick("mono"),
+            serif=pick("serif"),
+        )
     if _FONTS and not force:
         return _FONTS
 

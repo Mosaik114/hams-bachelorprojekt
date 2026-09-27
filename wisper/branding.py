@@ -49,7 +49,7 @@ _mask_cache: dict[int, Image.Image] = {}
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
     value = value.lstrip("#")
-    return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
 
 
 def _load_mask(size: int) -> Image.Image | None:
@@ -86,7 +86,7 @@ def tray_image(colour: str, size: int = 64) -> Image.Image:
     rgb = _hex_to_rgb(colour)
     mask = _load_mask(size)
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    if mask is None:      # pragma: no cover - nur ohne Assets
+    if mask is None:  # pragma: no cover - nur ohne Assets
         from PIL import ImageDraw
 
         ImageDraw.Draw(image).ellipse([2, 2, size - 2, size - 2], fill=rgb + (255,))

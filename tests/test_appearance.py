@@ -88,12 +88,10 @@ def surface(window, root):
     group.pack(fill="x")
     teile["group"] = group
 
-    row = SettingRow(group.body, "Sound", variant="description",
-                     description="Kurzer Ton", interactive=True)
+    row = SettingRow(group.body, "Sound", variant="description", description="Kurzer Ton", interactive=True)
     row.pack(fill="x")
     teile["row"] = row
-    switch = Switch(group.body, bg_under=Theme.GROUP_SURFACE, value=True,
-                    command=lambda _v: None)
+    switch = Switch(group.body, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
     row.set_control(switch)
     teile["switch"] = switch
 
@@ -102,26 +100,29 @@ def surface(window, root):
     teile["status_row"] = status_row
     teile["dot"] = status_row.status_dot
 
-    select_row = SettingRow(group.body, "Darstellung", variant="description",
-                            description="Hell oder dunkel", hairline=False)
+    select_row = SettingRow(
+        group.body, "Darstellung", variant="description", description="Hell oder dunkel", hairline=False
+    )
     select_row.pack(fill="x")
-    select = Select(group.body, bg_under=Theme.GROUP_SURFACE,
-                    options=[Option("light", "Hell"), Option("dark", "Dunkel")],
-                    value="light")
+    select = Select(
+        group.body,
+        bg_under=Theme.GROUP_SURFACE,
+        options=[Option("light", "Hell"), Option("dark", "Dunkel")],
+        value="light",
+    )
     # Wie im echten Fenster: ohne feste logische Breite bliebe das Auswahlfeld
     # bei seiner Eigenbreite von 2 px stehen — es traegt nur ein Bild, keinen Text.
     uk.keep_logical_width(select, 150)
     select_row.set_control(select)
     teile["select"] = select
 
-    teile["primary"] = PrimaryButton(scroll.body, "Aufnahme", lambda: None,
-                                     bg_under=Theme.WINDOW_BG)
+    teile["primary"] = PrimaryButton(scroll.body, "Aufnahme", lambda: None, bg_under=Theme.WINDOW_BG)
     teile["primary"].pack(fill="x")
-    teile["secondary"] = SecondaryButton(scroll.body, "Abbrechen", lambda: None,
-                                         bg_under=Theme.WINDOW_BG, icon_name="stop")
+    teile["secondary"] = SecondaryButton(
+        scroll.body, "Abbrechen", lambda: None, bg_under=Theme.WINDOW_BG, icon_name="stop"
+    )
     teile["secondary"].pack(fill="x")
-    teile["icon_button"] = IconButton(scroll.body, "settings", lambda: None,
-                                      bg_under=Theme.WINDOW_BG)
+    teile["icon_button"] = IconButton(scroll.body, "settings", lambda: None, bg_under=Theme.WINDOW_BG)
     teile["icon_button"].pack()
     teile["icon_button"].set_hover_colour(Theme.ERROR)
     teile["meter"] = SignalMeter(scroll.body, bg_under=Theme.WINDOW_BG)
@@ -170,10 +171,16 @@ class TestDefault:
         """Ein Tippfehler darf nie ein Fenster ohne Farben ergeben."""
         assert Theme.normalise(wert) == Theme.LIGHT
 
-    @pytest.mark.parametrize("wert,erwartet", [
-        ("dark", Theme.DARK), ("DARK", Theme.DARK), (" dark ", Theme.DARK),
-        ("light", Theme.LIGHT), ("Light", Theme.LIGHT),
-    ])
+    @pytest.mark.parametrize(
+        "wert,erwartet",
+        [
+            ("dark", Theme.DARK),
+            ("DARK", Theme.DARK),
+            (" dark ", Theme.DARK),
+            ("light", Theme.LIGHT),
+            ("Light", Theme.LIGHT),
+        ],
+    )
     def test_known_values_survive_normalisation(self, wert, erwartet):
         assert Theme.normalise(wert) == erwartet
 
@@ -217,7 +224,7 @@ class TestPersistence:
     def test_the_value_lands_in_the_ui_section(self):
         config_mod._persist_config_value("ui", "appearance", "dark")
         text = config_mod.CONFIG_PATH.read_text(encoding="utf-8")
-        abschnitt = text[text.index("[ui]"):]
+        abschnitt = text[text.index("[ui]") :]
         ende = abschnitt.find("\n[", 1)
         abschnitt = abschnitt if ende < 0 else abschnitt[:ende]
         assert 'appearance = "dark"' in abschnitt
@@ -254,8 +261,7 @@ class TestPaletteSwitch:
                     if "ON_SUCCESS" in (name, other):
                         continue
                     if other_value.upper() == value.upper():
-                        assert here[other].upper() == value.upper(), (
-                            f"{value}: {mode} {name}, anders {other}")
+                        assert here[other].upper() == value.upper(), f"{value}: {mode} {name}, anders {other}"
 
     def test_apply_reports_whether_something_changed(self):
         Theme.apply(Theme.LIGHT)
@@ -393,9 +399,9 @@ class TestEveryComponentFollows:
         """Die eigentliche Zusage: keine halb helle, halb dunkle Oberfläche."""
         for ziel in (Theme.DARK, Theme.LIGHT, Theme.DARK):
             wechsel(surface["window"], ziel, root)
-            fremd = {wert.upper() for name, wert in
-                     Theme.palette(Theme.LIGHT if ziel == Theme.DARK
-                                   else Theme.DARK).items()}
+            fremd = {
+                wert.upper() for name, wert in Theme.palette(Theme.LIGHT if ziel == Theme.DARK else Theme.DARK).items()
+            }
             # Werte, die in beiden Paletten vorkommen, sind kein Befund.
             fremd -= {w.upper() for w in Theme.palette(ziel).values()}
             uebrig = []
@@ -494,7 +500,7 @@ class TestCaches:
 
 
 class TestManySwitches:
-    ROUNDEN = 10        # 10 Runden hell/dunkel = 20 Wechsel
+    ROUNDEN = 10  # 10 Runden hell/dunkel = 20 Wechsel
 
     def test_twenty_switches_leave_nothing_behind(self, surface, root):
         fenster = surface["window"]
@@ -516,8 +522,18 @@ class TestManySwitches:
         for _ in range(self.ROUNDEN):
             wechsel(surface["window"], Theme.DARK, root)
             wechsel(surface["window"], Theme.LIGHT, root)
-        for name in ("scroll", "group", "row", "switch", "select", "primary",
-                     "secondary", "icon_button", "meter", "dot"):
+        for name in (
+            "scroll",
+            "group",
+            "row",
+            "switch",
+            "select",
+            "primary",
+            "secondary",
+            "icon_button",
+            "meter",
+            "dot",
+        ):
             assert surface[name].winfo_exists(), name
         assert surface["switch"].value is True
         assert surface["select"].value == "light"
@@ -563,8 +579,7 @@ class TestManySwitches:
 class TestDpi:
     @pytest.mark.parametrize("dpi", [96, 120, 144, 192])
     @pytest.mark.parametrize("ziel", MODES)
-    def test_both_modes_survive_every_scaling(self, surface, root, monkeypatch, dpi,
-                                              ziel):
+    def test_both_modes_survive_every_scaling(self, surface, root, monkeypatch, dpi, ziel):
         """100 %, 125 %, 150 % und 200 % — in beiden Modi.
 
         Geprüft wird, dass Umschalten und Skalieren einander nicht in die Quere
@@ -592,9 +607,13 @@ class TestDpi:
 class TestKeyboard:
     def test_the_appearance_select_is_fully_operable_by_keyboard(self, window, root):
         gewaehlt = []
-        select = Select(window, bg_under=Theme.WINDOW_BG,
-                        options=[Option(Theme.LIGHT, "Hell"), Option(Theme.DARK, "Dunkel")],
-                        value=Theme.LIGHT, on_change=gewaehlt.append)
+        select = Select(
+            window,
+            bg_under=Theme.WINDOW_BG,
+            options=[Option(Theme.LIGHT, "Hell"), Option(Theme.DARK, "Dunkel")],
+            value=Theme.LIGHT,
+            on_change=gewaehlt.append,
+        )
         select.pack()
         root.update()
 
@@ -617,9 +636,13 @@ class TestKeyboard:
 
     def test_escape_closes_without_choosing(self, window, root):
         gewaehlt = []
-        select = Select(window, bg_under=Theme.WINDOW_BG,
-                        options=[Option(Theme.LIGHT, "Hell"), Option(Theme.DARK, "Dunkel")],
-                        value=Theme.LIGHT, on_change=gewaehlt.append)
+        select = Select(
+            window,
+            bg_under=Theme.WINDOW_BG,
+            options=[Option(Theme.LIGHT, "Hell"), Option(Theme.DARK, "Dunkel")],
+            value=Theme.LIGHT,
+            on_change=gewaehlt.append,
+        )
         select.pack()
         root.update()
         select.focus_set()
@@ -632,8 +655,7 @@ class TestKeyboard:
         assert select.value == Theme.LIGHT
 
     def test_the_select_takes_focus(self, window, root):
-        select = Select(window, bg_under=Theme.WINDOW_BG,
-                        options=[Option(Theme.LIGHT, "Hell")], value=Theme.LIGHT)
+        select = Select(window, bg_under=Theme.WINDOW_BG, options=[Option(Theme.LIGHT, "Hell")], value=Theme.LIGHT)
         select.pack()
         root.update()
         assert int(select.cget("takefocus")) == 1
@@ -673,26 +695,26 @@ class TestApplicationWiring:
         try:
             Theme.apply(Theme.DARK)
             FloatingTranscriberApp.set_appearance(app, "regenbogen")
-            assert Theme.mode == Theme.LIGHT      # normalisiert auf hell
+            assert Theme.mode == Theme.LIGHT  # normalisiert auf hell
         finally:
             app.root.destroy()
             root.update()
 
     def test_the_settings_window_offers_the_two_labels(self):
-        assert SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell",
-                                                       Theme.DARK: "Dunkel"}
+        assert SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
 
     def test_the_appearance_row_is_the_last_one_under_general(self):
         block = inspect.getsource(SettingsWindow._build_general)
         assert block.index("row_appearance") > block.index("row_sound")
-        assert "hairline=False" in block[block.index("row_appearance"):]
+        assert "hairline=False" in block[block.index("row_appearance") :]
 
     def test_choosing_persists_before_it_switches(self, monkeypatch):
         """Erst schreiben, dann umschalten — sonst fiele ein Schreibfehler
         mitten in einen halb neu gezeichneten Baum."""
         ablauf = []
-        monkeypatch.setattr(settings_window_mod, "_persist_config_value",
-                            lambda *a: ablauf.append(("schreiben", a[2])) or True)
+        monkeypatch.setattr(
+            settings_window_mod, "_persist_config_value", lambda *a: ablauf.append(("schreiben", a[2])) or True
+        )
 
         class _App:
             def set_appearance(self, mode):
@@ -706,8 +728,7 @@ class TestApplicationWiring:
 
     def test_choosing_the_current_mode_does_nothing(self, monkeypatch):
         ablauf = []
-        monkeypatch.setattr(settings_window_mod, "_persist_config_value",
-                            lambda *a: ablauf.append(a) or True)
+        monkeypatch.setattr(settings_window_mod, "_persist_config_value", lambda *a: ablauf.append(a) or True)
         fenster = SettingsWindow.__new__(SettingsWindow)
         fenster.app = None
         Theme.apply(Theme.LIGHT)
@@ -723,11 +744,15 @@ class TestTrayStaysIndependent:
 
     def test_the_tray_colours_do_not_follow_the_app_theme(self):
         Theme.apply(Theme.LIGHT)
-        hell = {zustand: FloatingTranscriberApp._tray_colour(zustand)
-                for zustand in ("ready", "recording", "generating", "error")}
+        hell = {
+            zustand: FloatingTranscriberApp._tray_colour(zustand)
+            for zustand in ("ready", "recording", "generating", "error")
+        }
         Theme.apply(Theme.DARK)
-        dunkel = {zustand: FloatingTranscriberApp._tray_colour(zustand)
-                  for zustand in ("ready", "recording", "generating", "error")}
+        dunkel = {
+            zustand: FloatingTranscriberApp._tray_colour(zustand)
+            for zustand in ("ready", "recording", "generating", "error")
+        }
         assert hell == dunkel
 
     def test_the_tray_keeps_its_semantic_meaning(self):

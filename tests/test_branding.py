@@ -109,10 +109,15 @@ class TestTrayImage:
         assert image.size == branding.tray_image("#0A84FF", 64).size
         assert image.tobytes() == branding.tray_image("#0A84FF", 64).tobytes()
 
-    @pytest.mark.parametrize("state,colour", [
-        ("ready", "#0A84FF"), ("recording", None), ("error", None),
-        ("generating", None),
-    ])
+    @pytest.mark.parametrize(
+        "state,colour",
+        [
+            ("ready", "#0A84FF"),
+            ("recording", None),
+            ("error", None),
+            ("generating", None),
+        ],
+    )
     def test_every_state_produces_a_mark(self, state, colour):
         chosen = colour or FloatingTranscriberApp._tray_colour(state)
         alpha = branding.tray_image(chosen, 32).getchannel("A")
@@ -133,11 +138,32 @@ class TestNoOldLetter:
 
 
 #: Wo Text sichtbar gesetzt wird — dieselben Wege wie in test_accessibility.
-UI_KEYWORDS = {"text", "description", "value", "placeholder", "label", "meta",
-               "trailing", "title", "tooltip", "hint", "detail", "summary"}
-UI_CALLS = {"SettingRow", "SecondaryButton", "PrimaryButton", "IconButton",
-            "SectionHeader", "Option", "_apply_state", "set_description",
-            "set_status", "set_value"}
+UI_KEYWORDS = {
+    "text",
+    "description",
+    "value",
+    "placeholder",
+    "label",
+    "meta",
+    "trailing",
+    "title",
+    "tooltip",
+    "hint",
+    "detail",
+    "summary",
+}
+UI_CALLS = {
+    "SettingRow",
+    "SecondaryButton",
+    "PrimaryButton",
+    "IconButton",
+    "SectionHeader",
+    "Option",
+    "_apply_state",
+    "set_description",
+    "set_status",
+    "set_value",
+}
 OLD_NAMES = ("Wisper", "Transcriber")
 
 
@@ -149,17 +175,15 @@ def visible_strings() -> list:
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
-            name = func.attr if isinstance(func, ast.Attribute) else getattr(
-                func, "id", "")
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
             named = name in UI_CALLS or name in ("title", "Icon")
-            for argument in (node.args if named else ()):
+            for argument in node.args if named else ():
                 if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
                     found.append((path.name, argument.value))
             for keyword in node.keywords:
                 if not (named or keyword.arg in UI_KEYWORDS):
                     continue
-                if isinstance(keyword.value, ast.Constant) and isinstance(
-                        keyword.value.value, str):
+                if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
                     found.append((path.name, keyword.value.value))
     return found
 
@@ -170,8 +194,7 @@ class TestNoOldBrandInTheInterface:
 
     @pytest.mark.parametrize("old", OLD_NAMES)
     def test_no_old_product_name_is_shown(self, old):
-        offenders = [f"{name}: {text!r}" for name, text in visible_strings()
-                     if old in text]
+        offenders = [f"{name}: {text!r}" for name, text in visible_strings() if old in text]
         assert not offenders, "\n".join(offenders)
 
     def test_the_tooltip_carries_the_new_name(self):

@@ -114,13 +114,15 @@ class TestOpening:
 
 
 class TestLevel:
-    @pytest.mark.parametrize("amplitude, status, text", [
-        (0.3, "ready", "Gutes Signal"),
-        (0.03, "warning", "Leiser Pegel"),
-        (0.0, "error", "Kein Signal"),
-    ])
-    def test_the_live_level_is_named_not_only_coloured(self, open_settings, hams,
-                                                       amplitude, status, text):
+    @pytest.mark.parametrize(
+        "amplitude, status, text",
+        [
+            (0.3, "ready", "Gutes Signal"),
+            (0.03, "warning", "Leiser Pegel"),
+            (0.0, "error", "Kein Signal"),
+        ],
+    )
+    def test_the_live_level_is_named_not_only_coloured(self, open_settings, hams, amplitude, status, text):
         win = open_settings()
         hams.streams[-1].feed(np.full(256, amplitude))
         win._tick()
@@ -128,13 +130,13 @@ class TestLevel:
 
     def test_a_monitor_that_cannot_open_is_reported(self, open_settings, hams):
         from live_app import FakeStream
+
         FakeStream.fail_with = OSError("belegt")
         win = open_settings()
         win._tick()
         assert sub(win.row_mic) == "Gerät nicht verfügbar"
 
-    def test_a_recording_takes_the_microphone_and_gives_it_back(self, open_settings,
-                                                               live_app, hams, monkeypatch):
+    def test_a_recording_takes_the_microphone_and_gives_it_back(self, open_settings, live_app, hams, monkeypatch):
         monkeypatch.setattr(live_app, "_transcribe_audio", lambda audio: None)
         win = open_settings()
         monitor = hams.streams[-1]
@@ -159,8 +161,7 @@ class TestLevel:
 
 
 class TestOllama:
-    def test_an_unreachable_service_is_shown_everywhere_it_matters(self, open_settings,
-                                                                  live_app):
+    def test_an_unreachable_service_is_shown_everywhere_it_matters(self, open_settings, live_app):
         CFG.ollama_cleanup_enabled = True
         win = open_settings()
         assert live_app.ollama_checked
@@ -171,8 +172,8 @@ class TestOllama:
 
     def test_a_running_service_fills_both_lists(self, open_settings, hams, live_app):
         hams.probe = ollama_api.OllamaState(
-            True, models=[ollama_api.OllamaModel("qwen3:8b"), ollama_api.OllamaModel("gemma3:4b")],
-            warm=["qwen3:8b"])
+            True, models=[ollama_api.OllamaModel("qwen3:8b"), ollama_api.OllamaModel("gemma3:4b")], warm=["qwen3:8b"]
+        )
         CFG.ollama_model_cleanup = "qwen3:8b"
         win = open_settings()
         names = [o.value for o in win.select_cleanup_model.options if o.value]
@@ -185,18 +186,16 @@ class TestOllama:
         win = open_settings()
         live_app.ollama_checked = False
         win._show_ollama_status()
-        assert (dot(win.row_cleanup_model), sub(win.row_cleanup_model)) == (
-            "idle", "Ollama wird geprüft …")
+        assert (dot(win.row_cleanup_model), sub(win.row_cleanup_model)) == ("idle", "Ollama wird geprüft …")
 
     def test_each_list_writes_only_its_own_key(self, open_settings, hams):
         win = open_settings()
         CFG.ollama_model_cleanup, CFG.ollama_model_prompt = "a", "b"
         win._select_cleanup_model("c")
         win._select_prompt_model("d")
-        win._select_cleanup_model("c")          # schon gewaehlt
-        win._select_prompt_model("")            # Platzhalter
-        assert hams.saved == [("ollama", "model_transcript_cleanup", "c"),
-                              ("ollama", "model_prompt_generate", "d")]
+        win._select_cleanup_model("c")  # schon gewaehlt
+        win._select_prompt_model("")  # Platzhalter
+        assert hams.saved == [("ollama", "model_transcript_cleanup", "c"), ("ollama", "model_prompt_generate", "d")]
 
 
 class TestSwitches:
@@ -230,15 +229,13 @@ class TestSwitches:
 
 
 class TestWhisperModel:
-    def test_the_current_model_only_refreshes_the_hint(self, open_settings, live_app,
-                                                       monkeypatch):
+    def test_the_current_model_only_refreshes_the_hint(self, open_settings, live_app, monkeypatch):
         win = open_settings()
         monkeypatch.setattr(live_app, "switch_model", lambda m: pytest.fail("gewechselt"))
         win._select_model("large-v3-turbo")
         assert sub(win.row_model) == win.model_hint("large-v3-turbo")
 
-    def test_an_installed_model_is_switched_to(self, open_settings, live_app, disk,
-                                               monkeypatch):
+    def test_an_installed_model_is_switched_to(self, open_settings, live_app, disk, monkeypatch):
         disk.installed.add("tiny")
         win = open_settings()
         win._refresh_models()
@@ -247,8 +244,7 @@ class TestWhisperModel:
         assert not win.model_select.enabled
         assert sub(win.row_model) == "Modell wird geladen …"
 
-    def test_a_refused_switch_keeps_the_old_choice(self, open_settings, live_app, disk,
-                                                   monkeypatch):
+    def test_a_refused_switch_keeps_the_old_choice(self, open_settings, live_app, disk, monkeypatch):
         disk.installed.add("tiny")
         win = open_settings()
         win._refresh_models()
@@ -257,8 +253,7 @@ class TestWhisperModel:
         assert win.model_select.value == "large-v3-turbo"
         assert sub(win.row_model) == "Während einer Aufnahme nicht wechselbar"
 
-    def test_a_missing_model_is_downloaded_not_saved(self, open_settings, live_app, hams,
-                                                     monkeypatch):
+    def test_a_missing_model_is_downloaded_not_saved(self, open_settings, live_app, hams, monkeypatch):
         win = open_settings()
         started = []
         monkeypatch.setattr(live_app, "start_download", lambda m: started.append(m) or "")
@@ -277,13 +272,15 @@ class TestWhisperModel:
         assert sub(win.row_model) == "Kein Speicherplatz"
         assert win.row_model._control is win.model_select
 
-    @pytest.mark.parametrize("error, switching, text, enabled", [
-        (whisper_models.CANCELLED, False, "Tiny: Download abgebrochen", True),
-        ("Netz weg", False, "Netz weg — erneut auswählen", True),
-        ("", True, "Tiny wird geladen …", False),
-    ])
-    def test_the_end_of_a_download(self, open_settings, live_app, monkeypatch,
-                                   error, switching, text, enabled):
+    @pytest.mark.parametrize(
+        "error, switching, text, enabled",
+        [
+            (whisper_models.CANCELLED, False, "Tiny: Download abgebrochen", True),
+            ("Netz weg", False, "Netz weg — erneut auswählen", True),
+            ("", True, "Tiny wird geladen …", False),
+        ],
+    )
+    def test_the_end_of_a_download(self, open_settings, live_app, monkeypatch, error, switching, text, enabled):
         win = open_settings()
         monkeypatch.setattr(live_app, "start_download", lambda m: "")
         win._select_model("tiny")
@@ -300,10 +297,8 @@ class TestWhisperModel:
         assert cancelled == [1]
         assert sub(win.row_model) == "Wird abgebrochen …"
 
-    def test_a_running_download_is_shown_when_the_window_opens(self, open_settings,
-                                                               live_app):
-        live_app.downloader = SimpleNamespace(active=True, model_id="tiny",
-                                              cancel=lambda: None)
+    def test_a_running_download_is_shown_when_the_window_opens(self, open_settings, live_app):
+        live_app.downloader = SimpleNamespace(active=True, model_id="tiny", cancel=lambda: None)
         live_app.download_done, live_app.download_total = 0, 0
         win = open_settings()
         assert win.row_model._control is win.cancel_button
@@ -317,8 +312,7 @@ class TestDeleting:
         assert win.row_storage._control is None
         assert sub(win.row_storage).startswith("1 Modell · ")
 
-    def test_delete_asks_first_then_deletes_in_the_background(self, open_settings,
-                                                              disk, live_app):
+    def test_delete_asks_first_then_deletes_in_the_background(self, open_settings, disk, live_app):
         disk.cached = [CachedModel("tiny", "Tiny", 78_000_000, True, ("a",))]
         win = open_settings()
         assert win.row_storage._control is win.select_delete
@@ -338,7 +332,7 @@ class TestDeleting:
         win = open_settings()
         win._choose_delete("tiny")
         win._abort_delete()
-        win._confirm_delete()                       # nichts mehr vorgemerkt
+        win._confirm_delete()  # nichts mehr vorgemerkt
         assert disk.deleted == []
         assert win.row_storage._control is win.select_delete
 

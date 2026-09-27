@@ -183,11 +183,11 @@ class TestAnimator:
         root.update()
 
         def step(_fraction):
-            victim.winfo_width()      # wirft TclError, sobald zerstoert
+            victim.winfo_width()  # wirft TclError, sobald zerstoert
 
         Animator.run(victim, "x", 300, step)
         victim.destroy()
-        spin(root, 0.2)      # darf keine Ausnahme in die Schleife tragen
+        spin(root, 0.2)  # darf keine Ausnahme in die Schleife tragen
         assert Animator.pending(victim) == 0
 
     def test_zero_duration_is_immediate(self, animated, window):
@@ -245,7 +245,7 @@ class TestSwitchAnimation:
             switch.toggle()
             spin(root, 0.01)
         assert settle(root, switch)
-        assert switch.value is False          # gerade Anzahl
+        assert switch.value is False  # gerade Anzahl
         assert switch._progress == 0.0
         assert Animator.pending(switch) == 0
         assert len(switch.changes) == 20
@@ -417,5 +417,5 @@ class TestIdle:
         switch = Switch(window, bg_under=BG, value=True, command=lambda _v: None)
         switch.pack()
         root.update()
-        switch.set(True)      # gleicher Wert
+        switch.set(True)  # gleicher Wert
         assert Animator.pending(switch) == 0

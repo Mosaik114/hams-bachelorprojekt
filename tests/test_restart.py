@@ -45,8 +45,7 @@ class TestRestartCommand:
 # -------------------------------------------------------------------- Schloss
 
 
-windows_only = pytest.mark.skipif(sys.platform != "win32",
-                                  reason="benanntes Mutex gibt es nur unter Windows")
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="benanntes Mutex gibt es nur unter Windows")
 
 
 class TestMutex:
@@ -58,8 +57,7 @@ class TestMutex:
     def test_releasing_closes_the_handle_and_forgets_it(self, monkeypatch):
         geschlossen = []
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", 4711)
-        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle",
-                            lambda h: geschlossen.append(h) or 1)
+        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: geschlossen.append(h) or 1)
         assert instance_mod._release_single_instance_mutex() is True
         assert geschlossen == [4711]
         assert instance_mod._MUTEX_HANDLE is None
@@ -74,6 +72,7 @@ class TestMutex:
     @windows_only
     def test_a_failure_is_reported_not_swallowed(self, monkeypatch):
         """Sonst startete der Nachfolger und faende das Schloss noch belegt."""
+
         def _kaputt(_handle):
             raise OSError("geht nicht")
 
@@ -149,6 +148,7 @@ class TestRestartUnderTheService:
 
     def test_no_successor_is_started(self, app, popen, monkeypatch):
         from wisper import linux
+
         monkeypatch.setattr(linux, "under_systemd", lambda: True)
         monkeypatch.setattr(linux, "restart_requested", False)
         assert app.restart_app() == ""
@@ -157,6 +157,7 @@ class TestRestartUnderTheService:
 
     def test_the_service_restarts_on_the_agreed_code(self):
         from wisper import linux
+
         unit = linux.service_unit("/py", "/main.py")
         assert "Restart=on-failure" in unit
         assert f"RestartForceExitStatus={linux.RESTART_EXIT_CODE}" in unit
@@ -193,14 +194,11 @@ class TestRestartApp:
         _befehl, kwargs = popen.aufrufe[0]
         assert Path(kwargs["cwd"]) == Path(config_mod.APP_DIR).parent
 
-    def test_the_lock_is_released_before_the_successor_starts(self, app,
-                                                              monkeypatch):
+    def test_the_lock_is_released_before_the_successor_starts(self, app, monkeypatch):
         """Sonst meldet der Nachfolger „läuft bereits" und beendet sich sofort."""
         reihenfolge = []
-        monkeypatch.setattr(app_mod, "_release_single_instance_mutex",
-                            lambda: reihenfolge.append("frei") or True)
-        monkeypatch.setattr(subprocess, "Popen",
-                            lambda *a, **k: reihenfolge.append("start"))
+        monkeypatch.setattr(app_mod, "_release_single_instance_mutex", lambda: reihenfolge.append("frei") or True)
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: reihenfolge.append("start"))
         app.restart_app()
         assert reihenfolge == ["frei", "start"]
 
@@ -224,10 +222,8 @@ class TestRestartApp:
     def test_a_failed_start_leaves_everything_running(self, app, monkeypatch):
         """Lieber eine Meldung als ein Rechner ohne laufendes Hams."""
         wieder = []
-        monkeypatch.setattr(subprocess, "Popen",
-                            lambda *a, **k: (_ for _ in ()).throw(OSError("nope")))
-        monkeypatch.setattr(app_mod, "_acquire_single_instance_mutex",
-                            lambda: wieder.append(1))
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("nope")))
+        monkeypatch.setattr(app_mod, "_acquire_single_instance_mutex", lambda: wieder.append(1))
         assert app.restart_app() == "Neustart fehlgeschlagen"
         assert app._shutting_down is False
         assert app.tray_icon.gestoppt == 0
@@ -314,14 +310,13 @@ class TestTheHandoverActuallyWorks:
 
     def _zweiter_prozess(self):
         fertig = subprocess.run(
-            [sys.executable, "-c", self.FRAGT.format(name=self.NAME)],
-            capture_output=True, text=True, timeout=60)
+            [sys.executable, "-c", self.FRAGT.format(name=self.NAME)], capture_output=True, text=True, timeout=60
+        )
         return fertig.stdout.strip()
 
     def test_the_successor_gets_the_lock_once_the_handle_is_closed(self):
         kernel32 = ctypes.windll.kernel32
-        kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL,
-                                          wintypes.LPCWSTR]
+        kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
         kernel32.CreateMutexW.restype = wintypes.HANDLE
         griff = kernel32.CreateMutexW(None, False, self.NAME)
         assert griff, "Testschloss liess sich nicht anlegen"
@@ -331,4 +326,5 @@ class TestTheHandoverActuallyWorks:
             kernel32.CloseHandle(griff)
         assert self._zweiter_prozess() == "frei", (
             "Ein benanntes Mutex muss verschwinden, sobald der letzte Griff zu "
-            "ist — sonst faende der Nachfolger es belegt und beendete sich.")
+            "ist — sonst faende der Nachfolger es belegt und beendete sich."
+        )

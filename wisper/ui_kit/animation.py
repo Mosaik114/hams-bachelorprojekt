@@ -27,10 +27,9 @@ def system_animations_enabled() -> bool:
     """
     try:
         value = ctypes.c_int(1)
-        ok = ctypes.windll.user32.SystemParametersInfoW(
-            SPI_GETCLIENTAREAANIMATION, 0, ctypes.byref(value), 0)
+        ok = ctypes.windll.user32.SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, ctypes.byref(value), 0)
         return bool(ok) and bool(value.value)
-    except Exception:      # pragma: no cover - kein Windows oder API fehlt
+    except Exception:  # pragma: no cover - kein Windows oder API fehlt
         return True
 
 
@@ -70,9 +69,14 @@ class Animator:
     _jobs: dict = {}
 
     @classmethod
-    def run(cls, widget: tk.Misc, key: str, duration_ms: int,
-            step: Callable[[float], None],
-            done: Callable[[], None] | None = None) -> bool:
+    def run(
+        cls,
+        widget: tk.Misc,
+        key: str,
+        duration_ms: int,
+        step: Callable[[float], None],
+        done: Callable[[], None] | None = None,
+    ) -> bool:
         """Ruft `step(t)` mit t von 0 bis 1 (bereits geglättet).
 
         Gibt True zurück, wenn tatsächlich animiert wird. Sind Animationen
@@ -96,7 +100,7 @@ class Animator:
             last = fraction >= 1.0
             try:
                 step(ease_out(fraction))
-            except tk.TclError:      # Widget verschwand mitten im Lauf
+            except tk.TclError:  # Widget verschwand mitten im Lauf
                 cls._jobs.pop(token, None)
                 return
             if last:
@@ -106,7 +110,7 @@ class Animator:
                 return
             try:
                 cls._jobs[token] = widget.after(FRAME_MS, tick)
-            except tk.TclError:      # pragma: no cover - Fenster schon weg
+            except tk.TclError:  # pragma: no cover - Fenster schon weg
                 cls._jobs.pop(token, None)
 
         tick()
@@ -119,7 +123,7 @@ class Animator:
             return
         try:
             widget.after_cancel(job)
-        except Exception:      # pragma: no cover - Widget bereits zerstört
+        except Exception:  # pragma: no cover - Widget bereits zerstört
             pass
 
     @classmethod
@@ -130,7 +134,7 @@ class Animator:
             job = cls._jobs.pop(token, None)
             try:
                 widget.after_cancel(job)
-            except Exception:      # pragma: no cover
+            except Exception:  # pragma: no cover
                 pass
 
     @classmethod
@@ -153,7 +157,7 @@ class Animator:
 
         try:
             widget.bind("<Destroy>", on_destroy, add="+")
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             return
         widget._anim_watched = True
 

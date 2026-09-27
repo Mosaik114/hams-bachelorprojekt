@@ -28,8 +28,7 @@ import sys
 import pytest
 
 if sys.platform != "win32":
-    pytest.skip("die keyboard-Bibliothek gibt es nur unter Windows",
-                allow_module_level=True)
+    pytest.skip("die keyboard-Bibliothek gibt es nur unter Windows", allow_module_level=True)
 
 import keyboard  # noqa: E402
 import keyboard._generic  # noqa: E402
@@ -49,7 +48,8 @@ class TestWhyReRegisteringCannotHelp:
         assert "listening" not in quelle, (
             "Die Bibliothek setzt `listening` jetzt zurueck — dann liesse sich "
             "der Hook doch im Prozess erneuern und der Neustart-Knopf braeuchte "
-            "eine neue Begruendung.")
+            "eine neue Begruendung."
+        )
 
     def test_adding_a_hotkey_goes_through_start_if_necessary(self):
         quelle = inspect.getsource(keyboard.hook)

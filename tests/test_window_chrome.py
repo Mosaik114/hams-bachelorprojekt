@@ -18,8 +18,7 @@ from source_code import ui_kit_source
 from wisper import ui_kit as uk
 from wisper.ui_kit import window as window_mod
 
-windows_only = pytest.mark.skipif(sys.platform != "win32",
-                                  reason="DWM und Fensterregionen gibt es nur unter Windows")
+windows_only = pytest.mark.skipif(sys.platform != "win32", reason="DWM und Fensterregionen gibt es nur unter Windows")
 
 
 class TestWindowsBuild:
@@ -45,7 +44,7 @@ class TestCornerPath:
             window.destroy()
 
     def test_falls_back_to_region_on_older_windows(self, root, monkeypatch):
-        monkeypatch.setattr(window_mod, "_windows_build", lambda: 19045)   # Windows 10
+        monkeypatch.setattr(window_mod, "_windows_build", lambda: 19045)  # Windows 10
         window = tk.Toplevel(root)
         window.overrideredirect(True)
         window.geometry("200x120+400+400")
@@ -57,13 +56,25 @@ class TestCornerPath:
 
     def test_falls_back_when_dwm_reports_failure(self, root, monkeypatch):
         """Meldet DWM einen Fehler, greift der alte Weg — kein Absturz."""
+
         class _Failing:
             def DwmSetWindowAttribute(self, *_args):
-                return -2147024891      # E_ACCESSDENIED
+                return -2147024891  # E_ACCESSDENIED
 
-        monkeypatch.setattr(ctypes, "windll", type(
-            "W", (), {"dwmapi": _Failing(), "user32": ctypes.windll.user32,
-                      "gdi32": ctypes.windll.gdi32, "ntdll": ctypes.windll.ntdll})())
+        monkeypatch.setattr(
+            ctypes,
+            "windll",
+            type(
+                "W",
+                (),
+                {
+                    "dwmapi": _Failing(),
+                    "user32": ctypes.windll.user32,
+                    "gdi32": ctypes.windll.gdi32,
+                    "ntdll": ctypes.windll.ntdll,
+                },
+            )(),
+        )
         window = tk.Toplevel(root)
         window.overrideredirect(True)
         window.geometry("200x120+400+400")
@@ -106,10 +117,20 @@ class TestNoDoubleMechanism:
 
                 return wrapper
 
-        monkeypatch.setattr(ctypes, "windll", type(
-            "W", (), {"user32": _Spy(), "dwmapi": ctypes.windll.dwmapi,
-                      "gdi32": ctypes.windll.gdi32,
-                      "ntdll": ctypes.windll.ntdll})())
+        monkeypatch.setattr(
+            ctypes,
+            "windll",
+            type(
+                "W",
+                (),
+                {
+                    "user32": _Spy(),
+                    "dwmapi": ctypes.windll.dwmapi,
+                    "gdi32": ctypes.windll.gdi32,
+                    "ntdll": ctypes.windll.ntdll,
+                },
+            )(),
+        )
         window = tk.Toplevel(root)
         window.overrideredirect(True)
         window.geometry("200x120+400+400")
@@ -128,10 +149,7 @@ class TestDocumentedLimits:
     @staticmethod
     def _code_lines() -> str:
         """Nur echte Codezeilen — im Kommentar stehen die Namen absichtlich."""
-        lines = [
-            line for line in ui_kit_source().splitlines()
-            if not line.lstrip().startswith("#")
-        ]
+        lines = [line for line in ui_kit_source().splitlines() if not line.lstrip().startswith("#")]
         return chr(10).join(lines)
 
     def test_no_border_colour_call(self):
@@ -139,8 +157,7 @@ class TestDocumentedLimits:
 
     def test_no_shadow_hacks(self):
         code = self._code_lines()
-        for forbidden in ("DwmExtendFrameIntoClientArea", "CS_DROPSHADOW",
-                          "ACCENT_ENABLE_ACRYLIC", "transparentcolor"):
+        for forbidden in ("DwmExtendFrameIntoClientArea", "CS_DROPSHADOW", "ACCENT_ENABLE_ACRYLIC", "transparentcolor"):
             assert forbidden not in code, f"{forbidden} sollte nicht verwendet werden"
 
     def test_limits_are_documented(self):

@@ -87,7 +87,7 @@ def plain_text(value: str) -> str:
         text = fence.group("body").strip()
     for pattern in _EMPHASIS_RES:
         previous = None
-        while previous != text:      # geschachtelte Klammern aufloesen
+        while previous != text:  # geschachtelte Klammern aufloesen
             previous = text
             text = pattern.sub(r"\g<text>", text)
     return text
@@ -158,9 +158,7 @@ class TranscriptionMixin:
                         total_len = sum(len(c) for c in chunks)
                         self.root.after(
                             0,
-                            lambda n=total_len: self.elapsed_label.config(
-                                text=f"{n} Zeichen"
-                            ),
+                            lambda n=total_len: self.elapsed_label.config(text=f"{n} Zeichen"),
                         )
             return "".join(chunks).strip()
 
@@ -221,9 +219,7 @@ class TranscriptionMixin:
     def _warmup_ollama_async(self) -> None:
         if not CFG.ollama_warmup_on_start:
             return
-        threading.Thread(
-            target=self._warmup_ollama, daemon=True, name="ollama-warmup"
-        ).start()
+        threading.Thread(target=self._warmup_ollama, daemon=True, name="ollama-warmup").start()
 
     def _warmup_ollama(self) -> None:
         """Lädt das Cleanup-Modell proaktiv in den VRAM, damit der erste
@@ -232,12 +228,14 @@ class TranscriptionMixin:
             return
         model = CFG.ollama_model_cleanup
         try:
-            payload = json.dumps({
-                "model": model,
-                "prompt": "",
-                "stream": False,
-                "keep_alive": CFG.ollama_keep_alive,
-            }).encode()
+            payload = json.dumps(
+                {
+                    "model": model,
+                    "prompt": "",
+                    "stream": False,
+                    "keep_alive": CFG.ollama_keep_alive,
+                }
+            ).encode()
             req = urllib.request.Request(
                 CFG.ollama_url,
                 data=payload,
@@ -294,15 +292,16 @@ class TranscriptionMixin:
                 # Kontext fliesst — `condition_on_previous_text` ist aus. Sonst
                 # waere die parallele Auswertung nicht dasselbe Ergebnis.
                 segments, _ = BatchedInferencePipeline(model=model).transcribe(
-                    _normalize_audio(audio), batch_size=BATCH_SIZE, **optionen)
+                    _normalize_audio(audio), batch_size=BATCH_SIZE, **optionen
+                )
             else:
                 segments, _ = model.transcribe(_normalize_audio(audio), **optionen)
             return " ".join(segment.text.strip() for segment in segments).strip()
         except Exception:
             logger.exception("Whisper transcription failed")
-            self.root.after(0, lambda: self._apply_state(
-                "error", "Transkription fehlgeschlagen",
-                "Einzelheiten stehen im Log."))
+            self.root.after(
+                0, lambda: self._apply_state("error", "Transkription fehlgeschlagen", "Einzelheiten stehen im Log.")
+            )
             self._prompt_mode = False
             return None
 
@@ -320,16 +319,24 @@ class TranscriptionMixin:
         # wirklich, und dann sagt die Statuszeile auch, worauf.
         if not self.model_ready.is_set():
             logger.info("Aufnahme wartet auf das Modell")
-            self.root.after(0, lambda: self._apply_state(
-                "transcribing", "Modell wird noch geladen …",
-                "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
-            ))
+            self.root.after(
+                0,
+                lambda: self._apply_state(
+                    "transcribing",
+                    "Modell wird noch geladen …",
+                    "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
+                ),
+            )
             if not self._await_model(time.monotonic() + MODEL_WAIT_SECONDS):
                 logger.error("Kein Modell fuer eine fertige Aufnahme verfuegbar")
-                self.root.after(0, lambda: self._apply_state(
-                    "error", "Modell nicht verfügbar",
-                    "Die Aufnahme liess sich nicht auswerten.",
-                ))
+                self.root.after(
+                    0,
+                    lambda: self._apply_state(
+                        "error",
+                        "Modell nicht verfügbar",
+                        "Die Aufnahme liess sich nicht auswerten.",
+                    ),
+                )
                 self._prompt_mode = False
                 return
             self.root.after(0, lambda: self._apply_state("transcribing"))
@@ -339,8 +346,7 @@ class TranscriptionMixin:
         with self._transcribe_lock:
             model = self.current_model()
             if model is None:
-                self.root.after(0, lambda: self._apply_state(
-                    "error", "Kein Modell geladen", "Versuch es erneut."))
+                self.root.after(0, lambda: self._apply_state("error", "Kein Modell geladen", "Versuch es erneut."))
                 self._prompt_mode = False
                 return
             text = self._run_transcription(model, audio)
@@ -349,10 +355,14 @@ class TranscriptionMixin:
         try:
             if not text:
                 logger.info("Transcription returned empty text")
-                self.root.after(0, lambda: self._apply_state(
-                    "no_signal", "Keine Sprache erkannt",
-                    "Die Aufnahme enthielt keine verständlichen Wörter.",
-                ))
+                self.root.after(
+                    0,
+                    lambda: self._apply_state(
+                        "no_signal",
+                        "Keine Sprache erkannt",
+                        "Die Aufnahme enthielt keine verständlichen Wörter.",
+                    ),
+                )
                 return
 
             logger.info("Transcribed %d chars (prompt_mode=%s)", len(text), was_prompt_mode)
@@ -363,10 +373,14 @@ class TranscriptionMixin:
                     text = self._generate_from_prompt(text)
                 except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
                     logger.exception("Ollama prompt-generation failed")
-                    self.root.after(0, lambda: self._apply_state(
-                        "error", "KI-Antwort fehlgeschlagen",
-                        "Ollama antwortet nicht. Läuft der Dienst?",
-                    ))
+                    self.root.after(
+                        0,
+                        lambda: self._apply_state(
+                            "error",
+                            "KI-Antwort fehlgeschlagen",
+                            "Ollama antwortet nicht. Läuft der Dienst?",
+                        ),
+                    )
                     return
             elif CFG.ollama_cleanup_enabled:
                 self.root.after(0, lambda: self._apply_state("cleaning"))
@@ -374,8 +388,7 @@ class TranscriptionMixin:
                     text = self._cleanup_text(text)
                 except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
                     logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
-                    self.root.after(0, lambda: self._apply_state(
-                        "done", "Eingefügt · ohne Bereinigung"))
+                    self.root.after(0, lambda: self._apply_state("done", "Eingefügt · ohne Bereinigung"))
             # else: Cleanup deaktiviert — Roh-Transkript direkt nutzen.
 
             # Einfügen zuerst, Datei im Hintergrund speichern → kein Disk-I/O vor dem Paste.
@@ -390,9 +403,13 @@ class TranscriptionMixin:
             self.root.after(0, lambda: self._apply_state("done"))
         except Exception:
             logger.exception("Transcription pipeline failed")
-            self.root.after(0, lambda: self._apply_state(
-                "error", "Transkription fehlgeschlagen",
-                "Einzelheiten stehen im Log.",
-            ))
+            self.root.after(
+                0,
+                lambda: self._apply_state(
+                    "error",
+                    "Transkription fehlgeschlagen",
+                    "Einzelheiten stehen im Log.",
+                ),
+            )
         finally:
             self._prompt_mode = False

@@ -26,8 +26,7 @@ TRAY_PALETTE = Theme.palette(Theme.DARK)
 
 
 # Unter Linux geht die Meldung über einen Socket (linux.notify_search).
-_DOT_MSG = (ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand")
-            if sys.platform == "win32" else 0)
+_DOT_MSG = ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand") if sys.platform == "win32" else 0
 
 
 def _notify_cursor_dot(state: str, level: float | None = None) -> None:
@@ -40,6 +39,7 @@ def _notify_cursor_dot(state: str, level: float | None = None) -> None:
     """
     if sys.platform != "win32":
         from wisper import linux
+
         linux.notify_search({"recording": 1, "recording_prompt": 2}.get(state, 0), level)
         return
     if not _DOT_MSG:
@@ -73,8 +73,7 @@ class TrayMixin:
 
     def _setup_tray(self) -> None:
         image = _create_tray_icon_image()
-        self.tray_icon = pystray.Icon(branding.PRODUCT_NAME, image,
-                                      self._tray_tooltip(), self._build_tray_menu())
+        self.tray_icon = pystray.Icon(branding.PRODUCT_NAME, image, self._tray_tooltip(), self._build_tray_menu())
         threading.Thread(target=self.tray_icon.run, daemon=True, name="tray").start()
 
     def _apply_window_icon(self) -> None:
@@ -90,7 +89,7 @@ class TrayMixin:
         if icon is not None:
             try:
                 self.root.iconbitmap(default=str(icon))
-            except tk.TclError:      # pragma: no cover - ICO nicht annehmbar
+            except tk.TclError:  # pragma: no cover - ICO nicht annehmbar
                 logger.warning("Fenstersymbol %s abgelehnt", icon, exc_info=True)
         image = branding.app_icon_image(64) or _create_tray_icon_image()
         self._tk_icon = ImageTk.PhotoImage(image)
@@ -127,6 +126,7 @@ class TrayMixin:
         Die geschlossene Variable hier hält den Index, ohne ihn in die Signatur
         zu schreiben.
         """
+
         def activate(_icon, _item) -> None:
             self._copy_history_entry(index)
 
@@ -183,10 +183,13 @@ class TrayMixin:
             self._ui_call(lambda: self._apply_state("done", "Aus Verlauf kopiert"))
         except pyperclip.PyperclipException:
             logger.exception("Clipboard copy from history failed")
-            self._ui_call(lambda: self._apply_state(
-                "error", "Zwischenablage nicht verfügbar",
-                "Ein anderes Programm blockiert sie gerade. Versuch es erneut.",
-            ))
+            self._ui_call(
+                lambda: self._apply_state(
+                    "error",
+                    "Zwischenablage nicht verfügbar",
+                    "Ein anderes Programm blockiert sie gerade. Versuch es erneut.",
+                )
+            )
 
     def _add_to_history(self, text: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")

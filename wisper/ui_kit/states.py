@@ -90,7 +90,7 @@ class ControlStyle:
             # traegt den Zustand, `ON_FILL` den Text (5,28:1 / 6,31:1).
             State.ERROR: ("ERROR_SURFACE", "ON_FILL"),
         },
-        "plain": {   # Icon-Buttons und Zeilen: ohne Flaeche im Ruhezustand
+        "plain": {  # Icon-Buttons und Zeilen: ohne Flaeche im Ruhezustand
             State.DEFAULT: (None, "TEXT_SECONDARY"),
             State.HOVER: ("CONTROL_SURFACE", "TEXT_PRIMARY"),
             State.PRESSED: ("GROUP_SURFACE", "TEXT_PRIMARY"),
@@ -121,8 +121,8 @@ class ControlStyle:
 
     #: Der Fokusring ist immer der Akzentton des aktiven Modus.
     FOCUS_RING_TOKEN = "ACCENT_TINT"
-    RING_WIDTH = 2      # logisch
-    RING_GAP = 2        # logisch
+    RING_WIDTH = 2  # logisch
+    RING_GAP = 2  # logisch
 
     @classmethod
     def roles(cls) -> list[str]:
@@ -190,7 +190,7 @@ class StateMixin:
     def ring(self) -> str | None:
         return ControlStyle.ring_colour(self._states)
 
-    def on_state_change(self) -> None:      # pragma: no cover - überschrieben
+    def on_state_change(self) -> None:  # pragma: no cover - überschrieben
         """Wird bei jeder Zustandsänderung gerufen; Controls zeichnen hier neu."""
 
 
@@ -242,7 +242,7 @@ class FocusMixin:
     def _on_activate_key(self, _event=None) -> str:
         if State.is_interactive(self._states) and self._activate is not None:
             self._activate()
-        return "break"      # verhindert, dass Tk die Taste weiterreicht
+        return "break"  # verhindert, dass Tk die Taste weiterreicht
 
 
 def focus_chain(window: tk.Misc, limit: int = 60) -> list:
@@ -261,13 +261,13 @@ def focus_chain(window: tk.Misc, limit: int = 60) -> list:
     for _ in range(limit):
         try:
             name = window.tk.call("tk_focusNext", current)
-        except tk.TclError:      # pragma: no cover - Fenster verschwindet gerade
+        except tk.TclError:  # pragma: no cover - Fenster verschwindet gerade
             break
         if not name:
             break
         widget = window.nametowidget(name)
         if widget in chain:
-            break               # einmal herum
+            break  # einmal herum
         chain.append(widget)
         current = widget
     return chain
@@ -283,5 +283,5 @@ def return_focus_to(widget: tk.Misc | None) -> None:
     try:
         if widget.winfo_exists():
             widget.focus_set()
-    except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+    except tk.TclError:  # pragma: no cover - Widget bereits zerstört
         pass

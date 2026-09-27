@@ -20,11 +20,13 @@ def _acquire_single_instance_mutex() -> int | None:
     global _MUTEX_HANDLE
     if sys.platform != "win32":
         from wisper import linux
+
         if not linux.acquire_lock():
             return None
         _MUTEX_HANDLE = 1
         return _MUTEX_HANDLE
     from ctypes import wintypes
+
     kernel32 = ctypes.windll.kernel32
     kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
     kernel32.CreateMutexW.restype = wintypes.HANDLE
@@ -48,6 +50,7 @@ def _release_single_instance_mutex() -> bool:
         return True
     if sys.platform != "win32":
         from wisper import linux
+
         if not linux.release_lock():
             return False
         _MUTEX_HANDLE = None

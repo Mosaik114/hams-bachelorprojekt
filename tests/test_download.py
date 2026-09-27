@@ -57,7 +57,7 @@ class TestProgressBar:
         """Der Hub addiert aus acht Threads ohne Sperre auf `total`."""
         bar = models._ProgressBar(total=0)
         bar.total += 78_000_000
-        bar.total = 76_000_000      # veralteter Schreibvorgang
+        bar.total = 76_000_000  # veralteter Schreibvorgang
         assert bar.total == 78_000_000
 
     def test_total_can_grow_from_outside(self):
@@ -86,9 +86,11 @@ class TestProgressBar:
         values = []
         models._ProgressBar.report = lambda done, _t: values.append(done)
         bar = models._ProgressBar(total=8000)
+
         def worker():
             for _ in range(100):
                 bar.update(10)
+
         threads = [threading.Thread(target=worker) for _ in range(8)]
         for thread in threads:
             thread.start()
@@ -119,11 +121,11 @@ class TestProgressBar:
 
 class TestSpace:
     def test_enough_space_is_no_obstacle(self, monkeypatch):
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
         assert models.ModelDownloader().check_space(LARGE) == ""
 
     def test_too_little_space_is_named(self, monkeypatch):
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 1024 ** 3)
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 1024**3)
         message = models.ModelDownloader().check_space(LARGE)
         assert "Speicherplatz" in message and "GB" in message
 
@@ -158,12 +160,11 @@ def fake_hub(monkeypatch, behaviour):
 
 def run_download(monkeypatch, behaviour, downloader=None, info=TINY):
     downloader = downloader or models.ModelDownloader()
-    monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
+    monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
     fake_hub(monkeypatch, behaviour)
     progress, finished = [], []
     downloader.REPORT_INTERVAL = 0.0
-    problem = downloader.start(info, lambda d, t: progress.append((d, t)),
-                               lambda mid, err: finished.append((mid, err)))
+    problem = downloader.start(info, lambda d, t: progress.append((d, t)), lambda mid, err: finished.append((mid, err)))
     if not problem:
         downloader._thread.join(timeout=10)
     return downloader, problem, progress, finished
@@ -184,10 +185,10 @@ class TestDownloader:
     def test_allow_patterns_limit_the_download(self, monkeypatch):
         """Ohne diese Liste zieht der Hub das ganze Repository."""
         import huggingface_hub
+
         seen = {}
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
-        monkeypatch.setattr(huggingface_hub, "snapshot_download",
-                            lambda repo_id, **kw: seen.update(kw, repo=repo_id))
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
+        monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda repo_id, **kw: seen.update(kw, repo=repo_id))
         downloader = models.ModelDownloader()
         downloader.start(TINY, lambda *_a: None, lambda *_a: None)
         downloader._thread.join(timeout=10)
@@ -201,16 +202,15 @@ class TestDownloader:
         def behaviour(bar_class):
             bar = bar_class(total=10_000, unit="B")
             for _ in range(100):
-                bar.update(100)          # bricht mittendrin ab
+                bar.update(100)  # bricht mittendrin ab
                 time.sleep(0.005)
 
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
         fake_hub(monkeypatch, behaviour)
         finished = []
         started = threading.Event()
         downloader.REPORT_INTERVAL = 0.0
-        downloader.start(TINY, lambda d, t: started.set(),
-                         lambda mid, err: finished.append((mid, err)))
+        downloader.start(TINY, lambda d, t: started.set(), lambda mid, err: finished.append((mid, err)))
         assert started.wait(timeout=5)
         downloader.cancel()
         downloader._thread.join(timeout=5)
@@ -219,11 +219,12 @@ class TestDownloader:
 
     def test_cancel_wins_over_a_wrapped_exception(self, monkeypatch):
         """Der Abbruch kommt aus einem Arbeitsthread oft eingepackt zurueck."""
+
         def behaviour(bar_class):
             raise RuntimeError("A future raised: DownloadCancelled")
 
         downloader = models.ModelDownloader()
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
         fake_hub(monkeypatch, behaviour)
         downloader._cancel = threading.Event()
         downloader._cancel.set()
@@ -258,7 +259,7 @@ class TestDownloader:
         def behaviour(_bar_class):
             release.wait(timeout=5)
 
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
         fake_hub(monkeypatch, behaviour)
         downloader = models.ModelDownloader()
         assert downloader.start(TINY, lambda *_a: None, lambda *_a: None) == ""
@@ -277,23 +278,31 @@ class TestDownloader:
 
 
 class TestErrorTexts:
-    @pytest.mark.parametrize("exc,expected", [
-        (ConnectionError("connection reset"), "Keine Verbindung zum Modell-Server"),
-        (TimeoutError("Read timed out"), "Keine Verbindung zum Modell-Server"),
-        (OSError("getaddrinfo failed"), "Keine Verbindung zum Modell-Server"),
-        (PermissionError("denied"), "Kein Schreibrecht im Modellordner"),
-        (ValueError("404 Client Error"), "Modell nicht gefunden"),
-        (RuntimeError("irgendwas"), "Download fehlgeschlagen"),
-    ])
+    @pytest.mark.parametrize(
+        "exc,expected",
+        [
+            (ConnectionError("connection reset"), "Keine Verbindung zum Modell-Server"),
+            (TimeoutError("Read timed out"), "Keine Verbindung zum Modell-Server"),
+            (OSError("getaddrinfo failed"), "Keine Verbindung zum Modell-Server"),
+            (PermissionError("denied"), "Kein Schreibrecht im Modellordner"),
+            (ValueError("404 Client Error"), "Modell nicht gefunden"),
+            (RuntimeError("irgendwas"), "Download fehlgeschlagen"),
+        ],
+    )
     def test_every_text_is_actionable(self, exc, expected):
         assert models._describe_download_error(exc) == expected
 
 
 class TestFormatBytes:
-    @pytest.mark.parametrize("value,expected", [
-        (0, "0 B"), (512, "512 B"), (148_000_000, "148 MB"),
-        (1_600_000_000, "1,6 GB"),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (0, "0 B"),
+            (512, "512 B"),
+            (148_000_000, "148 MB"),
+            (1_600_000_000, "1,6 GB"),
+        ],
+    )
     def test_sizes_read_naturally(self, value, expected):
         assert models.format_bytes(value) == expected
 
@@ -304,12 +313,15 @@ class TestFormatBytes:
 
 
 class TestFormatProgress:
-    @pytest.mark.parametrize("done,total,expected", [
-        (13_000_000, 78_000_000, "13/78 MB"),
-        (800_000_000, 1_600_000_000, "0,8/1,6 GB"),
-        (0, 78_000_000, "0/78 MB"),
-        (500, 1000, "500/1000 B"),
-    ])
+    @pytest.mark.parametrize(
+        "done,total,expected",
+        [
+            (13_000_000, 78_000_000, "13/78 MB"),
+            (800_000_000, 1_600_000_000, "0,8/1,6 GB"),
+            (0, 78_000_000, "0/78 MB"),
+            (500, 1000, "500/1000 B"),
+        ],
+    )
     def test_both_numbers_share_a_unit(self, done, total, expected):
         assert models.format_progress(done, total) == expected
 
@@ -339,8 +351,7 @@ def app(monkeypatch):
     instance.settings_win = None
     instance._shutting_down = False
     instance.switched = []
-    monkeypatch.setattr(App, "switch_model",
-                        lambda self, model_id: self.switched.append(model_id) or True)
+    monkeypatch.setattr(App, "switch_model", lambda self, model_id: self.switched.append(model_id) or True)
     return instance
 
 
@@ -356,7 +367,7 @@ class TestAppDownload:
         """Der Hub meldet neue Dateien nach — ohne Sperre liefe der Wert zurueck."""
         app._on_download_progress(500, 1000)
         assert app.download_percent == 50
-        app._on_download_progress(600, 4000)      # neue Datei angemeldet
+        app._on_download_progress(600, 4000)  # neue Datei angemeldet
         assert app.download_percent == 50
 
     def test_percent_stops_at_99_before_the_end(self, app):
@@ -386,7 +397,7 @@ class TestAppDownload:
     def test_downloading_model_reflects_the_service(self, app, monkeypatch):
         assert app.downloading_model is None
         release = threading.Event()
-        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024 ** 3)
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
         fake_hub(monkeypatch, lambda _b: release.wait(timeout=5))
         app.start_download("tiny")
         assert app.downloading_model == "tiny"
@@ -529,7 +540,7 @@ class TestSettingsDownload:
     def test_progress_without_a_known_total(self, config):
         window = _StubWindow()
         window._begin_download("tiny")
-        window.on_download_progress(1024 ** 2, 0, 0)
+        window.on_download_progress(1024**2, 0, 0)
         assert "geladen" in window.row_model.description
 
     def test_progress_is_ignored_without_a_download(self, config):

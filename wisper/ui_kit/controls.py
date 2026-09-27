@@ -35,22 +35,20 @@ class StatusDot(tk.Canvas):
         "error": "ERROR",
     }
 
-    SIZE_MAIN = 7       # logisch, Statuszeile im Hauptfenster
-    SIZE_ROW = 6        # logisch, Unterzeile einer Einstellungszeile
+    SIZE_MAIN = 7  # logisch, Statuszeile im Hauptfenster
+    SIZE_ROW = 6  # logisch, Unterzeile einer Einstellungszeile
 
     #: Kurzer Farbwechsel. Der Text daneben springt sofort — nur der Punkt
     #: blendet, sonst wirkte die ganze Statuszeile weich und ungenau.
     CROSSFADE_MS = 130
 
-    def __init__(self, master: tk.Misc, *, bg_under: str,
-                 size: int = SIZE_MAIN, status: str = "idle") -> None:
+    def __init__(self, master: tk.Misc, *, bg_under: str, size: int = SIZE_MAIN, status: str = "idle") -> None:
         self._logical = size
         self._bg_under = bg_under
         self._status = status
         self._colour = self.colour(status)
         side = px(size)
-        super().__init__(master, width=side, height=side, bg=bg_under,
-                         bd=0, highlightthickness=0)
+        super().__init__(master, width=side, height=side, bg=bg_under, bd=0, highlightthickness=0)
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
         self._draw()
@@ -65,8 +63,8 @@ class StatusDot(tk.Canvas):
             raise KeyError(f"Unbekannter Status: {status!r}")
         if status == self._status:
             return
-        previous = self._colour      # die *gezeichnete* Farbe, nicht die Zielfarbe:
-        self._status = status        # ein Wechsel mitten im Lauf setzt hier an
+        previous = self._colour  # die *gezeichnete* Farbe, nicht die Zielfarbe:
+        self._status = status  # ein Wechsel mitten im Lauf setzt hier an
         target = self.colour(status)
 
         def step(fraction: float) -> None:
@@ -88,7 +86,7 @@ class StatusDot(tk.Canvas):
             side = px(self._logical)
             self.configure(width=side, height=side)
             self._draw()
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
 
     def _on_theme_change(self) -> None:
@@ -103,7 +101,7 @@ class StatusDot(tk.Canvas):
         self._colour = self.colour(self._status)
         try:
             self.configure(bg=self._bg_under)
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             return
         self._draw()
 
@@ -111,7 +109,7 @@ class StatusDot(tk.Canvas):
         self.delete("all")
         side = px(self._logical)
         image = surface(side, side, Radius.pill(side), self._colour)
-        self._image = image      # Referenz halten, sonst räumt Tk sie ab
+        self._image = image  # Referenz halten, sonst räumt Tk sie ab
         self.create_image(0, 0, anchor="nw", image=image)
 
 
@@ -132,8 +130,7 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
     #: Gleitdauer des Knopfes. Darüber wirkt der Schalter träge.
     ANIM_MS = 170
 
-    def __init__(self, master: tk.Misc, *, bg_under: str, value: bool,
-                 command: Callable[[bool], None]) -> None:
+    def __init__(self, master: tk.Misc, *, bg_under: str, value: bool, command: Callable[[bool], None]) -> None:
         self._bg_under = bg_under
         self._value = value
         self._command = command
@@ -142,8 +139,9 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         self._progress = 1.0 if value else 0.0
         side = (px(self.WIDTH), px(self.HEIGHT))
         ring = 2 * (px(ControlStyle.RING_WIDTH) + px(ControlStyle.RING_GAP))
-        super().__init__(master, width=side[0] + ring, height=side[1] + ring,
-                         bg=bg_under, bd=0, highlightthickness=0, cursor="hand2")
+        super().__init__(
+            master, width=side[0] + ring, height=side[1] + ring, bg=bg_under, bd=0, highlightthickness=0, cursor="hand2"
+        )
         self.init_states("secondary")
         self.init_focus(self.toggle)
         self.bind("<Enter>", lambda _e: self.enabled and self.set_state(State.HOVER, True), add="+")
@@ -216,7 +214,7 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
             ring = 2 * (px(ControlStyle.RING_WIDTH) + px(ControlStyle.RING_GAP))
             self.configure(width=px(self.WIDTH) + ring, height=px(self.HEIGHT) + ring)
             self._draw()
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def on_state_change(self) -> None:
@@ -232,7 +230,7 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         self._bg_under = Theme.remap(self._bg_under)
         try:
             self.configure(bg=self._bg_under)
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             return
         self._draw()
 
@@ -260,11 +258,16 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         # sitzt. Eingeschaltet trägt die Akzentfläche selbst mindestens 3:1,
         # dann verschwindet der Umriss in ihr.
         track = surface(
-            width + 2 * pad, height + 2 * pad, Radius.pill(height),
-            self._track_colour(), squircle=False,
+            width + 2 * pad,
+            height + 2 * pad,
+            Radius.pill(height),
+            self._track_colour(),
+            squircle=False,
             border=blend(Theme.CONTROL_OUTLINE, Theme.ACCENT_TINT, self._progress),
             border_w=max(1, px(1)),
-            ring=self.ring(), ring_width=ring_w, ring_gap=ring_gap,
+            ring=self.ring(),
+            ring_width=ring_w,
+            ring_gap=ring_gap,
         )
         self._track_image = track
         self.create_image(0, 0, anchor="nw", image=track)
@@ -272,9 +275,12 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         inset = px(self.INSET)
         knob_size = height - 2 * inset
         knob = surface(
-            knob_size, knob_size, Radius.pill(knob_size),
+            knob_size,
+            knob_size,
+            Radius.pill(knob_size),
             Theme.KNOB if self.enabled else Theme.TEXT_TERTIARY,
-            squircle=False, shadow=(1.2, 0.6, 0.35),
+            squircle=False,
+            shadow=(1.2, 0.6, 0.35),
         )
         self._knob_image = knob
         left = pad + inset
@@ -292,17 +298,15 @@ class SignalMeter(tk.Canvas):
     Bereit-Grün, darüber Warnung, ab 82 % Fehler.
     """
 
-    HEIGHT = 6             # logisch
+    HEIGHT = 6  # logisch
 
-    def __init__(self, master: tk.Misc, *, bg_under: str,
-                 height: int = HEIGHT) -> None:
+    def __init__(self, master: tk.Misc, *, bg_under: str, height: int = HEIGHT) -> None:
         self._bg_under = bg_under
         self._logical_height = height
         self._level = 0.0
         self._last_width = 0
         self._images: list = []
-        super().__init__(master, height=px(height), bg=bg_under, bd=0,
-                         highlightthickness=0)
+        super().__init__(master, height=px(height), bg=bg_under, bd=0, highlightthickness=0)
         self.bind("<Configure>", self._on_configure, add="+")
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
@@ -334,7 +338,7 @@ class SignalMeter(tk.Canvas):
         try:
             self.configure(height=px(self._logical_height))
             self._draw()
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:
@@ -345,7 +349,7 @@ class SignalMeter(tk.Canvas):
         self._bg_under = Theme.remap(self._bg_under)
         try:
             self.configure(bg=self._bg_under)
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             return
         self._draw()
 
@@ -364,8 +368,7 @@ class SignalMeter(tk.Canvas):
             return
         height = px(self._logical_height)
         radius = Radius.pill(height)
-        track = surface(self._last_width, height, radius, Theme.CONTROL_SURFACE,
-                        squircle=False)
+        track = surface(self._last_width, height, radius, Theme.CONTROL_SURFACE, squircle=False)
         self._images.append(track)
         self.create_image(0, 0, anchor="nw", image=track)
         filled = self.filled_width
@@ -379,8 +382,7 @@ class SignalMeter(tk.Canvas):
             self._images.append(cap)
             half = height / 2
             if filled > height:
-                self.create_rectangle(half, 0, filled - half, height,
-                                      fill=colour, outline="")
+                self.create_rectangle(half, 0, filled - half, height, fill=colour, outline="")
             self.create_image(0, 0, anchor="nw", image=cap)
             self.create_image(filled - height, 0, anchor="nw", image=cap)
 
@@ -389,15 +391,34 @@ class SignalMeter(tk.Canvas):
 
 #: Tastennamen, wie sie auf einer deutschen Tastatur stehen.
 KEY_NAMES = {
-    "ctrl": "Strg", "control": "Strg", "strg": "Strg",
-    "shift": "Umschalt", "alt": "Alt", "altgr": "AltGr",
-    "win": "Win", "windows": "Win", "cmd": "Win", "super": "Win",
-    "space": "Leertaste", "enter": "Eingabe", "return": "Eingabe",
-    "esc": "Esc", "escape": "Esc", "tab": "Tab",
-    "backspace": "Rücktaste", "delete": "Entf", "del": "Entf",
-    "insert": "Einfg", "home": "Pos1", "end": "Ende",
-    "page up": "Bild auf", "page down": "Bild ab",
-    "up": "↑", "down": "↓", "left": "←", "right": "→",
+    "ctrl": "Strg",
+    "control": "Strg",
+    "strg": "Strg",
+    "shift": "Umschalt",
+    "alt": "Alt",
+    "altgr": "AltGr",
+    "win": "Win",
+    "windows": "Win",
+    "cmd": "Win",
+    "super": "Win",
+    "space": "Leertaste",
+    "enter": "Eingabe",
+    "return": "Eingabe",
+    "esc": "Esc",
+    "escape": "Esc",
+    "tab": "Tab",
+    "backspace": "Rücktaste",
+    "delete": "Entf",
+    "del": "Entf",
+    "insert": "Einfg",
+    "home": "Pos1",
+    "end": "Ende",
+    "page up": "Bild auf",
+    "page down": "Bild ab",
+    "up": "↑",
+    "down": "↓",
+    "left": "←",
+    "right": "→",
 }
 
 
@@ -435,8 +456,7 @@ class KeyCombo(tk.Canvas):
         self._bg_under = bg_under
         self._labels = key_labels(combo)
         self._images: list = []
-        super().__init__(master, height=px(Height.KEYCAP), width=1, bg=bg_under,
-                         bd=0, highlightthickness=0)
+        super().__init__(master, height=px(Height.KEYCAP), width=1, bg=bg_under, bd=0, highlightthickness=0)
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
         self._draw()
@@ -466,7 +486,7 @@ class KeyCombo(tk.Canvas):
     def _on_scale_change(self, _factor: float) -> None:
         try:
             self._draw()
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:
@@ -477,7 +497,7 @@ class KeyCombo(tk.Canvas):
         self._bg_under = Theme.remap(self._bg_under)
         try:
             self.configure(bg=self._bg_under)
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             return
         self._draw()
 
@@ -488,8 +508,7 @@ class KeyCombo(tk.Canvas):
         height = px(Height.KEYCAP)
         self.configure(width=max(1, self.natural_width()), height=height)
         if not self._labels:
-            self.create_text(0, height // 2, anchor="w", text=self.EMPTY,
-                             font=tk_font, fill=Theme.TEXT_TERTIARY)
+            self.create_text(0, height // 2, anchor="w", text=self.EMPTY, font=tk_font, fill=Theme.TEXT_TERTIARY)
             return
         x = 0
         for label in self._labels:
@@ -497,6 +516,7 @@ class KeyCombo(tk.Canvas):
             chip = surface(width, height, px(Radius.KEYCAP), Theme.CONTROL_SURFACE)
             self._images.append(chip)
             self.create_image(x, 0, anchor="nw", image=chip)
-            self.create_text(x + width // 2, height // 2, anchor="center",
-                             text=label, font=tk_font, fill=Theme.TEXT_PRIMARY)
+            self.create_text(
+                x + width // 2, height // 2, anchor="center", text=label, font=tk_font, fill=Theme.TEXT_PRIMARY
+            )
             x += width + px(Space.KEY_GAP)

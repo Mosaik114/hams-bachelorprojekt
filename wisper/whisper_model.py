@@ -43,10 +43,8 @@ class WhisperModelMixin:
         for device in CFG.model_device_priority:
             for compute_type in CFG.model_compute_priority.get(device, ()):
                 try:
-                    logger.info("Loading Whisper model %s on %s/%s",
-                                model_id, device, compute_type)
-                    model = WhisperModel(model_id, device=device,
-                                         compute_type=compute_type)
+                    logger.info("Loading Whisper model %s on %s/%s", model_id, device, compute_type)
+                    model = WhisperModel(model_id, device=device, compute_type=compute_type)
                     logger.info("Model ready (%s/%s)", device, compute_type)
                     return model, device, compute_type
                 except Exception as exc:
@@ -61,7 +59,9 @@ class WhisperModelMixin:
         if self.is_recording:
             self._apply_state(
                 "recording_prompt" if self._prompt_mode else "recording",
-                None, "Das Modell lässt sich während einer Aufnahme nicht wechseln.")
+                None,
+                "Das Modell lässt sich während einer Aufnahme nicht wechseln.",
+            )
             return False
         if self.is_switching_model:
             return False
@@ -70,15 +70,15 @@ class WhisperModelMixin:
         generation = self._model_generation
         self._switching_to = model_id
         label = whisper_models.find(model_id)
-        self._apply_state("model_loading",
-                          f"{label.label if label else model_id} wird geladen")
+        self._apply_state("model_loading", f"{label.label if label else model_id} wird geladen")
         self._start_switch_thread(model_id, generation)
         return True
 
     def _start_switch_thread(self, model_id: str, generation: int) -> None:
         """Eigene Methode, damit Tests den Wechsel synchron ausfuehren koennen."""
-        threading.Thread(target=self._switch_worker, args=(model_id, generation),
-                         daemon=True, name="model-switch").start()
+        threading.Thread(
+            target=self._switch_worker, args=(model_id, generation), daemon=True, name="model-switch"
+        ).start()
 
     def _switch_worker(self, model_id: str, generation: int) -> None:
         """Wechsel im Hintergrund — wartet auf eine laufende Transkription.
@@ -89,9 +89,9 @@ class WhisperModelMixin:
         kein Modell aktiv waere — deshalb der Rueckfall unten.
         """
         previous = self.active_model_size
-        with self._transcribe_lock:          # laufenden Lauf abwarten
+        with self._transcribe_lock:  # laufenden Lauf abwarten
             if generation != self._model_generation:
-                return                       # inzwischen ueberholt
+                return  # inzwischen ueberholt
             with self._model_lock:
                 self.model = None
                 self.model_ready.clear()
@@ -153,8 +153,7 @@ class WhisperModelMixin:
         self.download_done = 0
         self.download_total = info.size_bytes
         self.download_percent = 0
-        problem = self.downloader.start(info, self._on_download_progress,
-                                        self._on_download_finished)
+        problem = self.downloader.start(info, self._on_download_progress, self._on_download_finished)
         if problem:
             logger.info("Download von %s nicht gestartet: %s", model_id, problem)
         else:
@@ -186,13 +185,12 @@ class WhisperModelMixin:
             return
         try:
             self.root.after(0, callback)
-        except (tk.TclError, RuntimeError):      # pragma: no cover - Fenster ist weg
+        except (tk.TclError, RuntimeError):  # pragma: no cover - Fenster ist weg
             pass
 
     def _push_download_progress(self) -> None:
         if self.settings_win is not None and self.settings_win.alive():
-            self.settings_win.on_download_progress(
-                self.download_done, self.download_total, self.download_percent)
+            self.settings_win.on_download_progress(self.download_done, self.download_total, self.download_percent)
 
     def _after_download(self, model_id: str, error: str) -> None:
         """Nach dem Download: bei Erfolg direkt aktivieren.
@@ -229,7 +227,7 @@ class WhisperModelMixin:
 
     def _on_model_error(self) -> None:
         self._apply_state(
-            "error", "Modell konnte nicht geladen werden",
-            f"„{CFG.model_size}“ ließ sich weder auf GPU noch auf CPU laden. "
-            f"Einzelheiten stehen im Log.",
+            "error",
+            "Modell konnte nicht geladen werden",
+            f"„{CFG.model_size}“ ließ sich weder auf GPU noch auf CPU laden. Einzelheiten stehen im Log.",
         )

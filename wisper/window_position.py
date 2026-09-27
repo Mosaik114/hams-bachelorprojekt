@@ -5,7 +5,7 @@ from typing import Any
 
 from wisper import ui_kit as uk
 
-logger = logging.getLogger("wisper")   # derselbe wie config.logger; kein Import, sonst Kreis mit config
+logger = logging.getLogger("wisper")  # derselbe wie config.logger; kein Import, sonst Kreis mit config
 
 
 #: Rueckfallabstand zur Ecke der Arbeitsflaeche, in logischen Pixeln.
@@ -27,9 +27,9 @@ def _clean_coordinate(value: Any) -> int | None:
         return None
     try:
         number = int(value)
-    except (ValueError, OverflowError):      # NaN, Unendlich
+    except (ValueError, OverflowError):  # NaN, Unendlich
         return None
-    if abs(number) > 100_000:                # jenseits jedes realen Verbunds
+    if abs(number) > 100_000:  # jenseits jedes realen Verbunds
         return None
     return number
 

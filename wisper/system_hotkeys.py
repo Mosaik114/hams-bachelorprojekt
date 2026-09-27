@@ -25,24 +25,46 @@ MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
 MOD_SHIFT = 0x0004
 MOD_WIN = 0x0008
-MOD_NOREPEAT = 0x4000   # gehaltene Taste loest nicht staendig neu aus
+MOD_NOREPEAT = 0x4000  # gehaltene Taste loest nicht staendig neu aus
 
 WM_HOTKEY = 0x0312
 WM_QUIT = 0x0012
 
 _MODS = {
-    "ctrl": MOD_CONTROL, "control": MOD_CONTROL, "strg": MOD_CONTROL,
-    "shift": MOD_SHIFT, "umschalt": MOD_SHIFT,
+    "ctrl": MOD_CONTROL,
+    "control": MOD_CONTROL,
+    "strg": MOD_CONTROL,
+    "shift": MOD_SHIFT,
+    "umschalt": MOD_SHIFT,
     "alt": MOD_ALT,
-    "win": MOD_WIN, "windows": MOD_WIN, "super": MOD_WIN,
+    "win": MOD_WIN,
+    "windows": MOD_WIN,
+    "super": MOD_WIN,
 }
 
 _KEYS = {
-    "space": 0x20, "leertaste": 0x20, "enter": 0x0D, "tab": 0x09, "esc": 0x1B, "escape": 0x1B,
-    "backspace": 0x08, "insert": 0x2D, "delete": 0x2E, "home": 0x24, "end": 0x23,
-    "page up": 0x21, "pageup": 0x21, "page down": 0x22, "pagedown": 0x22,
-    "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
-    "pause": 0x13, "print screen": 0x2C, "scroll lock": 0x91,
+    "space": 0x20,
+    "leertaste": 0x20,
+    "enter": 0x0D,
+    "tab": 0x09,
+    "esc": 0x1B,
+    "escape": 0x1B,
+    "backspace": 0x08,
+    "insert": 0x2D,
+    "delete": 0x2E,
+    "home": 0x24,
+    "end": 0x23,
+    "page up": 0x21,
+    "pageup": 0x21,
+    "page down": 0x22,
+    "pagedown": 0x22,
+    "up": 0x26,
+    "down": 0x28,
+    "left": 0x25,
+    "right": 0x27,
+    "pause": 0x13,
+    "print screen": 0x2C,
+    "scroll lock": 0x91,
 }
 
 

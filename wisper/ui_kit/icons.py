@@ -53,7 +53,8 @@ def _icon_chevron(draw, unit: float, stroke: float, color: str) -> None:
     _stroke(
         draw,
         [(3.8 * unit, 6.4 * unit), (8.0 * unit, 10.2 * unit), (12.2 * unit, 6.4 * unit)],
-        stroke, color,
+        stroke,
+        color,
     )
 
 
@@ -61,7 +62,8 @@ def _icon_check(draw, unit: float, stroke: float, color: str) -> None:
     _stroke(
         draw,
         [(3.6 * unit, 8.4 * unit), (6.6 * unit, 11.4 * unit), (12.4 * unit, 4.9 * unit)],
-        stroke, color,
+        stroke,
+        color,
     )
 
 
@@ -71,7 +73,8 @@ def _icon_download(draw, unit: float, stroke: float, color: str) -> None:
     _stroke(
         draw,
         [(4.6 * unit, 8.2 * unit), (8.0 * unit, 11.6 * unit), (11.4 * unit, 8.2 * unit)],
-        stroke, color,
+        stroke,
+        color,
     )
 
 
@@ -79,7 +82,8 @@ def _icon_stop(draw, unit: float, stroke: float, color: str) -> None:
     """Gefülltes Quadrat mit leicht gerundeten Ecken."""
     draw.rounded_rectangle(
         [4.6 * unit, 4.6 * unit, 11.4 * unit, 11.4 * unit],
-        radius=stroke * 0.9, fill=color,
+        radius=stroke * 0.9,
+        fill=color,
     )
 
 
@@ -90,14 +94,19 @@ def _icon_trash(draw, unit: float, stroke: float, color: str) -> None:
     liegen sie knapp zwei Bildpunkte auseinander und laufen beim Verkleinern
     zu einem grauen Fleck zusammen; die Silhouette allein bleibt eindeutig.
     """
-    _stroke(draw, [(3.4 * unit, 5.0 * unit), (12.6 * unit, 5.0 * unit)],
-            stroke, color)
-    _stroke(draw, [(6.3 * unit, 5.0 * unit), (6.3 * unit, 3.2 * unit),
-                   (9.7 * unit, 3.2 * unit), (9.7 * unit, 5.0 * unit)],
-            stroke, color)
-    _stroke(draw, [(4.9 * unit, 5.0 * unit), (5.5 * unit, 12.8 * unit),
-                   (10.5 * unit, 12.8 * unit), (11.1 * unit, 5.0 * unit)],
-            stroke, color)
+    _stroke(draw, [(3.4 * unit, 5.0 * unit), (12.6 * unit, 5.0 * unit)], stroke, color)
+    _stroke(
+        draw,
+        [(6.3 * unit, 5.0 * unit), (6.3 * unit, 3.2 * unit), (9.7 * unit, 3.2 * unit), (9.7 * unit, 5.0 * unit)],
+        stroke,
+        color,
+    )
+    _stroke(
+        draw,
+        [(4.9 * unit, 5.0 * unit), (5.5 * unit, 12.8 * unit), (10.5 * unit, 12.8 * unit), (11.1 * unit, 5.0 * unit)],
+        stroke,
+        color,
+    )
 
 
 _ICON_PAINTERS = {
@@ -134,7 +143,7 @@ def render_icon(name: str, size: int, color: str) -> Image.Image:
     image = Image.new("RGBA", (big, big), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
 
-    unit = big / ICON_BOX                       # ein Rasterschritt in Zielpixeln
+    unit = big / ICON_BOX  # ein Rasterschritt in Zielpixeln
     stroke = ICON_STROKE * (size / ICON_BOX) * SUPERSAMPLE
     painter(draw, unit, stroke, color)
 

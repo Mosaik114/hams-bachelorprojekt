@@ -18,8 +18,16 @@ TABLE = App.STATE_TABLE
 class TestStateTable:
     def test_covers_every_documented_state(self):
         assert set(TABLE) == {
-            "model_loading", "ready", "recording", "recording_prompt",
-            "transcribing", "cleaning", "generating", "done", "error", "no_signal",
+            "model_loading",
+            "ready",
+            "recording",
+            "recording_prompt",
+            "transcribing",
+            "cleaning",
+            "generating",
+            "done",
+            "error",
+            "no_signal",
         }
 
     @pytest.mark.parametrize("state", list(TABLE))
@@ -71,8 +79,7 @@ class TestSemantics:
         assert TABLE["model_loading"][3] == "Aufnahme starten"
 
     def test_actionable_states_enable_the_button(self):
-        for state in ("model_loading", "ready", "recording", "recording_prompt",
-                      "done", "error", "no_signal"):
+        for state in ("model_loading", "ready", "recording", "recording_prompt", "done", "error", "no_signal"):
             assert TABLE[state][4] is True
 
     def test_error_offers_a_retry(self):
@@ -103,8 +110,7 @@ class TestShortcutHint:
 
     def test_keys_use_german_names(self):
         assert uk.key_labels("ctrl+shift+space") == ["Strg", "Umschalt", "Leertaste"]
-        assert uk.key_labels("ctrl+shift+alt+space") == ["Strg", "Umschalt", "Alt",
-                                                         "Leertaste"]
+        assert uk.key_labels("ctrl+shift+alt+space") == ["Strg", "Umschalt", "Alt", "Leertaste"]
 
     def test_uses_no_macos_symbols(self):
         """Hams bleibt Windows-Software — keine ⌘/⌥/⇧-Zeichen."""

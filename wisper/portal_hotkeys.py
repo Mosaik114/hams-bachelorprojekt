@@ -23,14 +23,40 @@ BUS = "org.freedesktop.portal.Desktop"
 PATH = "/org/freedesktop/portal/desktop"
 IFACE = "org.freedesktop.portal.GlobalShortcuts"
 
-_MODS = {"ctrl": "CTRL", "control": "CTRL", "strg": "CTRL", "shift": "SHIFT",
-         "umschalt": "SHIFT", "alt": "ALT", "win": "LOGO", "windows": "LOGO",
-         "super": "LOGO", "meta": "LOGO"}
-_KEYS = {"space": "space", "leertaste": "space", "enter": "Return", "tab": "Tab",
-         "esc": "Escape", "escape": "Escape", "backspace": "BackSpace",
-         "insert": "Insert", "delete": "Delete", "home": "Home", "end": "End",
-         "page up": "Prior", "pageup": "Prior", "page down": "Next", "pagedown": "Next",
-         "up": "Up", "down": "Down", "left": "Left", "right": "Right", "pause": "Pause"}
+_MODS = {
+    "ctrl": "CTRL",
+    "control": "CTRL",
+    "strg": "CTRL",
+    "shift": "SHIFT",
+    "umschalt": "SHIFT",
+    "alt": "ALT",
+    "win": "LOGO",
+    "windows": "LOGO",
+    "super": "LOGO",
+    "meta": "LOGO",
+}
+_KEYS = {
+    "space": "space",
+    "leertaste": "space",
+    "enter": "Return",
+    "tab": "Tab",
+    "esc": "Escape",
+    "escape": "Escape",
+    "backspace": "BackSpace",
+    "insert": "Insert",
+    "delete": "Delete",
+    "home": "Home",
+    "end": "End",
+    "page up": "Prior",
+    "pageup": "Prior",
+    "page down": "Next",
+    "pagedown": "Next",
+    "up": "Up",
+    "down": "Down",
+    "left": "Left",
+    "right": "Right",
+    "pause": "Pause",
+}
 
 
 def xdg_trigger(combo: str) -> str | None:
@@ -85,6 +111,7 @@ class PortalHotkeys:
 
     def _run(self, entries, ready: threading.Event, result: dict) -> None:
         import gi
+
         gi.require_version("Gio", "2.0")
         from gi.repository import Gio, GLib
 
@@ -96,9 +123,17 @@ class PortalHotkeys:
         # Ohne Anmeldung kennt das Portal das Programm nicht und KDE kann die
         # Befehle keinem Eintrag im Startmenue zuordnen.
         try:
-            bus.call_sync(BUS, PATH, "org.freedesktop.host.portal.Registry", "Register",
-                          GLib.Variant("(sa{sv})", (self._app_id, {})),
-                          None, Gio.DBusCallFlags.NONE, -1, None)
+            bus.call_sync(
+                BUS,
+                PATH,
+                "org.freedesktop.host.portal.Registry",
+                "Register",
+                GLib.Variant("(sa{sv})", (self._app_id, {})),
+                None,
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            )
         except GLib.Error as exc:
             logger.info("Portal-Registry: %s", exc.message)
 
@@ -117,10 +152,10 @@ class PortalHotkeys:
                 code, results = params.unpack()
                 on_done(code, results)
 
-            sub[0] = bus.signal_subscribe(BUS, "org.freedesktop.portal.Request", "Response",
-                                          path, None, Gio.DBusSignalFlags.NONE, on_response)
-            bus.call(BUS, PATH, IFACE, method, params_for(token), None,
-                     Gio.DBusCallFlags.NONE, -1, None, None)
+            sub[0] = bus.signal_subscribe(
+                BUS, "org.freedesktop.portal.Request", "Response", path, None, Gio.DBusSignalFlags.NONE, on_response
+            )
+            bus.call(BUS, PATH, IFACE, method, params_for(token), None, Gio.DBusCallFlags.NONE, -1, None, None)
 
         def on_activated(_c, _s, _p, _i, _sig, params) -> None:
             _session, shortcut_id, _ts, _opts = params.unpack()
@@ -131,8 +166,7 @@ class PortalHotkeys:
                 except Exception:
                     logger.exception("Kurzbefehl-Handler fehlgeschlagen")
 
-        bus.signal_subscribe(BUS, IFACE, "Activated", PATH, None,
-                             Gio.DBusSignalFlags.NONE, on_activated)
+        bus.signal_subscribe(BUS, IFACE, "Activated", PATH, None, Gio.DBusSignalFlags.NONE, on_activated)
 
         shortcuts = []
         for sid, description, combo, handler in entries:
@@ -161,14 +195,27 @@ class PortalHotkeys:
                 ready.set()
                 return
             session = results["session_handle"]
-            request("BindShortcuts", lambda token: GLib.Variant(
-                "(oa(sa{sv})sa{sv})",
-                (session, shortcuts, "", {"handle_token": GLib.Variant("s", token)})), bound)
+            request(
+                "BindShortcuts",
+                lambda token: GLib.Variant(
+                    "(oa(sa{sv})sa{sv})", (session, shortcuts, "", {"handle_token": GLib.Variant("s", token)})
+                ),
+                bound,
+            )
 
-        request("CreateSession", lambda token: GLib.Variant("(a{sv})", ({
-            "handle_token": GLib.Variant("s", token),
-            "session_handle_token": GLib.Variant("s", "hams_session"),
-        },)), created)
+        request(
+            "CreateSession",
+            lambda token: GLib.Variant(
+                "(a{sv})",
+                (
+                    {
+                        "handle_token": GLib.Variant("s", token),
+                        "session_handle_token": GLib.Variant("s", "hams_session"),
+                    },
+                ),
+            ),
+            created,
+        )
 
         self._loop.run()
         context.pop_thread_default()
@@ -193,12 +240,19 @@ class PortalSystemHotkeys(PortalHotkeys):
 
     def __init__(self) -> None:
         from wisper.linux import APP_ID
+
         super().__init__(APP_ID)
 
     def register(self, entries):
         from wisper.config import CFG
-        named = {CFG.hotkey_transcript: ("transkript", "Hams: Diktat aufnehmen"),
-                 CFG.hotkey_prompt: ("prompt", "Hams: Prompt aufnehmen")}
-        return super().register([
-            (*named.get(combo, (f"kurzbefehl{i}", f"Hams: Kurzbefehl {i}")), combo, handler)
-            for i, (combo, handler) in enumerate(entries, start=1)])
+
+        named = {
+            CFG.hotkey_transcript: ("transkript", "Hams: Diktat aufnehmen"),
+            CFG.hotkey_prompt: ("prompt", "Hams: Prompt aufnehmen"),
+        }
+        return super().register(
+            [
+                (*named.get(combo, (f"kurzbefehl{i}", f"Hams: Kurzbefehl {i}")), combo, handler)
+                for i, (combo, handler) in enumerate(entries, start=1)
+            ]
+        )

@@ -115,6 +115,7 @@ class TestGradient:
 
     def test_dither_keeps_mean_colour(self):
         """Rauschen darf die mittlere Farbe nicht verschieben."""
+
         def mean(image):
             pixels = [p for p in image.getdata() if p[3] == 255]
             return [sum(p[i] for p in pixels) / len(pixels) for i in range(3)]
@@ -210,5 +211,5 @@ class TestCache:
         uk.surface(11, 20, 6, FILL)
         for width in range(100, 100 + uk.CACHE_LIMIT - 1):
             uk.surface(width, 20, 6, FILL)
-            uk.surface(11, 20, 6, FILL)      # bleibt in Benutzung
+            uk.surface(11, 20, 6, FILL)  # bleibt in Benutzung
         assert any(key[0] == 11 for key in uk._img_cache)

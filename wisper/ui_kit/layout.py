@@ -24,25 +24,24 @@ class ScrollArea(tk.Frame):
     tatsächlich höher ist als der Ausschnitt.
     """
 
-    BAR_WIDTH = 4        # logisch
-    BAR_INSET = 3        # logisch
-    STEP = 40            # logisch, eine Tastenstufe
+    BAR_WIDTH = 4  # logisch
+    BAR_INSET = 3  # logisch
+    STEP = 40  # logisch, eine Tastenstufe
 
-    def __init__(self, master: tk.Misc, *, bg_under: str,
-                 on_scroll: Callable[[float], None] | None = None) -> None:
+    def __init__(self, master: tk.Misc, *, bg_under: str, on_scroll: Callable[[float], None] | None = None) -> None:
         super().__init__(master, bg=bg_under)
         self._bg_under = bg_under
         self._on_scroll = on_scroll
         self._offset = 0
 
-        self.canvas = tk.Canvas(self, bg=bg_under, bd=0, highlightthickness=0,
-                                takefocus=0)
+        self.canvas = tk.Canvas(self, bg=bg_under, bd=0, highlightthickness=0, takefocus=0)
         self.canvas.pack(side="left", fill="both", expand=True)
         self.body = tk.Frame(self.canvas, bg=bg_under)
         self._window = self.canvas.create_window((0, 0), window=self.body, anchor="nw")
 
-        self.bar = tk.Canvas(self, width=px(self.BAR_WIDTH + 2 * self.BAR_INSET),
-                             bg=bg_under, bd=0, highlightthickness=0, takefocus=0)
+        self.bar = tk.Canvas(
+            self, width=px(self.BAR_WIDTH + 2 * self.BAR_INSET), bg=bg_under, bd=0, highlightthickness=0, takefocus=0
+        )
         # Platzhalter in Leistenbreite: ohne ihn wuerde der Inhalt breiter,
         # sobald die Leiste verschwindet, und der rechte Rand waere ein anderer
         # als der linke.
@@ -73,7 +72,7 @@ class ScrollArea(tk.Frame):
     def scrollable(self) -> int:
         view = self.canvas.winfo_height()
         if view <= 1:
-            return 0      # noch nicht gelayoutet — sonst erschiene die Leiste grundlos
+            return 0  # noch nicht gelayoutet — sonst erschiene die Leiste grundlos
         return max(0, self.body.winfo_reqheight() - view)
 
     def scroll_to(self, offset: int) -> None:
@@ -119,7 +118,7 @@ class ScrollArea(tk.Frame):
     def _release_wheel(self, _event=None) -> None:
         try:
             self.canvas.unbind_all("<MouseWheel>")
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_wheel(self, event: tk.Event) -> None:
@@ -133,7 +132,7 @@ class ScrollArea(tk.Frame):
 
     def _on_canvas_configure(self, event: tk.Event) -> None:
         self.canvas.itemconfigure(self._window, width=event.width)
-        self.scroll_to(self._offset)      # Position halten, Grenzen neu prüfen
+        self.scroll_to(self._offset)  # Position halten, Grenzen neu prüfen
         self._draw_bar()
 
     def _show_bar(self, visible: bool) -> None:
@@ -158,8 +157,9 @@ class ScrollArea(tk.Frame):
         track = view
         length = max(px(20), int(track * view / span))
         top = int((track - length) * (self._offset / max(1, self.scrollable)))
-        image = surface(px(self.BAR_WIDTH), length, Radius.pill(px(self.BAR_WIDTH)),
-                        Theme.CONTROL_HOVER, squircle=False)
+        image = surface(
+            px(self.BAR_WIDTH), length, Radius.pill(px(self.BAR_WIDTH)), Theme.CONTROL_HOVER, squircle=False
+        )
         self._bar_image = image
         self.bar.create_image(px(self.BAR_INSET), top, anchor="nw", image=image)
 
@@ -168,7 +168,7 @@ class ScrollArea(tk.Frame):
             self.bar.configure(width=px(self.gutter_width()))
             self._gutter.configure(width=px(self.gutter_width()))
             self._draw_bar()
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_theme_change(self) -> None:
@@ -181,7 +181,7 @@ class ScrollArea(tk.Frame):
         self._bg_under = Theme.remap(self._bg_under)
         try:
             self._draw_bar()
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:
@@ -194,15 +194,24 @@ class SectionHeader(tk.Label):
     """Abschnittsüberschrift über einer Gruppe."""
 
     def __init__(self, master: tk.Misc, text: str, *, bg_under: str) -> None:
-        super().__init__(master, text=text, bg=bg_under, fg=Theme.TEXT_PRIMARY,
-                         font=font("section"), anchor="w", bd=0, padx=0, pady=0)
+        super().__init__(
+            master,
+            text=text,
+            bg=bg_under,
+            fg=Theme.TEXT_PRIMARY,
+            font=font("section"),
+            anchor="w",
+            bd=0,
+            padx=0,
+            pady=0,
+        )
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
 
     def _on_scale_change(self, _factor: float) -> None:
         try:
             self.configure(font=font("section"))
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:
@@ -220,8 +229,7 @@ class GroupSurface(tk.Canvas):
     """
 
     def __init__(self, master: tk.Misc, *, bg_under: str) -> None:
-        super().__init__(master, bg=bg_under, bd=0, highlightthickness=0,
-                         takefocus=0, height=px(Radius.GROUP * 2))
+        super().__init__(master, bg=bg_under, bd=0, highlightthickness=0, takefocus=0, height=px(Radius.GROUP * 2))
         self._bg_under = bg_under
         self._last_size = (0, 0)
         self.body = tk.Frame(self, bg=Theme.GROUP_SURFACE)
@@ -240,7 +248,7 @@ class GroupSurface(tk.Canvas):
             wanted = self.body.winfo_reqheight() + 2 * self.inset
             if wanted != int(self.cget("height")):
                 self.configure(height=wanted)
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_configure(self, event: tk.Event) -> None:
@@ -254,9 +262,15 @@ class GroupSurface(tk.Canvas):
 
     def _render(self, width: int, height: int) -> None:
         self.delete("plate")
-        image = surface(width, height, px(Radius.GROUP), Theme.GROUP_SURFACE,
-                        border=Theme.HAIRLINE, border_w=max(1, px(1)),
-                        squircle=True)
+        image = surface(
+            width,
+            height,
+            px(Radius.GROUP),
+            Theme.GROUP_SURFACE,
+            border=Theme.HAIRLINE,
+            border_w=max(1, px(1)),
+            squircle=True,
+        )
         self._plate = image
         self.create_image(0, 0, anchor="nw", image=image, tags="plate")
         self.tag_lower("plate")
@@ -266,7 +280,7 @@ class GroupSurface(tk.Canvas):
             self._last_size = (0, 0)
             self._sync_height()
             self.event_generate("<Configure>")
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_theme_change(self) -> None:
@@ -284,7 +298,7 @@ class GroupSurface(tk.Canvas):
             self.configure(bg=self._bg_under)
             self.body.configure(bg=Theme.GROUP_SURFACE)
             self._render(width, height)
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:
@@ -314,11 +328,19 @@ class SettingRow(tk.Frame):
     soll kein Popover öffnen.
     """
 
-    def __init__(self, master: tk.Misc, title: str, *, variant: str = "simple",
-                 description: str = "", value: str = "",
-                 interactive: bool = False,
-                 command: Callable[[], None] | None = None,
-                 hairline: bool = True, stacked: bool = False) -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        title: str,
+        *,
+        variant: str = "simple",
+        description: str = "",
+        value: str = "",
+        interactive: bool = False,
+        command: Callable[[], None] | None = None,
+        hairline: bool = True,
+        stacked: bool = False,
+    ) -> None:
         super().__init__(master, bg=Theme.GROUP_SURFACE)
         self._variant = variant
         self._interactive = interactive
@@ -340,9 +362,17 @@ class SettingRow(tk.Frame):
         self._text_box = tk.Frame(self._line, bg=Theme.GROUP_SURFACE)
         self._text_box.grid(row=0, column=0, sticky="ew")
 
-        self.title_label = tk.Label(self._text_box, text=title, bg=Theme.GROUP_SURFACE,
-                                    fg=Theme.TEXT_PRIMARY, font=font("row_title"),
-                                    anchor="w", bd=0, padx=0, pady=0)
+        self.title_label = tk.Label(
+            self._text_box,
+            text=title,
+            bg=Theme.GROUP_SURFACE,
+            fg=Theme.TEXT_PRIMARY,
+            font=font("row_title"),
+            anchor="w",
+            bd=0,
+            padx=0,
+            pady=0,
+        )
         self.title_label.pack(anchor="w")
 
         self.sub_box: tk.Frame | None = None
@@ -352,20 +382,36 @@ class SettingRow(tk.Frame):
             self.sub_box = tk.Frame(self._text_box, bg=Theme.GROUP_SURFACE)
             self.sub_box.pack(anchor="w", fill="x", pady=(px(Space.TEXT_GAP), 0))
             if variant == "status":
-                self.status_dot = StatusDot(self.sub_box, bg_under=Theme.GROUP_SURFACE,
-                                            size=StatusDot.SIZE_ROW)
+                self.status_dot = StatusDot(self.sub_box, bg_under=Theme.GROUP_SURFACE, size=StatusDot.SIZE_ROW)
                 self.status_dot.pack(side="left", anchor="n", padx=(0, px(Space.ICON_GAP)))
-            self.sub_label = tk.Label(self.sub_box, text=description,
-                                      bg=Theme.GROUP_SURFACE, fg=Theme.TEXT_TERTIARY,
-                                      font=font("description"), anchor="w",
-                                      justify="left", bd=0, padx=0, pady=0)
+            self.sub_label = tk.Label(
+                self.sub_box,
+                text=description,
+                bg=Theme.GROUP_SURFACE,
+                fg=Theme.TEXT_TERTIARY,
+                font=font("description"),
+                anchor="w",
+                justify="left",
+                bd=0,
+                padx=0,
+                pady=0,
+            )
             self.sub_label.pack(side="left", fill="x")
 
         self.value_label: tk.Label | None = None
         if variant == "display":
-            self.value_label = tk.Label(self._line, text=value, bg=Theme.GROUP_SURFACE,
-                                        fg=Theme.TEXT_SECONDARY, font=font("row_title"),
-                                        anchor="e", justify="right", bd=0, padx=0, pady=0)
+            self.value_label = tk.Label(
+                self._line,
+                text=value,
+                bg=Theme.GROUP_SURFACE,
+                fg=Theme.TEXT_SECONDARY,
+                font=font("row_title"),
+                anchor="e",
+                justify="right",
+                bd=0,
+                padx=0,
+                pady=0,
+            )
             self.value_label.grid(row=0, column=1, sticky="e")
 
         self.hairline: tk.Frame | None = None
@@ -402,7 +448,7 @@ class SettingRow(tk.Frame):
         if self._control is not None and self._control is not control:
             try:
                 self._control.grid_forget()
-            except tk.TclError:      # pragma: no cover - bereits zerstoert
+            except tk.TclError:  # pragma: no cover - bereits zerstoert
                 pass
         self._control = control
         if control is None:
@@ -418,12 +464,23 @@ class SettingRow(tk.Frame):
             # Auswahlfelder und Pegel nehmen die volle Breite; eine Schaltfläche,
             # die vorübergehend an ihre Stelle tritt, behält ihre eigene.
             sticky = "ew" if getattr(control, "stretch_stacked", True) else "w"
-            control.grid(in_=self._line, row=1, column=0, columnspan=2, sticky=sticky,
-                         padx=(outer, outer),
-                         pady=(px(Space.STACK_GAP) - (inset if ringed else 0), 0))
+            control.grid(
+                in_=self._line,
+                row=1,
+                column=0,
+                columnspan=2,
+                sticky=sticky,
+                padx=(outer, outer),
+                pady=(px(Space.STACK_GAP) - (inset if ringed else 0), 0),
+            )
         else:
-            control.grid(in_=self._line, row=0, column=1, sticky="e",
-                         padx=(px(Space.CONTROL_GAP) - (inset if ringed else 0), outer))
+            control.grid(
+                in_=self._line,
+                row=0,
+                column=1,
+                sticky="e",
+                padx=(px(Space.CONTROL_GAP) - (inset if ringed else 0), outer),
+            )
         # Tk stapelt nach Erzeugungsreihenfolge; ein spaeter erzeugtes Control
         # laege sonst hinter dem Zeilengrund.
         # `tk.Misc.lift`, nicht `control.lift`: an einer Canvas hebt das Tags.
@@ -445,8 +502,7 @@ class SettingRow(tk.Frame):
         self._line.configure(padx=px(Space.ROW_X) - inset, pady=px(Space.ROW_Y))
         # Gestapelt bestimmt der Text selbst die Höhe der ersten Reihe; eine
         # Mindesthöhe schöbe nur Luft zwischen Text und Feld.
-        self._line.grid_rowconfigure(
-            0, minsize=0 if self._stacked else px(Height.ROW_MIN - 2 * Space.ROW_Y))
+        self._line.grid_rowconfigure(0, minsize=0 if self._stacked else px(Height.ROW_MIN - 2 * Space.ROW_Y))
         self._text_box.grid_configure(padx=(inset, inset if self._stacked else 0))
         if self._control is not None:
             self.set_control(self._control)
@@ -455,8 +511,7 @@ class SettingRow(tk.Frame):
         if self.status_dot is not None:
             # Mittig zur ersten Textzeile, nicht an deren Oberkante.
             line = _line_height(font("description"), self)
-            self.status_dot.pack_configure(
-                pady=(max(0, (line - px(StatusDot.SIZE_ROW)) // 2), 0))
+            self.status_dot.pack_configure(pady=(max(0, (line - px(StatusDot.SIZE_ROW)) // 2), 0))
 
     def _hover_widgets(self) -> list:
         widgets = [self._line, self._text_box, self.title_label]
@@ -477,12 +532,11 @@ class SettingRow(tk.Frame):
         """
         try:
             width = self._text_box.winfo_width()
-        except tk.TclError:      # pragma: no cover - Zeile wird gerade zerstört
+        except tk.TclError:  # pragma: no cover - Zeile wird gerade zerstört
             return
         if width <= 1:
             return
-        self.title_label.configure(
-            text=_fit_text(self, self._title_text, font("row_title"), width))
+        self.title_label.configure(text=_fit_text(self, self._title_text, font("row_title"), width))
         if self.sub_label is None:
             return
         used = 0
@@ -516,14 +570,11 @@ class SettingRow(tk.Frame):
     def set_enabled(self, enabled: bool) -> None:
         """Deaktiviert die Zeile — die Höhe bleibt, damit nichts springt."""
         self._enabled = enabled
-        self.title_label.configure(
-            fg=Theme.TEXT_PRIMARY if enabled else Theme.TEXT_TERTIARY)
+        self.title_label.configure(fg=Theme.TEXT_PRIMARY if enabled else Theme.TEXT_TERTIARY)
         if self.sub_label is not None:
-            self.sub_label.configure(
-                fg=Theme.TEXT_TERTIARY if enabled else Theme.CONTROL_HOVER)
+            self.sub_label.configure(fg=Theme.TEXT_TERTIARY if enabled else Theme.CONTROL_HOVER)
         if self.value_label is not None:
-            self.value_label.configure(
-                fg=Theme.TEXT_SECONDARY if enabled else Theme.TEXT_TERTIARY)
+            self.value_label.configure(fg=Theme.TEXT_SECONDARY if enabled else Theme.TEXT_TERTIARY)
         if self._control is not None and hasattr(self._control, "set_enabled"):
             self._control.set_enabled(enabled)
         if not enabled:
@@ -538,8 +589,7 @@ class SettingRow(tk.Frame):
     # ------------------------------------------------------------ Interaktion
 
     def _paint(self, colour: str) -> None:
-        for widget in (self._line, self._text_box, self.title_label,
-                       self.sub_box, self.sub_label, self.value_label):
+        for widget in (self._line, self._text_box, self.title_label, self.sub_box, self.sub_label, self.value_label):
             if widget is not None:
                 # Tk-Kinder erben keinen Hintergrund; jedes muss einzeln gesetzt
                 # werden, sonst bleiben Textkästchen in der alten Farbe stehen.
@@ -564,7 +614,7 @@ class SettingRow(tk.Frame):
     def _on_click(self, _event=None) -> str:
         if self._enabled and self._command is not None:
             self._command()
-        return "break"      # verhindert, dass der Klick zusätzlich am Control landet
+        return "break"  # verhindert, dass der Klick zusätzlich am Control landet
 
     # ------------------------------------------------------------ Darstellung
 
@@ -594,7 +644,7 @@ class SettingRow(tk.Frame):
             if self.hairline is not None:
                 self.hairline.configure(height=max(1, px(1)))
                 self.hairline.pack_configure(padx=px(Space.ROW_X))
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:

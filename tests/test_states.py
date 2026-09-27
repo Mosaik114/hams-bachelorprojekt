@@ -94,9 +94,9 @@ class TestPriority:
 
 class TestControlStyle:
     @pytest.mark.parametrize("role", ["primary", "secondary", "plain", "recording", "ai"])
-    @pytest.mark.parametrize("state", [State.DEFAULT, State.HOVER, State.PRESSED,
-                                       State.SELECTED, State.DISABLED, State.LOADING,
-                                       State.ERROR])
+    @pytest.mark.parametrize(
+        "state", [State.DEFAULT, State.HOVER, State.PRESSED, State.SELECTED, State.DISABLED, State.LOADING, State.ERROR]
+    )
     def test_every_role_answers_every_state(self, role, state):
         fill, text = ControlStyle.resolve(role, {state})
         assert isinstance(text, str) and text.startswith("#")
@@ -132,7 +132,7 @@ class TestStateMixin:
         widget = probes[0]
         widget.set_state(State.HOVER)
         before = widget.redraws
-        widget.set_state(State.HOVER)          # schon aktiv
+        widget.set_state(State.HOVER)  # schon aktiv
         assert widget.redraws == before
 
     def test_disabling_clears_interaction_states(self, probes):
@@ -232,7 +232,7 @@ class TestFocus:
         holder = tk.Frame(root)
         gone = Probe(holder)
         holder.destroy()
-        uk.return_focus_to(gone)      # darf nicht werfen
+        uk.return_focus_to(gone)  # darf nicht werfen
 
     def test_return_focus_accepts_none(self):
         uk.return_focus_to(None)
@@ -240,28 +240,25 @@ class TestFocus:
 
 class TestFocusRing:
     def test_ring_is_visible(self):
-        plain = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE,
-                                  ring_width=2, ring_gap=2)
-        ringed = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE,
-                                   ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
+        plain = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE, ring_width=2, ring_gap=2)
+        ringed = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE, ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
+
         def ink(img):
             return sum(p[3] for p in img.getdata())
+
         assert ink(ringed) > ink(plain) * 1.05
 
     def test_shape_does_not_jump_when_focused(self):
         """Der Ringplatz ist immer reserviert — die Fläche bleibt gleich gross."""
-        plain = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE,
-                                  ring_width=2, ring_gap=2)
-        ringed = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE,
-                                   ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
+        plain = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE, ring_width=2, ring_gap=2)
+        ringed = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE, ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
         assert plain.size == ringed.size
         # Die Füllung selbst liegt an derselben Stelle
         assert plain.getpixel((20, 12))[:3] == ringed.getpixel((20, 12))[:3]
 
     def test_ring_sits_outside_the_fill(self):
-        img = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE,
-                                ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
-        tint = tuple(int(Theme.ACCENT_TINT[i:i + 2], 16) for i in (1, 3, 5))
+        img = uk.render_surface(40, 24, 8, Theme.ACCENT_SURFACE, ring=Theme.ACCENT_TINT, ring_width=2, ring_gap=2)
+        tint = tuple(int(Theme.ACCENT_TINT[i : i + 2], 16) for i in (1, 3, 5))
         top_edge = [img.getpixel((x, 0))[:3] for x in range(15, 25)]
         assert any(abs(p[0] - tint[0]) + abs(p[2] - tint[2]) < 40 for p in top_edge)
 
@@ -269,17 +266,21 @@ class TestFocusRing:
     def test_ring_scales(self, scale, monkeypatch):
         monkeypatch.setattr(uk.Scale, "factor", scale)
         monkeypatch.setattr(uk.Scale, "dpi", int(96 * scale))
-        img = uk.render_surface(uk.px(40), uk.px(24), uk.px(8), Theme.ACCENT_SURFACE,
-                                ring=Theme.ACCENT_TINT,
-                                ring_width=uk.px(2), ring_gap=uk.px(2))
+        img = uk.render_surface(
+            uk.px(40),
+            uk.px(24),
+            uk.px(8),
+            Theme.ACCENT_SURFACE,
+            ring=Theme.ACCENT_TINT,
+            ring_width=uk.px(2),
+            ring_gap=uk.px(2),
+        )
         assert img.size == (uk.px(40), uk.px(24))
 
 
 class TestStatusDot:
     def test_all_states_have_a_colour(self):
-        assert set(StatusDot.COLOURS) == {
-            "idle", "ready", "recording", "processing", "ai", "warning", "error"
-        }
+        assert set(StatusDot.COLOURS) == {"idle", "ready", "recording", "processing", "ai", "warning", "error"}
 
     def test_semantic_colours_match_the_tokens(self):
         assert StatusDot.colour("recording") == Theme.RECORDING

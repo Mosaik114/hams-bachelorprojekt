@@ -76,6 +76,7 @@ class TestHotkeys:
     def test_only_a_failed_combo_falls_back_to_the_library(self, root, hams):
         FakeHotkeys.failing = {CFG.hotkey_prompt}
         from wisper.app import FloatingTranscriberApp as App
+
         window = tk.Toplevel(root)
         try:
             App(window)
@@ -83,10 +84,13 @@ class TestHotkeys:
         finally:
             window.destroy()
 
-    @pytest.mark.parametrize("error, text", [
-        (ValueError("unbekannte Taste"), "lässt sich nicht registrieren"),
-        (RuntimeError("belegt"), "Vermutlich belegt ihn ein anderes Programm"),
-    ])
+    @pytest.mark.parametrize(
+        "error, text",
+        [
+            (ValueError("unbekannte Taste"), "lässt sich nicht registrieren"),
+            (RuntimeError("belegt"), "Vermutlich belegt ihn ein anderes Programm"),
+        ],
+    )
     def test_a_refused_combo_is_shown_not_swallowed(self, live_app, hams, error, text):
         FakeHotkeys.failing = {CFG.hotkey_transcript}
         hams.keyboard.refuse[CFG.hotkey_transcript] = error
@@ -145,12 +149,19 @@ class TestStates:
         live_app._apply_state("transcribing")
         assert live_app._done_job is None
 
-    @pytest.mark.parametrize("state, key", [
-        ("recording", "RECORDING"), ("recording_prompt", "AI"), ("generating", "AI"),
-        ("error", "ERROR"), ("ready", "ACCENT_TINT"),
-    ])
+    @pytest.mark.parametrize(
+        "state, key",
+        [
+            ("recording", "RECORDING"),
+            ("recording_prompt", "AI"),
+            ("generating", "AI"),
+            ("error", "ERROR"),
+            ("ready", "ACCENT_TINT"),
+        ],
+    )
     def test_the_tray_colour_follows_the_state(self, live_app, state, key):
         from wisper.tray import TRAY_PALETTE
+
         assert live_app._tray_colour(state) == TRAY_PALETTE[key]
         live_app._apply_state(state)
         assert live_app.tray_icon.icon is not None
@@ -200,12 +211,12 @@ class TestMicConsumers:
         good = Good()
         live_app.register_mic_consumer(Broken())
         live_app.register_mic_consumer(good)
-        live_app.register_mic_consumer(good)          # doppelt zaehlt nicht
+        live_app.register_mic_consumer(good)  # doppelt zaehlt nicht
         live_app._suspend_mic_consumers()
         live_app._resume_mic_consumers()
         assert log == ["aus", "an"]
         live_app.unregister_mic_consumer(good)
-        live_app.unregister_mic_consumer(good)        # zweimal abmelden ist harmlos
+        live_app.unregister_mic_consumer(good)  # zweimal abmelden ist harmlos
         assert good not in live_app._mic_consumers
 
 
@@ -352,8 +363,8 @@ class TestRecording:
     def test_a_consumer_lets_go_of_the_microphone_first(self, live_app):
         order = []
         consumer = SimpleNamespace(
-            suspend_microphone=lambda: order.append("frei"),
-            resume_microphone=lambda: order.append("zurueck"))
+            suspend_microphone=lambda: order.append("frei"), resume_microphone=lambda: order.append("zurueck")
+        )
         live_app.register_mic_consumer(consumer)
         live_app.start_recording()
         assert order == ["frei"]
@@ -389,6 +400,7 @@ class TestRecording:
 
     def test_a_missing_device_is_named(self, live_app):
         import sounddevice as sd
+
         FakeStream.fail_with = sd.PortAudioError("weg")
         CFG.mic_device_raw = "Headset"
         live_app.toggle_recording()
@@ -414,7 +426,7 @@ class TestRecording:
         live_app._on_max_duration_reached()
         flush(live_app)
         assert not live_app.is_recording
-        live_app._auto_stop_recording()           # zweites Mal: nichts mehr zu tun
+        live_app._auto_stop_recording()  # zweites Mal: nichts mehr zu tun
         assert live_app._state == "no_signal"
 
 

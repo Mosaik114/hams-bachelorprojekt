@@ -15,11 +15,8 @@ THEME = PROJECT / "wisper" / "ui_kit" / "theme.py"
 def luminance(hex_color: str) -> float:
     """Relative Helligkeit nach WCAG 2.1."""
     value = hex_color.lstrip("#")
-    channels = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
-    linear = [
-        c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-        for c in channels
-    ]
+    channels = [int(value[i : i + 2], 16) / 255 for i in (0, 2, 4)]
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
 
 
@@ -112,12 +109,12 @@ class TestPalettes:
         weiss wie die anderen Fuelltexte, dunkel ein sehr dunkles Gruen, und
         nie der Hintergrund eines Widgets.
         """
+
         def gruppen(palette):
             nach_wert = {}
             for name, value in palette.items():
                 nach_wert.setdefault(value, set()).add(name)
-            return {frozenset(g - {"ON_SUCCESS"}) for g in nach_wert.values()
-                    if len(g - {"ON_SUCCESS"}) > 1}
+            return {frozenset(g - {"ON_SUCCESS"}) for g in nach_wert.values() if len(g - {"ON_SUCCESS"}) > 1}
 
         assert gruppen(Theme.palette(Theme.LIGHT)) == gruppen(Theme.palette(Theme.DARK))
 
@@ -163,19 +160,21 @@ class TestContrast:
     def test_hover_never_reduces_contrast_below_aa(self, mode):
         """Hover verdunkelt; damit darf der Kontrast nur steigen."""
         palette = Theme.palette(mode)
-        for text, base, hover in (("ON_ACCENT", "ACCENT_SURFACE", "ACCENT_HOVER"),
-                                  ("ON_FILL", "RECORDING_SURFACE", "RECORDING_HOVER"),
-                                  ("ON_FILL", "AI_SURFACE", "AI_HOVER")):
-            assert (contrast(palette[text], palette[hover])
-                    >= contrast(palette[text], palette[base])), f"{mode}: {base}"
+        for text, base, hover in (
+            ("ON_ACCENT", "ACCENT_SURFACE", "ACCENT_HOVER"),
+            ("ON_FILL", "RECORDING_SURFACE", "RECORDING_HOVER"),
+            ("ON_FILL", "AI_SURFACE", "AI_HOVER"),
+        ):
+            assert contrast(palette[text], palette[hover]) >= contrast(palette[text], palette[base]), f"{mode}: {base}"
 
     @pytest.mark.parametrize("mode", MODES)
     def test_hover_darkens_the_filled_surfaces(self, mode):
         palette = Theme.palette(mode)
-        for base, hover, pressed in (("ACCENT_SURFACE", "ACCENT_HOVER", "ACCENT_PRESSED"),
-                                     ("RECORDING_SURFACE", "RECORDING_HOVER",
-                                      "RECORDING_PRESSED"),
-                                     ("AI_SURFACE", "AI_HOVER", "AI_PRESSED")):
+        for base, hover, pressed in (
+            ("ACCENT_SURFACE", "ACCENT_HOVER", "ACCENT_PRESSED"),
+            ("RECORDING_SURFACE", "RECORDING_HOVER", "RECORDING_PRESSED"),
+            ("AI_SURFACE", "AI_HOVER", "AI_PRESSED"),
+        ):
             werte = [luminance(palette[n]) for n in (base, hover, pressed)]
             assert werte == sorted(werte, reverse=True), f"{mode}: {base}"
 
@@ -226,17 +225,18 @@ class TestSurfaceLadder:
     def test_every_step_is_actually_visible(self, mode):
         """Untergrenze, damit die Hierarchie nicht unbemerkt verschwindet."""
         palette = Theme.palette(mode)
-        for a, b in (("GROUP_SURFACE", "WINDOW_BG"),
-                     ("CONTROL_SURFACE", "GROUP_SURFACE"),
-                     ("CONTROL_HOVER", "CONTROL_SURFACE")):
+        for a, b in (
+            ("GROUP_SURFACE", "WINDOW_BG"),
+            ("CONTROL_SURFACE", "GROUP_SURFACE"),
+            ("CONTROL_HOVER", "CONTROL_SURFACE"),
+        ):
             ratio = contrast(palette[a], palette[b])
             assert ratio >= 1.10, f"{mode}: {a} zu {b} nur {ratio:.3f}:1"
 
 
 class TestScales:
     def test_spacing_roles_sit_on_the_grid(self):
-        roles = [Space.WINDOW, Space.SECTION_GAP, Space.GROUP_GAP,
-                 Space.CONTROL_GAP, Space.ICON_GAP, Space.ROW_X]
+        roles = [Space.WINDOW, Space.SECTION_GAP, Space.GROUP_GAP, Space.CONTROL_GAP, Space.ICON_GAP, Space.ROW_X]
         for value in roles:
             assert value % 2 == 0, f"{value} liegt nicht auf dem Raster"
 
@@ -267,8 +267,14 @@ class TestScales:
 
 class TestFontRoles:
     REQUIRED = {
-        "window_title", "section", "row_title", "description",
-        "status", "button", "shortcut", "meta",
+        "window_title",
+        "section",
+        "row_title",
+        "description",
+        "status",
+        "button",
+        "shortcut",
+        "meta",
     }
 
     def test_all_required_roles_exist(self):
@@ -304,8 +310,11 @@ class TestNoRawValues:
     """Nach dem Aufräumen darf außerhalb des Token-Blocks keine Rohfarbe stehen."""
 
     def test_no_module_besides_the_theme_has_hex_colors(self):
-        found = {path.name: re.findall(r'"#[0-9A-Fa-f]{3,8}"', path.read_text(encoding="utf-8"))
-                 for path in module_files() if path != THEME}
+        found = {
+            path.name: re.findall(r'"#[0-9A-Fa-f]{3,8}"', path.read_text(encoding="utf-8"))
+            for path in module_files()
+            if path != THEME
+        }
         found = {name: colors for name, colors in found.items() if colors}
         assert not found, f"Rohfarben außerhalb von ui_kit/theme.py: {found}"
 

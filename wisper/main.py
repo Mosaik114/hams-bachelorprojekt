@@ -1,4 +1,5 @@
 """Startpunkt von Hams: Konfiguration vorbereiten, eine Instanz sichern, Fenster starten."""
+
 import ctypes
 import sys
 import tkinter as tk
@@ -33,20 +34,20 @@ def main() -> None:
         logger.warning("Another Wisper instance is already running — exiting")
         if sys.platform != "win32":
             from wisper import linux
+
             linux.notify(branding.PRODUCT_NAME, f"{branding.PRODUCT_NAME} läuft bereits.")
             sys.exit(0)
         with contextlib.suppress(Exception):
             ctypes.windll.user32.MessageBoxW(
                 0,
-                f"{branding.PRODUCT_NAME} läuft bereits. "
-                f"Überprüfe das System-Tray.",
+                f"{branding.PRODUCT_NAME} läuft bereits. Überprüfe das System-Tray.",
                 branding.PRODUCT_NAME,
                 0x40,
             )
         sys.exit(0)
 
     try:
-        awareness = uk.enable_dpi_awareness()   # muss vor tk.Tk() stehen
+        awareness = uk.enable_dpi_awareness()  # muss vor tk.Tk() stehen
         logger.info("DPI awareness: %s", awareness)
         root = tk.Tk()
         FloatingTranscriberApp(root)
@@ -57,6 +58,7 @@ def main() -> None:
         _release_single_instance_mutex()
     if sys.platform != "win32":
         from wisper import linux
+
         if linux.restart_requested:
             sys.exit(linux.RESTART_EXIT_CODE)
 

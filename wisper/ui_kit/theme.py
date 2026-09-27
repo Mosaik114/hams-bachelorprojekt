@@ -53,44 +53,40 @@ class Theme:
     _PALETTES: dict = {
         DARK: {
             # --- Flaechen: warmes Dunkel, vier Ebenen mit kleinen Schritten --
-            "WINDOW_BG": "#1F1E1D",        # Fenstergrund
-            "GROUP_SURFACE": "#2A2927",    # Einstellungsgruppen, 1,15:1
+            "WINDOW_BG": "#1F1E1D",  # Fenstergrund
+            "GROUP_SURFACE": "#2A2927",  # Einstellungsgruppen, 1,15:1
             "CONTROL_SURFACE": "#363532",  # Controls, deaktivierte Flaechen
-            "CONTROL_HOVER": "#42413D",    # Control unter dem Zeiger
+            "CONTROL_HOVER": "#42413D",  # Control unter dem Zeiger
             "POPOVER_SURFACE": "#302F2C",  # schwebende Ebene
-            "HAIRLINE": "#3D3C38",         # Trennlinie und Gruppenrand
+            "HAIRLINE": "#3D3C38",  # Trennlinie und Gruppenrand
             "CONTROL_OUTLINE": "#8C887E",  # >= 3:1 auf GROUP_SURFACE — Schalterspur
-
             # --- Text: warmes Weiss, keine kalten Grautoene --------------------
             "TEXT_PRIMARY": "#F5F4EE",
-            "TEXT_SECONDARY": "#B8B4A9",   # 8,04:1 auf WINDOW_BG
-            "TEXT_TERTIARY": "#9D998E",    # 5,85:1 auf WINDOW_BG, 5,11:1 auf Gruppe
-
+            "TEXT_SECONDARY": "#B8B4A9",  # 8,04:1 auf WINDOW_BG
+            "TEXT_TERTIARY": "#9D998E",  # 5,85:1 auf WINDOW_BG, 5,11:1 auf Gruppe
             # --- Akzent: Terrakotta ------------------------------------------
-            "ACCENT_SURFACE": "#B4532F",   # Fuellung, ON_ACCENT 4,98:1
+            "ACCENT_SURFACE": "#B4532F",  # Fuellung, ON_ACCENT 4,98:1
             "ACCENT_HOVER": "#A34A29",
             "ACCENT_PRESSED": "#8F4124",
-            "ACCENT_TINT": "#D97757",      # Punkte, Icons, Fokusring; 5,33:1
-
+            "ACCENT_TINT": "#D97757",  # Punkte, Icons, Fokusring; 5,33:1
             # --- Semantik ----------------------------------------------------
-            "SUCCESS": "#7DBE7A",          # Salbeigruen
-            "WARNING": "#E3A94B",          # Ocker
-            "ERROR": "#F0806A",            # 6,34:1 — traegt auch als Text
-            "ERROR_SURFACE": "#B0392A",    # gefuellt, ON_FILL 6,06:1
-            "RECORDING": "#F0806A",        # eigene Semantik, gleicher Ton wie ERROR
+            "SUCCESS": "#7DBE7A",  # Salbeigruen
+            "WARNING": "#E3A94B",  # Ocker
+            "ERROR": "#F0806A",  # 6,34:1 — traegt auch als Text
+            "ERROR_SURFACE": "#B0392A",  # gefuellt, ON_FILL 6,06:1
+            "RECORDING": "#F0806A",  # eigene Semantik, gleicher Ton wie ERROR
             "RECORDING_SURFACE": "#B0392A",
             "RECORDING_HOVER": "#9C3225",
             "RECORDING_PRESSED": "#872B20",
-            "AI": "#C49AD6",               # gedaempftes Heidekraut, 7,09:1
-            "AI_SURFACE": "#8A5A9E",       # gefuellt, ON_FILL 5,20:1
+            "AI": "#C49AD6",  # gedaempftes Heidekraut, 7,09:1
+            "AI_SURFACE": "#8A5A9E",  # gefuellt, ON_FILL 5,20:1
             "AI_HOVER": "#7B508D",
             "AI_PRESSED": "#6B457B",
-
             # --- Text auf gefuellten Flaechen --------------------------------
             "ON_ACCENT": "#FFFFFF",
-            "ON_FILL": "#FFFFFF",          # auf Rot, Violett und Fehlerflaechen
-            "ON_SUCCESS": "#14210F",       # 7,59:1 auf SUCCESS
-            "KNOB": "#FFFFFF",             # Schaltknopf des Toggles
+            "ON_FILL": "#FFFFFF",  # auf Rot, Violett und Fehlerflaechen
+            "ON_SUCCESS": "#14210F",  # 7,59:1 auf SUCCESS
+            "KNOB": "#FFFFFF",  # Schaltknopf des Toggles
         },
         LIGHT: {
             # --- Flaechen: Creme statt Weiss ---------------------------------
@@ -98,48 +94,44 @@ class Theme:
             # ist die ruhigste Ebene, jede weitere tritt einen kleinen Schritt
             # nach unten heraus. Alle Toene warm, wie ungebleichtes Papier.
             "WINDOW_BG": "#FAF9F5",
-            "GROUP_SURFACE": "#F0EEE6",    # 1,10:1 gegen den Fenstergrund
+            "GROUP_SURFACE": "#F0EEE6",  # 1,10:1 gegen den Fenstergrund
             "CONTROL_SURFACE": "#E3E0D5",  # 1,14:1 gegen die Gruppenflaeche
-            "CONTROL_HOVER": "#D6D2C5",    # dunkler, nicht heller
+            "CONTROL_HOVER": "#D6D2C5",  # dunkler, nicht heller
             # Die schwebende Ebene ist die einzige fast weisse Flaeche; ihre
             # Kante traegt der 1-px-Rahmen in HAIRLINE.
             "POPOVER_SURFACE": "#FFFEFB",
-            "HAIRLINE": "#DAD6CA",         # Trennlinie und Gruppenrand
+            "HAIRLINE": "#DAD6CA",  # Trennlinie und Gruppenrand
             "CONTROL_OUTLINE": "#8A857A",  # >= 3:1 auf GROUP_SURFACE
-
             # --- Text: warmes Tintenschwarz ----------------------------------
             # Einen Hauch vom dunklen WINDOW_BG (#1F1E1D) entfernt: `remap`
             # erkennt Tokens am Wert, und ein Wert mit zwei Rollen bliebe beim
             # Wechsel nach Dunkel stehen — dunkle Schrift auf dunklem Grund.
             "TEXT_PRIMARY": "#1F1E1C",
-            "TEXT_SECONDARY": "#56534C",   # 7,28:1 auf WINDOW_BG
-            "TEXT_TERTIARY": "#67635A",    # 5,68:1 auf WINDOW_BG, 5,15:1 auf Gruppe
-
+            "TEXT_SECONDARY": "#56534C",  # 7,28:1 auf WINDOW_BG
+            "TEXT_TERTIARY": "#67635A",  # 5,68:1 auf WINDOW_BG, 5,15:1 auf Gruppe
             # --- Akzent: Terrakotta ------------------------------------------
-            "ACCENT_SURFACE": "#B4532F",   # dieselbe Fuellung wie im Dunkeln
+            "ACCENT_SURFACE": "#B4532F",  # dieselbe Fuellung wie im Dunkeln
             "ACCENT_HOVER": "#A34A29",
             "ACCENT_PRESSED": "#8F4124",
             # Dunkler als im Dunkeln: #D97757 erreicht auf Creme nur 2,9:1.
-            "ACCENT_TINT": "#AD4F2C",      # 5,07:1 auf WINDOW_BG
-
+            "ACCENT_TINT": "#AD4F2C",  # 5,07:1 auf WINDOW_BG
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#3B7A3E",
             "WARNING": "#8F5B12",
-            "ERROR": "#B3261E",            # 6,20:1 — traegt auch als Text
-            "ERROR_SURFACE": "#A8231C",    # gefuellt, ON_FILL 7,19:1
+            "ERROR": "#B3261E",  # 6,20:1 — traegt auch als Text
+            "ERROR_SURFACE": "#A8231C",  # gefuellt, ON_FILL 7,19:1
             "RECORDING": "#B3261E",
             "RECORDING_SURFACE": "#A8231C",
             "RECORDING_HOVER": "#961F19",
             "RECORDING_PRESSED": "#801A15",
-            "AI": "#7A4A8C",               # 6,26:1
+            "AI": "#7A4A8C",  # 6,26:1
             "AI_SURFACE": "#6E4380",
             "AI_HOVER": "#613A71",
             "AI_PRESSED": "#533262",
-
             # --- Text auf gefuellten Flaechen --------------------------------
             "ON_ACCENT": "#FFFFFF",
             "ON_FILL": "#FFFFFF",
-            "ON_SUCCESS": "#FFFFFF",       # 5,20:1 auf SUCCESS
+            "ON_SUCCESS": "#FFFFFF",  # 5,20:1 auf SUCCESS
             "KNOB": "#FFFFFF",
         },
     }
@@ -147,8 +139,7 @@ class Theme:
     #: Farbwert -> Tokenname, getrennt je Palette. Getrennt, weil derselbe Wert
     #: in den beiden Paletten unterschiedliche Rollen tragen kann.
     _INDEX: dict = {
-        mode: {value.upper(): name for name, value in palette.items()}
-        for mode, palette in _PALETTES.items()
+        mode: {value.upper(): name for name, value in palette.items()} for mode, palette in _PALETTES.items()
     }
 
     mode: str = DEFAULT_MODE
@@ -231,7 +222,7 @@ class Theme:
         for callback in list(cls._callbacks):
             try:
                 callback()
-            except Exception:       # ein defekter Rueckruf darf nichts blockieren
+            except Exception:  # ein defekter Rueckruf darf nichts blockieren
                 pass
         return True
 
@@ -272,9 +263,17 @@ class Theme:
 
 #: Tk-Optionen, die eine Farbe tragen und nach einem Moduswechsel mitwandern.
 TINTED_OPTIONS = (
-    "bg", "fg", "highlightbackground", "highlightcolor", "activebackground",
-    "activeforeground", "disabledforeground", "selectbackground",
-    "selectforeground", "insertbackground", "troughcolor",
+    "bg",
+    "fg",
+    "highlightbackground",
+    "highlightcolor",
+    "activebackground",
+    "activeforeground",
+    "disabledforeground",
+    "selectbackground",
+    "selectforeground",
+    "insertbackground",
+    "troughcolor",
 )
 
 
@@ -292,7 +291,7 @@ def set_surface_under(widget: tk.Misc, colour: str) -> None:
     """
     try:
         widget.configure(bg=colour)
-    except (tk.TclError, TypeError):      # kein Widget mit Hintergrund
+    except (tk.TclError, TypeError):  # kein Widget mit Hintergrund
         return
     if hasattr(widget, "_bg_under"):
         widget._bg_under = colour
@@ -301,12 +300,12 @@ def set_surface_under(widget: tk.Misc, colour: str) -> None:
             if callable(zeichnen):
                 try:
                     zeichnen()
-                except tk.TclError:      # pragma: no cover - schon zerstoert
+                except tk.TclError:  # pragma: no cover - schon zerstoert
                     pass
                 break
     try:
         kinder = widget.winfo_children()
-    except tk.TclError:      # pragma: no cover
+    except tk.TclError:  # pragma: no cover
         return
     for kind in kinder:
         set_surface_under(kind, colour)
@@ -323,13 +322,13 @@ def retint(widget: tk.Misc) -> int:
         try:
             current = str(widget.cget(option))
         except (tk.TclError, TypeError):
-            continue                     # Option gibt es an diesem Widget nicht
+            continue  # Option gibt es an diesem Widget nicht
         wanted = Theme.remap(current)
         if wanted != current:
             try:
                 widget.configure(**{option: wanted})
                 changed += 1
-            except tk.TclError:          # pragma: no cover - Widget zerstoert
+            except tk.TclError:  # pragma: no cover - Widget zerstoert
                 pass
     return changed
 
@@ -350,7 +349,7 @@ def apply_theme_tree(widget: tk.Misc) -> int:
     """
     try:
         children = list(widget.winfo_children())
-    except tk.TclError:      # pragma: no cover - Widget bereits zerstoert
+    except tk.TclError:  # pragma: no cover - Widget bereits zerstoert
         return 0
     retint(widget)
     hook = getattr(widget, "_on_theme_change", None)
@@ -382,17 +381,17 @@ class Space:
     XXL = 20
 
     # Rollen
-    WINDOW = 20        # Fensterrand
-    SECTION_GAP = 24   # zwischen zwei Abschnitten
-    GROUP_GAP = 8      # zwischen Überschrift und Gruppe
-    GROUP_INSET = 4    # Gruppenrand bis Zeile; die Zeile bleibt innerhalb der Rundung
-    ROW_X = 12         # Zeileninnenabstand waagerecht (plus Gruppeneinzug = 16)
-    ROW_Y = 12         # Zeileninnenabstand senkrecht, oben und unten gleich
-    CONTROL_GAP = 12   # zwischen Text und Control
-    STACK_GAP = 8      # zwischen Text und einem darunter stehenden Control
-    KEY_GAP = 4        # zwischen zwei Tasten-Chips
-    TEXT_GAP = 2       # zwischen Titel und Beschreibung (optisch, Teil der Zeile)
-    ICON_GAP = 8       # zwischen Icon und Text
+    WINDOW = 20  # Fensterrand
+    SECTION_GAP = 24  # zwischen zwei Abschnitten
+    GROUP_GAP = 8  # zwischen Überschrift und Gruppe
+    GROUP_INSET = 4  # Gruppenrand bis Zeile; die Zeile bleibt innerhalb der Rundung
+    ROW_X = 12  # Zeileninnenabstand waagerecht (plus Gruppeneinzug = 16)
+    ROW_Y = 12  # Zeileninnenabstand senkrecht, oben und unten gleich
+    CONTROL_GAP = 12  # zwischen Text und Control
+    STACK_GAP = 8  # zwischen Text und einem darunter stehenden Control
+    KEY_GAP = 4  # zwischen zwei Tasten-Chips
+    TEXT_GAP = 2  # zwischen Titel und Beschreibung (optisch, Teil der Zeile)
+    ICON_GAP = 8  # zwischen Icon und Text
 
 
 class Radius:
@@ -415,11 +414,11 @@ class Radius:
 class Height:
     """Control-Höhen in logischen Pixeln. Bewusst nur drei."""
 
-    PRIMARY = 36        # Hauptaktion
-    STANDARD = 32       # Select, Icon-Button, Zeilencontrol
-    COMPACT = 24        # kompakte Anzeige
+    PRIMARY = 36  # Hauptaktion
+    STANDARD = 32  # Select, Icon-Button, Zeilencontrol
+    COMPACT = 24  # kompakte Anzeige
 
-    KEYCAP = 22         # Tasten-Chip; Anzeige, kein Control
+    KEYCAP = 22  # Tasten-Chip; Anzeige, kein Control
 
     #: Mindesthöhe einer einzeiligen Einstellungszeile: Titel plus einzeilige
     #: Beschreibung (21 + 2 + 20 = 43 px bei 100 %, gerundet auf 44) plus

@@ -42,7 +42,6 @@ def app():
 
 
 class TestDieSperreFaelltWeg:
-
     def test_recording_may_start_while_the_model_loads(self, app):
         assert not app.model_ready.is_set()
         assert app._may_record() is True
@@ -84,7 +83,6 @@ class TestWasWeiterhinAbgewiesenWird:
 
 
 class TestDasWartenAufDasModell:
-
     def test_it_returns_at_once_when_the_model_is_there(self, app):
         app.model_ready.set()
         t0 = time.monotonic()
@@ -125,16 +123,12 @@ class TestDieAnnahmeDahinter:
     def test_start_recording_never_touches_the_model(self):
         """Faellt das, ist die Aufnahme vor dem Modell nicht mehr sicher."""
         rumpf = self._rumpf("start_recording")
-        for verboten in ("self.model", "model_ready", "WhisperModel",
-                         "current_model", "_transcribe_lock"):
+        for verboten in ("self.model", "model_ready", "WhisperModel", "current_model", "_transcribe_lock"):
             assert verboten not in rumpf, (
-                f"start_recording benutzt {verboten!r} — die Aufnahme haengt "
-                f"damit doch wieder am Modell"
+                f"start_recording benutzt {verboten!r} — die Aufnahme haengt damit doch wieder am Modell"
             )
 
     def test_the_transcription_waits_instead(self):
         rumpf = self._rumpf("_transcribe_audio")
-        assert "_await_model" in rumpf, (
-            "Wenn die Aufnahme nicht mehr wartet, muss die Auswertung es tun"
-        )
+        assert "_await_model" in rumpf, "Wenn die Aufnahme nicht mehr wartet, muss die Auswertung es tun"
         assert rumpf.index("_await_model") < rumpf.index("self._transcribe_lock")

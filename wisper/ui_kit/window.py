@@ -33,13 +33,16 @@ _WIN11_BUILD = 22000
 
 def _windows_build() -> int:
     """Build-Nummer über RtlGetVersion — GetVersionEx lügt ohne Manifest."""
+
     class _Info(ctypes.Structure):
-        _fields_ = [("dwOSVersionInfoSize", ctypes.c_ulong),
-                    ("dwMajorVersion", ctypes.c_ulong),
-                    ("dwMinorVersion", ctypes.c_ulong),
-                    ("dwBuildNumber", ctypes.c_ulong),
-                    ("dwPlatformId", ctypes.c_ulong),
-                    ("szCSDVersion", ctypes.c_wchar * 128)]
+        _fields_ = [
+            ("dwOSVersionInfoSize", ctypes.c_ulong),
+            ("dwMajorVersion", ctypes.c_ulong),
+            ("dwMinorVersion", ctypes.c_ulong),
+            ("dwBuildNumber", ctypes.c_ulong),
+            ("dwPlatformId", ctypes.c_ulong),
+            ("szCSDVersion", ctypes.c_wchar * 128),
+        ]
 
     try:
         info = _Info()
@@ -66,37 +69,37 @@ def round_window_corners(root: tk.Misc, radius: int = Radius.WINDOW) -> str:
     DWM-Weg ausdrücklich entfernt.
     """
     if sys.platform != "win32":
-        return "keine"      # XWayland-Fenster formt KWin selbst; Rundung ist kosmetisch
+        return "keine"  # XWayland-Fenster formt KWin selbst; Rundung ist kosmetisch
     try:
         root.update_idletasks()
         hwnd = _window_handle(root)
         if not hwnd:
             return "keine"
-    except tk.TclError:      # pragma: no cover - Fenster bereits zerstört
+    except tk.TclError:  # pragma: no cover - Fenster bereits zerstört
         return "keine"
 
     if _windows_build() >= _WIN11_BUILD:
         try:
-            ctypes.windll.user32.SetWindowRgn(hwnd, None, True)   # Maske weg
+            ctypes.windll.user32.SetWindowRgn(hwnd, None, True)  # Maske weg
             preference = ctypes.c_int(_DWMWCP_ROUND)
             result = ctypes.windll.dwmapi.DwmSetWindowAttribute(
                 ctypes.c_void_p(hwnd),
                 ctypes.c_uint(_DWMWA_WINDOW_CORNER_PREFERENCE),
-                ctypes.byref(preference), ctypes.sizeof(preference),
+                ctypes.byref(preference),
+                ctypes.sizeof(preference),
             )
             if result == 0:
                 return "dwm"
         except (AttributeError, OSError):
-            pass      # fällt unten auf die Region zurück
+            pass  # fällt unten auf die Region zurück
 
     try:
         width, height = root.winfo_width(), root.winfo_height()
         if width <= 1 or height <= 1:
             return "keine"
         scaled = px(radius)
-        region = ctypes.windll.gdi32.CreateRoundRectRgn(
-            0, 0, width + 1, height + 1, scaled * 2, scaled * 2)
+        region = ctypes.windll.gdi32.CreateRoundRectRgn(0, 0, width + 1, height + 1, scaled * 2, scaled * 2)
         ctypes.windll.user32.SetWindowRgn(hwnd, region, True)
         return "region"
     except (AttributeError, OSError, tk.TclError):
-        return "keine"      # Rundung ist kosmetisch — nie den Start blockieren
+        return "keine"  # Rundung ist kosmetisch — nie den Start blockieren

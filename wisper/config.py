@@ -170,14 +170,11 @@ def _resolve_mic_device(raw: Any) -> str | int | None:
         matches = [
             idx
             for idx, dev in enumerate(devices)
-            if dev.get("max_input_channels", 0) > 0
-            and needle in str(dev.get("name", "")).lower()
+            if dev.get("max_input_channels", 0) > 0 and needle in str(dev.get("name", "")).lower()
         ]
         if not matches:
             return raw
-        matches.sort(
-            key=lambda idx: (devices[idx].get("hostapi") != default_hostapi, idx)
-        )
+        matches.sort(key=lambda idx: (devices[idx].get("hostapi") != default_hostapi, idx))
         return matches[0]
     return None
 
@@ -240,19 +237,17 @@ def ipv4_loopback(url: str) -> str:
         return url
     try:
         parts = urllib.parse.urlsplit(url)
-    except ValueError:              # kaputte URL: unveraendert weiterreichen
+    except ValueError:  # kaputte URL: unveraendert weiterreichen
         return url
     if (parts.hostname or "").lower() != "localhost":
         return url
     try:
         port = parts.port
-    except ValueError:              # unbrauchbarer Port: nicht anfassen
+    except ValueError:  # unbrauchbarer Port: nicht anfassen
         return url
     host = "127.0.0.1" if port is None else f"127.0.0.1:{port}"
     userinfo, at, _ = parts.netloc.rpartition("@")
-    return urllib.parse.urlunsplit(
-        parts._replace(netloc=f"{userinfo}{at}{host}")
-    )
+    return urllib.parse.urlunsplit(parts._replace(netloc=f"{userinfo}{at}{host}"))
 
 
 def _persist_config_value(section: str, key: str, value: Any) -> bool:
@@ -307,7 +302,7 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
     if target is not None:
         original = lines[target]
         bare = original.rstrip("\r\n")
-        line_eol = original[len(bare):] or eol
+        line_eol = original[len(bare) :] or eol
         match = key_re.match(bare)
         assert match is not None  # oben bereits geprüft
         lines[target] = match.group(1) + rhs + _trailing_comment(match.group(2)) + line_eol
@@ -357,8 +352,7 @@ def _list_input_devices() -> list[tuple[str, str]]:
     try:
         devices = sd.query_devices()
         default_hostapi = sd.default.hostapi
-        wasapi = next((i for i, api in enumerate(sd.query_hostapis())
-                       if "WASAPI" in str(api.get("name", ""))), None)
+        wasapi = next((i for i, api in enumerate(sd.query_hostapis()) if "WASAPI" in str(api.get("name", ""))), None)
     except Exception:
         return []
     seen: dict[str, tuple[str, str, int]] = {}
@@ -399,13 +393,14 @@ def ensure_user_config() -> str:
     except OSError:
         # Bewusst kein Rückfall auf die Projektdatei: persönliche Werte gehören
         # nicht in den Programmordner, auch nicht im Notfall.
-        logger.error("Nutzerkonfiguration %s liess sich nicht anlegen — "
-                     "Einstellungen sind in dieser Sitzung nicht speicherbar",
-                     CONFIG_PATH, exc_info=True)
+        logger.error(
+            "Nutzerkonfiguration %s liess sich nicht anlegen — Einstellungen sind in dieser Sitzung nicht speicherbar",
+            CONFIG_PATH,
+            exc_info=True,
+        )
         return "fehlgeschlagen"
     if source is LEGACY_CONFIG_PATH:
-        logger.info("Konfiguration aus %s nach %s übernommen",
-                    LEGACY_CONFIG_PATH, CONFIG_PATH)
+        logger.info("Konfiguration aus %s nach %s übernommen", LEGACY_CONFIG_PATH, CONFIG_PATH)
         return "migriert"
     logger.info("Neue Konfiguration unter %s angelegt", CONFIG_PATH)
     return "angelegt"
@@ -419,8 +414,10 @@ def _read_toml(path: Path) -> dict:
         with path.open("rb") as handle:
             return tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError) as exc:
-        print(f"[{branding.PRODUCT_NAME}] {path.name} konnte nicht geladen "
-              f"werden ({exc}) — nutze Defaults.", file=sys.stderr)
+        print(
+            f"[{branding.PRODUCT_NAME}] {path.name} konnte nicht geladen werden ({exc}) — nutze Defaults.",
+            file=sys.stderr,
+        )
         return {}
 
 
@@ -461,9 +458,7 @@ def _apply_toml(cfg: Config, data: dict) -> None:
     compute_priority = model.get("compute_priority", {})
     if isinstance(compute_priority, dict) and compute_priority:
         cfg.model_compute_priority = {
-            str(k): tuple(str(x) for x in v)
-            for k, v in compute_priority.items()
-            if isinstance(v, list) and v
+            str(k): tuple(str(x) for x in v) for k, v in compute_priority.items() if isinstance(v, list) and v
         }
 
     transcription = data.get("transcription", {})
@@ -471,8 +466,12 @@ def _apply_toml(cfg: Config, data: dict) -> None:
     cfg.transcription_vad_filter = bool(transcription.get("vad_filter", cfg.transcription_vad_filter))
     cfg.transcription_word_timestamps = bool(transcription.get("word_timestamps", cfg.transcription_word_timestamps))
     cfg.transcription_beam_size = int(transcription.get("beam_size", cfg.transcription_beam_size))
-    cfg.transcription_condition_on_previous_text = bool(transcription.get("condition_on_previous_text", cfg.transcription_condition_on_previous_text))
-    cfg.transcription_without_timestamps = bool(transcription.get("without_timestamps", cfg.transcription_without_timestamps))
+    cfg.transcription_condition_on_previous_text = bool(
+        transcription.get("condition_on_previous_text", cfg.transcription_condition_on_previous_text)
+    )
+    cfg.transcription_without_timestamps = bool(
+        transcription.get("without_timestamps", cfg.transcription_without_timestamps)
+    )
 
     hotkeys = data.get("hotkeys", {})
     cfg.hotkey_transcript = str(hotkeys.get("transcript", cfg.hotkey_transcript))
@@ -500,8 +499,10 @@ def _apply_toml(cfg: Config, data: dict) -> None:
         try:
             cfg.cleanup_prompt_template = prompt_path.read_text(encoding="utf-8")
         except OSError as exc:
-            print(f"[{branding.PRODUCT_NAME}] Cleanup-Prompt konnte nicht geladen "
-                  f"werden ({exc}) — nutze Default.", file=sys.stderr)
+            print(
+                f"[{branding.PRODUCT_NAME}] Cleanup-Prompt konnte nicht geladen werden ({exc}) — nutze Default.",
+                file=sys.stderr,
+            )
 
     clipboard = data.get("clipboard", {})
     cfg.clipboard_paste_timeout = float(clipboard.get("paste_timeout", cfg.clipboard_paste_timeout))
@@ -531,15 +532,11 @@ def _setup_logging() -> logging.Logger:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s [%(threadName)s] %(message)s")
-    )
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(threadName)s] %(message)s"))
     log.addHandler(file_handler)
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(
-        logging.Formatter("%(levelname)s: %(message)s")
-    )
+    console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     log.addHandler(console_handler)
     return log
 

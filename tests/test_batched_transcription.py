@@ -18,7 +18,6 @@ Die Schwelle ist deshalb kein Geschmack, sondern die Stelle, an der die
 Messung kippt.
 """
 
-
 import inspect
 
 import numpy as np
@@ -60,8 +59,7 @@ def app(monkeypatch):
 @pytest.fixture
 def modell(monkeypatch):
     protokoll = Aufzeichnung()
-    monkeypatch.setattr(transcription_mod, "BatchedInferencePipeline",
-                        lambda model: GebatchteAufzeichnung(protokoll))
+    monkeypatch.setattr(transcription_mod, "BatchedInferencePipeline", lambda model: GebatchteAufzeichnung(protokoll))
     return protokoll
 
 
@@ -71,7 +69,6 @@ def _audio(sekunden: float) -> np.ndarray:
 
 
 class TestWelcherWegGenommenWird:
-
     @pytest.mark.parametrize("sekunden", [1, 5, 12, 24, 29.9])
     def test_short_recordings_stay_sequential(self, app, modell, sekunden):
         app._run_transcription(modell, _audio(sekunden))
@@ -98,10 +95,17 @@ class TestBeideWegeBekommenDasselbe:
         assert lang.pop("batch_size") == transcription_mod.BATCH_SIZE
         assert kurz == lang
 
-    @pytest.mark.parametrize("schluessel", [
-        "language", "vad_filter", "word_timestamps", "beam_size",
-        "condition_on_previous_text", "without_timestamps",
-    ])
+    @pytest.mark.parametrize(
+        "schluessel",
+        [
+            "language",
+            "vad_filter",
+            "word_timestamps",
+            "beam_size",
+            "condition_on_previous_text",
+            "without_timestamps",
+        ],
+    )
     def test_every_configured_option_reaches_both(self, app, modell, schluessel):
         app._run_transcription(modell, _audio(5))
         app._run_transcription(modell, _audio(60))
@@ -110,7 +114,6 @@ class TestBeideWegeBekommenDasselbe:
 
 
 class TestDieVoraussetzungFuersBatchen:
-
     def test_context_between_segments_stays_off(self):
         """Ohne das waere die parallele Auswertung nicht dasselbe Ergebnis.
 

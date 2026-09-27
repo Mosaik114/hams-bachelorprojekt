@@ -44,8 +44,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
     and LLM cleanup/prompt generation.
     """
 
-    WINDOW_WIDTH = 360         # logisch; Platz fuer beide Kurzbefehle als Tasten
-    WINDOW_MIN_HEIGHT = 190    # logisch; die echte Hoehe kommt aus dem Layout
+    WINDOW_WIDTH = 360  # logisch; Platz fuer beide Kurzbefehle als Tasten
+    WINDOW_MIN_HEIGHT = 190  # logisch; die echte Hoehe kommt aus dem Layout
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
@@ -53,17 +53,16 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         # Reihenfolge zählt: erst Skalierung (setzt tk scaling), dann Fonts.
         uk.init_scale(self.root)
         uk.init_fonts(self.root)
-        logger.info("Systemanimationen: %s",
-                    "an" if uk.init_animations() else "aus")
+        logger.info("Systemanimationen: %s", "an" if uk.init_animations() else "aus")
         logger.info(
             "UI scale: %d dpi, Faktor %.2f, tk scaling %.3f",
-            uk.Scale.dpi, uk.Scale.factor,
+            uk.Scale.dpi,
+            uk.Scale.factor,
             float(self.root.tk.call("tk", "scaling")),
         )
         self.root.overrideredirect(True)  # randlos für das eigene Mosaik-Design
         self._window_size = (uk.px(self.WINDOW_WIDTH), uk.px(self.WINDOW_MIN_HEIGHT))
-        self._window_pos = window_position(
-            CFG.window_x, CFG.window_y, *self._window_size, uk.work_areas())
+        self._window_pos = window_position(CFG.window_x, CFG.window_y, *self._window_size, uk.work_areas())
         self._position_job: str | None = None
         self.root.geometry(f"+{self._window_pos[0]}+{self._window_pos[1]}")
         self.root.attributes("-topmost", True)
@@ -136,8 +135,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self._system_hotkeys = SystemHotkeys()
         if sys.platform != "win32":
             # Das Geraet frueh anlegen: KWin braucht einen Moment, bis es es kennt.
-            threading.Thread(target=linux.KEYBOARD.open, daemon=True,
-                             name="uinput").start()
+            threading.Thread(target=linux.KEYBOARD.open, daemon=True, name="uinput").start()
 
         self._build_ui()
         self._fit_window()
@@ -217,7 +215,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
             (CFG.hotkey_prompt, self.toggle_recording_generate, "Prompt"),
         )
         gescheitert = self._system_hotkeys.register(
-            [(combo, lambda h=handler: self._ui_call(h)) for combo, handler, _ in eintraege])
+            [(combo, lambda h=handler: self._ui_call(h)) for combo, handler, _ in eintraege]
+        )
         for combo, handler, label in eintraege:
             if combo not in gescheitert:
                 logger.info("Hotkey registered: %s (%s, System)", combo, label)
@@ -227,18 +226,22 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
                 logger.info("Hotkey registered: %s (%s)", combo, label)
             except (ValueError, KeyError) as exc:
                 logger.error("Hotkey '%s' invalid (%s): %s", combo, label, exc)
-                self._ui_call(lambda c=combo, bez=label: self._apply_state(
-                    "error", "Kurzbefehl nicht verfügbar",
-                    f"„{c}“ ({bez}) lässt sich nicht registrieren. "
-                    f"Prüfe die Einstellung in {CONFIG_PATH}.",
-                ))
+                self._ui_call(
+                    lambda c=combo, bez=label: self._apply_state(
+                        "error",
+                        "Kurzbefehl nicht verfügbar",
+                        f"„{c}“ ({bez}) lässt sich nicht registrieren. Prüfe die Einstellung in {CONFIG_PATH}.",
+                    )
+                )
             except Exception:
                 logger.exception("Hotkey '%s' registration failed", combo)
-                self._ui_call(lambda c=combo: self._apply_state(
-                    "error", "Kurzbefehl nicht verfügbar",
-                    f"„{c}“ konnte nicht registriert werden. "
-                    f"Vermutlich belegt ihn ein anderes Programm.",
-                ))
+                self._ui_call(
+                    lambda c=combo: self._apply_state(
+                        "error",
+                        "Kurzbefehl nicht verfügbar",
+                        f"„{c}“ konnte nicht registriert werden. Vermutlich belegt ihn ein anderes Programm.",
+                    )
+                )
 
     # ---------------------------------------------------------- Darstellung
 
@@ -274,6 +277,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
                 self.settings_win.focus()
                 return
             self.settings_win = SettingsWindow(self)
+
         self.root.after(0, _do)
 
     def restart_app(self) -> str:
@@ -318,15 +322,14 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
         befehl = restart_command()
         if sys.platform == "win32":
-            loesen = {"creationflags": (subprocess.DETACHED_PROCESS
-                                        | subprocess.CREATE_NEW_PROCESS_GROUP)}
+            loesen = {"creationflags": (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)}
         else:
             loesen = {"start_new_session": True}
         try:
             subprocess.Popen(befehl, cwd=str(APP_DIR.parent), close_fds=True, **loesen)
         except Exception:
             logger.exception("Neustart fehlgeschlagen: %s", befehl)
-            _acquire_single_instance_mutex()      # Zustand zuruecknehmen
+            _acquire_single_instance_mutex()  # Zustand zuruecknehmen
             return "Neustart fehlgeschlagen"
 
         logger.info("Neustart angefordert: %s", befehl)
@@ -368,7 +371,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
             keyboard.unhook_all_hotkeys()
         except Exception:
             logger.exception("Hotkey unhook failed")
-        self.downloader.cancel()      # unvollstaendige Dateien bleiben, sie setzen fort
+        self.downloader.cancel()  # unvollstaendige Dateien bleiben, sie setzen fort
         if self.model is not None:
             self.model = None
             self.model_ready.clear()
@@ -382,16 +385,20 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         Fensterhöhe konstant und nichts springt.
         """
         card = tk.Frame(self.root, bg=Theme.WINDOW_BG)
-        card.pack(fill="both", expand=True,
-                  padx=uk.px(uk.Space.WINDOW), pady=uk.px(uk.Space.WINDOW))
+        card.pack(fill="both", expand=True, padx=uk.px(uk.Space.WINDOW), pady=uk.px(uk.Space.WINDOW))
 
         # --- 1. Kopfzeile: Wortmarke (ziehbar) + zwei Icon-Schaltflächen ---
         head = tk.Frame(card, bg=Theme.WINDOW_BG)
         head.pack(fill="x")
 
-        title = tk.Label(head, text=branding.PRODUCT_NAME, bg=Theme.WINDOW_BG,
-                         fg=Theme.TEXT_PRIMARY, font=uk.font("window_title"),
-                         anchor="w")
+        title = tk.Label(
+            head,
+            text=branding.PRODUCT_NAME,
+            bg=Theme.WINDOW_BG,
+            fg=Theme.TEXT_PRIMARY,
+            font=uk.font("window_title"),
+            anchor="w",
+        )
         title.pack(side="left")
         for widget in (head, title):
             widget.bind("<ButtonPress-1>", self._start_drag)
@@ -400,12 +407,12 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         # Reihenfolge der Erzeugung ist die Reihenfolge der Tabulatorkette; sie
         # soll der Leserichtung folgen (Zahnrad, dann Kreuz). Gepackt wird
         # umgekehrt, weil `side="right"` das zuerst gepackte ganz aussen setzt.
-        self._gear_btn = uk.IconButton(head, "settings", self._open_settings,
-                                       bg_under=Theme.WINDOW_BG,
-                                       tooltip="Einstellungen")
-        self._close_btn = uk.IconButton(head, "close", self._hide_window,
-                                        bg_under=Theme.WINDOW_BG,
-                                        tooltip="Fenster ausblenden")
+        self._gear_btn = uk.IconButton(
+            head, "settings", self._open_settings, bg_under=Theme.WINDOW_BG, tooltip="Einstellungen"
+        )
+        self._close_btn = uk.IconButton(
+            head, "close", self._hide_window, bg_under=Theme.WINDOW_BG, tooltip="Fenster ausblenden"
+        )
         self._close_btn.set_hover_colour(Theme.ERROR)
         self._close_btn.pack(side="right")
         self._gear_btn.pack(side="right", padx=(0, uk.px(uk.Space.XS)))
@@ -414,16 +421,15 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         status_row = tk.Frame(card, bg=Theme.WINDOW_BG)
         status_row.pack(fill="x", pady=(uk.px(uk.Space.XL), 0))
 
-        self.status_dot = uk.StatusDot(status_row, bg_under=Theme.WINDOW_BG,
-                                       size=uk.StatusDot.SIZE_MAIN)
+        self.status_dot = uk.StatusDot(status_row, bg_under=Theme.WINDOW_BG, size=uk.StatusDot.SIZE_MAIN)
         self.status_dot.pack(side="left", pady=uk.px(uk.Space.SM))
-        self.status_label = tk.Label(status_row, text="", anchor="w",
-                                     bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY,
-                                     font=uk.font("status"))
+        self.status_label = tk.Label(
+            status_row, text="", anchor="w", bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY, font=uk.font("status")
+        )
         self.status_label.pack(side="left", padx=(uk.px(uk.Space.MD), 0))
-        self.elapsed_label = tk.Label(status_row, text="", anchor="e",
-                                      bg=Theme.WINDOW_BG, fg=Theme.TEXT_SECONDARY,
-                                      font=uk.font("status"))
+        self.elapsed_label = tk.Label(
+            status_row, text="", anchor="e", bg=Theme.WINDOW_BG, fg=Theme.TEXT_SECONDARY, font=uk.font("status")
+        )
         self.elapsed_label.pack(side="right")
 
         # --- 3. Pegel: immer an derselben Stelle, im Ruhezustand dunkel ---
@@ -432,16 +438,19 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
         # --- 4. Hauptaktion ---
         self.main_button = uk.SecondaryButton(
-            card, "Aufnahme starten", self._on_main_action,
-            bg_under=Theme.WINDOW_BG, role="primary", height=uk.Height.PRIMARY,
+            card,
+            "Aufnahme starten",
+            self._on_main_action,
+            bg_under=Theme.WINDOW_BG,
+            role="primary",
+            height=uk.Height.PRIMARY,
         )
         self.main_button.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
 
         # --- 5. Fußzeile: beide Kurzbefehle als Tasten, im Fehlerfall der Hinweis ---
         # Feste Höhe: der Hinweis tritt an die Stelle der Tasten, und das
         # Fenster darf dabei nicht springen.
-        self.footer = tk.Frame(card, bg=Theme.WINDOW_BG,
-                               height=uk.px(self.FOOTER_HEIGHT))
+        self.footer = tk.Frame(card, bg=Theme.WINDOW_BG, height=uk.px(self.FOOTER_HEIGHT))
         self.footer.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
         self.footer.pack_propagate(False)
 
@@ -450,22 +459,36 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self.shortcut_keys = {}
         for row, (key, text, combo) in enumerate(self.shortcuts()):
             gap = (uk.px(uk.Space.SM) if row else 0, 0)
-            tk.Label(self.shortcut_box, text=text, anchor="w", bd=0, padx=0, pady=0,
-                     bg=Theme.WINDOW_BG, fg=Theme.TEXT_TERTIARY,
-                     font=uk.font("description")).grid(row=row, column=0,
-                                                       sticky="w", pady=gap)
+            tk.Label(
+                self.shortcut_box,
+                text=text,
+                anchor="w",
+                bd=0,
+                padx=0,
+                pady=0,
+                bg=Theme.WINDOW_BG,
+                fg=Theme.TEXT_TERTIARY,
+                font=uk.font("description"),
+            ).grid(row=row, column=0, sticky="w", pady=gap)
             keys = uk.KeyCombo(self.shortcut_box, bg_under=Theme.WINDOW_BG, combo=combo)
             keys.grid(row=row, column=1, sticky="e", pady=gap)
             self.shortcut_keys[key] = keys
         self.shortcut_box.pack(fill="x")
 
         self.footer_label = tk.Label(
-            self.footer, text="", anchor="nw", justify="left", bd=0, padx=0, pady=0,
-            bg=Theme.WINDOW_BG, fg=Theme.ERROR, font=uk.font("description"),
+            self.footer,
+            text="",
+            anchor="nw",
+            justify="left",
+            bd=0,
+            padx=0,
+            pady=0,
+            bg=Theme.WINDOW_BG,
+            fg=Theme.ERROR,
+            font=uk.font("description"),
         )
         # Der Hinweis bricht um statt abzuschneiden („… läuft der Dien“).
-        self.footer.bind("<Configure>", lambda e: self.footer_label.configure(
-            wraplength=max(1, e.width)), add="+")
+        self.footer.bind("<Configure>", lambda e: self.footer_label.configure(wraplength=max(1, e.width)), add="+")
 
     #: Zwei Tastenreihen plus Abstand dazwischen, in logischen Pixeln.
     FOOTER_HEIGHT = 2 * uk.Height.KEYCAP + uk.Space.SM
@@ -477,8 +500,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         Kurze Bezeichnungen mit Absicht: vier Tasten brauchen bei 100 % schon
         249 px der 320 px Innenbreite; „Prompt an KI“ passte daneben nicht mehr.
         """
-        return (("transcript", "Diktieren", CFG.hotkey_transcript),
-                ("prompt", "Prompt", CFG.hotkey_prompt))
+        return (("transcript", "Diktieren", CFG.hotkey_transcript), ("prompt", "Prompt", CFG.hotkey_prompt))
 
     def _show_footer_hint(self, hint: str | None) -> None:
         """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe."""
@@ -501,16 +523,22 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         """
         line = self._line_height("status")
         footer = self.FOOTER_HEIGHT
-        ring = 2 * (uk.Space.XS + uk.Space.XS)      # Fokusring des Buttons
+        ring = 2 * (uk.Space.XS + uk.Space.XS)  # Fokusring des Buttons
 
         logical = (
-            uk.Space.WINDOW                          # Rand oben
-            + uk.Height.STANDARD                     # Kopfzeile
-            + uk.Space.XL + line + 2 * uk.Space.SM   # Statuszeile
-            + uk.Space.LG + uk.SignalMeter.HEIGHT    # Pegel
-            + uk.Space.LG + uk.Height.PRIMARY + ring  # Hauptaktion
-            + uk.Space.LG + footer                   # Kurzbefehle als Tasten
-            + uk.Space.WINDOW                        # Rand unten
+            uk.Space.WINDOW  # Rand oben
+            + uk.Height.STANDARD  # Kopfzeile
+            + uk.Space.XL
+            + line
+            + 2 * uk.Space.SM  # Statuszeile
+            + uk.Space.LG
+            + uk.SignalMeter.HEIGHT  # Pegel
+            + uk.Space.LG
+            + uk.Height.PRIMARY
+            + ring  # Hauptaktion
+            + uk.Space.LG
+            + footer  # Kurzbefehle als Tasten
+            + uk.Space.WINDOW  # Rand unten
         )
         width = uk.px(self.WINDOW_WIDTH)
         height = uk.px(max(logical, self.WINDOW_MIN_HEIGHT))
@@ -524,7 +552,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         """Zeilenhöhe einer Schriftrolle in *logischen* Pixeln."""
         try:
             pixels = uk.font(role).metrics("linespace")
-        except AttributeError:                        # vor init_fonts()
+        except AttributeError:  # vor init_fonts()
             pixels = uk.px(14)
         return max(1, int(round(pixels / max(uk.Scale.factor, 0.1))))
 
@@ -555,8 +583,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
     RECORDING_STATES = ("recording", "recording_prompt")
 
-    def _apply_state(self, state: str, detail: str | None = None,
-                     hint: str | None = None) -> None:
+    def _apply_state(self, state: str, detail: str | None = None, hint: str | None = None) -> None:
         """Die einzige Stelle, an der sich die Oberfläche des Hauptfensters ändert.
 
         Der Button zeigt die *Aktion*, die Statuszeile den *Zustand* — nie
@@ -586,8 +613,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self.main_button.config(text=button_text)
         self.main_button.set_enabled(enabled)
         # Ohne eigene Farbe: das Symbol nimmt die Schriftfarbe der Flaeche an.
-        self.main_button.set_icon(
-            "stop" if state in self.RECORDING_STATES else None)
+        self.main_button.set_icon("stop" if state in self.RECORDING_STATES else None)
 
         if state not in self.RECORDING_STATES:
             self.elapsed_label.config(text="")
@@ -648,9 +674,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
     def _beep(self, freq: int, duration: int) -> None:
         if not CFG.sound_feedback:
             return
-        threading.Thread(
-            target=winsound.Beep, args=(freq, duration), daemon=True, name="beep"
-        ).start()
+        threading.Thread(target=winsound.Beep, args=(freq, duration), daemon=True, name="beep").start()
 
     # ------------------------------------------------------------------ drag
 
@@ -676,9 +700,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self._window_pos = (int(x), int(y))
         self._cancel_position_job()
         try:
-            self._position_job = self.root.after(POSITION_SAVE_DELAY_MS,
-                                                 self._save_position)
-        except tk.TclError:      # pragma: no cover - Fenster verschwindet gerade
+            self._position_job = self.root.after(POSITION_SAVE_DELAY_MS, self._save_position)
+        except tk.TclError:  # pragma: no cover - Fenster verschwindet gerade
             self._position_job = None
 
     def _cancel_position_job(self) -> None:
@@ -686,7 +709,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
             return
         try:
             self.root.after_cancel(self._position_job)
-        except (tk.TclError, ValueError):      # pragma: no cover
+        except (tk.TclError, ValueError):  # pragma: no cover
             pass
         self._position_job = None
 
@@ -712,6 +735,6 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         try:
             if self.root.winfo_exists() and self.root.winfo_ismapped():
                 self._window_pos = (self.root.winfo_x(), self.root.winfo_y())
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
         self._save_position()

@@ -88,13 +88,15 @@ def patch_everywhere(monkeypatch):
     Fuer Pruefungen der Art "nirgends wird gespeichert": ein Patch an nur
     einer Stelle liesse jeden anderen Aufrufer unbemerkt durch.
     """
+
     def patch(name, value):
         from wisper import config
+
         original = getattr(config, name)
         for module in list(sys.modules.values()):
-            if (getattr(module, "__name__", "").startswith("wisper")
-                    and getattr(module, name, None) is original):
+            if getattr(module, "__name__", "").startswith("wisper") and getattr(module, name, None) is original:
                 monkeypatch.setattr(module, name, value)
+
     return patch
 
 
@@ -113,10 +115,18 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     from wisper.app import FloatingTranscriberApp as App
     from wisper.config import CFG
 
-    fakes = SimpleNamespace(hotkeys=None, keyboard=FakeKeyboard(), clipboard=FakeClipboard(),
-                            dots=[], beeps=[], saved=[], loads=0, streams=FakeStream.opened,
-                            devices=[("Headset", "Headset (USB Audio)")],
-                            probe=ollama_api.OllamaState(False, error="aus"))
+    fakes = SimpleNamespace(
+        hotkeys=None,
+        keyboard=FakeKeyboard(),
+        clipboard=FakeClipboard(),
+        dots=[],
+        beeps=[],
+        saved=[],
+        loads=0,
+        streams=FakeStream.opened,
+        devices=[("Headset", "Headset (USB Audio)")],
+        probe=ollama_api.OllamaState(False, error="aus"),
+    )
 
     class Hotkeys(FakeHotkeys):
         def __init__(self):
@@ -138,8 +148,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(transcription_mod, "keyboard", fakes.keyboard)
     monkeypatch.setattr(transcription_mod, "pyperclip", fakes.clipboard)
     monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", tmp_path / "transkripte")
-    monkeypatch.setattr(app_mod, "winsound",
-                        SimpleNamespace(Beep=lambda f, d: fakes.beeps.append((f, d))))
+    monkeypatch.setattr(app_mod, "winsound", SimpleNamespace(Beep=lambda f, d: fakes.beeps.append((f, d))))
     monkeypatch.setattr(app_mod, "_notify_cursor_dot", dot)
     monkeypatch.setattr(recording_mod, "_notify_cursor_dot", dot)
     monkeypatch.setattr(recording_mod, "sd", fake_sounddevice())
@@ -167,7 +176,7 @@ def live_app(root, hams):
     theme = _uk.Theme.mode
     window = tk.Toplevel(root)
     app = App(window)
-    _uk.Animator.enabled = False          # init_animations folgt dem System
+    _uk.Animator.enabled = False  # init_animations folgt dem System
     root.update()
     yield app
     app._shutting_down = True
@@ -200,6 +209,7 @@ def root():
     # Schriftrollen bereitstellen, damit Controls unter Testbedingungen
     # dieselben Fonts benutzen wie im Programm.
     from wisper import ui_kit as _uk
+
     _uk.init_scale(window)
     _uk.init_fonts(window)
     yield window

@@ -36,7 +36,7 @@ BG = Theme.GROUP_SURFACE
 
 def luminance(colour: str) -> float:
     value = colour.lstrip("#")
-    parts = [int(value[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    parts = [int(value[i : i + 2], 16) / 255 for i in (0, 2, 4)]
     linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in parts]
     return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
 
@@ -82,7 +82,7 @@ class TestFocusChain:
         first = IconButton(window, "settings", lambda: None, bg_under=BG)
         second = IconButton(window, "close", lambda: None, bg_under=BG)
         second.pack(side="right")
-        first.pack(side="right")      # sichtbar links von `second`
+        first.pack(side="right")  # sichtbar links von `second`
         root.update()
         assert uk.focus_chain(window) == [first, second]
 
@@ -133,8 +133,7 @@ class TestFocusChain:
         assert uk.focus_chain(window) == [button]
 
     def test_reverse_is_the_mirror_image(self, window, root):
-        widgets = [SecondaryButton(window, f"B{i}", lambda: None, bg_under=BG)
-                   for i in range(4)]
+        widgets = [SecondaryButton(window, f"B{i}", lambda: None, bg_under=BG) for i in range(4)]
         for widget in widgets:
             widget.pack()
         root.update()
@@ -234,7 +233,7 @@ class TestKeyboardActivation:
 
 
 class TestHitAreas:
-    MINIMUM = 24      # logische Pixel
+    MINIMUM = 24  # logische Pixel
 
     def test_icon_button(self, window, root):
         button = IconButton(window, "settings", lambda: None, bg_under=BG)
@@ -344,8 +343,7 @@ class TestContrastOfTheWholeSurface:
         helleren Flaechen eine Stufe heller“ keinen Boden.
         """
         palette = Theme.palette(mode)
-        for name in ("WINDOW_BG", "GROUP_SURFACE", "CONTROL_SURFACE",
-                     "CONTROL_HOVER", "POPOVER_SURFACE"):
+        for name in ("WINDOW_BG", "GROUP_SURFACE", "CONTROL_SURFACE", "CONTROL_HOVER", "POPOVER_SURFACE"):
             ratio = contrast(palette["TEXT_SECONDARY"], palette[name])
             assert ratio >= 4.5, f"{mode}: Sekundaertext auf {name} {ratio:.2f}:1"
 
@@ -422,8 +420,7 @@ class TestGreyscale:
         gegenseitig aufheben."""
         for mode in MODES:
             palette = Theme.palette(mode)
-            values = {name: luminance(palette[token])
-                      for name, token in StatusDot.COLOURS.items()}
+            values = {name: luminance(palette[token]) for name, token in StatusDot.COLOURS.items()}
             assert values["error"] != values["ready"], mode
             # Nur der Abstand zaehlt: hell ist „bereit“ dunkler als „untaetig“,
             # dunkel ist es umgekehrt.
@@ -433,8 +430,7 @@ class TestGreyscale:
         """`set_status` verlangt immer beides - ohne Text laesst er sich nicht rufen."""
         parameter = inspect.signature(uk.SettingRow.set_status).parameters
         assert list(parameter)[1:] == ["status", "text"]
-        assert parameter["text"].default is inspect.Parameter.empty, (
-            "SettingRow.set_status muss Text mitfuehren")
+        assert parameter["text"].default is inspect.Parameter.empty, "SettingRow.set_status muss Text mitfuehren"
 
     def test_a_download_shows_numbers_not_only_a_bar(self):
         from wisper.settings_window import SettingsWindow as SW
@@ -447,22 +443,72 @@ class TestGreyscale:
 
 
 #: Schlüsselwörter, unter denen Text tatsächlich in der Oberfläche landet.
-UI_KEYWORDS = {"text", "description", "value", "placeholder", "label", "meta",
-               "trailing", "title", "tooltip", "hint", "detail", "summary",
-               "size_label"}
+UI_KEYWORDS = {
+    "text",
+    "description",
+    "value",
+    "placeholder",
+    "label",
+    "meta",
+    "trailing",
+    "title",
+    "tooltip",
+    "hint",
+    "detail",
+    "summary",
+    "size_label",
+}
 
 #: Aufrufe, deren Positionsargumente ebenfalls in der Oberfläche landen.
-UI_CALLS = {"SettingRow", "SecondaryButton", "PrimaryButton", "IconButton",
-            "SectionHeader", "Option", "WhisperModelInfo", "set_description",
-            "set_status", "set_value", "_apply_state", "download_text"}
+UI_CALLS = {
+    "SettingRow",
+    "SecondaryButton",
+    "PrimaryButton",
+    "IconButton",
+    "SectionHeader",
+    "Option",
+    "WhisperModelInfo",
+    "set_description",
+    "set_status",
+    "set_value",
+    "_apply_state",
+    "download_text",
+}
 
 #: Englische Reste, die frueher in dieser Oberflaeche standen.
-FORBIDDEN = ["Transcriber", "Loading", "Error", "Saved", "Recording", "Ready",
-             "Settings", "Cancel", "Failed", "Copied", "Pasted"]
+FORBIDDEN = [
+    "Transcriber",
+    "Loading",
+    "Error",
+    "Saved",
+    "Recording",
+    "Ready",
+    "Settings",
+    "Cancel",
+    "Failed",
+    "Copied",
+    "Pasted",
+]
 
 #: Fachbegriffe, die als Eigenname stehen bleiben duerfen.
-ALLOWED = {"Whisper", "Ollama", "Turbo", "Large", "Medium", "Small", "Base",
-           "Tiny", "CUDA", "float16", "GPU", "CPU", "Wisper", "KI", "MB", "GB"}
+ALLOWED = {
+    "Whisper",
+    "Ollama",
+    "Turbo",
+    "Large",
+    "Medium",
+    "Small",
+    "Base",
+    "Tiny",
+    "CUDA",
+    "float16",
+    "GPU",
+    "CPU",
+    "Wisper",
+    "KI",
+    "MB",
+    "GB",
+}
 
 
 def _literals(node) -> list:
@@ -470,8 +516,7 @@ def _literals(node) -> list:
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return [node.value]
     if isinstance(node, ast.JoinedStr):
-        return [part.value for part in node.values
-                if isinstance(part, ast.Constant) and isinstance(part.value, str)]
+        return [part.value for part in node.values if isinstance(part, ast.Constant) and isinstance(part.value, str)]
     return []
 
 
@@ -498,7 +543,7 @@ def ui_strings() -> list:
             if not isinstance(node, ast.Call):
                 continue
             named = _call_name(node) in UI_CALLS
-            for argument in (node.args if named else ()):
+            for argument in node.args if named else ():
                 found += [(path.name, text) for text in _literals(argument)]
             for keyword in node.keywords:
                 if named or keyword.arg in UI_KEYWORDS:
@@ -532,8 +577,7 @@ class TestNoLegacyGlyphs:
     @pytest.mark.parametrize("path", [path.relative_to(WISPER).as_posix() for path in module_files()])
     def test_no_glyph_hacks_left(self, path):
         source = (WISPER / path).read_text(encoding="utf-8")
-        lines = [line for line in source.splitlines()
-                 if not line.lstrip().startswith("#")]
+        lines = [line for line in source.splitlines() if not line.lstrip().startswith("#")]
         body = "\n".join(lines)
         present = [glyph for glyph in self.GLYPHS if glyph in body]
         assert not present, f"{path}: {present}"

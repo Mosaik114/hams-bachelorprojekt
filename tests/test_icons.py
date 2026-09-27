@@ -22,12 +22,7 @@ def ink_box(image, threshold=20):
     """Bounding Box der sichtbaren Tinte, ohne das Ausschwingen des Filters."""
     alpha = alpha_channel(image)
     width, height = image.size
-    points = [
-        (x, y)
-        for y in range(height)
-        for x in range(width)
-        if alpha.getpixel((x, y)) > threshold
-    ]
+    points = [(x, y) for y in range(height) for x in range(width) if alpha.getpixel((x, y)) > threshold]
     xs = [p[0] for p in points]
     ys = [p[1] for p in points]
     return min(xs), min(ys), max(xs), max(ys)
@@ -45,9 +40,7 @@ def factor(monkeypatch):
 
 class TestSet:
     def test_exactly_the_planned_icons(self):
-        assert set(uk.icon_names()) == {
-            "settings", "close", "chevron", "check", "download", "stop", "trash"
-        }
+        assert set(uk.icon_names()) == {"settings", "close", "chevron", "check", "download", "stop", "trash"}
 
     def test_unknown_icon_fails_loudly(self):
         with pytest.raises(KeyError):
@@ -95,7 +88,7 @@ class TestStroke:
         """Senkrechter Schnitt durch eine Reglerlinie, abseits der Knöpfe."""
         image = uk.render_icon("settings", size, INK)
         alpha = alpha_channel(image)
-        x = int(size * 3.6 / 16)                       # links, vor dem ersten Knopf
+        x = int(size * 3.6 / 16)  # links, vor dem ersten Knopf
         column = [alpha.getpixel((x, y)) for y in range(size)]
         runs, current = [], 0
         for value in column:
@@ -126,11 +119,17 @@ class TestColour:
         image = uk.render_icon("stop", 16, Theme.ERROR)
         left, top, right, bottom = ink_box(image)
         pixel = image.getpixel(((left + right) // 2, (top + bottom) // 2))
-        assert pixel[:3] == tuple(int(Theme.ERROR[i:i + 2], 16) for i in (1, 3, 5))
+        assert pixel[:3] == tuple(int(Theme.ERROR[i : i + 2], 16) for i in (1, 3, 5))
 
     def test_every_state_colour_renders(self):
-        for colour in (Theme.TEXT_PRIMARY, Theme.TEXT_SECONDARY, Theme.TEXT_TERTIARY,
-                       Theme.ACCENT_TINT, Theme.RECORDING, Theme.SUCCESS):
+        for colour in (
+            Theme.TEXT_PRIMARY,
+            Theme.TEXT_SECONDARY,
+            Theme.TEXT_TERTIARY,
+            Theme.ACCENT_TINT,
+            Theme.RECORDING,
+            Theme.SUCCESS,
+        ):
             assert uk.render_icon("chevron", 16, colour).size == (16, 16)
 
 

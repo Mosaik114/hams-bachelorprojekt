@@ -26,19 +26,19 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
     ist und nicht aufgenommen wird, damit man den Pegel *vor* dem Sprechen sieht.
     """
 
-    WIDTH = 440                 # logisch
-    HEIGHT = 680                # logisch
-    OLLAMA_INTERVAL_MS = 5000   # sparsam, aber nicht nur einmal
+    WIDTH = 440  # logisch
+    HEIGHT = 680  # logisch
+    OLLAMA_INTERVAL_MS = 5000  # sparsam, aber nicht nur einmal
     #: Breite der Controls, die *neben* dem Text stehen (Pegel, Darstellung,
     #: Loeschauswahl). Auswahlfelder mit langen Werten stehen gestapelt darunter.
-    CONTROL_WIDTH = 160         # logisch
+    CONTROL_WIDTH = 160  # logisch
     MODEL_HINT = "Tempo und Genauigkeit"
     APPEARANCE_LABELS = {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
     #: Die Beschreibung bricht um, sie darf also ein ganzer Satz sein.
     RESTART_HINT = "Wenn Kurzbefehle nicht reagieren"
-    RESTART_WIDTH = 108         # logisch; „Neu starten" plus Luft
+    RESTART_WIDTH = 108  # logisch; „Neu starten" plus Luft
     DELETE_PLACEHOLDER = "Löschen …"
-    DELETE_WIDTH = 88           # logisch; „Löschen" plus Luft
+    DELETE_WIDTH = 88  # logisch; „Löschen" plus Luft
     #: So lange bleibt die Erfolgsmeldung stehen, bevor die Zeile wieder den
     #: Bestand zeigt.
     DELETE_NOTE_MS = 4000
@@ -55,10 +55,7 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         except Exception:
             px, py = 80, 80
         self._logical_size = (self.WIDTH, self.HEIGHT)
-        self.win.geometry(
-            f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}"
-            f"+{px + uk.px(24)}+{py + uk.px(24)}"
-        )
+        self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}+{px + uk.px(24)}+{py + uk.px(24)}")
         self.win.bind("<Escape>", lambda _e: self.close())
 
         self._mon_stream: sd.InputStream | None = None
@@ -134,7 +131,7 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         try:
             self.win.geometry(f"{uk.px(width)}x{uk.px(height)}")
             uk.round_window_corners(self.win)
-        except tk.TclError:      # pragma: no cover - Fenster verschwindet gerade
+        except tk.TclError:  # pragma: no cover - Fenster verschwindet gerade
             pass
 
     def close(self) -> None:
@@ -178,19 +175,24 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         wirken lässt.
         """
         head = tk.Frame(self.win, bg=Theme.WINDOW_BG)
-        head.pack(fill="x", padx=uk.px(uk.Space.WINDOW),
-                  pady=(uk.px(uk.Space.WINDOW), 0))
+        head.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(uk.px(uk.Space.WINDOW), 0))
 
-        title = tk.Label(head, text="Einstellungen", bg=Theme.WINDOW_BG,
-                         fg=Theme.TEXT_PRIMARY, font=uk.font("window_title"), anchor="w")
+        title = tk.Label(
+            head,
+            text="Einstellungen",
+            bg=Theme.WINDOW_BG,
+            fg=Theme.TEXT_PRIMARY,
+            font=uk.font("window_title"),
+            anchor="w",
+        )
         title.pack(side="left")
         for widget in (head, title):
             widget.bind("<ButtonPress-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._on_drag)
 
-        self._close_btn = uk.IconButton(head, "close", self.close,
-                                        bg_under=Theme.WINDOW_BG,
-                                        tooltip="Einstellungen schließen")
+        self._close_btn = uk.IconButton(
+            head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip="Einstellungen schließen"
+        )
         self._close_btn.set_hover_colour(Theme.ERROR)
         self._close_btn.pack(side="right")
 
@@ -198,11 +200,8 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         self._head_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
         self._head_line.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
 
-        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG,
-                                    on_scroll=self._on_scroll)
-        self.scroll.pack(fill="both", expand=True,
-                         padx=(uk.px(uk.Space.WINDOW), 0),
-                         pady=(0, uk.px(uk.Space.WINDOW)))
+        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, on_scroll=self._on_scroll)
+        self.scroll.pack(fill="both", expand=True, padx=(uk.px(uk.Space.WINDOW), 0), pady=(0, uk.px(uk.Space.WINDOW)))
         self.scroll.bind_keys(self.win)
 
         body = self.scroll.body
@@ -229,8 +228,8 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         right = uk.Space.WINDOW - uk.ScrollArea.gutter_width()
         top = uk.Space.MD if first else uk.Space.SECTION_GAP
         uk.SectionHeader(master, title, bg_under=Theme.WINDOW_BG).pack(
-            fill="x", padx=(uk.px(text_x), uk.px(right)),
-            pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP)))
+            fill="x", padx=(uk.px(text_x), uk.px(right)), pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP))
+        )
         group = uk.GroupSurface(master, bg_under=Theme.WINDOW_BG)
         group.pack(fill="x", padx=(0, uk.px(right)))
         return group
@@ -240,16 +239,17 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
 
         # Geraetenamen sind lang; das Feld steht deshalb in voller Breite unter
         # Titel und Status.
-        self.row_mic = uk.SettingRow(group.body, "Mikrofon", variant="status",
-                                     stacked=True)
+        self.row_mic = uk.SettingRow(group.body, "Mikrofon", variant="status", stacked=True)
         self.row_mic.pack(fill="x")
         self.mic_select = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE,
-            on_change=self._select_device, placeholder="Kein Mikrofon gefunden")
+            group.body,
+            bg_under=Theme.GROUP_SURFACE,
+            on_change=self._select_device,
+            placeholder="Kein Mikrofon gefunden",
+        )
         self.row_mic.set_control(self.mic_select)
 
-        self.row_level = uk.SettingRow(group.body, "Eingangspegel",
-                                       variant="simple", hairline=False)
+        self.row_level = uk.SettingRow(group.body, "Eingangspegel", variant="simple", hairline=False)
         self.row_level.pack(fill="x")
         self.meter = uk.SignalMeter(group.body, bg_under=Theme.GROUP_SURFACE)
         uk.keep_logical_width(self.meter, self.CONTROL_WIDTH)
@@ -261,20 +261,18 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         group = self._group(master, "Transkription")
 
         self.row_model = uk.SettingRow(
-            group.body, "Whisper-Modell", variant="description",
-            description=self.MODEL_HINT, stacked=True)
+            group.body, "Whisper-Modell", variant="description", description=self.MODEL_HINT, stacked=True
+        )
         self.row_model.pack(fill="x")
-        self.model_select = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE,
-            on_change=self._select_model)
+        self.model_select = uk.Select(group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._select_model)
         self.row_model.set_control(self.model_select)
         # Waehrend eines Downloads tritt dieses Kreuz an die Stelle des
         # Auswahlfeldes; es wird erst dann eingehaengt. Bewusst nur ein Icon:
         # eine beschriftete Schaltflaeche nimmt der Fortschrittszeile die
         # Breite, und die Zeile ist die eigentliche Rueckmeldung.
         self.cancel_button = uk.IconButton(
-            group.body, "close", self._cancel_download,
-            bg_under=Theme.GROUP_SURFACE, tooltip="Download abbrechen")
+            group.body, "close", self._cancel_download, bg_under=Theme.GROUP_SURFACE, tooltip="Download abbrechen"
+        )
         self.cancel_button.set_hover_colour(Theme.ERROR)
         self._refresh_models()
 
@@ -283,13 +281,11 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         # Modell, und genau das darf man nicht loeschen. Eine Loeschung braucht
         # deshalb eine eigene Auswahl — und die erscheint nur, wenn es etwas zu
         # loeschen gibt.
-        self.row_storage = uk.SettingRow(
-            group.body, "Gespeicherte Modelle", variant="description",
-            description="—")
+        self.row_storage = uk.SettingRow(group.body, "Gespeicherte Modelle", variant="description", description="—")
         self.row_storage.pack(fill="x")
         self.select_delete = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE,
-            on_change=self._choose_delete, placeholder=self.DELETE_PLACEHOLDER)
+            group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._choose_delete, placeholder=self.DELETE_PLACEHOLDER
+        )
         uk.keep_logical_width(self.select_delete, self.CONTROL_WIDTH)
         self.row_storage.set_control(self.select_delete)
 
@@ -297,57 +293,73 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         # Kniff wie beim Download-Abbruch. Zwei Schaltflaechen nebeneinander
         # brauchen einen Rahmen, weil eine Zeile nur ein Control aufnimmt.
         self._delete_box = tk.Frame(group.body, bg=Theme.GROUP_SURFACE)
-        self._delete_box.focus_ring = True      # die Knoepfe darin tragen ihn
+        self._delete_box.focus_ring = True  # die Knoepfe darin tragen ihn
         self.delete_button = uk.SecondaryButton(
-            self._delete_box, "Löschen", self._confirm_delete,
-            bg_under=Theme.GROUP_SURFACE, role="recording",
-            height=uk.Height.STANDARD)
+            self._delete_box,
+            "Löschen",
+            self._confirm_delete,
+            bg_under=Theme.GROUP_SURFACE,
+            role="recording",
+            height=uk.Height.STANDARD,
+        )
         uk.keep_logical_width(self.delete_button, self.DELETE_WIDTH)
         self.delete_button.pack(side="left")
         self.delete_cancel = uk.IconButton(
-            self._delete_box, "close", self._abort_delete,
-            bg_under=Theme.GROUP_SURFACE, tooltip="Löschen abbrechen")
+            self._delete_box, "close", self._abort_delete, bg_under=Theme.GROUP_SURFACE, tooltip="Löschen abbrechen"
+        )
         self.delete_cancel.pack(side="left", padx=(uk.px(uk.Space.XS), 0))
         self._refresh_storage()
 
-        self.row_hardware = uk.SettingRow(group.body, "Hardware", variant="display",
-                                          value="—", hairline=False)
+        self.row_hardware = uk.SettingRow(group.body, "Hardware", variant="display", value="—", hairline=False)
         self.row_hardware.pack(fill="x")
 
     def _build_ai(self, master: tk.Misc) -> None:
         group = self._group(master, "KI")
 
         self.row_cleanup = uk.SettingRow(
-            group.body, "Text bereinigen", variant="description",
+            group.body,
+            "Text bereinigen",
+            variant="description",
             description="Glättet das Transkript nach jeder Aufnahme",
-            interactive=True, command=self._toggle_cleanup)
+            interactive=True,
+            command=self._toggle_cleanup,
+        )
         self.row_cleanup.pack(fill="x")
-        self.switch_cleanup = uk.Switch(group.body, bg_under=Theme.GROUP_SURFACE,
-                                        value=CFG.ollama_cleanup_enabled,
-                                        command=self._on_cleanup)
+        self.switch_cleanup = uk.Switch(
+            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.ollama_cleanup_enabled, command=self._on_cleanup
+        )
         self.row_cleanup.set_control(self.switch_cleanup)
 
         # Zwei getrennte Auswahlfelder, kein gemeinsames "KI-Modell": Cleanup
         # laeuft oft mit einem kleinen schnellen Modell, der Prompt-Modus mit
         # einem groesseren. Gleiches Bedienelement, getrennte Werte.
-        self.row_cleanup_model = uk.SettingRow(
-            group.body, "Modell zum Bereinigen", variant="status", stacked=True)
+        self.row_cleanup_model = uk.SettingRow(group.body, "Modell zum Bereinigen", variant="status", stacked=True)
         self.row_cleanup_model.pack(fill="x")
         self.select_cleanup_model = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE,
-            value=CFG.ollama_model_cleanup, on_change=self._select_cleanup_model,
-            placeholder="Kein Modell")
+            group.body,
+            bg_under=Theme.GROUP_SURFACE,
+            value=CFG.ollama_model_cleanup,
+            on_change=self._select_cleanup_model,
+            placeholder="Kein Modell",
+        )
         self.row_cleanup_model.set_control(self.select_cleanup_model)
 
         self.row_prompt_model = uk.SettingRow(
-            group.body, "Modell für Prompts", variant="description",
+            group.body,
+            "Modell für Prompts",
+            variant="description",
             description="Beantwortet gesprochene Prompts",
-            hairline=False, stacked=True)
+            hairline=False,
+            stacked=True,
+        )
         self.row_prompt_model.pack(fill="x")
         self.select_prompt_model = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE,
-            value=CFG.ollama_model_prompt, on_change=self._select_prompt_model,
-            placeholder="Kein Modell")
+            group.body,
+            bg_under=Theme.GROUP_SURFACE,
+            value=CFG.ollama_model_prompt,
+            on_change=self._select_prompt_model,
+            placeholder="Kein Modell",
+        )
         self.row_prompt_model.set_control(self.select_prompt_model)
         self._refresh_ollama_models()
         self._show_ollama_status()
@@ -376,12 +388,12 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         # innen laesst sich der Hook nicht neu setzen (siehe `restart_app`),
         # ein frischer Prozess dagegen schon.
         self.row_restart = uk.SettingRow(
-            group.body, "Neustart", variant="description",
-            description=self.RESTART_HINT, hairline=False)
+            group.body, "Neustart", variant="description", description=self.RESTART_HINT, hairline=False
+        )
         self.row_restart.pack(fill="x")
         self.restart_button = uk.SecondaryButton(
-            group.body, "Neu starten", self._restart_app,
-            bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD)
+            group.body, "Neu starten", self._restart_app, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
+        )
         uk.keep_logical_width(self.restart_button, self.RESTART_WIDTH)
         self.row_restart.set_control(self.restart_button)
 
@@ -389,13 +401,17 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         group = self._group(master, "Allgemein")
 
         self.row_sound = uk.SettingRow(
-            group.body, "Signalton", variant="description",
+            group.body,
+            "Signalton",
+            variant="description",
             description="Kurzer Ton bei Start und Stopp",
-            interactive=True, command=self._toggle_sound)
+            interactive=True,
+            command=self._toggle_sound,
+        )
         self.row_sound.pack(fill="x")
-        self.switch_sound = uk.Switch(group.body, bg_under=Theme.GROUP_SURFACE,
-                                      value=CFG.sound_feedback,
-                                      command=self._on_sound)
+        self.switch_sound = uk.Switch(
+            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.sound_feedback, command=self._on_sound
+        )
         self.row_sound.set_control(self.switch_sound)
 
         # Zwei Entscheidungen an dieser Zeile:
@@ -407,14 +423,18 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         #
         # Einzeilig, ohne Unterzeile: „Hell“ und „Dunkel“ sind kurz, das Feld
         # darf neben dem Titel stehen und sagt selbst, worum es geht.
-        self.row_appearance = uk.SettingRow(
-            group.body, "Darstellung", hairline=False)
+        self.row_appearance = uk.SettingRow(group.body, "Darstellung", hairline=False)
         self.row_appearance.pack(fill="x")
         self.select_appearance = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE,
-            options=[uk.Option(Theme.LIGHT, self.APPEARANCE_LABELS[Theme.LIGHT]),
-                     uk.Option(Theme.DARK, self.APPEARANCE_LABELS[Theme.DARK])],
-            value=Theme.mode, on_change=self._select_appearance)
+            group.body,
+            bg_under=Theme.GROUP_SURFACE,
+            options=[
+                uk.Option(Theme.LIGHT, self.APPEARANCE_LABELS[Theme.LIGHT]),
+                uk.Option(Theme.DARK, self.APPEARANCE_LABELS[Theme.DARK]),
+            ],
+            value=Theme.mode,
+            on_change=self._select_appearance,
+        )
         uk.keep_logical_width(self.select_appearance, self.CONTROL_WIDTH)
         self.row_appearance.set_control(self.select_appearance)
 
@@ -422,8 +442,7 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
 
     def _on_scroll(self, offset: int) -> None:
         """Die Linie erscheint erst, wenn etwas darunter liegt."""
-        self._head_line.configure(
-            bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
+        self._head_line.configure(bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
 
     # ---------------------------------------------------------- Schalter
 
@@ -449,20 +468,17 @@ class SettingsWindow(ModelSectionMixin, StatusSectionMixin):
         """
         if not self.alive():
             return
-        self.row_cleanup_model.set_enabled(
-            CFG.ollama_cleanup_enabled and self._ollama_online)
+        self.row_cleanup_model.set_enabled(CFG.ollama_cleanup_enabled and self._ollama_online)
         # Der Prompt-Modus haengt nicht am Cleanup-Schalter. Beide gemeinsam
         # abzuschalten waere bequem und falsch: sie sind unabhaengig.
         self.row_prompt_model.set_enabled(self._ollama_online)
         self.row_prompt_model.set_description(
-            "Für den Prompt-Modus" if self._ollama_online
-            else "Ollama nicht erreichbar")
+            "Für den Prompt-Modus" if self._ollama_online else "Ollama nicht erreichbar"
+        )
         if CFG.ollama_cleanup_enabled and not self._ollama_online:
-            self.row_cleanup.set_description(
-                "Ollama ist nicht erreichbar — Rohtext wird eingefügt")
+            self.row_cleanup.set_description("Ollama ist nicht erreichbar — Rohtext wird eingefügt")
         else:
-            self.row_cleanup.set_description(
-                "Bereinigt das Transkript automatisch")
+            self.row_cleanup.set_description("Bereinigt das Transkript automatisch")
 
     def _restart_app(self) -> None:
         """Startet Hams neu — oder sagt, warum gerade nicht.

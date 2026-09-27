@@ -54,8 +54,7 @@ def display_name(name: str) -> str:
     label = " ".join(words) or name
     tag = tag.strip()
     # Größenangabe vorn groß: "7b" → "7B", "4b-it-qat" → "4B-it-qat"
-    tag = re.sub(r"^(\d+(?:\.\d+)?)([bm])(?=$|-)", lambda m: m[1] + m[2].upper(),
-                 tag, flags=re.IGNORECASE)
+    tag = re.sub(r"^(\d+(?:\.\d+)?)([bm])(?=$|-)", lambda m: m[1] + m[2].upper(), tag, flags=re.IGNORECASE)
     if tag and tag.lower() != "latest":
         label = f"{label} · {tag}"
     return label
@@ -66,11 +65,10 @@ class OllamaModel:
 
     __slots__ = ("name", "size_bytes", "parameter_size", "family")
 
-    def __init__(self, name: str, size_bytes: int = 0,
-                 parameter_size: str = "", family: str = "") -> None:
+    def __init__(self, name: str, size_bytes: int = 0, parameter_size: str = "", family: str = "") -> None:
         self.name = name
         self.size_bytes = size_bytes
-        self.parameter_size = parameter_size      #: z. B. "8.9B", oft leer
+        self.parameter_size = parameter_size  #: z. B. "8.9B", oft leer
         self.family = family
 
     @property
@@ -87,7 +85,7 @@ class OllamaModel:
             parts.append(format_bytes(self.size_bytes))
         return " · ".join(parts)
 
-    def __repr__(self) -> str:      # pragma: no cover - nur fürs Log
+    def __repr__(self) -> str:  # pragma: no cover - nur fürs Log
         return f"OllamaModel({self.name!r})"
 
 
@@ -128,9 +126,8 @@ class OllamaState:
     def __eq__(self, other) -> bool:
         return isinstance(other, OllamaState) and self.signature() == other.signature()
 
-    def __repr__(self) -> str:      # pragma: no cover - nur fürs Log
-        return (f"OllamaState(online={self.online}, models={len(self.models)}, "
-                f"warm={sorted(self.warm)})")
+    def __repr__(self) -> str:  # pragma: no cover - nur fürs Log
+        return f"OllamaState(online={self.online}, models={len(self.models)}, warm={sorted(self.warm)})"
 
 
 def base_url(generate_url: str) -> str:
@@ -161,12 +158,14 @@ def _parse_models(payload: dict) -> tuple[OllamaModel, ...]:
             continue
         details = entry.get("details") if isinstance(entry.get("details"), dict) else {}
         size = entry.get("size")
-        found.append(OllamaModel(
-            str(name),
-            int(size) if isinstance(size, (int, float)) and size > 0 else 0,
-            str(details.get("parameter_size") or ""),
-            str(details.get("family") or ""),
-        ))
+        found.append(
+            OllamaModel(
+                str(name),
+                int(size) if isinstance(size, (int, float)) and size > 0 else 0,
+                str(details.get("parameter_size") or ""),
+                str(details.get("family") or ""),
+            )
+        )
     return tuple(found)
 
 
@@ -183,7 +182,7 @@ def list_models(base: str, timeout: float = TIMEOUT) -> tuple[tuple[OllamaModel,
     """(Modelle, Fehlertext). Leerer Fehlertext heißt: Dienst hat geantwortet."""
     try:
         payload = _get_json(f"{base}/api/tags", timeout)
-    except Exception as exc:      # noqa: BLE001 - in Klartext übersetzen
+    except Exception as exc:  # noqa: BLE001 - in Klartext übersetzen
         return (), _describe_error(exc)
     if not isinstance(payload, dict):
         return (), "Ollama antwortet unverständlich"
@@ -198,7 +197,7 @@ def running_models(base: str, timeout: float = TIMEOUT) -> frozenset[str]:
     """
     try:
         payload = _get_json(f"{base}/api/ps", timeout)
-    except Exception:      # noqa: BLE001 - kein Grund, die Auswahl zu blockieren
+    except Exception:  # noqa: BLE001 - kein Grund, die Auswahl zu blockieren
         logger.debug("Ollama /api/ps nicht verfügbar", exc_info=True)
         return frozenset()
     names = set()

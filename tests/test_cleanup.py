@@ -20,4 +20,3 @@ class TestCleanupText:
         """Cleanup prompt should contain key instructions."""
         template = CFG.cleanup_prompt_template
         assert "korrigiere" in template.lower() or "bereinige" in template.lower()
-

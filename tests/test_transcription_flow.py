@@ -183,7 +183,7 @@ class TestModelNotThereYet:
         assert hams.clipboard.copies == [] and not live_app._prompt_mode
 
     def test_a_lost_model_ends_in_an_error(self, live_app, hams):
-        live_app.model_ready.set()          # bereit gemeldet, aber schon wieder weg
+        live_app.model_ready.set()  # bereit gemeldet, aber schon wieder weg
         run(live_app)
         assert status(live_app) == "Kein Modell geladen"
 
@@ -210,8 +210,7 @@ class TestStreaming:
             json.dumps({"response": "", "done": True}).encode(),
             json.dumps({"response": "zu spaet"}).encode(),
         ]
-        answer = live_app._ollama_generate("Frage", "llama", 30, stream=True,
-                                           progress_label="Generiere")
+        answer = live_app._ollama_generate("Frage", "llama", 30, stream=True, progress_label="Generiere")
         live_app.root.update()
         assert answer == "Hallo Welt"
         assert live_app.elapsed_label.cget("text") == "6 Zeichen"
@@ -269,6 +268,7 @@ class TestSaveAndWarmup:
 
     def test_the_warmup_thread_honours_the_setting(self, live_app, monkeypatch):
         from wisper.transcription import TranscriptionMixin
+
         started = []
         monkeypatch.setattr(live_app, "_warmup_ollama", lambda: started.append(1))
         CFG.ollama_warmup_on_start = False

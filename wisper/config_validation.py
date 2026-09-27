@@ -7,6 +7,7 @@ from typing import Any
 
 class ConfigValidationError(ValueError):
     """Raised when configuration values are invalid."""
+
     pass
 
 

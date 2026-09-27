@@ -20,40 +20,42 @@ class TestLocalhostWirdUmgelegt:
     """Nur der eine Hostname, dafuer zuverlaessig."""
 
     def test_the_plain_case(self):
-        assert (ipv4_loopback("http://localhost:11434/api/generate")
-                == "http://127.0.0.1:11434/api/generate")
+        assert ipv4_loopback("http://localhost:11434/api/generate") == "http://127.0.0.1:11434/api/generate"
 
     def test_case_does_not_matter(self):
-        assert (ipv4_loopback("http://LocalHost:11434/api/generate")
-                == "http://127.0.0.1:11434/api/generate")
+        assert ipv4_loopback("http://LocalHost:11434/api/generate") == "http://127.0.0.1:11434/api/generate"
 
     def test_without_a_port(self):
         assert ipv4_loopback("http://localhost/api/generate") == "http://127.0.0.1/api/generate"
 
     def test_path_and_query_survive(self):
-        assert (ipv4_loopback("http://localhost:11434/api/generate?x=1#z")
-                == "http://127.0.0.1:11434/api/generate?x=1#z")
+        assert ipv4_loopback("http://localhost:11434/api/generate?x=1#z") == "http://127.0.0.1:11434/api/generate?x=1#z"
 
     def test_credentials_survive(self):
-        assert (ipv4_loopback("http://user:pw@localhost:11434/api/generate")
-                == "http://user:pw@127.0.0.1:11434/api/generate")
+        assert (
+            ipv4_loopback("http://user:pw@localhost:11434/api/generate")
+            == "http://user:pw@127.0.0.1:11434/api/generate"
+        )
 
 
 class TestAllesAndereBleibt:
     """Eine Umschreibung, die mehr anfasst als noetig, waere ein neuer Fehler."""
 
-    @pytest.mark.parametrize("url", [
-        "http://127.0.0.1:11434/api/generate",
-        # Wer IPv6 ausdruecklich hinschreibt, meint es auch — das ist der
-        # Ausweg fuer eine Instanz, die nur auf ::1 lauscht.
-        "http://[::1]:11434/api/generate",
-        "http://192.168.1.5:11434/api/generate",
-        "http://ollama.lan:11434/api/generate",
-        # Kein Teiltreffer: der Host heisst nicht "localhost".
-        "http://localhost.example.com:11434/api/generate",
-        "http://mylocalhost:11434/api/generate",
-        "https://localhost.localdomain/api/generate",
-    ])
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://127.0.0.1:11434/api/generate",
+            # Wer IPv6 ausdruecklich hinschreibt, meint es auch — das ist der
+            # Ausweg fuer eine Instanz, die nur auf ::1 lauscht.
+            "http://[::1]:11434/api/generate",
+            "http://192.168.1.5:11434/api/generate",
+            "http://ollama.lan:11434/api/generate",
+            # Kein Teiltreffer: der Host heisst nicht "localhost".
+            "http://localhost.example.com:11434/api/generate",
+            "http://mylocalhost:11434/api/generate",
+            "https://localhost.localdomain/api/generate",
+        ],
+    )
     def test_stays_untouched(self, url):
         assert ipv4_loopback(url) == url
 
@@ -85,27 +87,33 @@ class TestDieKonfigurationBenutztEs:
 class TestDiktateBleibenImHaus:
     """Jedes Diktat geht an diese Adresse. Unverschluesselt nur an den eigenen Rechner."""
 
-    @pytest.mark.parametrize("url", [
-        "http://127.0.0.1:11434/api/generate",
-        "http://127.8.0.1:11434/api/generate",
-        "http://[::1]:11434/api/generate",
-        "http://localhost:11434/api/generate",
-        "https://ollama.lan/api/generate",
-        "https://192.168.1.5:11434/api/generate",
-    ])
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://127.0.0.1:11434/api/generate",
+            "http://127.8.0.1:11434/api/generate",
+            "http://[::1]:11434/api/generate",
+            "http://localhost:11434/api/generate",
+            "https://ollama.lan/api/generate",
+            "https://192.168.1.5:11434/api/generate",
+        ],
+    )
     def test_local_or_encrypted_is_allowed(self, url):
         assert ollama_url_problem(url) == ""
 
-    @pytest.mark.parametrize("url, reason", [
-        ("http://192.168.1.5:11434/api/generate", "https"),
-        ("http://ollama.lan:11434/api/generate", "https"),
-        ("http://localhost.example.com/api/generate", "https"),
-        ("file:///C:/Windows/win.ini", "http://"),
-        ("ftp://127.0.0.1/api/generate", "http://"),
-        ("http:///api/generate", "http://"),
-        ("kein-url", "http://"),
-        ("http://[zz/api", "valid"),
-    ])
+    @pytest.mark.parametrize(
+        "url, reason",
+        [
+            ("http://192.168.1.5:11434/api/generate", "https"),
+            ("http://ollama.lan:11434/api/generate", "https"),
+            ("http://localhost.example.com/api/generate", "https"),
+            ("file:///C:/Windows/win.ini", "http://"),
+            ("ftp://127.0.0.1/api/generate", "http://"),
+            ("http:///api/generate", "http://"),
+            ("kein-url", "http://"),
+            ("http://[zz/api", "valid"),
+        ],
+    )
     def test_everything_else_is_refused_with_a_reason(self, url, reason):
         assert reason in ollama_url_problem(url)
 

@@ -32,8 +32,17 @@ class Option:
 
     __slots__ = ("value", "label", "meta", "icon", "enabled", "group", "trailing")
 
-    def __init__(self, value, label: str, *, meta: str = "", icon: str | None = None,
-                 enabled: bool = True, group: str = "", trailing: str = "") -> None:
+    def __init__(
+        self,
+        value,
+        label: str,
+        *,
+        meta: str = "",
+        icon: str | None = None,
+        enabled: bool = True,
+        group: str = "",
+        trailing: str = "",
+    ) -> None:
         self.value = value
         self.label = label
         self.meta = meta
@@ -46,8 +55,9 @@ class Option:
 class _PopoverItem(tk.Frame):
     """Eine Zeile im Popover: Haken, Titel, Meta, rechte Zusatzangabe."""
 
-    def __init__(self, master: tk.Misc, option: Option, *, selected: bool,
-                 command: Callable[[Option], None], text_width: int = 0) -> None:
+    def __init__(
+        self, master: tk.Misc, option: Option, *, selected: bool, command: Callable[[Option], None], text_width: int = 0
+    ) -> None:
         super().__init__(master, bg=Theme.POPOVER_SURFACE)
         self.option = option
         self._command = command
@@ -58,32 +68,31 @@ class _PopoverItem(tk.Frame):
         # Hintergrundfarbe. `width` zaehlt bei einem Label *ohne* Bild in
         # Zeichen, nicht in Pixeln; die Spalte waere sonst um ein Vielfaches zu
         # breit und draengte den Titel aus der Zeile.
-        self._check_image = icon(
-            "check", ICON_BOX,
-            Theme.ACCENT_TINT if selected else Theme.POPOVER_SURFACE)
-        self._check = tk.Label(self, bg=Theme.POPOVER_SURFACE, bd=0,
-                               image=self._check_image)
+        self._check_image = icon("check", ICON_BOX, Theme.ACCENT_TINT if selected else Theme.POPOVER_SURFACE)
+        self._check = tk.Label(self, bg=Theme.POPOVER_SURFACE, bd=0, image=self._check_image)
         self._check.pack(side="left", padx=(px(Space.MD), px(Space.ICON_GAP)))
 
         text_box = tk.Frame(self, bg=Theme.POPOVER_SURFACE)
         text_box.pack(side="left", fill="x", expand=True, pady=px(Space.SM))
         colour = Theme.TEXT_PRIMARY if option.enabled else Theme.TEXT_TERTIARY
         title = _fit_text(self, option.label, font("row_title"), text_width)
-        self._title = tk.Label(text_box, text=title, bg=Theme.POPOVER_SURFACE,
-                               fg=colour, font=font("row_title"), anchor="w")
+        self._title = tk.Label(
+            text_box, text=title, bg=Theme.POPOVER_SURFACE, fg=colour, font=font("row_title"), anchor="w"
+        )
         self._title.pack(anchor="w")
         self._meta = None
         if option.meta:
             meta = _fit_text(self, option.meta, font("meta"), text_width)
-            self._meta = tk.Label(text_box, text=meta, bg=Theme.POPOVER_SURFACE,
-                                  fg=Theme.TEXT_SECONDARY, font=font("meta"), anchor="w")
+            self._meta = tk.Label(
+                text_box, text=meta, bg=Theme.POPOVER_SURFACE, fg=Theme.TEXT_SECONDARY, font=font("meta"), anchor="w"
+            )
             self._meta.pack(anchor="w")
 
         self._trailing = None
         if option.trailing:
-            self._trailing = tk.Label(self, text=option.trailing,
-                                      bg=Theme.POPOVER_SURFACE, fg=Theme.TEXT_SECONDARY,
-                                      font=font("meta"))
+            self._trailing = tk.Label(
+                self, text=option.trailing, bg=Theme.POPOVER_SURFACE, fg=Theme.TEXT_SECONDARY, font=font("meta")
+            )
             # `before`, weil der Textblock mit expand=True gepackt ist und der
             # Zusatzangabe sonst keinen Platz uebrig laesst.
             self._trailing.pack(side="right", before=text_box, padx=(0, px(Space.MD)))
@@ -129,11 +138,11 @@ class Popover(tk.Toplevel):
     Fläche, feine Umrandung, Rundung und Abstand.
     """
 
-    MAX_VISIBLE = 8          # Einträge, danach wird gescrollt
-    GAP = 6                  # logisch, Abstand zum Auslöser
-    ALPHA = 0.98             # sehr dezent; mehr kostet Textkontrast
-    MAX_WIDTH = 340          # logisch; darüber wird gekürzt statt verbreitert
-    MIN_WIDTH = 200          # logisch
+    MAX_VISIBLE = 8  # Einträge, danach wird gescrollt
+    GAP = 6  # logisch, Abstand zum Auslöser
+    ALPHA = 0.98  # sehr dezent; mehr kostet Textkontrast
+    MAX_WIDTH = 340  # logisch; darüber wird gekürzt statt verbreitert
+    MIN_WIDTH = 200  # logisch
     #: Einblenden über das Fenster-Alpha. Geschlossen wird ohne Übergang:
     #: ein Ausblenden müsste Grab und Fokus überdauern, und das ist es nicht
     #: wert — Funktion vor Symmetrie.
@@ -141,8 +150,7 @@ class Popover(tk.Toplevel):
 
     current: Popover | None = None
 
-    def __init__(self, trigger: tk.Misc, options: list, value, *,
-                 on_choose: Callable[[Option], None]) -> None:
+    def __init__(self, trigger: tk.Misc, options: list, value, *, on_choose: Callable[[Option], None]) -> None:
         super().__init__(trigger.winfo_toplevel())
         self.trigger = trigger
         self._on_choose = on_choose
@@ -152,10 +160,10 @@ class Popover(tk.Toplevel):
         self.overrideredirect(True)
         self.attributes("-topmost", True)
         try:
-            self.attributes("-alpha", 0.0)      # das Einblenden folgt unten
-        except tk.TclError:      # pragma: no cover - Alpha nicht verfügbar
+            self.attributes("-alpha", 0.0)  # das Einblenden folgt unten
+        except tk.TclError:  # pragma: no cover - Alpha nicht verfügbar
             pass
-        self.configure(bg=Theme.HAIRLINE)      # 1 px Rand als äußerer Rahmen
+        self.configure(bg=Theme.HAIRLINE)  # 1 px Rand als äußerer Rahmen
 
         inner = tk.Frame(self, bg=Theme.POPOVER_SURFACE)
         inner.pack(fill="both", expand=True, padx=max(1, px(1)), pady=max(1, px(1)))
@@ -179,10 +187,9 @@ class Popover(tk.Toplevel):
         self.update_idletasks()
         round_window_corners(self, Radius.POPOVER)
         self.focus_force()
-        self.grab_set()          # lokal, nie global — sonst friert der Desktop ein
+        self.grab_set()  # lokal, nie global — sonst friert der Desktop ein
         Popover.current = self
-        Animator.run(self, "fade", self.FADE_MS,
-                     lambda fraction: self.attributes("-alpha", self.ALPHA * fraction))
+        Animator.run(self, "fade", self.FADE_MS, lambda fraction: self.attributes("-alpha", self.ALPHA * fraction))
 
     # ------------------------------------------------------------ Aufbau
 
@@ -199,16 +206,15 @@ class Popover(tk.Toplevel):
             if option.meta:
                 widest = max(widest, _text_width(self, option.meta, font("meta")))
         self._trailing_width = max(
-            (_text_width(self, o.trailing, font("meta")) for o in options if o.trailing),
-            default=0)
+            (_text_width(self, o.trailing, font("meta")) for o in options if o.trailing), default=0
+        )
         content = widest + self._chrome_width()
         floor = max(px(self.MIN_WIDTH), self.trigger.winfo_width())
         return max(floor, min(content, px(self.MAX_WIDTH)))
 
     def _chrome_width(self) -> int:
         """Alles ausser dem Text: Haken, Abstände und die rechte Zusatzangabe."""
-        return (px(ICON_BOX) + px(Space.ICON_GAP) + 3 * px(Space.MD)
-                + getattr(self, "_trailing_width", 0))
+        return px(ICON_BOX) + px(Space.ICON_GAP) + 3 * px(Space.MD) + getattr(self, "_trailing_width", 0)
 
     def _text_budget(self) -> int:
         """Platz, der einer Zeile für Text bleibt.
@@ -218,8 +224,7 @@ class Popover(tk.Toplevel):
         """
         # Untergrenze zusaetzlich als Anteil der Breite: so bleibt der Titel
         # lesbar, auch wenn die Zusatzangabe ungewoehnlich breit ausfaellt.
-        return max(px(60), int(self._width * 0.55),
-                   self._width - self._chrome_width())
+        return max(px(60), int(self._width * 0.55), self._width - self._chrome_width())
 
     def _build_items(self, options: list, value) -> None:
         rows = sum(1 for option in options)
@@ -235,9 +240,14 @@ class Popover(tk.Toplevel):
             container = self._body_holder
 
         def add_group(name: str) -> None:
-            tk.Label(container, text=name.upper(), bg=Theme.POPOVER_SURFACE,
-                     fg=Theme.TEXT_SECONDARY, font=font("meta"), anchor="w").pack(
-                fill="x", padx=(px(Space.MD), 0), pady=(px(Space.SM), px(Space.XS)))
+            tk.Label(
+                container,
+                text=name.upper(),
+                bg=Theme.POPOVER_SURFACE,
+                fg=Theme.TEXT_SECONDARY,
+                font=font("meta"),
+                anchor="w",
+            ).pack(fill="x", padx=(px(Space.MD), 0), pady=(px(Space.SM), px(Space.XS)))
 
         if groups:
             for name in groups:
@@ -251,8 +261,9 @@ class Popover(tk.Toplevel):
                 self._add_item(container, option, value)
 
     def _add_item(self, container: tk.Misc, option: Option, value) -> None:
-        item = _PopoverItem(container, option, selected=option.value == value,
-                            command=self._choose, text_width=self._text_budget())
+        item = _PopoverItem(
+            container, option, selected=option.value == value, command=self._choose, text_width=self._text_budget()
+        )
         item.pack(fill="x")
         self._items.append(item)
         if option.value == value:
@@ -270,10 +281,10 @@ class Popover(tk.Toplevel):
         x = self.trigger.winfo_rootx()
         y = self.trigger.winfo_rooty() + self.trigger.winfo_height() + gap
 
-        if y + height > bottom:                       # unten kein Platz -> nach oben
+        if y + height > bottom:  # unten kein Platz -> nach oben
             above = self.trigger.winfo_rooty() - height - gap
             y = above if above >= top else max(top, bottom - height)
-        if x + width > right:                         # rechts kein Platz -> einrücken
+        if x + width > right:  # rechts kein Platz -> einrücken
             x = right - width
         x = max(left, x)
         # Zum Schluss beidseitig einfangen. Der Umschlag nach oben allein genügt
@@ -338,8 +349,7 @@ class Popover(tk.Toplevel):
         if Popover.current is not self:
             return ""
         left, top = self.winfo_rootx(), self.winfo_rooty()
-        inside = (left <= event.x_root < left + self.winfo_width()
-                  and top <= event.y_root < top + self.winfo_height())
+        inside = left <= event.x_root < left + self.winfo_width() and top <= event.y_root < top + self.winfo_height()
         if not inside:
             self.dismiss()
             return "break"
@@ -349,7 +359,7 @@ class Popover(tk.Toplevel):
         try:
             if self.focus_displayof() is None:
                 self.dismiss()
-        except (tk.TclError, KeyError):      # pragma: no cover
+        except (tk.TclError, KeyError):  # pragma: no cover
             self.dismiss()
 
     def _on_theme_change(self) -> None:
@@ -370,12 +380,12 @@ class Popover(tk.Toplevel):
             Popover.current = None
         try:
             self.grab_release()
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
         trigger = self.trigger
         try:
             self.destroy()
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
         return_focus_to(trigger)
 
@@ -395,19 +405,31 @@ class Select(BaseControl):
     Der Chevron ist ein echtes Icon und sitzt immer rechtsbündig.
     """
 
-    def __init__(self, master: tk.Misc, *, bg_under: str,
-                 options: list | None = None, value=None,
-                 on_change: Callable[[object], None] | None = None,
-                 placeholder: str = "—") -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        *,
+        bg_under: str,
+        options: list | None = None,
+        value=None,
+        on_change: Callable[[object], None] | None = None,
+        placeholder: str = "—",
+    ) -> None:
         # Nicht `_options` nennen: das ist eine Methode von tkinter.Misc und
         # wuerde vor super().__init__() ueberschrieben.
         self._option_list: list = options or []
         self._value = value
         self._on_change = on_change
         self._placeholder = placeholder
-        super().__init__(master, bg_under=bg_under, role="secondary",
-                         height=Height.STANDARD, radius=Radius.CONTROL,
-                         command=self.toggle_popover, font_role="row_title")
+        super().__init__(
+            master,
+            bg_under=bg_under,
+            role="secondary",
+            height=Height.STANDARD,
+            radius=Radius.CONTROL,
+            command=self.toggle_popover,
+            font_role="row_title",
+        )
 
     # ------------------------------------------------------------ Daten
 
@@ -450,7 +472,7 @@ class Select(BaseControl):
     def open_popover(self) -> None:
         if not State.is_interactive(self._states) or not self._option_list:
             return
-        Popover.dismiss_current()       # nie zwei gleichzeitig
+        Popover.dismiss_current()  # nie zwei gleichzeitig
         Popover(self, self._option_list, self._value, on_choose=self._on_choose)
         self.set_state(State.SELECTED, True)
 
@@ -466,17 +488,22 @@ class Select(BaseControl):
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:
         fill, foreground = self.colours()
         ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
-        plate = ImageTk.getimage(surface(
-            width, height + 2 * (ring_w + ring_gap), px(self._logical_radius),
-            fill if fill is not None else self._bg_under,
-            squircle=True,
-            ring=self.ring(), ring_width=ring_w, ring_gap=ring_gap,
-        ))
+        plate = ImageTk.getimage(
+            surface(
+                width,
+                height + 2 * (ring_w + ring_gap),
+                px(self._logical_radius),
+                fill if fill is not None else self._bg_under,
+                squircle=True,
+                ring=self.ring(),
+                ring_width=ring_w,
+                ring_gap=ring_gap,
+            )
+        )
 
         chevron_size = px(ICON_BOX)
         glyph = render_icon("chevron", chevron_size, foreground)
-        plate.paste(glyph, (plate.width - chevron_size - px(Space.MD),
-                            (plate.height - chevron_size) // 2), glyph)
+        plate.paste(glyph, (plate.width - chevron_size - px(Space.MD), (plate.height - chevron_size) // 2), glyph)
 
         selected = self._selected()
         label = selected.label if selected is not None else self._placeholder
@@ -496,5 +523,4 @@ class Select(BaseControl):
         # Nach den Oberlaengen der Schrift zentriert, nicht nach dem Text:
         # sonst saesse „Hell“ hoeher als „gut“, je nach Unterlaengen.
         ascent, descent = title_font.getmetrics()
-        draw.text((x, (plate.height - ascent - descent) // 2), text,
-                  font=title_font, fill=colour)
+        draw.text((x, (plate.height - ascent - descent) // 2), text, font=title_font, fill=colour)

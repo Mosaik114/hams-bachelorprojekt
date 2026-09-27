@@ -130,9 +130,7 @@ class RecordingMixin:
 
     def _schedule_max_duration_stop(self) -> None:
         self._cancel_max_duration_timer()
-        self._max_duration_timer = threading.Timer(
-            CFG.max_recording_seconds, self._on_max_duration_reached
-        )
+        self._max_duration_timer = threading.Timer(CFG.max_recording_seconds, self._on_max_duration_reached)
         self._max_duration_timer.daemon = True
         self._max_duration_timer.name = "max-duration"
         self._max_duration_timer.start()
@@ -220,15 +218,16 @@ class RecordingMixin:
             logger.exception("PortAudio error on start_recording")
             self.is_recording = False
             self._apply_state(
-                "error", "Mikrofon nicht verfügbar",
-                f"„{CFG.mic_device_raw}“ antwortet nicht. "
-                f"Wähle in den Einstellungen ein anderes Gerät.",
+                "error",
+                "Mikrofon nicht verfügbar",
+                f"„{CFG.mic_device_raw}“ antwortet nicht. Wähle in den Einstellungen ein anderes Gerät.",
             )
         except Exception:
             logger.exception("Unexpected error on start_recording")
             self.is_recording = False
             self._apply_state(
-                "error", "Aufnahme nicht gestartet",
+                "error",
+                "Aufnahme nicht gestartet",
                 "Einzelheiten stehen im Log.",
             )
 
@@ -259,8 +258,7 @@ class RecordingMixin:
             self.stream = None
 
         if not self.frames:
-            self._apply_state("no_signal", "Keine Aufnahme erkannt",
-                              "Es wurden keine Audiodaten empfangen.")
+            self._apply_state("no_signal", "Keine Aufnahme erkannt", "Es wurden keine Audiodaten empfangen.")
             self._prompt_mode = False
             return
 
@@ -278,9 +276,9 @@ class RecordingMixin:
                 peak,
             )
             self._apply_state(
-                "no_signal", None,
-                f"„{CFG.mic_device_raw}“ liefert kein Signal. "
-                f"Ist das Mikrofon stummgeschaltet?",
+                "no_signal",
+                None,
+                f"„{CFG.mic_device_raw}“ liefert kein Signal. Ist das Mikrofon stummgeschaltet?",
             )
             self._prompt_mode = False
             return

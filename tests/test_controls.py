@@ -17,8 +17,7 @@ from wisper.ui_kit import (
 )
 
 BG = Theme.WINDOW_BG
-STATES = [State.HOVER, State.PRESSED, State.FOCUSED, State.SELECTED,
-          State.DISABLED, State.LOADING, State.ERROR]
+STATES = [State.HOVER, State.PRESSED, State.FOCUSED, State.SELECTED, State.DISABLED, State.LOADING, State.ERROR]
 
 
 @pytest.fixture
@@ -39,17 +38,19 @@ def window(root):
 def controls(window, root):
     fired = {"primary": 0, "secondary": 0, "icon": 0, "switch": []}
     made = {
-        "primary": PrimaryButton(window, "Aufnahme starten",
-                                 lambda: fired.__setitem__("primary", fired["primary"] + 1),
-                                 bg_under=BG),
-        "secondary": SecondaryButton(window, "Stoppen",
-                                     lambda: fired.__setitem__("secondary", fired["secondary"] + 1),
-                                     bg_under=BG, icon_name="stop",
-                                     icon_colour=Theme.RECORDING),
-        "icon": IconButton(window, "settings",
-                           lambda: fired.__setitem__("icon", fired["icon"] + 1), bg_under=BG),
-        "switch": Switch(window, bg_under=BG, value=False,
-                         command=lambda v: fired["switch"].append(v)),
+        "primary": PrimaryButton(
+            window, "Aufnahme starten", lambda: fired.__setitem__("primary", fired["primary"] + 1), bg_under=BG
+        ),
+        "secondary": SecondaryButton(
+            window,
+            "Stoppen",
+            lambda: fired.__setitem__("secondary", fired["secondary"] + 1),
+            bg_under=BG,
+            icon_name="stop",
+            icon_colour=Theme.RECORDING,
+        ),
+        "icon": IconButton(window, "settings", lambda: fired.__setitem__("icon", fired["icon"] + 1), bg_under=BG),
+        "switch": Switch(window, bg_under=BG, value=False, command=lambda v: fired["switch"].append(v)),
         "meter": SignalMeter(window, bg_under=BG),
     }
     for widget in made.values():
@@ -76,8 +77,7 @@ class TestStatesPerControl:
         widget = controls[name]
         widget.set_state(state, True)
         root.update()
-        assert widget.has_state(state) or state in (State.HOVER, State.PRESSED,
-                                                    State.FOCUSED)
+        assert widget.has_state(state) or state in (State.HOVER, State.PRESSED, State.FOCUSED)
 
     @pytest.mark.parametrize("name", ["primary", "secondary", "icon"])
     def test_colours_follow_priority(self, controls, name):
@@ -163,14 +163,12 @@ class TestKeyboard:
         assert switch.value is True
 
     def test_tab_chain(self, controls, root):
-        order = [controls["primary"], controls["secondary"],
-                 controls["icon"], controls["switch"]]
+        order = [controls["primary"], controls["secondary"], controls["icon"], controls["switch"]]
         for first, second in zip(order, order[1:], strict=False):
             assert first.tk_focusNext() is second
 
     def test_shift_tab_chain(self, controls, root):
-        order = [controls["primary"], controls["secondary"],
-                 controls["icon"], controls["switch"]]
+        order = [controls["primary"], controls["secondary"], controls["icon"], controls["switch"]]
         for first, second in zip(order, order[1:], strict=False):
             assert second.tk_focusPrev() is first
 
@@ -261,8 +259,7 @@ class TestSignalMeter:
         root.update()
         assert 0 < meter.filled_width < wide
 
-    @pytest.mark.parametrize("level,token", [(0.3, "SUCCESS"), (0.7, "WARNING"),
-                                             (0.9, "ERROR")])
+    @pytest.mark.parametrize("level,token", [(0.3, "SUCCESS"), (0.7, "WARNING"), (0.9, "ERROR")])
     def test_colour_follows_the_drive(self, level, token):
         assert uk.SignalMeter.level_colour(level) == getattr(Theme, token)
 

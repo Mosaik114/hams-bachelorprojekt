@@ -17,36 +17,45 @@ from wisper.transcription import plain_text
 
 
 class TestBold:
-    @pytest.mark.parametrize("value,expected", [
-        ("**Wort**", "Wort"),
-        ("Das ist **wichtig**.", "Das ist wichtig."),
-        ("**mehrere Wörter am Stück**", "mehrere Wörter am Stück"),
-        ("Am **Anfang** und am **Ende**.", "Am Anfang und am Ende."),
-        ("__Text__", "Text"),
-        ("Ein __hervorgehobener__ Teil.", "Ein hervorgehobener Teil."),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ("**Wort**", "Wort"),
+            ("Das ist **wichtig**.", "Das ist wichtig."),
+            ("**mehrere Wörter am Stück**", "mehrere Wörter am Stück"),
+            ("Am **Anfang** und am **Ende**.", "Am Anfang und am Ende."),
+            ("__Text__", "Text"),
+            ("Ein __hervorgehobener__ Teil.", "Ein hervorgehobener Teil."),
+        ],
+    )
     def test_the_wrapper_disappears(self, value, expected):
         assert plain_text(value) == expected
 
 
 class TestItalic:
-    @pytest.mark.parametrize("value,expected", [
-        ("*Wort*", "Wort"),
-        ("Ein *wichtiger* Satz.", "Ein wichtiger Satz."),
-        ("_Wort_", "Wort"),
-        ("Ein _wichtiger_ Satz.", "Ein wichtiger Satz."),
-        ("*mehrere Wörter*", "mehrere Wörter"),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ("*Wort*", "Wort"),
+            ("Ein *wichtiger* Satz.", "Ein wichtiger Satz."),
+            ("_Wort_", "Wort"),
+            ("Ein _wichtiger_ Satz.", "Ein wichtiger Satz."),
+            ("*mehrere Wörter*", "mehrere Wörter"),
+        ],
+    )
     def test_the_wrapper_disappears(self, value, expected):
         assert plain_text(value) == expected
 
 
 class TestCombined:
-    @pytest.mark.parametrize("value,expected", [
-        ("***dreifach***", "dreifach"),
-        ("___dreifach___", "dreifach"),
-        ("**fett** und *kursiv*", "fett und kursiv"),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            ("***dreifach***", "dreifach"),
+            ("___dreifach___", "dreifach"),
+            ("**fett** und *kursiv*", "fett und kursiv"),
+        ],
+    )
     def test_both_at_once(self, value, expected):
         assert plain_text(value) == expected
 
@@ -54,19 +63,22 @@ class TestCombined:
 class TestNotMarkdown:
     """Was wie Markdown aussieht, aber keines ist."""
 
-    @pytest.mark.parametrize("value", [
-        "2 * 3 = 6",
-        "*.txt",
-        "foo*bar",
-        "datei_name.txt",
-        "a__b__c",
-        "5 * 4 * 3",
-        "Suche nach *.log im Ordner",
-        "snake_case_name",
-        "Der Stern * steht allein.",
-        "3*4=12",
-        "C:\\pfad\\zur_datei.txt",
-    ])
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "2 * 3 = 6",
+            "*.txt",
+            "foo*bar",
+            "datei_name.txt",
+            "a__b__c",
+            "5 * 4 * 3",
+            "Suche nach *.log im Ordner",
+            "snake_case_name",
+            "Der Stern * steht allein.",
+            "3*4=12",
+            "C:\\pfad\\zur_datei.txt",
+        ],
+    )
     def test_it_stays_exactly_as_it_is(self, value):
         assert plain_text(value) == value
 
@@ -83,8 +95,7 @@ class TestNotMarkdown:
         hier, damit die Entscheidung sichtbar bleibt.
         """
         assert plain_text("__init__") == "init"
-        assert plain_text("Die Methode __init__ wird gerufen.") == (
-            "Die Methode init wird gerufen.")
+        assert plain_text("Die Methode __init__ wird gerufen.") == ("Die Methode init wird gerufen.")
 
 
 class TestCodeFence:
@@ -92,8 +103,7 @@ class TestCodeFence:
         assert plain_text("```text\nDies ist mein Satz.\n```") == "Dies ist mein Satz."
 
     def test_a_fence_without_a_language_goes(self):
-        assert plain_text("```\nZwei Zeilen\nbleiben zwei.\n```") == (
-            "Zwei Zeilen\nbleiben zwei.")
+        assert plain_text("```\nZwei Zeilen\nbleiben zwei.\n```") == ("Zwei Zeilen\nbleiben zwei.")
 
     def test_a_fence_in_the_middle_stays(self):
         text = "Davor.\n```\ncode\n```\nDanach."
@@ -131,33 +141,32 @@ class TestPosition:
 
     def test_cleanup_normalises_its_answer(self, monkeypatch):
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
-                            lambda self, **kwargs: "Das ist **wichtig**.")
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: "Das ist **wichtig**.")
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         assert app._cleanup_text("das ist wichtig") == "Das ist wichtig."
 
     def test_the_prompt_mode_is_plain_too(self, monkeypatch):
         """Auch die KI-Antwort wird unveraendert eingefuegt."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
-                            lambda self, **kwargs: "Die Antwort ist **42**.")
+        monkeypatch.setattr(
+            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: "Die Antwort ist **42**."
+        )
         assert app._generate_from_prompt("Frage") == "Die Antwort ist 42."
 
     def test_the_prompt_mode_keeps_its_paragraphs(self, monkeypatch):
         """Zeilenumbrueche tragen dort Bedeutung — Hervorhebungen nicht."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         antwort = "Erstens: **Oslo**.\nZweitens: Bergen.\n\nSoweit dazu."
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
-                            lambda self, **kwargs: antwort)
-        assert app._generate_from_prompt("Frage") == (
-            "Erstens: Oslo.\nZweitens: Bergen.\n\nSoweit dazu.")
+        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: antwort)
+        assert app._generate_from_prompt("Frage") == ("Erstens: Oslo.\nZweitens: Bergen.\n\nSoweit dazu.")
 
     def test_the_dictated_prompt_goes_out_untouched(self, monkeypatch):
         """Die Regel steht im Systemfeld, nicht im Prompt des Nutzers."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         gesehen = {}
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
-                            lambda self, **kwargs: gesehen.update(kwargs) or "ok")
+        monkeypatch.setattr(
+            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: gesehen.update(kwargs) or "ok"
+        )
         app._generate_from_prompt("Nenne die Hauptstadt von Norwegen.")
         assert gesehen["prompt"] == "Nenne die Hauptstadt von Norwegen."
         assert "Klartext" in gesehen["system"]
@@ -167,8 +176,9 @@ class TestPosition:
         """Dort steht die Regel bereits im Prompt selbst."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         gesehen = {}
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate",
-                            lambda self, **kwargs: gesehen.update(kwargs) or "ok")
+        monkeypatch.setattr(
+            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: gesehen.update(kwargs) or "ok"
+        )
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         app._cleanup_text("text")
         assert "system" not in gesehen
@@ -182,9 +192,11 @@ class TestPosition:
         dann an seiner eigenen Mechanik statt an der Regel.
         """
         body = inspect.getsource(FloatingTranscriberApp._transcribe_audio)
-        order = [body.index("self._add_to_history(text)"),
-                 body.index("self._copy_and_paste(text)"),
-                 body.index("args=(text,)")]
+        order = [
+            body.index("self._add_to_history(text)"),
+            body.index("self._copy_and_paste(text)"),
+            body.index("args=(text,)"),
+        ]
         assert order == sorted(order), "die Reihenfolge der Ausgabewege hat sich geändert"
         assert body.index("self._cleanup_text(text)") < order[0]
 
@@ -199,9 +211,19 @@ class TestPrompt:
     def test_it_demands_plain_text(self, prompt):
         assert "Klartext" in prompt
 
-    @pytest.mark.parametrize("word", ["Markdown", "Fettschrift", "Kursivschrift",
-                                      "Sternchen", "Unterstriche", "Überschriften",
-                                      "Backticks", "Codeblöcke"])
+    @pytest.mark.parametrize(
+        "word",
+        [
+            "Markdown",
+            "Fettschrift",
+            "Kursivschrift",
+            "Sternchen",
+            "Unterstriche",
+            "Überschriften",
+            "Backticks",
+            "Codeblöcke",
+        ],
+    )
     def test_it_names_what_is_unwanted(self, prompt, word):
         assert word in prompt
 

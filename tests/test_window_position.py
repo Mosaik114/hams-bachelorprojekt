@@ -6,7 +6,6 @@ zweiter Monitor, verschwundener Monitor und kaputte Werte prüfen, ohne
 Bildschirme umzustecken. Der Lauf gegen die echten Monitore steht daneben.
 """
 
-
 import pytest
 
 from wisper import ui_kit as uk
@@ -23,7 +22,7 @@ from wisper.window_position import (
 PRIMARY = (0, 0, 2560, 1392)
 SECOND = (2560, 0, 5120, 1392)
 LEFT_OF_PRIMARY = (-1920, 0, 0, 1080)
-SIZE = (340, 190)      # logische Fenstermasse; px() macht daraus physische
+SIZE = (340, 190)  # logische Fenstermasse; px() macht daraus physische
 
 
 @pytest.fixture
@@ -33,14 +32,20 @@ def size(root):
 
 
 class TestCleanCoordinate:
-    @pytest.mark.parametrize("value,expected", [
-        (0, 0), (48, 48), (-1920, -1920), (2560, 2560), (12.0, 12),
-    ])
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (0, 0),
+            (48, 48),
+            (-1920, -1920),
+            (2560, 2560),
+            (12.0, 12),
+        ],
+    )
     def test_numbers_pass(self, value, expected):
         assert _clean_coordinate(value) == expected
 
-    @pytest.mark.parametrize("value", [None, "48", "", True, False, [], {},
-                                       float("nan"), float("inf"), 10 ** 9])
+    @pytest.mark.parametrize("value", [None, "48", "", True, False, [], {}, float("nan"), float("inf"), 10**9])
     def test_everything_else_is_discarded(self, value):
         assert _clean_coordinate(value) is None
 
@@ -68,8 +73,7 @@ class TestVisibility:
         assert not _visible_enough(600, -20, *size, [PRIMARY])
 
     def test_below_the_work_area(self, size):
-        assert not _visible_enough(600, PRIMARY[3] - uk.px(MIN_VISIBLE_H) + 4,
-                                   *size, [PRIMARY])
+        assert not _visible_enough(600, PRIMARY[3] - uk.px(MIN_VISIBLE_H) + 4, *size, [PRIMARY])
 
     def test_on_the_second_monitor(self, size):
         assert _visible_enough(3000, 300, *size, [PRIMARY, SECOND])
@@ -100,8 +104,7 @@ class TestWindowPosition:
         fallback = (uk.px(POSITION_FALLBACK), uk.px(POSITION_FALLBACK))
         assert window_position(saved[0], saved[1], *size, [PRIMARY]) == fallback
 
-    @pytest.mark.parametrize("saved", [("links", "oben"), (10 ** 9, 10 ** 9),
-                                       (float("nan"), 0)])
+    @pytest.mark.parametrize("saved", [("links", "oben"), (10**9, 10**9), (float("nan"), 0)])
     def test_broken_values_fall_back(self, size, saved):
         result = window_position(saved[0], saved[1], *size, [PRIMARY])
         assert result == (uk.px(POSITION_FALLBACK), uk.px(POSITION_FALLBACK))
@@ -115,8 +118,7 @@ class TestWindowPosition:
         assert result == (uk.px(POSITION_FALLBACK), uk.px(POSITION_FALLBACK))
 
     def test_a_negative_position_survives(self, size):
-        assert window_position(-1800, 200, *size,
-                               [LEFT_OF_PRIMARY, PRIMARY]) == (-1800, 200)
+        assert window_position(-1800, 200, *size, [LEFT_OF_PRIMARY, PRIMARY]) == (-1800, 200)
 
     def test_the_fallback_follows_the_primary_monitor(self, size):
         """Liegt der Hauptbildschirm links im Negativen, folgt der Rückfall."""
@@ -225,9 +227,10 @@ class TestApplication:
         instance._window_pos = (100, 200)
         instance._position_job = None
         instance.written = []
-        monkeypatch.setattr("wisper.app._persist_config_value",
-                            lambda section, key, value:
-                            instance.written.append((section, key, value)) or True)
+        monkeypatch.setattr(
+            "wisper.app._persist_config_value",
+            lambda section, key, value: instance.written.append((section, key, value)) or True,
+        )
         monkeypatch.setattr(CFG, "window_x", None)
         monkeypatch.setattr(CFG, "window_y", None)
         return instance

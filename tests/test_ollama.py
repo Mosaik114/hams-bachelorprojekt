@@ -16,13 +16,24 @@ from wisper.settings_window import SettingsWindow as SW
 
 TAGS = {
     "models": [
-        {"name": "ministral-3:8b", "model": "ministral-3:8b", "size": 6_022_236_616,
-         "details": {"parameter_size": "8.9B", "family": "mistral3",
-                     "quantization_level": "Q4_K_M"}},
-        {"name": "qwen3.5:9b", "model": "qwen3.5:9b", "size": 6_594_474_711,
-         "details": {"parameter_size": "9.7B", "family": "qwen35"}},
-        {"name": "qwen2.5:3b", "model": "qwen2.5:3b", "size": 1_929_912_432,
-         "details": {"parameter_size": "3.1B", "family": "qwen2"}},
+        {
+            "name": "ministral-3:8b",
+            "model": "ministral-3:8b",
+            "size": 6_022_236_616,
+            "details": {"parameter_size": "8.9B", "family": "mistral3", "quantization_level": "Q4_K_M"},
+        },
+        {
+            "name": "qwen3.5:9b",
+            "model": "qwen3.5:9b",
+            "size": 6_594_474_711,
+            "details": {"parameter_size": "9.7B", "family": "qwen35"},
+        },
+        {
+            "name": "qwen2.5:3b",
+            "model": "qwen2.5:3b",
+            "size": 1_929_912_432,
+            "details": {"parameter_size": "3.1B", "family": "qwen2"},
+        },
     ]
 }
 PS_ONE = {"models": [{"name": "ministral-3:8b", "size_vram": 5_642_995_628}]}
@@ -84,12 +95,15 @@ BASE = "http://localhost:11434"
 
 
 class TestBaseUrl:
-    @pytest.mark.parametrize("configured,expected", [
-        ("http://localhost:11434/api/generate", "http://localhost:11434"),
-        ("http://127.0.0.1:11434/api/chat", "http://127.0.0.1:11434"),
-        ("http://box:11434", "http://box:11434"),
-        ("http://box:11434/", "http://box:11434"),
-    ])
+    @pytest.mark.parametrize(
+        "configured,expected",
+        [
+            ("http://localhost:11434/api/generate", "http://localhost:11434"),
+            ("http://127.0.0.1:11434/api/chat", "http://127.0.0.1:11434"),
+            ("http://box:11434", "http://box:11434"),
+            ("http://box:11434/", "http://box:11434"),
+        ],
+    )
     def test_service_address_is_derived(self, configured, expected):
         assert ollama.base_url(configured) == expected
 
@@ -123,8 +137,7 @@ class TestListModels:
         assert error == "Ollama nicht erreichbar"
 
     def test_http_error_names_the_code(self, monkeypatch):
-        fake_urlopen(monkeypatch, {
-            "/api/tags": urllib.error.HTTPError(BASE, 500, "boom", {}, None)})
+        fake_urlopen(monkeypatch, {"/api/tags": urllib.error.HTTPError(BASE, 500, "boom", {}, None)})
         _models, error = ollama.list_models(BASE)
         assert "500" in error
 
@@ -171,7 +184,7 @@ class TestRunningModels:
         assert ollama.running_models(BASE) == frozenset({"ministral-3:8b", "qwen2.5:3b"})
 
     def test_missing_endpoint_is_tolerated(self, monkeypatch):
-        fake_urlopen(monkeypatch, {"/api/tags": TAGS})      # /api/ps -> 404
+        fake_urlopen(monkeypatch, {"/api/tags": TAGS})  # /api/ps -> 404
         assert ollama.running_models(BASE) == frozenset()
 
     def test_nothing_warm(self, monkeypatch):
@@ -351,8 +364,10 @@ def window(monkeypatch):
     monkeypatch.setattr("wisper.config.CFG.ollama_model_cleanup", "a:1b")
     monkeypatch.setattr("wisper.config.CFG.ollama_model_prompt", "b:2b")
     win.written = []
-    monkeypatch.setattr("wisper.settings_status._persist_config_value",
-                        lambda section, key, value: win.written.append((section, key, value)))
+    monkeypatch.setattr(
+        "wisper.settings_status._persist_config_value",
+        lambda section, key, value: win.written.append((section, key, value)),
+    )
     return win
 
 
@@ -390,8 +405,8 @@ class TestSelection:
     def test_the_two_stay_different(self, window):
         from wisper.config import CFG
 
-        window._select_cleanup_model("a:1b")      # bereits gesetzt -> nichts
-        window._select_prompt_model("b:2b")       # bereits gesetzt -> nichts
+        window._select_cleanup_model("a:1b")  # bereits gesetzt -> nichts
+        window._select_prompt_model("b:2b")  # bereits gesetzt -> nichts
         assert window.written == []
         window._select_cleanup_model("b:2b")
         window._select_prompt_model("a:1b")
@@ -429,7 +444,7 @@ class TestApplyState:
         assert window.app.ollama_checked is True
 
     def test_nothing_is_claimed_before_the_first_answer(self, window):
-        """"Nicht erreichbar" waere eine Behauptung ohne Messung."""
+        """ "Nicht erreichbar" waere eine Behauptung ohne Messung."""
         window.app.ollama_checked = False
         SW._show_ollama_status(window)
         assert window.row_cleanup_model.status == "idle"
@@ -477,16 +492,19 @@ class TestApplyState:
 class TestDisplayName:
     """Die Auswahl zeigt lesbare Namen, gespeichert bleibt der rohe."""
 
-    @pytest.mark.parametrize("raw,shown", [
-        ("qwen2.5:7b", "Qwen 2.5 · 7B"),
-        ("ministral-3:8b", "Ministral 3 · 8B"),
-        ("llama3.2:3b", "Llama 3.2 · 3B"),
-        ("deepseek-r1:14b", "DeepSeek R1 · 14B"),
-        ("gpt-oss:20b", "GPT OSS · 20B"),
-        ("mistral:latest", "Mistral"),
-        ("gemma3:4b-it-qat", "Gemma 3 · 4B-it-qat"),
-        ("hf.co/nutzer/phi3:mini", "Phi 3 · mini"),
-    ])
+    @pytest.mark.parametrize(
+        "raw,shown",
+        [
+            ("qwen2.5:7b", "Qwen 2.5 · 7B"),
+            ("ministral-3:8b", "Ministral 3 · 8B"),
+            ("llama3.2:3b", "Llama 3.2 · 3B"),
+            ("deepseek-r1:14b", "DeepSeek R1 · 14B"),
+            ("gpt-oss:20b", "GPT OSS · 20B"),
+            ("mistral:latest", "Mistral"),
+            ("gemma3:4b-it-qat", "Gemma 3 · 4B-it-qat"),
+            ("hf.co/nutzer/phi3:mini", "Phi 3 · mini"),
+        ],
+    )
     def test_readable(self, raw, shown):
         assert ollama.display_name(raw) == shown
 

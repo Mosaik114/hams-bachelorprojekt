@@ -38,9 +38,7 @@ def _resolve_launch_command() -> str:
 
 def add_autostart() -> None:
     cmd = _resolve_launch_command()
-    with winreg.OpenKey(
-        winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, winreg.KEY_SET_VALUE
-    ) as key:
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, winreg.KEY_SET_VALUE) as key:
         winreg.SetValueEx(key, APP_NAME, 0, winreg.REG_SZ, cmd)
     print("Autostart eingerichtet.")
     print(f"Befehl: {cmd}")
@@ -49,9 +47,7 @@ def add_autostart() -> None:
 
 def remove_autostart() -> None:
     try:
-        with winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, winreg.KEY_SET_VALUE
-        ) as key:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, REGISTRY_KEY, 0, winreg.KEY_SET_VALUE) as key:
             winreg.DeleteValue(key, APP_NAME)
         print("Autostart entfernt.")
     except FileNotFoundError:
@@ -60,8 +56,10 @@ def remove_autostart() -> None:
 
 # ---------------------------------------------------------------- Linux
 
+
 def _linux_paths() -> dict:
     from wisper import linux
+
     data = Path.home() / ".local" / "share"
     return {
         "menu": data / "applications" / f"{linux.APP_ID}.desktop",
@@ -74,6 +72,7 @@ def _linux_paths() -> dict:
 
 def _systemctl(*args: str) -> None:
     import subprocess
+
     subprocess.run(["systemctl", "--user", *args], check=True)
 
 
@@ -84,15 +83,16 @@ def add_autostart_linux() -> None:
     Mal zu starten.
     """
     from wisper import linux
+
     paths = _linux_paths()
     python = PROJECT_ROOT / ".venv" / "bin" / "python"
     main_py = PROJECT_ROOT / "wisper" / "main.py"
     paths["icon"].parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(PROJECT_ROOT / "wisper" / "assets" / "branding" / "hams_app_icon.png",
-                    paths["icon"])
+    shutil.copyfile(PROJECT_ROOT / "wisper" / "assets" / "branding" / "hams_app_icon.png", paths["icon"])
     paths["menu"].parent.mkdir(parents=True, exist_ok=True)
-    paths["menu"].write_text(linux.desktop_entry(
-        f"systemctl --user start {linux.SERVICE}", linux.APP_ID), encoding="utf-8")
+    paths["menu"].write_text(
+        linux.desktop_entry(f"systemctl --user start {linux.SERVICE}", linux.APP_ID), encoding="utf-8"
+    )
     paths["service"].parent.mkdir(parents=True, exist_ok=True)
     paths["service"].write_text(linux.service_unit(str(python), str(main_py)), encoding="utf-8")
     paths["autostart"].unlink(missing_ok=True)
@@ -104,6 +104,7 @@ def add_autostart_linux() -> None:
 
 def remove_autostart_linux() -> None:
     from wisper import linux
+
     paths = _linux_paths()
     if paths["service"].exists():
         _systemctl("disable", linux.SERVICE)

@@ -42,16 +42,18 @@ def _in_a_fresh_interpreter(code: str, tmp_path: Path) -> dict:
             "WISPER_LOG_DIR": str(tmp_path / "logs"),
             "PYTHONIOENCODING": "utf-8",
         },
-        capture_output=True, text=True, timeout=300,
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
 class TestDerStartZiehtTorchNichtMit:
-
     def test_importing_the_app_leaves_torch_alone(self, tmp_path):
-        bericht = _in_a_fresh_interpreter("""
+        bericht = _in_a_fresh_interpreter(
+            """
             import json, sys
             import wisper.main
             print(json.dumps({
@@ -59,14 +61,17 @@ class TestDerStartZiehtTorchNichtMit:
                 "transformers": "transformers" in sys.modules,
                 "backend": "faster_whisper" in sys.modules,
             }))
-        """, tmp_path)
+        """,
+            tmp_path,
+        )
         assert bericht["backend"] is True, "faster-whisper muss geladen sein"
         assert bericht["torch"] is False
         assert bericht["transformers"] is False
 
     def test_the_backend_is_usable_afterwards(self, tmp_path):
         """Nicht geladen zu haben nuetzt nichts, wenn danach nichts geht."""
-        bericht = _in_a_fresh_interpreter("""
+        bericht = _in_a_fresh_interpreter(
+            """
             import json, sys
             from wisper.models import preload_backend_without_torch
             ohne_torch = preload_backend_without_torch()
@@ -77,7 +82,9 @@ class TestDerStartZiehtTorchNichtMit:
                 "klasse": WhisperModel.__name__,
                 "kann_transkribieren": callable(WhisperModel.transcribe),
             }))
-        """, tmp_path)
+        """,
+            tmp_path,
+        )
         assert bericht["ohne_torch"] is True
         assert bericht["torch"] is False
         assert bericht["klasse"] == "WhisperModel"
@@ -85,7 +92,8 @@ class TestDerStartZiehtTorchNichtMit:
 
     def test_a_second_call_changes_nothing(self, tmp_path):
         """Zweimal aufgerufen darf die Sperre nicht erneut greifen."""
-        bericht = _in_a_fresh_interpreter("""
+        bericht = _in_a_fresh_interpreter(
+            """
             import json, sys
             from wisper.models import preload_backend_without_torch
             erst = preload_backend_without_torch()
@@ -94,7 +102,9 @@ class TestDerStartZiehtTorchNichtMit:
                               "sperren_uebrig": sum(
                                   1 for f in sys.meta_path
                                   if type(f).__name__ == "_AbgeschalteteImporte")}))
-        """, tmp_path)
+        """,
+            tmp_path,
+        )
         assert bericht["erst"] is True
         assert bericht["dann"] is True
         assert bericht["sperren_uebrig"] == 0, "Die Sperre muss abgeraeumt sein"
@@ -110,7 +120,8 @@ class TestWennDieSperreNichtTraegt:
         Fall, den der Rueckfall auffangen soll. Er muss dann ohne Sperre
         erneut laden statt die Anwendung stehen zu lassen.
         """
-        bericht = _in_a_fresh_interpreter("""
+        bericht = _in_a_fresh_interpreter(
+            """
             import json, sys
             sys.path.insert(0, ".")
             from wisper import models
@@ -126,7 +137,9 @@ class TestWennDieSperreNichtTraegt:
                 "sperren_uebrig": sum(1 for f in sys.meta_path
                                       if type(f).__name__ == "_AbgeschalteteImporte"),
             }))
-        """, tmp_path)
+        """,
+            tmp_path,
+        )
         assert bericht["ohne_torch"] is False, "Der Rueckfall muss sich melden"
         assert bericht["backend"] is True, "Die Anwendung muss trotzdem starten"
         assert bericht["klasse"] == "WhisperModel"
@@ -180,7 +193,8 @@ class TestDieCudaBibliothekenBleibenErreichbar:
 
     def test_cublas_can_actually_be_loaded_afterwards(self, tmp_path):
         """Nicht der Pfad zaehlt, sondern ob Windows die Bibliothek findet."""
-        bericht = _in_a_fresh_interpreter("""
+        bericht = _in_a_fresh_interpreter(
+            """
             import ctypes, glob, json, os, sys
             sys.path.insert(0, ".")
             from wisper.models import preload_backend_without_torch
@@ -198,11 +212,12 @@ class TestDieCudaBibliothekenBleibenErreichbar:
                     geladen = False
             print(json.dumps({"ohne_torch": ohne_torch, "hat_cublas": bool(treffer),
                               "geladen": geladen, "torch": "torch" in sys.modules}))
-        """, tmp_path)
+        """,
+            tmp_path,
+        )
         if not bericht["hat_cublas"]:
             pytest.skip("kein cuBLAS in dieser Umgebung")
         assert bericht["torch"] is False, "torch soll weiterhin ungeladen bleiben"
         assert bericht["geladen"] is True, (
-            "cuBLAS ist nach dem Backend-Import nicht auffindbar — "
-            "die GPU-Transkription wuerde scheitern"
+            "cuBLAS ist nach dem Backend-Import nicht auffindbar — die GPU-Transkription wuerde scheitern"
         )

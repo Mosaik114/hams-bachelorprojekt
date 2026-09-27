@@ -38,8 +38,14 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         **label_kwargs,
     ) -> None:
         super().__init__(
-            master, bg=bg_under, compound="center", bd=0, highlightthickness=0,
-            font=font(font_role), cursor="hand2", **label_kwargs,
+            master,
+            bg=bg_under,
+            compound="center",
+            bd=0,
+            highlightthickness=0,
+            font=font(font_role),
+            cursor="hand2",
+            **label_kwargs,
         )
         self.init_states(role)
         self._bg_under = bg_under
@@ -112,7 +118,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         try:
             self.configure(font=font(self._font_role_name()))
             self._render()
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
 
     def _on_destroy(self, event: tk.Event) -> None:
@@ -129,7 +135,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         self._bg_under = Theme.remap(self._bg_under)
         try:
             self.configure(bg=self._bg_under)
-        except tk.TclError:      # pragma: no cover - Widget bereits zerstört
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             return
         self._render()
 
@@ -144,7 +150,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
             return
         try:
             image = self._paint(self._last_width, px(self._logical_height))
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             return
         self._image = image
         _fill, foreground = self.colours()
@@ -164,21 +170,32 @@ class _SurfaceControl(BaseControl):
         fill, _foreground = self.colours()
         ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
         return surface(
-            width, height + 2 * (ring_w + ring_gap), px(self._logical_radius),
+            width,
+            height + 2 * (ring_w + ring_gap),
+            px(self._logical_radius),
             fill if fill is not None else self._bg_under,
             squircle=self._squircle,
-            ring=self.ring(), ring_width=ring_w, ring_gap=ring_gap,
+            ring=self.ring(),
+            ring_width=ring_w,
+            ring_gap=ring_gap,
         )
 
 
 class PrimaryButton(_SurfaceControl):
     """Die eine dominante Aktion eines Fensters."""
 
-    def __init__(self, master: tk.Misc, text: str, command: Callable[[], None], *,
-                 bg_under: str, role: str = "primary") -> None:
-        super().__init__(master, bg_under=bg_under, role=role,
-                         height=Height.PRIMARY, radius=Radius.BUTTON,
-                         command=command, text=text)
+    def __init__(
+        self, master: tk.Misc, text: str, command: Callable[[], None], *, bg_under: str, role: str = "primary"
+    ) -> None:
+        super().__init__(
+            master,
+            bg_under=bg_under,
+            role=role,
+            height=Height.PRIMARY,
+            radius=Radius.BUTTON,
+            command=command,
+            text=text,
+        )
 
 
 class SecondaryButton(_SurfaceControl):
@@ -189,14 +206,23 @@ class SecondaryButton(_SurfaceControl):
     einen Text mit `compound="center"` nicht versetzen.
     """
 
-    def __init__(self, master: tk.Misc, text: str, command: Callable[[], None], *,
-                 bg_under: str, icon_name: str | None = None,
-                 icon_colour: str | None = None,
-                 height: int = Height.PRIMARY, role: str = "secondary") -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        text: str,
+        command: Callable[[], None],
+        *,
+        bg_under: str,
+        icon_name: str | None = None,
+        icon_colour: str | None = None,
+        height: int = Height.PRIMARY,
+        role: str = "secondary",
+    ) -> None:
         self._icon_name = icon_name
         self._icon_colour = icon_colour
-        super().__init__(master, bg_under=bg_under, role=role, height=height,
-                         radius=Radius.BUTTON, command=command, text=text)
+        super().__init__(
+            master, bg_under=bg_under, role=role, height=height, radius=Radius.BUTTON, command=command, text=text
+        )
 
     def set_icon(self, icon_name: str | None, colour: str | None = None) -> None:
         self._icon_name, self._icon_colour = icon_name, colour
@@ -217,8 +243,7 @@ class SecondaryButton(_SurfaceControl):
         gap = px(Space.MD)
         # Ueber Tk messen statt ueber das Font-Objekt: font() liefert vor
         # init_fonts() ein Tupel, und cget("font") stimmt immer.
-        text_width = int(self.tk.call("font", "measure",
-                                      self.cget("font"), self.cget("text")))
+        text_width = int(self.tk.call("font", "measure", self.cget("font"), self.cget("text")))
         # Der Text steht durch compound="center" mittig; das Icon muss deshalb
         # vom Textanfang aus nach links gesetzt werden, nicht von der Gruppe aus
         # - sonst ueberlappt es den Text.
@@ -232,7 +257,7 @@ class SecondaryButton(_SurfaceControl):
         glyph = render_icon(self._icon_name, icon_size, colour)
         pil.paste(glyph, (max(0, group_left), max(0, top)), glyph)
         composed = ImageTk.PhotoImage(pil)
-        self._composed = composed        # Referenz halten
+        self._composed = composed  # Referenz halten
         return composed
 
 
@@ -244,14 +269,21 @@ class IconButton(BaseControl):
 
     stretch_stacked = False
 
-    def __init__(self, master: tk.Misc, icon_name: str, command: Callable[[], None], *,
-                 bg_under: str, size: int = Height.STANDARD,
-                 icon_size: int = ICON_BOX, tooltip: str = "") -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        icon_name: str,
+        command: Callable[[], None],
+        *,
+        bg_under: str,
+        size: int = Height.STANDARD,
+        icon_size: int = ICON_BOX,
+        tooltip: str = "",
+    ) -> None:
         self._icon_name = icon_name
         self._icon_size = icon_size
         self._hover_colour: str | None = None
-        super().__init__(master, bg_under=bg_under, role="plain", height=size,
-                         radius=Radius.CONTROL, command=command)
+        super().__init__(master, bg_under=bg_under, role="plain", height=size, radius=Radius.CONTROL, command=command)
         self._side = size
         self.configure(width=px(size), height=px(size))
         self._last_width = px(size)
@@ -271,7 +303,7 @@ class IconButton(BaseControl):
         return "icon"
 
     def _on_configure(self, _event: tk.Event) -> None:
-        pass      # feste Grösse, die Breite kommt nicht vom Layout
+        pass  # feste Grösse, die Breite kommt nicht vom Layout
 
     def _on_scale_change(self, _factor: float) -> None:
         try:
@@ -279,7 +311,7 @@ class IconButton(BaseControl):
             self.configure(width=side, height=side)
             self._last_width = side
             self._render()
-        except tk.TclError:      # pragma: no cover
+        except tk.TclError:  # pragma: no cover
             pass
 
     def _paint(self, _width: int, _height: int) -> ImageTk.PhotoImage:
@@ -296,15 +328,21 @@ class IconButton(BaseControl):
             # 7 Stufen daneben), auf hellem stand dort ein sichtbarer heller
             # Ring um jede Icon-Schaltflaeche (35 Bildpunkte, bis zu 35 Stufen).
             # Eine glatte Flaeche hat keine Kante und damit kein Ueberschwingen.
-            plate = Image.new("RGBA", (side, side),
-                              _hex_to_rgb(self._bg_under) + (255,))
+            plate = Image.new("RGBA", (side, side), _hex_to_rgb(self._bg_under) + (255,))
         else:
             ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
-            plate = ImageTk.getimage(surface(
-                side, side, px(Radius.CONTROL),
-                fill if fill is not None else self._bg_under,
-                squircle=True, ring=ring, ring_width=ring_w, ring_gap=ring_gap,
-            ))
+            plate = ImageTk.getimage(
+                surface(
+                    side,
+                    side,
+                    px(Radius.CONTROL),
+                    fill if fill is not None else self._bg_under,
+                    squircle=True,
+                    ring=ring,
+                    ring_width=ring_w,
+                    ring_gap=ring_gap,
+                )
+            )
         glyph_size = px(self._icon_size)
         glyph = render_icon(self._icon_name, glyph_size, foreground)
         offset = ((plate.width - glyph_size) // 2, (plate.height - glyph_size) // 2)

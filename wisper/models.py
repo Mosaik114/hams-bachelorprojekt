@@ -28,14 +28,13 @@ class WhisperModelInfo:
 
     __slots__ = ("model_id", "label", "summary", "size_label", "size_bytes", "repo_id")
 
-    def __init__(self, model_id: str, label: str, summary: str,
-                 size_label: str, size_bytes: int, repo_id: str) -> None:
+    def __init__(self, model_id: str, label: str, summary: str, size_label: str, size_bytes: int, repo_id: str) -> None:
         self.model_id = model_id
         self.label = label
-        self.summary = summary          #: kurze Einordnung, Produkttext
-        self.size_label = size_label    #: für die Anzeige
-        self.size_bytes = size_bytes    #: grobe Schätzung, für die Platzprüfung
-        self.repo_id = repo_id          #: Hugging-Face-Repository, für den Cache
+        self.summary = summary  #: kurze Einordnung, Produkttext
+        self.size_label = size_label  #: für die Anzeige
+        self.size_bytes = size_bytes  #: grobe Schätzung, für die Platzprüfung
+        self.repo_id = repo_id  #: Hugging-Face-Repository, für den Cache
 
     @property
     def meta(self) -> str:
@@ -45,25 +44,23 @@ class WhisperModelInfo:
 
 #: Dezimal gerechnet: so weist der Hub die Dateigrössen aus, und nur so passen
 #: Beschriftung und Fortschrittsanzeige zusammen.
-_GB = 1000 ** 3
-_MB = 1000 ** 2
+_GB = 1000**3
+_MB = 1000**2
 
 #: Reihenfolge = Anzeigereihenfolge. Die Einordnungen sind Produkttexte und
 #: bewusst zurückhaltend — wir haben keine eigenen Messwerte für Genauigkeit.
 #: Die Grössen sind am Hub gemessen, über genau die Dateien in ALLOW_PATTERNS.
 CATALOG: tuple[WhisperModelInfo, ...] = (
-    WhisperModelInfo("turbo", "Turbo", "Schnell · sehr gut", "1,6 GB",
-                     1_621_665_983, "mobiuslabsgmbh/faster-whisper-large-v3-turbo"),
-    WhisperModelInfo("large-v3", "Large v3", "Höchste Genauigkeit", "3,1 GB",
-                     3_090_835_702, "Systran/faster-whisper-large-v3"),
-    WhisperModelInfo("medium", "Medium", "Ausgewogen", "1,5 GB",
-                     1_530_571_735, "Systran/faster-whisper-medium"),
-    WhisperModelInfo("small", "Small", "Schnell", "486 MB",
-                     486_212_372, "Systran/faster-whisper-small"),
-    WhisperModelInfo("base", "Base", "Sehr schnell", "148 MB",
-                     147_882_941, "Systran/faster-whisper-base"),
-    WhisperModelInfo("tiny", "Tiny", "Nur für Tests", "78 MB",
-                     78_203_619, "Systran/faster-whisper-tiny"),
+    WhisperModelInfo(
+        "turbo", "Turbo", "Schnell · sehr gut", "1,6 GB", 1_621_665_983, "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
+    ),
+    WhisperModelInfo(
+        "large-v3", "Large v3", "Höchste Genauigkeit", "3,1 GB", 3_090_835_702, "Systran/faster-whisper-large-v3"
+    ),
+    WhisperModelInfo("medium", "Medium", "Ausgewogen", "1,5 GB", 1_530_571_735, "Systran/faster-whisper-medium"),
+    WhisperModelInfo("small", "Small", "Schnell", "486 MB", 486_212_372, "Systran/faster-whisper-small"),
+    WhisperModelInfo("base", "Base", "Sehr schnell", "148 MB", 147_882_941, "Systran/faster-whisper-base"),
+    WhisperModelInfo("tiny", "Tiny", "Nur für Tests", "78 MB", 78_203_619, "Systran/faster-whisper-tiny"),
 )
 
 _BY_ID = {info.model_id: info for info in CATALOG}
@@ -90,9 +87,8 @@ def installed_whisper_models() -> set[str]:
         from huggingface_hub import scan_cache_dir
 
         cache = scan_cache_dir()
-    except Exception:      # Cache fehlt, ist beschädigt oder die API änderte sich
-        logger.warning("Hugging-Face-Cache nicht lesbar — kein Modell gilt als installiert",
-                       exc_info=True)
+    except Exception:  # Cache fehlt, ist beschädigt oder die API änderte sich
+        logger.warning("Hugging-Face-Cache nicht lesbar — kein Modell gilt als installiert", exc_info=True)
         return set()
 
     by_repo = {info.repo_id: info.model_id for info in CATALOG}
@@ -100,14 +96,13 @@ def installed_whisper_models() -> set[str]:
     for repo in getattr(cache, "repos", ()):
         model_id = by_repo.get(getattr(repo, "repo_id", ""))
         if model_id is None:
-            continue          # fremdes Repository — geht uns nichts an
+            continue  # fremdes Repository — geht uns nichts an
         # `model.bin` ist die Datei, an der faster-whisper haengt. Ein
         # abgebrochener Download hinterlaesst durchaus schon config.json und
         # tokenizer.json — als installiert darf das nicht gelten, sonst boete
         # die Oberflaeche einen Wechsel an, der beim Laden scheitert.
         for revision in getattr(repo, "revisions", ()):
-            names = {getattr(file, "file_name", "")
-                     for file in getattr(revision, "files", ())}
+            names = {getattr(file, "file_name", "") for file in getattr(revision, "files", ())}
             if MODEL_FILE in names:
                 found.add(model_id)
                 break
@@ -123,8 +118,7 @@ class CachedModel:
 
     __slots__ = ("model_id", "label", "size_bytes", "complete", "revisions")
 
-    def __init__(self, model_id: str, label: str, size_bytes: int,
-                 complete: bool, revisions: tuple[str, ...]) -> None:
+    def __init__(self, model_id: str, label: str, size_bytes: int, complete: bool, revisions: tuple[str, ...]) -> None:
         self.model_id = model_id
         self.label = label
         self.size_bytes = size_bytes
@@ -155,8 +149,7 @@ def cached_whisper_models() -> tuple[CachedModel, ...]:
 
         cache = scan_cache_dir()
     except Exception:
-        logger.warning("Hugging-Face-Cache nicht lesbar — kein Bestand ermittelbar",
-                       exc_info=True)
+        logger.warning("Hugging-Face-Cache nicht lesbar — kein Bestand ermittelbar", exc_info=True)
         return ()
 
     nach_repo = {info.repo_id: info for info in CATALOG}
@@ -164,22 +157,22 @@ def cached_whisper_models() -> tuple[CachedModel, ...]:
     for repo in getattr(cache, "repos", ()):
         info = nach_repo.get(getattr(repo, "repo_id", ""))
         if info is None:
-            continue          # fremdes Repository — geht uns nichts an
-        revisionen = tuple(getattr(revision, "commit_hash", "")
-                           for revision in getattr(repo, "revisions", ())
-                           if getattr(revision, "commit_hash", ""))
+            continue  # fremdes Repository — geht uns nichts an
+        revisionen = tuple(
+            getattr(revision, "commit_hash", "")
+            for revision in getattr(repo, "revisions", ())
+            if getattr(revision, "commit_hash", "")
+        )
         if not revisionen:
             continue
         vollstaendig = any(
-            MODEL_FILE in {getattr(datei, "file_name", "")
-                           for datei in getattr(revision, "files", ())}
+            MODEL_FILE in {getattr(datei, "file_name", "") for datei in getattr(revision, "files", ())}
             for revision in getattr(repo, "revisions", ())
         )
         gefunden[info.model_id] = CachedModel(
-            info.model_id, info.label, int(getattr(repo, "size_on_disk", 0) or 0),
-            vollstaendig, revisionen)
-    return tuple(gefunden[info.model_id] for info in CATALOG
-                 if info.model_id in gefunden)
+            info.model_id, info.label, int(getattr(repo, "size_on_disk", 0) or 0), vollstaendig, revisionen
+        )
+    return tuple(gefunden[info.model_id] for info in CATALOG if info.model_id in gefunden)
 
 
 def delete_whisper_model(model_id: str) -> tuple[bool, int, str]:
@@ -232,7 +225,7 @@ def cache_root() -> Path | None:
         from huggingface_hub import constants
 
         return Path(constants.HF_HUB_CACHE)
-    except Exception:      # pragma: no cover - nur bei kaputter Installation
+    except Exception:  # pragma: no cover - nur bei kaputter Installation
         return None
 
 
@@ -246,7 +239,7 @@ def free_space_bytes() -> int | None:
         probe = probe.parent
     try:
         return shutil.disk_usage(probe).free
-    except OSError:      # pragma: no cover
+    except OSError:  # pragma: no cover
         return None
 
 
@@ -255,8 +248,7 @@ def free_space_bytes() -> int | None:
 #: Genau die Dateien, die faster-whisper spaeter sucht. Ohne diese Auswahl
 #: laedt der Hub das ganze Repository — bei Large v3 mehrere Gigabyte, die
 #: nie jemand benutzt.
-ALLOW_PATTERNS = ("config.json", "preprocessor_config.json", "model.bin",
-                  "tokenizer.json", "vocabulary.*")
+ALLOW_PATTERNS = ("config.json", "preprocessor_config.json", "model.bin", "tokenizer.json", "vocabulary.*")
 
 #: Fehlertext, an dem die Oberflaeche einen Abbruch von einem Fehler trennt.
 CANCELLED = "abgebrochen"
@@ -285,7 +277,7 @@ def _paket_verzeichnis(paket: str, unterordner: str) -> Path | None:
     if spec is None:
         return None
     wurzel = spec.origin
-    if wurzel is None:                       # Namensraum-Paket wie "nvidia"
+    if wurzel is None:  # Namensraum-Paket wie "nvidia"
         orte = list(getattr(spec, "submodule_search_locations", []) or [])
         if not orte:
             return None
@@ -326,14 +318,16 @@ def add_cuda_libraries() -> tuple[str, ...]:
             continue
         try:
             os.add_dll_directory(str(ordner))
-        except OSError:                      # pragma: no cover - Pfad verschwunden
+        except OSError:  # pragma: no cover - Pfad verschwunden
             logger.warning("CUDA-Bibliotheken unter %s nicht anmeldbar", ordner)
             continue
         angemeldet.append(str(ordner))
     if not angemeldet:
-        logger.warning("Keine CUDA-Bibliotheken gefunden — Transkription "
-                       "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
-                       "nvidia-cudnn-cu12?")
+        logger.warning(
+            "Keine CUDA-Bibliotheken gefunden — Transkription "
+            "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
+            "nvidia-cudnn-cu12?"
+        )
     return tuple(angemeldet)
 
 
@@ -353,6 +347,7 @@ def _preload_cuda_libraries_linux() -> tuple[str, ...]:
     neben ihm liegen.
     """
     import ctypes
+
     geladen: list[str] = []
     for paket, dateien in CUDA_LIBRARIES_LINUX:
         ordner = _paket_verzeichnis(paket, "lib")
@@ -367,9 +362,11 @@ def _preload_cuda_libraries_linux() -> tuple[str, ...]:
                 if str(ordner) not in geladen:
                     geladen.append(str(ordner))
     if not geladen:
-        logger.warning("Keine CUDA-Bibliotheken gefunden — Transkription "
-                       "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
-                       "nvidia-cudnn-cu12?")
+        logger.warning(
+            "Keine CUDA-Bibliotheken gefunden — Transkription "
+            "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
+            "nvidia-cudnn-cu12?"
+        )
     return tuple(geladen)
 
 
@@ -441,19 +438,17 @@ def preload_backend_without_torch() -> bool:
         importlib.import_module("faster_whisper")
         return True
     except Exception:
-        logger.warning("faster-whisper liess sich ohne torch nicht laden — "
-                       "zweiter Versuch ohne Sperre", exc_info=True)
+        logger.warning("faster-whisper liess sich ohne torch nicht laden — zweiter Versuch ohne Sperre", exc_info=True)
     finally:
         try:
             sys.meta_path.remove(sperre)
-        except ValueError:      # pragma: no cover - hat jemand anders entfernt
+        except ValueError:  # pragma: no cover - hat jemand anders entfernt
             pass
 
     # Aufraeumen, damit der zweite Anlauf nicht auf halb geladenen Modulen
     # aufsetzt: was die Sperre abgewiesen hat, steht sonst als kaputter
     # Eintrag in sys.modules.
-    for name in [n for n in sys.modules
-                 if n.partition(".")[0] in ("ctranslate2", "faster_whisper")]:
+    for name in [n for n in sys.modules if n.partition(".")[0] in ("ctranslate2", "faster_whisper")]:
         del sys.modules[name]
     importlib.import_module("faster_whisper")
     return False
@@ -477,7 +472,7 @@ def disable_xet_transfer() -> bool:
 
         constants.HF_HUB_DISABLE_XET = True
         return True
-    except Exception:      # pragma: no cover - nur bei kaputter Installation
+    except Exception:  # pragma: no cover - nur bei kaputter Installation
         logger.warning("Xet liess sich nicht abschalten", exc_info=True)
         return False
 
@@ -613,11 +608,10 @@ class ModelDownloader:
         """Leerer String, wenn genug Platz ist — sonst der Grund."""
         free = free_space_bytes()
         if free is None:
-            return ""      # nicht ermittelbar: nicht im Weg stehen
+            return ""  # nicht ermittelbar: nicht im Weg stehen
         needed = int(info.size_bytes * self.SPACE_MARGIN)
         if free < needed:
-            return (f"Zu wenig Speicherplatz — {format_bytes(needed)} nötig, "
-                    f"{format_bytes(free)} frei")
+            return f"Zu wenig Speicherplatz — {format_bytes(needed)} nötig, {format_bytes(free)} frei"
         return ""
 
     def start(self, info: WhisperModelInfo, on_progress, on_finished) -> str:
@@ -641,8 +635,8 @@ class ModelDownloader:
         self._cancel = threading.Event()
         self.model_id = info.model_id
         self._thread = threading.Thread(
-            target=self._run, args=(info, on_progress, on_finished),
-            daemon=True, name="model-download")
+            target=self._run, args=(info, on_progress, on_finished), daemon=True, name="model-download"
+        )
         self._thread.start()
         return ""
 
@@ -651,7 +645,7 @@ class ModelDownloader:
             self._cancel.set()
 
     def _run(self, info: WhisperModelInfo, on_progress, on_finished) -> None:
-        disable_xet_transfer()      # sonst greift der Abbruch erst nach Minuten
+        disable_xet_transfer()  # sonst greift der Abbruch erst nach Minuten
         last = [0.0]
 
         def report(done: int, total: int) -> None:
@@ -667,9 +661,8 @@ class ModelDownloader:
         try:
             from huggingface_hub import snapshot_download
 
-            snapshot_download(info.repo_id, tqdm_class=_ProgressBar,
-                              allow_patterns=list(ALLOW_PATTERNS))
-        except Exception as exc:      # noqa: BLE001 - in Klartext uebersetzen
+            snapshot_download(info.repo_id, tqdm_class=_ProgressBar, allow_patterns=list(ALLOW_PATTERNS))
+        except Exception as exc:  # noqa: BLE001 - in Klartext uebersetzen
             if self._cancel is not None and self._cancel.is_set():
                 # Der Abbruch kommt aus einem Arbeitsthread zurueck und ist
                 # unterwegs schon einmal eingepackt worden — die Ursache steht
@@ -701,9 +694,19 @@ def _describe_download_error(exc: BaseException) -> str:
         return "Kein Speicherplatz mehr frei"
     if "no space" in text or "not enough space" in text or "errno 28" in text:
         return "Kein Speicherplatz mehr frei"
-    for marker in ("connection", "timed out", "timeout", "network", "dns",
-                   "resolve", "unreachable", "getaddrinfo", "offline",
-                   "proxy", "ssl"):
+    for marker in (
+        "connection",
+        "timed out",
+        "timeout",
+        "network",
+        "dns",
+        "resolve",
+        "unreachable",
+        "getaddrinfo",
+        "offline",
+        "proxy",
+        "ssl",
+    ):
         if marker in text:
             return "Keine Verbindung zum Modell-Server"
     if "404" in text or "not found" in text or "repositorynotfound" in text:

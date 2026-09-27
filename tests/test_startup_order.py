@@ -43,19 +43,27 @@ KAPUTTE_DATEIEN = {
 def _import_in_a_fresh_interpreter(config_file: Path) -> subprocess.CompletedProcess:
     """Importiert wisper.main so, wie der Autostart es tut: von vorn."""
     return subprocess.run(
-        [sys.executable, "-c", textwrap.dedent("""
+        [
+            sys.executable,
+            "-c",
+            textwrap.dedent("""
             import wisper.main
             print("IMPORT-OK", wisper.main.CFG.sample_rate)
-        """)],
+        """),
+        ],
         cwd=PROJECT_ROOT,
         # Die Umgebung wird geerbt und nur ergaenzt. Eine kuenstlich magere
         # Umgebung ohne SystemDrive/ProgramData laesst Windows Pfade nicht
         # aufloesen und legt einen Ordner namens "%SystemDrive%" im Projekt an.
-        env={**os.environ,
-             "WISPER_CONFIG": str(config_file),
-             # Auch der Kindprozess schreibt sonst ins echte Log.
-             "WISPER_LOG_DIR": str(config_file.parent / "logs")},
-        capture_output=True, text=True, timeout=300,
+        env={
+            **os.environ,
+            "WISPER_CONFIG": str(config_file),
+            # Auch der Kindprozess schreibt sonst ins echte Log.
+            "WISPER_LOG_DIR": str(config_file.parent / "logs"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
 
 
@@ -90,7 +98,6 @@ class TestEineKaputteKonfigurationHaeltNichtAuf:
 
 
 class TestDieRegelnSindAbgedeckt:
-
     def test_every_rule_has_a_case(self):
         """Kommt eine Regel dazu, faellt hier auf, dass sie ungeprueft ist."""
         cfg = Config()

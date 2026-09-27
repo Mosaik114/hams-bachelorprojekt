@@ -25,16 +25,23 @@ class ModelSectionMixin:
         options = []
         for info in whisper_models.CATALOG:
             is_installed = info.model_id in installed
-            options.append(uk.Option(
-                info.model_id, info.label, meta=info.meta,
-                group="Installiert" if is_installed else "Verfügbar",
-                trailing="" if is_installed else f"↓ {info.size_label}",
-            ))
+            options.append(
+                uk.Option(
+                    info.model_id,
+                    info.label,
+                    meta=info.meta,
+                    group="Installiert" if is_installed else "Verfügbar",
+                    trailing="" if is_installed else f"↓ {info.size_label}",
+                )
+            )
         current = CFG.model_size
         if whisper_models.find(current) is None:
-            options.insert(0, uk.Option(
-                current, f"Benutzerdefiniert · {current}",
-                meta="Aus der Konfigurationsdatei", group="Installiert"))
+            options.insert(
+                0,
+                uk.Option(
+                    current, f"Benutzerdefiniert · {current}", meta="Aus der Konfigurationsdatei", group="Installiert"
+                ),
+            )
         return options
 
     def _refresh_models(self) -> None:
@@ -61,7 +68,7 @@ class ModelSectionMixin:
     def _update_model_hint(self) -> None:
         """Unterscheidet "aktiv" von "fuer den naechsten Start gewaehlt"."""
         if not self.alive() or self._downloading:
-            return      # der Fortschritt hat Vorrang vor dem Hinweistext
+            return  # der Fortschritt hat Vorrang vor dem Hinweistext
         chosen = CFG.model_size
         active = self.app.active_model_size
         if chosen not in self._installed_models and whisper_models.find(chosen):
@@ -97,8 +104,7 @@ class ModelSectionMixin:
             self.row_model.set_description("Modell wird geladen …")
         else:
             self.model_select.set_value(CFG.model_size)
-            self.row_model.set_description(
-                "Während einer Aufnahme nicht wechselbar")
+            self.row_model.set_description("Während einer Aufnahme nicht wechselbar")
 
     # ------------------------------------------------------- Modelle loeschen
 
@@ -149,17 +155,16 @@ class ModelSectionMixin:
         bestand = list(whisper_models.cached_whisper_models())
         loeschbar = self.deletable_models()
         self.row_storage.set_control(self.select_delete if loeschbar else None)
-        self.select_delete.set_options([
-            uk.Option(eintrag.model_id, eintrag.label, meta=eintrag.meta)
-            for eintrag in loeschbar])
+        self.select_delete.set_options(
+            [uk.Option(eintrag.model_id, eintrag.label, meta=eintrag.meta) for eintrag in loeschbar]
+        )
         self.select_delete.set_value(None)
         self.select_delete.set_enabled(bool(loeschbar) and not self._downloading)
         self.row_storage.set_description(self.storage_text(bestand))
 
     def _choose_delete(self, model_id: str) -> None:
         """Aus der Auswahl wird eine Rueckfrage — geloescht wird erst danach."""
-        eintrag = next((e for e in self.deletable_models()
-                        if e.model_id == model_id), None)
+        eintrag = next((e for e in self.deletable_models() if e.model_id == model_id), None)
         if eintrag is None:
             self._refresh_storage()
             return
@@ -177,8 +182,7 @@ class ModelSectionMixin:
         """
         if not eintrag.complete:
             return f"Rest von {eintrag.label} entfernen?"
-        return (f"{eintrag.label} löschen? "
-                f"{whisper_models.format_bytes(eintrag.size_bytes)} frei")
+        return f"{eintrag.label} löschen? {whisper_models.format_bytes(eintrag.size_bytes)} frei"
 
     def _abort_delete(self) -> None:
         self._refresh_storage()
@@ -192,14 +196,13 @@ class ModelSectionMixin:
         self.delete_button.set_enabled(False)
         self.delete_cancel.set_enabled(False)
         self.row_storage.set_description("Wird gelöscht …")
-        threading.Thread(target=self._delete_worker, args=(model_id,),
-                         daemon=True, name="wisper-delete").start()
+        threading.Thread(target=self._delete_worker, args=(model_id,), daemon=True, name="wisper-delete").start()
 
     def _delete_worker(self, model_id: str) -> None:
         erfolg, _frei, meldung = whisper_models.delete_whisper_model(model_id)
         try:
             self.win.after(0, lambda: self._delete_done(erfolg, meldung))
-        except (tk.TclError, RuntimeError):      # Fenster inzwischen zu
+        except (tk.TclError, RuntimeError):  # Fenster inzwischen zu
             pass
 
     def _delete_done(self, erfolg: bool, meldung: str) -> None:
@@ -208,20 +211,18 @@ class ModelSectionMixin:
         self.delete_button.set_enabled(True)
         self.delete_cancel.set_enabled(True)
         self._refresh_storage()
-        self._refresh_models()      # der Bestand hat sich geaendert
+        self._refresh_models()  # der Bestand hat sich geaendert
         self.row_storage.set_description(meldung)
         logger.info("Modell löschen: %s", meldung)
         # Die Meldung steht kurz, dann uebernimmt wieder der Bestand. Ein
         # dauerhaft stehender Satz waere nach dem naechsten Blick ins Fenster
         # nicht mehr einzuordnen.
-        self._storage_note_job = self.win.after(
-            self.DELETE_NOTE_MS, self._clear_storage_note)
+        self._storage_note_job = self.win.after(self.DELETE_NOTE_MS, self._clear_storage_note)
 
     def _clear_storage_note(self) -> None:
         self._storage_note_job = None
         if self.alive() and not self._delete_target:
-            self.row_storage.set_description(
-                self.storage_text(list(whisper_models.cached_whisper_models())))
+            self.row_storage.set_description(self.storage_text(list(whisper_models.cached_whisper_models())))
 
     # ---------------------------------------------------------- Modell-Download
 
@@ -229,8 +230,7 @@ class ModelSectionMixin:
     def download_text(label: str, done: int, total: int, percent: int) -> str:
         """Was beim Warten trägt: Modell, Anteil, absolute Menge — in einer Zeile."""
         if total > 0:
-            return (f"{label} · {percent} % · "
-                    f"{whisper_models.format_progress(done, total)}")
+            return f"{label} · {percent} % · {whisper_models.format_progress(done, total)}"
         return f"{label} · {whisper_models.format_bytes(done)} geladen"
 
     def _begin_download(self, model_id: str) -> None:
@@ -264,8 +264,7 @@ class ModelSectionMixin:
             return
         self._downloading = running
         self.row_model.set_control(self.cancel_button)
-        self.on_download_progress(self.app.download_done, self.app.download_total,
-                                  self.app.download_percent)
+        self.on_download_progress(self.app.download_done, self.app.download_total, self.app.download_percent)
 
     def on_download_progress(self, done: int, total: int, percent: int) -> None:
         if not self.alive() or not self._downloading:

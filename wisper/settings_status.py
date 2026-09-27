@@ -33,8 +33,7 @@ class StatusSectionMixin:
             # Die Config speichert einen Teilstring des Geraetenamens, keinen
             # exakten Namen - genau so sucht auch _resolve_mic_device().
             needle = selected.strip().lower()
-            found = any(needle in pretty.lower() or needle in full.lower()
-                        for pretty, full in self._devices)
+            found = any(needle in pretty.lower() or needle in full.lower() for pretty, full in self._devices)
             self._device_error = "" if found else f"„{selected}“ ist nicht verbunden"
         else:
             self._device_error = ""
@@ -56,8 +55,7 @@ class StatusSectionMixin:
     def _selected_device_value(self):
         """Der Config-Wert als Optionswert — Teilstring auf Anzeigename gemappt."""
         raw = CFG.mic_device_raw
-        if not (isinstance(raw, str) and raw.strip()
-                and raw.strip().lower() != "default"):
+        if not (isinstance(raw, str) and raw.strip() and raw.strip().lower() != "default"):
             return None
         needle = raw.strip().lower()
         for pretty, full in self._devices:
@@ -84,7 +82,7 @@ class StatusSectionMixin:
         if self._suspended or self.app.is_recording or self._mon_stream is not None:
             return
         if not self._devices and self._device_error:
-            return      # kein Eingabegerät — gar nicht erst versuchen
+            return  # kein Eingabegerät — gar nicht erst versuchen
         try:
             dev = _resolve_mic_device(CFG.mic_device_raw)
 
@@ -92,8 +90,11 @@ class StatusSectionMixin:
                 self._mon_rms = float(np.mean(indata.astype(np.float32) ** 2))
 
             self._mon_stream = sd.InputStream(
-                samplerate=CFG.sample_rate, channels=CFG.channels, device=dev,
-                dtype="float32", callback=cb,
+                samplerate=CFG.sample_rate,
+                channels=CFG.channels,
+                device=dev,
+                dtype="float32",
+                callback=cb,
             )
             self._mon_stream.start()
         except Exception as exc:
@@ -138,7 +139,7 @@ class StatusSectionMixin:
             if self._mon_stream is None and not self._suspended:
                 self._start_monitor()
             rms = self._mon_rms
-        level = min(1.0, (rms ** 0.5) * 1.5)
+        level = min(1.0, (rms**0.5) * 1.5)
         self.meter.set_level(level)
         self._update_mic_status(level)
         self._tick_job = self.win.after(60, self._tick)
@@ -178,17 +179,15 @@ class StatusSectionMixin:
         """
         if not self.alive():
             return
-        threading.Thread(target=self._check_ollama, daemon=True,
-                         name="ollama-check").start()
-        self._ollama_job = self.win.after(self.OLLAMA_INTERVAL_MS,
-                                          self._schedule_ollama_check)
+        threading.Thread(target=self._check_ollama, daemon=True, name="ollama-check").start()
+        self._ollama_job = self.win.after(self.OLLAMA_INTERVAL_MS, self._schedule_ollama_check)
 
     def _check_ollama(self) -> None:
         """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
         state = ollama_api.probe(ollama_api.base_url(CFG.ollama_url))
         try:
             self.win.after(0, lambda: self._apply_ollama_state(state))
-        except Exception:      # pragma: no cover - Fenster ist schon weg
+        except Exception:  # pragma: no cover - Fenster ist schon weg
             pass
 
     def _show_ollama_status(self) -> None:
@@ -204,8 +203,8 @@ class StatusSectionMixin:
         state = self._ollama_state
         self.row_cleanup_model.set_status(
             "ready" if state.online else "error",
-            "Ollama erreichbar" if state.online
-            else state.error or "Ollama nicht erreichbar")
+            "Ollama erreichbar" if state.online else state.error or "Ollama nicht erreichbar",
+        )
 
     def _apply_ollama_state(self, state) -> None:
         """Uebernimmt eine Antwort — auf dem Tk-Thread."""
@@ -216,10 +215,9 @@ class StatusSectionMixin:
         self._ollama_online = state.online
         if state.signature() != self._ollama_signature:
             popover = uk.Popover.current
-            if popover is not None and popover.trigger in (self.select_cleanup_model,
-                                                           self.select_prompt_model):
+            if popover is not None and popover.trigger in (self.select_cleanup_model, self.select_prompt_model):
                 self._show_ollama_status()
-                return      # geoeffnete Auswahl nicht unter den Fingern austauschen
+                return  # geoeffnete Auswahl nicht unter den Fingern austauschen
             self._ollama_state = state
             self._ollama_signature = state.signature()
             self._refresh_ollama_models()
@@ -236,9 +234,13 @@ class StatusSectionMixin:
         entfernter Modelle, also wird auch keiner erfunden.
         """
         options = [
-            uk.Option(model.name, ollama_api.display_name(model.name), meta=model.meta,
-                      group="Installierte Modelle",
-                      trailing="im Speicher" if model.name in state.warm else "")
+            uk.Option(
+                model.name,
+                ollama_api.display_name(model.name),
+                meta=model.meta,
+                group="Installierte Modelle",
+                trailing="im Speicher" if model.name in state.warm else "",
+            )
             for model in state.models
         ]
         if current and current not in state.names:
@@ -250,10 +252,13 @@ class StatusSectionMixin:
             elif state.error:
                 meta = state.error
             else:
-                meta = ""      # noch nie gefragt — nichts behaupten
-            options.insert(0, uk.Option(current, ollama_api.display_name(current),
-                                        meta=meta,
-                                        group="Installierte Modelle", enabled=False))
+                meta = ""  # noch nie gefragt — nichts behaupten
+            options.insert(
+                0,
+                uk.Option(
+                    current, ollama_api.display_name(current), meta=meta, group="Installierte Modelle", enabled=False
+                ),
+            )
         if state.online and options:
             options.append(uk.Option("", ollama_api.PULL_HINT, enabled=False))
         return options
@@ -262,11 +267,9 @@ class StatusSectionMixin:
         if not self.alive():
             return
         state = self._ollama_state
-        self.select_cleanup_model.set_options(
-            self.ollama_options(state, CFG.ollama_model_cleanup))
+        self.select_cleanup_model.set_options(self.ollama_options(state, CFG.ollama_model_cleanup))
         self.select_cleanup_model.set_value(CFG.ollama_model_cleanup)
-        self.select_prompt_model.set_options(
-            self.ollama_options(state, CFG.ollama_model_prompt))
+        self.select_prompt_model.set_options(self.ollama_options(state, CFG.ollama_model_prompt))
         self.select_prompt_model.set_value(CFG.ollama_model_prompt)
 
     def _select_cleanup_model(self, name: str) -> None:
