@@ -117,7 +117,8 @@ class PortalHotkeys:
 
         context = GLib.MainContext.new()
         context.push_thread_default()
-        self._loop = GLib.MainLoop.new(context, False)
+        # lokal festhalten: stop() darf self._loop leeren, während dieser Faden noch vor run() steht
+        loop = self._loop = GLib.MainLoop.new(context, False)
         self._bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
         self._anfragen = 0
         self._entries, self._ready, self._result = entries, ready, result
@@ -137,7 +138,7 @@ class PortalHotkeys:
             ),
             self._erstellt,
         )
-        self._loop.run()
+        loop.run()
         context.pop_thread_default()
 
     def _anmelden(self) -> None:
@@ -232,8 +233,14 @@ class PortalHotkeys:
         self._ready.set()
 
     def stop(self) -> None:
-        if self._loop is not None:
-            self._loop.quit()
+        loop = self._loop
+        if loop is not None:
+            from gi.repository import GLib
+
+            loop.quit()
+            # Antwortet das Portal sehr schnell, steht der Faden womöglich noch vor run(): quit() liefe dann ins
+            # Leere und die Schleife danach ewig. Das eingereihte quit() greift, sobald sie läuft.
+            loop.get_context().invoke_full(GLib.PRIORITY_DEFAULT, lambda: loop.quit() or False)
         if self._thread is not None:
             self._thread.join(2)
         self._thread = None
