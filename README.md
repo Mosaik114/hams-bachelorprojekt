@@ -224,6 +224,19 @@ tests/
 └── test_*.py
 ```
 
+## Erweitern
+
+So fügst du eine neue Einstellung hinzu (Beispiel `sound_feedback`):
+
+1. Feld mit Vorgabe in der Klasse in `wisper/config.py` (`sound_feedback: bool = True`) und Lesen aus dem
+   TOML-Abschnitt in `_apply_toml` (`ui.get("sound_feedback", …)`); Vorgabe mit Kommentar in `config.default.toml`.
+2. Zeile im Einstellungsfenster in `wisper/settings_sections.py` (Gruppe wählen, `uk.SettingRow` + Control).
+3. Schalter-Methode in `wisper/settings_window.py`: `CFG.<name> = wert` und `_persist_config_value("ui", …)`.
+4. Test in `tests/` (Lesen, Speichern, Zeile im Fenster) und unsichtbar laufen lassen.
+
+Neue Bausteine der Oberfläche gehören nach `wisper/ui_kit/` (Farben und Maße aus `theme.py`), neue Menüpunkte des
+Tray-Symbols nach `wisper/tray.py`.
+
 ## Lizenz
 
 MIT-Lizenz, siehe [LICENSE](LICENSE). Stand und Pläne: [PROJECT_PLAN.md](PROJECT_PLAN.md), Änderungen: [CHANGELOG.md](CHANGELOG.md).
