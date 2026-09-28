@@ -109,7 +109,7 @@ class PortalHotkeys:
         ready.wait(3)
         return result["failed"]
 
-    def _run(self, entries, ready: threading.Event, result: dict) -> None:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
+    def _run(self, entries, ready: threading.Event, result: dict) -> None:
         import gi
 
         gi.require_version("Gio", "2.0")
@@ -118,12 +118,35 @@ class PortalHotkeys:
         context = GLib.MainContext.new()
         context.push_thread_default()
         self._loop = GLib.MainLoop.new(context, False)
-        bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self._bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self._anfragen = 0
+        self._entries, self._ready, self._result = entries, ready, result
+        self._anmelden()
+        self._bus.signal_subscribe(BUS, IFACE, "Activated", PATH, None, Gio.DBusSignalFlags.NONE, self._gedrueckt)
+        self._shortcuts = self._kurzbefehle(entries, result)
+        self._anfrage(
+            "CreateSession",
+            lambda token: GLib.Variant(
+                "(a{sv})",
+                (
+                    {
+                        "handle_token": GLib.Variant("s", token),
+                        "session_handle_token": GLib.Variant("s", "hams_session"),
+                    },
+                ),
+            ),
+            self._erstellt,
+        )
+        self._loop.run()
+        context.pop_thread_default()
 
-        # Ohne Anmeldung kennt das Portal das Programm nicht und KDE kann die
-        # Befehle keinem Eintrag im Startmenue zuordnen.
+    def _anmelden(self) -> None:
+        """Ohne Anmeldung kennt das Portal das Programm nicht und KDE kann die Befehle keinem Eintrag im Startmenue
+        zuordnen."""
+        from gi.repository import Gio, GLib
+
         try:
-            bus.call_sync(
+            self._bus.call_sync(
                 BUS,
                 PATH,
                 "org.freedesktop.host.portal.Registry",
@@ -137,36 +160,38 @@ class PortalHotkeys:
         except GLib.Error as exc:
             logger.info("Portal-Registry: %s", exc.message)
 
-        sender = bus.get_unique_name()[1:].replace(".", "_")
-        counter = [0]
+    def _anfrage(self, method: str, params_for, on_done) -> None:
+        """Portal-Muster: erst auf `Response` am Request-Objekt lauschen, dann rufen."""
+        from gi.repository import Gio
 
-        def request(method: str, params_for, on_done) -> None:
-            """Portal-Muster: erst auf `Response` am Request-Objekt lauschen, dann rufen."""
-            counter[0] += 1
-            token = f"hams{counter[0]}"
-            path = f"{PATH}/request/{sender}/{token}"
-            sub = [0]
+        bus = self._bus
+        self._anfragen += 1
+        token = f"hams{self._anfragen}"
+        path = f"{PATH}/request/{bus.get_unique_name()[1:].replace('.', '_')}/{token}"
+        sub = [0]
 
-            def on_response(_c, _s, _p, _i, _sig, params) -> None:
-                bus.signal_unsubscribe(sub[0])
-                code, results = params.unpack()
-                on_done(code, results)
+        def on_response(_c, _s, _p, _i, _sig, params) -> None:
+            bus.signal_unsubscribe(sub[0])
+            code, results = params.unpack()
+            on_done(code, results)
 
-            sub[0] = bus.signal_subscribe(
-                BUS, "org.freedesktop.portal.Request", "Response", path, None, Gio.DBusSignalFlags.NONE, on_response
-            )
-            bus.call(BUS, PATH, IFACE, method, params_for(token), None, Gio.DBusCallFlags.NONE, -1, None, None)
+        sub[0] = bus.signal_subscribe(
+            BUS, "org.freedesktop.portal.Request", "Response", path, None, Gio.DBusSignalFlags.NONE, on_response
+        )
+        bus.call(BUS, PATH, IFACE, method, params_for(token), None, Gio.DBusCallFlags.NONE, -1, None, None)
 
-        def on_activated(_c, _s, _p, _i, _sig, params) -> None:
-            _session, shortcut_id, _ts, _opts = params.unpack()
-            handler = self._handlers.get(shortcut_id)
-            if handler is not None:
-                try:
-                    handler()
-                except Exception:
-                    logger.exception("Kurzbefehl-Handler fehlgeschlagen")
+    def _gedrueckt(self, _c, _s, _p, _i, _sig, params) -> None:
+        _session, shortcut_id, _ts, _opts = params.unpack()
+        handler = self._handlers.get(shortcut_id)
+        if handler is not None:
+            try:
+                handler()
+            except Exception:
+                logger.exception("Kurzbefehl-Handler fehlgeschlagen")
 
-        bus.signal_subscribe(BUS, IFACE, "Activated", PATH, None, Gio.DBusSignalFlags.NONE, on_activated)
+    def _kurzbefehle(self, entries, result: dict) -> list:
+        """Handler merken und die Liste für BindShortcuts bauen; unbekannte Tasten landen in result["failed"]."""
+        from gi.repository import GLib
 
         shortcuts = []
         for sid, description, combo, handler in entries:
@@ -178,47 +203,33 @@ class PortalHotkeys:
             else:
                 result["failed"].append(combo)
             shortcuts.append((sid, opts))
+        return shortcuts
 
-        def bound(code: int, results: dict) -> None:
-            if code != 0:
-                logger.error("Kurzbefehle abgelehnt (Antwort %s)", code)
-                result["failed"] = [combo for _, _, combo, _ in entries]
-            else:
-                for sid, info in results.get("shortcuts", []):
-                    logger.info("Kurzbefehl %s: %s", sid, info.get("trigger_description", "?"))
-            ready.set()
+    def _erstellt(self, code: int, results: dict) -> None:
+        from gi.repository import GLib
 
-        def created(code: int, results: dict) -> None:
-            if code != 0:
-                logger.error("Portal-Sitzung abgelehnt (Antwort %s)", code)
-                result["failed"] = [combo for _, _, combo, _ in entries]
-                ready.set()
-                return
-            session = results["session_handle"]
-            request(
-                "BindShortcuts",
-                lambda token: GLib.Variant(
-                    "(oa(sa{sv})sa{sv})", (session, shortcuts, "", {"handle_token": GLib.Variant("s", token)})
-                ),
-                bound,
-            )
-
-        request(
-            "CreateSession",
+        if code != 0:
+            logger.error("Portal-Sitzung abgelehnt (Antwort %s)", code)
+            self._result["failed"] = [combo for _, _, combo, _ in self._entries]
+            self._ready.set()
+            return
+        session = results["session_handle"]
+        self._anfrage(
+            "BindShortcuts",
             lambda token: GLib.Variant(
-                "(a{sv})",
-                (
-                    {
-                        "handle_token": GLib.Variant("s", token),
-                        "session_handle_token": GLib.Variant("s", "hams_session"),
-                    },
-                ),
+                "(oa(sa{sv})sa{sv})", (session, self._shortcuts, "", {"handle_token": GLib.Variant("s", token)})
             ),
-            created,
+            self._gebunden,
         )
 
-        self._loop.run()
-        context.pop_thread_default()
+    def _gebunden(self, code: int, results: dict) -> None:
+        if code != 0:
+            logger.error("Kurzbefehle abgelehnt (Antwort %s)", code)
+            self._result["failed"] = [combo for _, _, combo, _ in self._entries]
+        else:
+            for sid, info in results.get("shortcuts", []):
+                logger.info("Kurzbefehl %s: %s", sid, info.get("trigger_description", "?"))
+        self._ready.set()
 
     def stop(self) -> None:
         if self._loop is not None:
