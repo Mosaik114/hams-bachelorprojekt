@@ -228,7 +228,7 @@ class TestApplication:
         instance._position_job = None
         instance.written = []
         monkeypatch.setattr(
-            "wisper.app._persist_config_value",
+            "wisper.main_window._persist_config_value",
             lambda section, key, value: instance.written.append((section, key, value)) or True,
         )
         monkeypatch.setattr(CFG, "window_x", None)

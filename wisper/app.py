@@ -14,15 +14,16 @@ from wisper import models as whisper_models
 from wisper import ollama as ollama_api
 from wisper import ui_kit as uk
 from wisper.backend import WhisperModel
-from wisper.config import APP_DIR, CFG, CONFIG_PATH, _persist_config_value, logger
+from wisper.config import APP_DIR, CFG, CONFIG_PATH, logger
 from wisper.instance import _acquire_single_instance_mutex, _release_single_instance_mutex, restart_command
+from wisper.main_window import MainWindowMixin
 from wisper.recording import RecordingMixin
 from wisper.settings_window import SettingsWindow
 from wisper.transcription import TranscriptionMixin
 from wisper.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
 from wisper.ui_kit import Theme
 from wisper.whisper_model import WhisperModelMixin
-from wisper.window_position import POSITION_SAVE_DELAY_MS, window_position
+from wisper.window_position import window_position
 
 if sys.platform == "win32":
     import winsound
@@ -37,7 +38,7 @@ else:
     from wisper.portal_hotkeys import PortalSystemHotkeys as SystemHotkeys
 
 
-class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, TranscriptionMixin):
+class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, RecordingMixin, TranscriptionMixin):
     """Main application class for Wisper.
 
     Manages the Tkinter UI, system tray, audio recording, transcription,
@@ -49,6 +50,26 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
+        self._init_window()
+        self._init_model_state()
+        self._init_runtime_state()
+
+        self._build_ui()
+        self._fit_window()
+        self._apply_state("model_loading")
+        self._load_model_async()
+        self._warmup_ollama_async()
+        self._register_hotkeys()
+
+        logger.info("Fensterecken: %s", uk.round_window_corners(self.root))
+        self.root.bind("<Configure>", self._on_root_configure)
+        self.root.protocol("WM_DELETE_WINDOW", self._hide_window)
+        self._setup_tray()
+        self.root.withdraw()
+        logger.info("Wisper started")
+
+    def _init_window(self) -> None:
+        """Randloses Fenster, Skalierung und Schriften, Lage aus der Einstellung."""
         self.root.title(branding.PRODUCT_NAME)
         # Reihenfolge zählt: erst Skalierung (setzt tk scaling), dann Fonts.
         uk.init_scale(self.root)
@@ -75,6 +96,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         # private Methoden des Einstellungsfensters.
         self._mic_consumers: list = []
 
+    def _init_model_state(self) -> None:
+        """Aufnahme, Modell, Download und Ollama – alles, was zwischen den Fäden geteilt wird."""
         self.is_recording = False
         self.frames: list[np.ndarray] = []
         self.stream: sd.InputStream | None = None
@@ -114,6 +137,8 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self._active_compute_type: str | None = None
         self._active_device: str | None = None
 
+    def _init_runtime_state(self) -> None:
+        """Zustand der Oberfläche, Zeitgeber, Verlauf und Kurzbefehle."""
         self.drag_start_x = 0
         self.drag_start_y = 0
         self._state = "model_loading"
@@ -136,20 +161,6 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         if sys.platform != "win32":
             # Das Geraet frueh anlegen: KWin braucht einen Moment, bis es es kennt.
             threading.Thread(target=linux.KEYBOARD.open, daemon=True, name="uinput").start()
-
-        self._build_ui()
-        self._fit_window()
-        self._apply_state("model_loading")
-        self._load_model_async()
-        self._warmup_ollama_async()
-        self._register_hotkeys()
-
-        logger.info("Fensterecken: %s", uk.round_window_corners(self.root))
-        self.root.bind("<Configure>", self._on_root_configure)
-        self.root.protocol("WM_DELETE_WINDOW", self._hide_window)
-        self._setup_tray()
-        self.root.withdraw()
-        logger.info("Wisper started")
 
     # ------------------------------------------------------------------ Mikrofon-Teilhabe
 
@@ -243,34 +254,6 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
                     )
                 )
 
-    # ---------------------------------------------------------- Darstellung
-
-    def set_appearance(self, mode: str) -> None:
-        """Schaltet zwischen hell und dunkel um — sofort, ohne Neustart.
-
-        Reihenfolge mit Bedacht: erst ein offenes Popover schliessen, dann die
-        Palette wechseln, dann die Fenster einfaerben. Umgekehrt bliebe ein
-        schwebendes Toplevel einen Wimpernschlag in der alten Palette stehen.
-
-        Bewusst ohne Ueberblendung: eine Fensterueberblendung muesste jedes
-        Bild neu rendern, und die Flaechen entstehen ueber PIL. Der Wechsel ist
-        eine Entscheidung, keine Bewegung.
-        """
-        mode = Theme.normalise(mode)
-        uk.Popover.dismiss_current()
-        if not Theme.apply(mode):
-            return
-        CFG.appearance = mode
-        painted = self._retint_windows()
-        logger.info("Darstellung auf %s gewechselt (%s Widgets)", mode, painted)
-
-    def _retint_windows(self) -> int:
-        """Faerbt alle offenen Hams-Fenster neu ein. Gibt die Widgetzahl zurueck."""
-        painted = uk.apply_theme_tree(self.root)
-        if self.settings_win is not None and self.settings_win.alive():
-            painted += self.settings_win.retint()
-        return painted
-
     def _open_settings(self, icon=None, item=None) -> None:
         def _do() -> None:
             if self.settings_win is not None and self.settings_win.alive():
@@ -311,13 +294,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
             # beendet; ein selbst gestarteter Nachfolger fiele dem Dienststopp zum Opfer.
             logger.info("Neustart über den Dienst angefordert")
             linux.restart_requested = True
-            self._shutting_down = True
-            self._release_resources()
-            try:
-                self.tray_icon.stop()
-            except Exception:
-                logger.exception("Tray stop failed")
-            self.root.after(0, self.root.destroy)
+            self._shut_down()
             return ""
 
         befehl = restart_command()
@@ -333,13 +310,7 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
             return "Neustart fehlgeschlagen"
 
         logger.info("Neustart angefordert: %s", befehl)
-        self._shutting_down = True
-        self._release_resources()
-        try:
-            self.tray_icon.stop()
-        except Exception:
-            logger.exception("Tray stop failed")
-        self.root.after(0, self.root.destroy)
+        self._shut_down()
         return ""
 
     def _quit_app(self, icon=None, item=None) -> None:
@@ -347,6 +318,11 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         self._flush_position()
         self._shutting_down = True
         winsound.Beep(440, 200)
+        self._shut_down()
+
+    def _shut_down(self) -> None:
+        """Gemeinsames Ende von Beenden und Neustart: freigeben, Tray-Symbol weg, Fenster zu."""
+        self._shutting_down = True
         self._release_resources()
         try:
             self.tray_icon.stop()
@@ -375,186 +351,6 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         if self.model is not None:
             self.model = None
             self.model_ready.clear()
-
-    # ------------------------------------------------------------------ UI build
-
-    def _build_ui(self) -> None:
-        """Fünf feste Zonen: Kopf, Status, Pegel, Aktion, Kurzbefehle.
-
-        Jede Zone behält ihren Platz in jedem Zustand — deshalb bleibt die
-        Fensterhöhe konstant und nichts springt.
-        """
-        card = tk.Frame(self.root, bg=Theme.WINDOW_BG)
-        card.pack(fill="both", expand=True, padx=uk.px(uk.Space.WINDOW), pady=uk.px(uk.Space.WINDOW))
-
-        # --- 1. Kopfzeile: Wortmarke (ziehbar) + zwei Icon-Schaltflächen ---
-        head = tk.Frame(card, bg=Theme.WINDOW_BG)
-        head.pack(fill="x")
-
-        title = tk.Label(
-            head,
-            text=branding.PRODUCT_NAME,
-            bg=Theme.WINDOW_BG,
-            fg=Theme.TEXT_PRIMARY,
-            font=uk.font("window_title"),
-            anchor="w",
-        )
-        title.pack(side="left")
-        for widget in (head, title):
-            widget.bind("<ButtonPress-1>", self._start_drag)
-            widget.bind("<B1-Motion>", self._on_drag)
-
-        # Reihenfolge der Erzeugung ist die Reihenfolge der Tabulatorkette; sie
-        # soll der Leserichtung folgen (Zahnrad, dann Kreuz). Gepackt wird
-        # umgekehrt, weil `side="right"` das zuerst gepackte ganz aussen setzt.
-        self._gear_btn = uk.IconButton(
-            head, "settings", self._open_settings, bg_under=Theme.WINDOW_BG, tooltip="Einstellungen"
-        )
-        self._close_btn = uk.IconButton(
-            head, "close", self._hide_window, bg_under=Theme.WINDOW_BG, tooltip="Fenster ausblenden"
-        )
-        self._close_btn.set_hover_colour(Theme.ERROR)
-        self._close_btn.pack(side="right")
-        self._gear_btn.pack(side="right", padx=(0, uk.px(uk.Space.XS)))
-
-        # --- 2. Statuszeile: die einzige Zustandsanzeige des Produkts ---
-        status_row = tk.Frame(card, bg=Theme.WINDOW_BG)
-        status_row.pack(fill="x", pady=(uk.px(uk.Space.XL), 0))
-
-        self.status_dot = uk.StatusDot(status_row, bg_under=Theme.WINDOW_BG, size=uk.StatusDot.SIZE_MAIN)
-        self.status_dot.pack(side="left", pady=uk.px(uk.Space.SM))
-        self.status_label = tk.Label(
-            status_row, text="", anchor="w", bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY, font=uk.font("status")
-        )
-        self.status_label.pack(side="left", padx=(uk.px(uk.Space.MD), 0))
-        self.elapsed_label = tk.Label(
-            status_row, text="", anchor="e", bg=Theme.WINDOW_BG, fg=Theme.TEXT_SECONDARY, font=uk.font("status")
-        )
-        self.elapsed_label.pack(side="right")
-
-        # --- 3. Pegel: immer an derselben Stelle, im Ruhezustand dunkel ---
-        self.level_meter = uk.SignalMeter(card, bg_under=Theme.WINDOW_BG)
-        self.level_meter.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
-
-        # --- 4. Hauptaktion ---
-        self.main_button = uk.SecondaryButton(
-            card,
-            "Aufnahme starten",
-            self._on_main_action,
-            bg_under=Theme.WINDOW_BG,
-            role="primary",
-            height=uk.Height.PRIMARY,
-        )
-        self.main_button.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
-
-        # --- 5. Fußzeile: beide Kurzbefehle als Tasten, im Fehlerfall der Hinweis ---
-        # Feste Höhe: der Hinweis tritt an die Stelle der Tasten, und das
-        # Fenster darf dabei nicht springen.
-        self.footer = tk.Frame(card, bg=Theme.WINDOW_BG, height=uk.px(self.FOOTER_HEIGHT))
-        self.footer.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
-        self.footer.pack_propagate(False)
-
-        self.shortcut_box = tk.Frame(self.footer, bg=Theme.WINDOW_BG)
-        self.shortcut_box.grid_columnconfigure(0, weight=1)
-        self.shortcut_keys = {}
-        for row, (key, text, combo) in enumerate(self.shortcuts()):
-            gap = (uk.px(uk.Space.SM) if row else 0, 0)
-            tk.Label(
-                self.shortcut_box,
-                text=text,
-                anchor="w",
-                bd=0,
-                padx=0,
-                pady=0,
-                bg=Theme.WINDOW_BG,
-                fg=Theme.TEXT_TERTIARY,
-                font=uk.font("description"),
-            ).grid(row=row, column=0, sticky="w", pady=gap)
-            keys = uk.KeyCombo(self.shortcut_box, bg_under=Theme.WINDOW_BG, combo=combo)
-            keys.grid(row=row, column=1, sticky="e", pady=gap)
-            self.shortcut_keys[key] = keys
-        self.shortcut_box.pack(fill="x")
-
-        self.footer_label = tk.Label(
-            self.footer,
-            text="",
-            anchor="nw",
-            justify="left",
-            bd=0,
-            padx=0,
-            pady=0,
-            bg=Theme.WINDOW_BG,
-            fg=Theme.ERROR,
-            font=uk.font("description"),
-        )
-        # Der Hinweis bricht um statt abzuschneiden („… läuft der Dien“).
-        self.footer.bind("<Configure>", lambda e: self.footer_label.configure(wraplength=max(1, e.width)), add="+")
-
-    #: Zwei Tastenreihen plus Abstand dazwischen, in logischen Pixeln.
-    FOOTER_HEIGHT = 2 * uk.Height.KEYCAP + uk.Space.SM
-
-    @staticmethod
-    def shortcuts() -> tuple:
-        """(Schlüssel, Bezeichnung, Tastenkürzel) für Fußzeile und Einstellungen.
-
-        Kurze Bezeichnungen mit Absicht: vier Tasten brauchen bei 100 % schon
-        249 px der 320 px Innenbreite; „Prompt an KI“ passte daneben nicht mehr.
-        """
-        return (("transcript", "Diktieren", CFG.hotkey_transcript), ("prompt", "Prompt", CFG.hotkey_prompt))
-
-    def _show_footer_hint(self, hint: str | None) -> None:
-        """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe."""
-        if hint:
-            self.footer_label.configure(text=hint, fg=Theme.ERROR)
-            self.shortcut_box.pack_forget()
-            self.footer_label.pack(fill="both", expand=True)
-        else:
-            self.footer_label.configure(text="")
-            self.footer_label.pack_forget()
-            self.shortcut_box.pack(fill="x")
-
-    def _fit_window(self) -> None:
-        """Fensterhöhe aus den fünf Zonen berechnen.
-
-        Gerechnet statt gemessen: `winfo_reqheight()` meldet vor dem ersten
-        Configure-Ereignis nur die Texthöhe der Buttons, weil deren Fläche erst
-        dann gerendert wird. Die Rechnung ist dagegen sofort richtig — und weil
-        jede Zone ihren Platz behält, ändert sich die Höhe danach nie wieder.
-        """
-        line = self._line_height("status")
-        footer = self.FOOTER_HEIGHT
-        ring = 2 * (uk.Space.XS + uk.Space.XS)  # Fokusring des Buttons
-
-        logical = (
-            uk.Space.WINDOW  # Rand oben
-            + uk.Height.STANDARD  # Kopfzeile
-            + uk.Space.XL
-            + line
-            + 2 * uk.Space.SM  # Statuszeile
-            + uk.Space.LG
-            + uk.SignalMeter.HEIGHT  # Pegel
-            + uk.Space.LG
-            + uk.Height.PRIMARY
-            + ring  # Hauptaktion
-            + uk.Space.LG
-            + footer  # Kurzbefehle als Tasten
-            + uk.Space.WINDOW  # Rand unten
-        )
-        width = uk.px(self.WINDOW_WIDTH)
-        height = uk.px(max(logical, self.WINDOW_MIN_HEIGHT))
-        self._window_size = (width, height)
-        self.root.geometry(f"{width}x{height}")
-        footer_widget = getattr(self, "footer", None)
-        if footer_widget is not None:
-            footer_widget.configure(height=uk.px(self.FOOTER_HEIGHT))
-
-    def _line_height(self, role: str) -> int:
-        """Zeilenhöhe einer Schriftrolle in *logischen* Pixeln."""
-        try:
-            pixels = uk.font(role).metrics("linespace")
-        except AttributeError:  # vor init_fonts()
-            pixels = uk.px(14)
-        return max(1, int(round(pixels / max(uk.Scale.factor, 0.1))))
 
     # ------------------------------------------------------------------ Zustände
 
@@ -675,64 +471,3 @@ class FloatingTranscriberApp(TrayMixin, WhisperModelMixin, RecordingMixin, Trans
         if not CFG.sound_feedback:
             return
         threading.Thread(target=winsound.Beep, args=(freq, duration), daemon=True, name="beep").start()
-
-    # ------------------------------------------------------------------ drag
-
-    def _start_drag(self, event: tk.Event) -> None:
-        self.drag_start_x = event.x
-        self.drag_start_y = event.y
-
-    def _on_drag(self, event: tk.Event) -> None:
-        x = self.root.winfo_x() + event.x - self.drag_start_x
-        y = self.root.winfo_y() + event.y - self.drag_start_y
-        self.root.geometry(f"+{x}+{y}")
-        self._remember_position(x, y)
-
-    # ------------------------------------------------------------------ Fensterlage
-
-    def _remember_position(self, x: int, y: int) -> None:
-        """Merkt die Lage sofort und schreibt sie erst, wenn die Hand still steht.
-
-        Beim Ziehen fallen hunderte Ereignisse an. Jedes davon in die
-        Konfiguration zu schreiben hiesse, fuer ein paar Pixel hundertmal eine
-        Datei neu anzulegen.
-        """
-        self._window_pos = (int(x), int(y))
-        self._cancel_position_job()
-        try:
-            self._position_job = self.root.after(POSITION_SAVE_DELAY_MS, self._save_position)
-        except tk.TclError:  # pragma: no cover - Fenster verschwindet gerade
-            self._position_job = None
-
-    def _cancel_position_job(self) -> None:
-        if self._position_job is None:
-            return
-        with contextlib.suppress(tk.TclError, ValueError):
-            self.root.after_cancel(self._position_job)
-        self._position_job = None
-
-    def _save_position(self) -> None:
-        """Schreibt die gemerkte Lage — nur, wenn sie sich geaendert hat."""
-        self._position_job = None
-        x, y = self._window_pos
-        if (x, y) == (CFG.window_x, CFG.window_y):
-            return
-        CFG.window_x, CFG.window_y = x, y
-        _persist_config_value("ui", "window_x", x)
-        _persist_config_value("ui", "window_y", y)
-        logger.info("Fensterposition gemerkt: %d,%d", x, y)
-
-    def _flush_position(self) -> None:
-        """Beim Verstecken und beim Beenden auf jeden Fall sichern.
-
-        Nachgemessen wird nur an einem sichtbaren Fenster. Ein verstecktes
-        meldet keine verlaessliche Lage; beim Beenden nach dem Verstecken
-        wuerde sonst ein Nullwert eine gute gemerkte Position ueberschreiben.
-        """
-        self._cancel_position_job()
-        try:
-            if self.root.winfo_exists() and self.root.winfo_ismapped():
-                self._window_pos = (self.root.winfo_x(), self.root.winfo_y())
-        except tk.TclError:  # pragma: no cover
-            pass
-        self._save_position()

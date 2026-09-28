@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from wisper import models
+from wisper import hub_progress, models
 from wisper.app import FloatingTranscriberApp as App
 from wisper.settings_window import SettingsWindow as SW
 
@@ -79,7 +79,7 @@ class TestProgressBar:
         flag.set()
         models._ProgressBar.cancel_flag = flag
         bar = models._ProgressBar(total=10)
-        with pytest.raises(models.DownloadCancelled):
+        with pytest.raises(hub_progress.DownloadCancelled):
             bar.update(1)
 
     def test_progress_is_monotonic_under_threads(self):

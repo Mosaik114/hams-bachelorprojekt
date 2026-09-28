@@ -5,7 +5,7 @@ zwei Pakete, die dieses Projekt weder auffuehrt noch aufruft. Der Vorlauf muss
 vor dem Import stehen, sonst ist er laengst gelaufen.
 """
 
-from wisper.models import preload_backend_without_torch
+from wisper.backend_preload import preload_backend_without_torch
 
 preload_backend_without_torch()
 
