@@ -251,7 +251,7 @@ def ipv4_loopback(url: str) -> str:
     return urllib.parse.urlunsplit(parts._replace(netloc=f"{userinfo}{at}{host}"))
 
 
-def _persist_config_value(section: str, key: str, value: Any) -> bool:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
+def _persist_config_value(section: str, key: str, value: Any) -> bool:
     """Schreibt `key = value` in den Abschnitt `[section]` von config.toml.
 
     Abschnittsbewusst, weil derselbe Schlüsselname in mehreren Abschnitten
@@ -271,35 +271,16 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:  # noqa: 
     except OSError:
         logger.warning("Config schreiben fehlgeschlagen: %s nicht lesbar", CONFIG_PATH)
         return False
+    return _atomar_schreiben(_toml_setzen(text, section, key, value))
 
+
+def _toml_setzen(text: str, section: str, key: str, value: Any) -> str:
+    """`key = value` in `[section]` setzen – reine Textänderung (Kommentare, Reihenfolge, Zeilenenden bleiben)."""
     lines = text.splitlines(keepends=True)
     eol = "\r\n" if "\r\n" in text else "\n"
-
-    header_re = re.compile(r"^\s*\[([^\]]+)\]\s*$")
     key_re = re.compile(rf"^(\s*{re.escape(key)}\s*=\s*)(.*)$")
-
-    current: str | None = None
-    section_start: int | None = None
-    section_end: int | None = None
-    target: int | None = None
-
-    for idx, line in enumerate(lines):
-        bare = line.rstrip("\r\n")
-        header = header_re.match(bare)
-        if header is not None:
-            if current == section and section_end is None:
-                section_end = idx
-            current = header.group(1).strip()
-            if current == section and section_start is None:
-                section_start = idx
-            continue
-        if current == section and target is None and key_re.match(bare) is not None:
-            target = idx
-    if section_start is not None and section_end is None:
-        section_end = len(lines)
-
+    section_start, section_end, target = _abschnitt_finden(lines, section, key_re)
     rhs = _toml_scalar(value)
-
     if target is not None:
         original = lines[target]
         bare = original.rstrip("\r\n")
@@ -326,11 +307,39 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:  # noqa: 
         lines.append(f"[{section}]{eol}")
         lines.append(f"{key} = {rhs}{eol}")
         logger.info("Config-Abschnitt [%s] mit '%s' angelegt", section, key)
+    return "".join(lines)
 
+
+def _abschnitt_finden(lines: list[str], section: str, key_re: re.Pattern) -> tuple[int | None, int | None, int | None]:
+    """(Beginn, Ende, Zeile des Schlüssels) des Abschnitts `[section]`; None, wo es nichts gibt."""
+    header_re = re.compile(r"^\s*\[([^\]]+)\]\s*$")
+    current: str | None = None
+    section_start: int | None = None
+    section_end: int | None = None
+    target: int | None = None
+    for idx, line in enumerate(lines):
+        bare = line.rstrip("\r\n")
+        header = header_re.match(bare)
+        if header is not None:
+            if current == section and section_end is None:
+                section_end = idx
+            current = header.group(1).strip()
+            if current == section and section_start is None:
+                section_start = idx
+            continue
+        if current == section and target is None and key_re.match(bare) is not None:
+            target = idx
+    if section_start is not None and section_end is None:
+        section_end = len(lines)
+    return section_start, section_end, target
+
+
+def _atomar_schreiben(text: str) -> bool:
+    """Über eine temporäre Datei – ein Abbruch mitten im Schreiben lässt die Konfiguration nie halbiert zurück."""
     tmp_path = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
     try:
         with tmp_path.open("w", encoding="utf-8", newline="") as fh:
-            fh.write("".join(lines))
+            fh.write(text)
             fh.flush()
             os.fsync(fh.fileno())
         os.replace(tmp_path, CONFIG_PATH)
@@ -445,14 +454,37 @@ def _load_config() -> Config:
 
 def _apply_toml(cfg: Config, data: dict) -> None:
     """Legt eine gelesene Datei über die bisherigen Werte."""
-    audio = data.get("audio", {})
+    _audio_anwenden(cfg, data.get("audio", {}))
+    _modell_anwenden(cfg, data.get("model", {}))
+    _transkription_anwenden(cfg, data.get("transcription", {}))
+    hotkeys = data.get("hotkeys", {})
+    cfg.hotkey_transcript = str(hotkeys.get("transcript", cfg.hotkey_transcript))
+    cfg.hotkey_prompt = str(hotkeys.get("prompt", cfg.hotkey_prompt))
+    _ollama_anwenden(cfg, data.get("ollama", {}))
+    clipboard = data.get("clipboard", {})
+    cfg.clipboard_paste_timeout = float(clipboard.get("paste_timeout", cfg.clipboard_paste_timeout))
+
+    ui = data.get("ui", {})
+    cfg.sound_feedback = bool(ui.get("sound_feedback", cfg.sound_feedback))
+    cfg.window_x = _clean_coordinate(ui.get("window_x"))
+    if "window_x" in ui:
+        cfg.window_x = _clean_coordinate(ui.get("window_x"))
+    if "window_y" in ui:
+        cfg.window_y = _clean_coordinate(ui.get("window_y"))
+    # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
+    # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
+    cfg.appearance = Theme.normalise(ui.get("appearance", cfg.appearance))
+
+
+def _audio_anwenden(cfg: Config, audio: dict) -> None:
     cfg.sample_rate = int(audio.get("sample_rate", cfg.sample_rate))
     cfg.channels = int(audio.get("channels", cfg.channels))
     cfg.mic_device_raw = audio.get("device")
     cfg.mic_device = _resolve_mic_device(cfg.mic_device_raw)
     cfg.max_recording_seconds = int(audio.get("max_recording_seconds", cfg.max_recording_seconds))
 
-    model = data.get("model", {})
+
+def _modell_anwenden(cfg: Config, model: dict) -> None:
     cfg.model_size = str(model.get("size", cfg.model_size))
     device_priority = model.get("device_priority")
     if isinstance(device_priority, list) and device_priority:
@@ -463,7 +495,8 @@ def _apply_toml(cfg: Config, data: dict) -> None:
             str(k): tuple(str(x) for x in v) for k, v in compute_priority.items() if isinstance(v, list) and v
         }
 
-    transcription = data.get("transcription", {})
+
+def _transkription_anwenden(cfg: Config, transcription: dict) -> None:
     cfg.transcription_language = str(transcription.get("language", cfg.transcription_language))
     cfg.transcription_vad_filter = bool(transcription.get("vad_filter", cfg.transcription_vad_filter))
     cfg.transcription_word_timestamps = bool(transcription.get("word_timestamps", cfg.transcription_word_timestamps))
@@ -475,11 +508,8 @@ def _apply_toml(cfg: Config, data: dict) -> None:
         transcription.get("without_timestamps", cfg.transcription_without_timestamps)
     )
 
-    hotkeys = data.get("hotkeys", {})
-    cfg.hotkey_transcript = str(hotkeys.get("transcript", cfg.hotkey_transcript))
-    cfg.hotkey_prompt = str(hotkeys.get("prompt", cfg.hotkey_prompt))
 
-    ollama = data.get("ollama", {})
+def _ollama_anwenden(cfg: Config, ollama: dict) -> None:
     url = ipv4_loopback(str(ollama.get("url", cfg.ollama_url)))
     problem = ollama_url_problem(url)
     if problem:
@@ -505,20 +535,6 @@ def _apply_toml(cfg: Config, data: dict) -> None:
                 f"[{branding.PRODUCT_NAME}] Cleanup-Prompt konnte nicht geladen werden ({exc}) — nutze Default.",
                 file=sys.stderr,
             )
-
-    clipboard = data.get("clipboard", {})
-    cfg.clipboard_paste_timeout = float(clipboard.get("paste_timeout", cfg.clipboard_paste_timeout))
-
-    ui = data.get("ui", {})
-    cfg.sound_feedback = bool(ui.get("sound_feedback", cfg.sound_feedback))
-    cfg.window_x = _clean_coordinate(ui.get("window_x"))
-    if "window_x" in ui:
-        cfg.window_x = _clean_coordinate(ui.get("window_x"))
-    if "window_y" in ui:
-        cfg.window_y = _clean_coordinate(ui.get("window_y"))
-    # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
-    # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
-    cfg.appearance = Theme.normalise(ui.get("appearance", cfg.appearance))
 
 
 def _setup_logging() -> logging.Logger:

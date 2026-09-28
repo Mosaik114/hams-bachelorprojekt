@@ -252,7 +252,7 @@ class TestWriting:
 class TestResourcePaths:
     def test_the_cleanup_prompt_stays_with_the_package(self):
         """Eine Produktdatei, keine Nutzerkonfiguration."""
-        source = inspect.getsource(config_mod._apply_toml)
+        source = inspect.getsource(config_mod._ollama_anwenden)  # Q7: aus _apply_toml ausgelagert
         assert "(APP_DIR / prompt_file_rel)" in source
         assert "CONFIG_PATH / prompt_file_rel" not in all_source()
 
