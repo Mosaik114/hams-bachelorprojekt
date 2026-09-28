@@ -108,7 +108,7 @@ class SystemHotkeys:
         self._thread_id = 0
         self._handlers: dict[int, Callable[[], None]] = {}
 
-    def register(self, entries: list[tuple[str, Callable[[], None]]]) -> list[str]:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
+    def register(self, entries: list[tuple[str, Callable[[], None]]]) -> list[str]:
         """Meldet alle Kombinationen an und gibt die zurueck, die scheiterten."""
         wanted: list[tuple[int, str, int, int, Callable[[], None]]] = []
         failed: list[str] = []
@@ -120,40 +120,44 @@ class SystemHotkeys:
                 wanted.append((i, combo, parsed[0], parsed[1], handler))
         if not wanted:
             return failed
-
         ready = threading.Event()
         result: dict[str, list[str]] = {"failed": []}
-
-        def run() -> None:
-            user32 = ctypes.windll.user32
-            kernel32 = ctypes.windll.kernel32
-            self._thread_id = kernel32.GetCurrentThreadId()
-            registered = []
-            for hid, combo, mods, vk, handler in wanted:
-                if user32.RegisterHotKey(None, hid, mods | MOD_NOREPEAT, vk):
-                    self._handlers[hid] = handler
-                    registered.append(hid)
-                else:
-                    result["failed"].append(combo)
-            ready.set()
-            msg = wintypes.MSG()
-            try:
-                while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                    if msg.message == WM_HOTKEY:
-                        handler = self._handlers.get(int(msg.wParam))
-                        if handler is not None:
-                            try:
-                                handler()
-                            except Exception:
-                                logger.exception("Kurzbefehl-Handler fehlgeschlagen")
-            finally:
-                for hid in registered:
-                    user32.UnregisterHotKey(None, hid)
-
-        self._thread = threading.Thread(target=run, name="system-hotkeys", daemon=True)
+        self._thread = threading.Thread(
+            target=self._schleife, args=(wanted, ready, result), name="system-hotkeys", daemon=True
+        )
         self._thread.start()
         ready.wait(5)
         return failed + result["failed"]
+
+    def _schleife(self, wanted: list, ready: threading.Event, result: dict[str, list[str]]) -> None:
+        """Im eigenen Thread: anmelden, auf WM_HOTKEY warten, beim Ende wieder abmelden."""
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        self._thread_id = kernel32.GetCurrentThreadId()
+        registered = []
+        for hid, combo, mods, vk, handler in wanted:
+            if user32.RegisterHotKey(None, hid, mods | MOD_NOREPEAT, vk):
+                self._handlers[hid] = handler
+                registered.append(hid)
+            else:
+                result["failed"].append(combo)
+        ready.set()
+        msg = wintypes.MSG()
+        try:
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                if msg.message == WM_HOTKEY:
+                    self._ausloesen(int(msg.wParam))
+        finally:
+            for hid in registered:
+                user32.UnregisterHotKey(None, hid)
+
+    def _ausloesen(self, hid: int) -> None:
+        handler = self._handlers.get(hid)
+        if handler is not None:
+            try:
+                handler()
+            except Exception:
+                logger.exception("Kurzbefehl-Handler fehlgeschlagen")
 
     def stop(self) -> None:
         if self._thread is not None and self._thread_id:

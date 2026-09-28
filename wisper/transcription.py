@@ -307,42 +307,15 @@ class TranscriptionMixin:
             self._prompt_mode = False
             return None
 
-    def _transcribe_audio(self, audio: np.ndarray) -> None:  # noqa: C901 – zu verschachtelt, wird in Q7 aufgeteilt
+    def _transcribe_audio(self, audio: np.ndarray) -> None:
         """Transcription pipeline thread target.
 
         Runs Whisper transcription, optionally cleans up via LLM,
         saves to file, copies to clipboard, and pastes at cursor.
         """
         was_prompt_mode = self._prompt_mode
-
-        # Die Aufnahme durfte ohne Modell beginnen; hier wird es faellig. In
-        # aller Regel steht es laengst — der Nutzer hat waehrend des Ladens
-        # gesprochen. Nur der erste Griff kurz nach dem Anmelden wartet hier
-        # wirklich, und dann sagt die Statuszeile auch, worauf.
-        if not self.model_ready.is_set():
-            logger.info("Aufnahme wartet auf das Modell")
-            self.root.after(
-                0,
-                lambda: self._apply_state(
-                    "transcribing",
-                    "Modell wird noch geladen …",
-                    "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
-                ),
-            )
-            if not self._await_model(time.monotonic() + MODEL_WAIT_SECONDS):
-                logger.error("Kein Modell fuer eine fertige Aufnahme verfuegbar")
-                self.root.after(
-                    0,
-                    lambda: self._apply_state(
-                        "error",
-                        "Modell nicht verfügbar",
-                        "Die Aufnahme liess sich nicht auswerten.",
-                    ),
-                )
-                self._prompt_mode = False
-                return
-            self.root.after(0, lambda: self._apply_state("transcribing"))
-
+        if not self.model_ready.is_set() and not self._auf_modell_warten():
+            return
         # Genau einmal eine stabile Referenz holen und den Lauf damit zu Ende
         # bringen; der Lock haelt einen Modellwechsel so lange zurueck.
         with self._transcribe_lock:
@@ -366,43 +339,10 @@ class TranscriptionMixin:
                     ),
                 )
                 return
-
             logger.info("Transcribed %d chars (prompt_mode=%s)", len(text), was_prompt_mode)
-
-            if was_prompt_mode:
-                self.root.after(0, lambda: self._apply_state("generating"))
-                try:
-                    text = self._generate_from_prompt(text)
-                except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
-                    logger.exception("Ollama prompt-generation failed")
-                    self.root.after(
-                        0,
-                        lambda: self._apply_state(
-                            "error",
-                            "KI-Antwort fehlgeschlagen",
-                            "Ollama antwortet nicht. Läuft der Dienst?",
-                        ),
-                    )
-                    return
-            elif CFG.ollama_cleanup_enabled:
-                self.root.after(0, lambda: self._apply_state("cleaning"))
-                try:
-                    text = self._cleanup_text(text)
-                except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
-                    logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
-                    self.root.after(0, lambda: self._apply_state("done", "Eingefügt · ohne Bereinigung"))
-            # else: Cleanup deaktiviert — Roh-Transkript direkt nutzen.
-
-            # Einfügen zuerst, Datei im Hintergrund speichern → kein Disk-I/O vor dem Paste.
-            self._add_to_history(text)
-            self._copy_and_paste(text)
-            threading.Thread(
-                target=self._save_transcript_file,
-                args=(text,),
-                daemon=True,
-                name="save-transcript",
-            ).start()
-            self.root.after(0, lambda: self._apply_state("done"))
+            text = self._nachbearbeiten(text, was_prompt_mode)
+            if text is not None:
+                self._abliefern(text)
         except Exception:
             logger.exception("Transcription pipeline failed")
             self.root.after(
@@ -415,3 +355,69 @@ class TranscriptionMixin:
             )
         finally:
             self._prompt_mode = False
+
+    def _auf_modell_warten(self) -> bool:
+        """Die Aufnahme durfte ohne Modell beginnen; hier wird es faellig. In aller Regel steht es laengst — der
+        Nutzer hat waehrend des Ladens gesprochen. Nur der erste Griff kurz nach dem Anmelden wartet hier wirklich,
+        und dann sagt die Statuszeile auch, worauf. False = kein Modell (Fehler ist schon gemeldet)."""
+        logger.info("Aufnahme wartet auf das Modell")
+        self.root.after(
+            0,
+            lambda: self._apply_state(
+                "transcribing",
+                "Modell wird noch geladen …",
+                "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
+            ),
+        )
+        if not self._await_model(time.monotonic() + MODEL_WAIT_SECONDS):
+            logger.error("Kein Modell fuer eine fertige Aufnahme verfuegbar")
+            self.root.after(
+                0,
+                lambda: self._apply_state(
+                    "error",
+                    "Modell nicht verfügbar",
+                    "Die Aufnahme liess sich nicht auswerten.",
+                ),
+            )
+            self._prompt_mode = False
+            return False
+        self.root.after(0, lambda: self._apply_state("transcribing"))
+        return True
+
+    def _nachbearbeiten(self, text: str, was_prompt_mode: bool) -> str | None:
+        """Prompt-Modus: KI-Antwort statt Diktat; sonst (falls an) Bereinigung. None = abgebrochen (gemeldet)."""
+        if was_prompt_mode:
+            self.root.after(0, lambda: self._apply_state("generating"))
+            try:
+                return self._generate_from_prompt(text)
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
+                logger.exception("Ollama prompt-generation failed")
+                self.root.after(
+                    0,
+                    lambda: self._apply_state(
+                        "error",
+                        "KI-Antwort fehlgeschlagen",
+                        "Ollama antwortet nicht. Läuft der Dienst?",
+                    ),
+                )
+                return None
+        if CFG.ollama_cleanup_enabled:
+            self.root.after(0, lambda: self._apply_state("cleaning"))
+            try:
+                return self._cleanup_text(text)
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+                logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
+                self.root.after(0, lambda: self._apply_state("done", "Eingefügt · ohne Bereinigung"))
+        return text  # Cleanup deaktiviert oder nicht erreichbar — Roh-Transkript
+
+    def _abliefern(self, text: str) -> None:
+        """Einfügen zuerst, Datei im Hintergrund speichern → kein Disk-I/O vor dem Paste."""
+        self._add_to_history(text)
+        self._copy_and_paste(text)
+        threading.Thread(
+            target=self._save_transcript_file,
+            args=(text,),
+            daemon=True,
+            name="save-transcript",
+        ).start()
+        self.root.after(0, lambda: self._apply_state("done"))

@@ -191,7 +191,7 @@ class TestPosition:
         heraus, sobald jemand oben etwas einfuegt, und der Test scheitert
         dann an seiner eigenen Mechanik statt an der Regel.
         """
-        body = inspect.getsource(FloatingTranscriberApp._transcribe_audio)
+        body = inspect.getsource(FloatingTranscriberApp._abliefern)  # Q7: aus _transcribe_audio ausgelagert
         order = [
             body.index("self._add_to_history(text)"),
             body.index("self._copy_and_paste(text)"),
