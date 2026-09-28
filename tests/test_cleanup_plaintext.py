@@ -198,7 +198,10 @@ class TestPosition:
             body.index("args=(text,)"),
         ]
         assert order == sorted(order), "die Reihenfolge der Ausgabewege hat sich geändert"
-        assert body.index("self._cleanup_text(text)") < order[0]
+        # Bereinigung (_nachbearbeiten) läuft vor der Ausgabe, und die Ausgabe bekommt ihr Ergebnis
+        assert "return self._cleanup_text(text)" in inspect.getsource(FloatingTranscriberApp._nachbearbeiten)
+        ablauf = inspect.getsource(FloatingTranscriberApp._transcribe_audio)
+        assert ablauf.index("text = self._nachbearbeiten(text") < ablauf.index("self._abliefern(text)")
 
 
 class TestPrompt:
