@@ -46,3 +46,15 @@ model_transcript_cleanup = "ministral-3:8b"
 
         assert isinstance(cfg, Config)
         assert cfg.sample_rate == 16000
+
+
+def test_fensterposition_bleibt_wenn_eine_schicht_sie_nicht_nennt():
+    """Q7: window_x wurde von jeder Schicht ohne den Schlüssel auf None gesetzt, window_y nicht."""
+    import copy
+
+    from wisper import config
+
+    cfg = copy.deepcopy(config.CFG)
+    config._apply_toml(cfg, {"ui": {"window_x": 120, "window_y": 80}})
+    config._apply_toml(cfg, {"ui": {"sound_feedback": True}})
+    assert (cfg.window_x, cfg.window_y) == (120, 80)

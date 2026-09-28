@@ -371,7 +371,6 @@ def _apply_toml(cfg: Config, data: dict) -> None:
 
     ui = data.get("ui", {})
     cfg.sound_feedback = bool(ui.get("sound_feedback", cfg.sound_feedback))
-    cfg.window_x = _clean_coordinate(ui.get("window_x"))
     if "window_x" in ui:
         cfg.window_x = _clean_coordinate(ui.get("window_x"))
     if "window_y" in ui:
