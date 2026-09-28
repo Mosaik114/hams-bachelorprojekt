@@ -117,88 +117,29 @@ def render_surface(
     `px()` geschickt. Gezeichnet wird um `SUPERSAMPLE` vergrössert und danach
     mit Lanczos verkleinert; daher die weichen Kanten.
 
-    Args:
+    Args (Einzelheiten bei den Hilfsfunktionen darunter):
         radius: Eckenradius. Bei `squircle=True` Superellipsen-Ecken.
-        edge: Farbe einer 1 px feinen Lichtkante am oberen Rand der Form. Sie
-            folgt der Rundung und ragt nie darüber hinaus, weil sie als
-            Differenz der Form zu ihrer eigenen Verschiebung entsteht.
-        gradient: Anteil einer weissen Aufhellung am oberen Rand (0…1). Werte
-            über etwa 0,05 wirken sichtbar als Verlauf statt als Material.
-        shadow: (Weichzeichnung, Versatz nach unten, Deckkraft 0…1). Der
-            Schatten wird in die Bounding Box eingerechnet — die Form wird dafür
-            entsprechend eingerückt, das Bild bleibt gleich gross. Nur sinnvoll,
-            wenn der Untergrund bekannt ist, etwa beim Schaltknopf.
-        border: Konturfarbe; `border_w` deren Stärke in physischen Pixeln.
-        ring: Farbe des Fokusrings. `ring_width` und `ring_gap` reservieren den
-            Platz dafür *immer*, auch wenn `ring` None ist — sonst spränge die
-            Fläche in dem Moment, in dem sie den Fokus bekommt.
-        dither: Sehr feines Rauschen gegen Streifenbildung im Verlauf. Liegt
-            unterhalb der Wahrnehmungsschwelle und verschiebt die mittlere
-            Farbe nicht.
+        edge: feine Lichtkante oben (`_add_edge`). gradient: weisse Aufhellung oben, 0…1 (`_body`).
+        shadow: (Weichzeichnung, Versatz nach unten, Deckkraft) (`_shadow_layer`).
+        border, border_w: Kontur (`_add_border`). ring, ring_width, ring_gap: Fokusring (`_draw_ring`).
+        dither: feines Rauschen gegen Streifen im Verlauf (`_dithered`).
     """
     width, height = max(1, int(width)), max(1, int(height))
     scale = SUPERSAMPLE
     big = (width * scale, height * scale)
-
-    ring_inset = int((ring_width + ring_gap) * scale)
-    pad = ring_inset
-    if shadow is not None:
-        blur, offset, _alpha = shadow
-        pad += int(math.ceil((blur + abs(offset)) * scale))
-
+    pad = _padding(shadow, ring_width, ring_gap)
     inner = (max(1, big[0] - 2 * pad), max(1, big[1] - 2 * pad))
     mask = _shape_mask(inner, int(radius * scale), squircle)
 
     canvas = Image.new("RGBA", big, (0, 0, 0, 0))
+    if shadow is not None:  # Schatten zuerst, damit die Fläche darüber liegt
+        canvas = Image.alpha_composite(canvas, _shadow_layer(big, inner, mask, pad, shadow))
 
-    # --- Schatten zuerst, damit die Fläche darüber liegt ---
-    if shadow is not None:
-        blur, offset, alpha = shadow
-        shadow_layer = Image.new("RGBA", big, (0, 0, 0, 0))
-        blurred = mask.filter(ImageFilter.GaussianBlur(blur * scale))
-        tinted = Image.new("RGBA", inner, (0, 0, 0, int(255 * alpha)))
-        shadow_layer.paste(tinted, (pad, pad + int(offset * scale)), blurred)
-        canvas = Image.alpha_composite(canvas, shadow_layer)
-
-    # --- Füllung, optional mit Mikro-Verlauf ---
-    body = Image.new("RGBA", inner, _hex_to_rgb(fill) + (255,))
-    if gradient > 0:
-        highlight = Image.new("RGBA", inner, (255, 255, 255, 255))
-        body = Image.composite(
-            Image.alpha_composite(body, highlight),
-            body,
-            _vertical_ramp(inner, int(255 * gradient), 0.55),
-        )
-
-    # --- Lichtkante: Form minus verschobene Form = genau der obere Saum ---
+    body = _body(inner, fill, gradient)
     if edge is not None:
-        edge_w = max(1, scale)  # 1 logisches Pixel
-        shifted = Image.new("L", inner, 0)
-        shifted.paste(mask, (0, edge_w))
-        rim = ImageChops.subtract(mask, shifted)
-        rim = ImageChops.multiply(rim, _vertical_ramp(inner, 255, 0.5))
-        body.paste(Image.new("RGBA", inner, _hex_to_rgb(edge) + (255,)), (0, 0), rim)
-
+        _add_edge(body, mask, edge)
     if border is not None and border_w:
-        outline = Image.new("RGBA", inner, (0, 0, 0, 0))
-        draw = ImageDraw.Draw(outline)
-        line = max(1, int(border_w * scale))
-        if squircle:
-            draw.line(
-                _squircle_points(inner[0], inner[1], int(radius * scale))
-                + [_squircle_points(inner[0], inner[1], int(radius * scale))[0]],
-                fill=border,
-                width=line,
-                joint="curve",
-            )
-        else:
-            draw.rounded_rectangle(
-                [0, 0, inner[0] - 1, inner[1] - 1],
-                radius=int(radius * scale),
-                outline=border,
-                width=line,
-            )
-        body = Image.alpha_composite(body, outline)
+        body = _add_border(body, int(radius * scale), squircle, border, border_w)
 
     body.putalpha(mask)
     layer = Image.new("RGBA", big, (0, 0, 0, 0))
@@ -206,25 +147,95 @@ def render_surface(
     canvas = Image.alpha_composite(canvas, layer)
 
     if ring is not None and ring_width:
-        line = max(1, int(ring_width * scale))
-        draw = ImageDraw.Draw(canvas)
-        outer = [line // 2, line // 2, big[0] - 1 - line // 2, big[1] - 1 - line // 2]
-        outer_radius = int((radius + ring_gap + ring_width) * scale)
-        draw.rounded_rectangle(outer, radius=outer_radius, outline=ring, width=line)
+        _draw_ring(canvas, radius, ring, ring_width, ring_gap)
 
     image = canvas.resize((width, height), Image.LANCZOS)
+    return _dithered(image) if dither and gradient > 0 else image
 
-    if dither and gradient > 0:
-        # Rund +-1 Helligkeitsstufe, nach dem Verkleinern aufgebracht: bricht
-        # Streifenbildung, ohne als Textur sichtbar zu werden.
-        # effect_noise liegt um 128; add(scale=1, offset=-128) rechnet
-        # a + b - 128 und zentriert das Rauschen damit auf null.
-        noise = Image.effect_noise((width, height), 1.0).convert("L")
-        rgb, alpha_channel = image.convert("RGB"), image.getchannel("A")
-        rgb = ImageChops.add(rgb, Image.merge("RGB", (noise, noise, noise)), scale=1.0, offset=-128)
-        image = Image.merge("RGBA", (*rgb.split(), alpha_channel))
 
-    return image
+def _padding(shadow: tuple[float, float, float] | None, ring_width: int, ring_gap: int) -> int:
+    """Rand um die Form (hochgerechnet): Platz für Fokusring und Schatten."""
+    pad = int((ring_width + ring_gap) * SUPERSAMPLE)
+    if shadow is not None:
+        blur, offset, _alpha = shadow
+        pad += int(math.ceil((blur + abs(offset)) * SUPERSAMPLE))
+    return pad
+
+
+def _shadow_layer(
+    big: tuple[int, int], inner: tuple[int, int], mask: Image.Image, pad: int, shadow: tuple[float, float, float]
+) -> Image.Image:
+    """Weicher Schatten der Form, um `offset` nach unten versetzt.
+
+    Der Schatten wird in die Bounding Box eingerechnet — die Form wird dafür entsprechend eingerückt, das Bild
+    bleibt gleich gross. Nur sinnvoll, wenn der Untergrund bekannt ist, etwa beim Schaltknopf."""
+    blur, offset, alpha = shadow
+    layer = Image.new("RGBA", big, (0, 0, 0, 0))
+    blurred = mask.filter(ImageFilter.GaussianBlur(blur * SUPERSAMPLE))
+    tinted = Image.new("RGBA", inner, (0, 0, 0, int(255 * alpha)))
+    layer.paste(tinted, (pad, pad + int(offset * SUPERSAMPLE)), blurred)
+    return layer
+
+
+def _body(inner: tuple[int, int], fill: str, gradient: float) -> Image.Image:
+    """Füllung, optional mit Mikro-Verlauf (weisse Aufhellung oben).
+
+    Werte über etwa 0,05 wirken sichtbar als Verlauf statt als Material."""
+    body = Image.new("RGBA", inner, _hex_to_rgb(fill) + (255,))
+    if gradient <= 0:
+        return body
+    highlight = Image.new("RGBA", inner, (255, 255, 255, 255))
+    ramp = _vertical_ramp(inner, int(255 * gradient), 0.55)
+    return Image.composite(Image.alpha_composite(body, highlight), body, ramp)
+
+
+def _add_edge(body: Image.Image, mask: Image.Image, edge: str) -> None:
+    """Lichtkante: Form minus verschobene Form = genau der obere Saum.
+
+    1 px fein, folgt der Rundung und ragt nie darüber hinaus – sie entsteht als Differenz der Form zu ihrer
+    eigenen Verschiebung."""
+    edge_w = max(1, SUPERSAMPLE)  # 1 logisches Pixel
+    shifted = Image.new("L", body.size, 0)
+    shifted.paste(mask, (0, edge_w))
+    rim = ImageChops.subtract(mask, shifted)
+    rim = ImageChops.multiply(rim, _vertical_ramp(body.size, 255, 0.5))
+    body.paste(Image.new("RGBA", body.size, _hex_to_rgb(edge) + (255,)), (0, 0), rim)
+
+
+def _add_border(body: Image.Image, radius: int, squircle: bool, border: str, border_w: int) -> Image.Image:
+    """Kontur entlang der Form (`radius` schon hochgerechnet)."""
+    width, height = body.size
+    outline = Image.new("RGBA", body.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(outline)
+    line = max(1, int(border_w * SUPERSAMPLE))
+    if squircle:
+        punkte = _squircle_points(width, height, radius)
+        draw.line(punkte + [punkte[0]], fill=border, width=line, joint="curve")
+    else:
+        draw.rounded_rectangle([0, 0, width - 1, height - 1], radius=radius, outline=border, width=line)
+    return Image.alpha_composite(body, outline)
+
+
+def _draw_ring(canvas: Image.Image, radius: int, ring: str, ring_width: int, ring_gap: int) -> None:
+    """Fokusring am äussersten Rand des reservierten Platzes.
+
+    `ring_width` und `ring_gap` reservieren den Platz *immer*, auch ohne Ring – sonst spränge die Fläche in dem
+    Moment, in dem sie den Fokus bekommt."""
+    line = max(1, int(ring_width * SUPERSAMPLE))
+    big = canvas.size
+    outer = [line // 2, line // 2, big[0] - 1 - line // 2, big[1] - 1 - line // 2]
+    outer_radius = int((radius + ring_gap + ring_width) * SUPERSAMPLE)
+    ImageDraw.Draw(canvas).rounded_rectangle(outer, radius=outer_radius, outline=ring, width=line)
+
+
+def _dithered(image: Image.Image) -> Image.Image:
+    """Rund +-1 Helligkeitsstufe, nach dem Verkleinern aufgebracht: bricht Streifenbildung, ohne als Textur
+    sichtbar zu werden. effect_noise liegt um 128; add(scale=1, offset=-128) rechnet a + b - 128 und zentriert
+    das Rauschen damit auf null."""
+    noise = Image.effect_noise(image.size, 1.0).convert("L")
+    rgb, alpha_channel = image.convert("RGB"), image.getchannel("A")
+    rgb = ImageChops.add(rgb, Image.merge("RGB", (noise, noise, noise)), scale=1.0, offset=-128)
+    return Image.merge("RGBA", (*rgb.split(), alpha_channel))
 
 
 def surface(
@@ -251,46 +262,25 @@ def surface(
     `CACHE_LIMIT` begrenzt, der älteste Eintrag fliegt heraus.
     """
     width, height = max(1, int(width)), max(1, int(height))
-    key = (
-        width,
-        height,
-        radius,
-        fill,
-        edge,
-        round(gradient, 4),
-        shadow,
-        squircle,
-        border,
-        border_w,
-        ring,
-        ring_width,
-        ring_gap,
-        dither,
-        Scale.factor,
-    )
+    optionen = {
+        "edge": edge,
+        "gradient": gradient,
+        "shadow": shadow,
+        "squircle": squircle,
+        "border": border,
+        "border_w": border_w,
+        "ring": ring,
+        "ring_width": ring_width,
+        "ring_gap": ring_gap,
+        "dither": dither,
+    }
+    key = (width, height, radius, fill, *optionen.values(), round(gradient, 4), Scale.factor)
     cached = _img_cache.get(key)
     if cached is not None:
         _img_cache.move_to_end(key)
         return cached
 
-    photo = ImageTk.PhotoImage(
-        render_surface(
-            width,
-            height,
-            radius,
-            fill,
-            edge=edge,
-            gradient=gradient,
-            shadow=shadow,
-            squircle=squircle,
-            border=border,
-            border_w=border_w,
-            ring=ring,
-            ring_width=ring_width,
-            ring_gap=ring_gap,
-            dither=dither,
-        )
-    )
+    photo = ImageTk.PhotoImage(render_surface(width, height, radius, fill, **optionen))
     _img_cache[key] = photo
     if len(_img_cache) > CACHE_LIMIT:
         _img_cache.popitem(last=False)  # ältester Eintrag fliegt raus

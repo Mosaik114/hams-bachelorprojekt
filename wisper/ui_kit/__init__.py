@@ -63,12 +63,9 @@ from wisper.ui_kit.caches import (
     _img_cache,
 )
 from wisper.ui_kit.controls import (
-    KEY_NAMES,
-    KeyCombo,
     SignalMeter,
     StatusDot,
     Switch,
-    key_labels,
 )
 from wisper.ui_kit.icons import (
     _ICON_PAINTERS,
@@ -87,11 +84,11 @@ from wisper.ui_kit.icons import (
     icon_names,
     render_icon,
 )
+from wisper.ui_kit.keys import KEY_NAMES, KeyCombo, key_labels
 from wisper.ui_kit.layout import (
     GroupSurface,
     ScrollArea,
     SectionHeader,
-    SettingRow,
     separator,
 )
 from wisper.ui_kit.monitors import (
@@ -104,7 +101,6 @@ from wisper.ui_kit.monitors import (
 from wisper.ui_kit.popover import (
     Option,
     Popover,
-    Select,
     _PopoverItem,
 )
 from wisper.ui_kit.scale import (
@@ -122,6 +118,8 @@ from wisper.ui_kit.scale import (
     px,
     window_dpi,
 )
+from wisper.ui_kit.select import Select
+from wisper.ui_kit.setting_row import SettingRow
 from wisper.ui_kit.states import (
     ControlStyle,
     FocusMixin,

@@ -138,30 +138,30 @@ class TranscriptionMixin:
                 result = json.loads(resp.read())
                 return result["response"].strip()
 
-            chunks: list[str] = []
-            last_update = 0.0
-            for raw_line in resp:
-                line = raw_line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    logger.warning("Ollama stream: non-JSON line ignored")
-                    continue
-                chunks.append(obj.get("response", ""))
-                if obj.get("done"):
-                    break
-                if progress_label:
-                    now = time.monotonic()
-                    if now - last_update > 0.25:
-                        last_update = now
-                        total_len = sum(len(c) for c in chunks)
-                        self.root.after(
-                            0,
-                            lambda n=total_len: self.elapsed_label.config(text=f"{n} Zeichen"),
-                        )
-            return "".join(chunks).strip()
+            return self._read_ollama_stream(resp, show_progress=bool(progress_label))
+
+    def _read_ollama_stream(self, resp, show_progress: bool) -> str:
+        """Die gestreamte Antwort Zeile für Zeile; zeigt dabei höchstens viermal pro Sekunde die Zeichenzahl."""
+        chunks: list[str] = []
+        last_update = 0.0
+        for raw_line in resp:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning("Ollama stream: non-JSON line ignored")
+                continue
+            chunks.append(obj.get("response", ""))
+            if obj.get("done"):
+                break
+            now = time.monotonic()
+            if show_progress and now - last_update > 0.25:
+                last_update = now
+                total_len = sum(len(c) for c in chunks)
+                self.root.after(0, lambda n=total_len: self.elapsed_label.config(text=f"{n} Zeichen"))
+        return "".join(chunks).strip()
 
     def _generate_from_prompt(self, text: str) -> str:
         """Die KI-Antwort zum diktierten Prompt — ebenfalls als Klartext.
