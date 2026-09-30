@@ -104,6 +104,7 @@ class TestBeideWegeBekommenDasselbe:
             "beam_size",
             "condition_on_previous_text",
             "without_timestamps",
+            "hotwords",
         ],
     )
     def test_every_configured_option_reaches_both(self, app, modell, schluessel):

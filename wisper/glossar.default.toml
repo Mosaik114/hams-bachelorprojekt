@@ -1,0 +1,27 @@
+# Glossar für Hams: Wörter, die Hams immer richtig schreiben soll.
+#
+# Hams legt beim ersten Start eine Kopie neben der Konfiguration an (Windows: %APPDATA%\Wisper\glossar.toml,
+# Linux: ~/.config/Wisper/glossar.toml) – die darfst du frei bearbeiten. Änderungen gelten ab der nächsten
+# Aufnahme, ohne Neustart. Dieses Beispiel enthält nur Fachbegriffe; trag dort deine eigenen Namen und Begriffe ein.
+#
+# woerter:   So werden die Wörter geschrieben. Whisper bekommt sie als Hinweis mit und erkennt sie dadurch öfter.
+#            Wichtiges nach vorn: Whisper liest nur etwa die ersten 200 Silben (samt deutschem Rahmensatz); lieber kurz als sehr lang.
+# ersetzen:  Feste Korrekturen „falsch = richtig“ für Verhörer, die immer gleich kommen. Groß-/Kleinschreibung
+#            spielt links keine Rolle; ersetzt werden nur ganze Wörter.
+
+woerter = [
+    # Werkzeuge und Begriffe rund um Hams
+    "Hams", "Whisper", "faster-whisper", "Ollama", "CUDA", "cuBLAS", "cuDNN", "CTranslate2",
+    # Häufige Fachbegriffe beim Diktieren über Software
+    "GitHub", "Python", "TypeScript", "Kubernetes", "PyTorch", "LLM", "API", "JSON", "Pull-Request",
+]
+
+[ersetzen]
+"Olama" = "Ollama"
+"Ola Ma" = "Ollama"
+"Kuda" = "CUDA"
+"Git Hub" = "GitHub"
+"Type Script" = "TypeScript"
+"Pei Torch" = "PyTorch"
+"Pull Request" = "Pull-Request"
+"Faster Whisper" = "faster-whisper"

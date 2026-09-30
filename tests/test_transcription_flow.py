@@ -17,6 +17,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from wisper import glossary
 from wisper import transcription as transcription_mod
 from wisper.config import CFG
 from wisper.transcription import PROMPT_PLAIN_SYSTEM
@@ -59,6 +60,7 @@ def ollama(monkeypatch):
         return FakeResponse(json.dumps({"response": state.answer}).encode())
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(glossary, "cleanup_hint", lambda: "")  # Prompts hier ohne Glossar-Satz vergleichen
     return state
 
 
@@ -113,6 +115,14 @@ class TestPipeline:
         ollama.answer = "ok"
         run(ready)
         assert ollama.requests[0][0]["prompt"] == "Korrigiere den Text.\n\nText: Hallo Welt"
+
+    def test_the_glossary_goes_before_the_cleanup_prompt(self, ready, ollama, monkeypatch):
+        monkeypatch.setattr(glossary, "cleanup_hint", lambda: "Bleibt so: Mazgin.")
+        CFG.ollama_cleanup_enabled = True
+        CFG.cleanup_prompt_template = "Korrigiere: {text}"
+        ollama.answer = "Hallo Mätzgin"
+        run(ready)
+        assert ollama.requests[0][0]["prompt"] == "Bleibt so: Mazgin.\n\nKorrigiere: Hallo Welt"
 
     def test_without_ollama_the_raw_text_is_still_pasted(self, ready, hams, ollama):
         CFG.ollama_cleanup_enabled = True

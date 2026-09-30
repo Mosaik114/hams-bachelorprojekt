@@ -199,7 +199,8 @@ class TestPosition:
         ]
         assert order == sorted(order), "die Reihenfolge der Ausgabewege hat sich geändert"
         # Bereinigung (_nachbearbeiten) läuft vor der Ausgabe, und die Ausgabe bekommt ihr Ergebnis
-        assert "return self._cleanup_text(text)" in inspect.getsource(FloatingTranscriberApp._nachbearbeiten)
+        nachbearbeiten = inspect.getsource(FloatingTranscriberApp._nachbearbeiten)
+        assert "return glossary.apply_replacements(self._cleanup_text(text))" in nachbearbeiten
         ablauf = inspect.getsource(FloatingTranscriberApp._transcribe_audio)
         assert ablauf.index("text = self._nachbearbeiten(text") < ablauf.index("self._abliefern(text)")
 

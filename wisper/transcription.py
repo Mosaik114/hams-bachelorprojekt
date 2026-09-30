@@ -18,6 +18,7 @@ if sys.platform == "win32":
 else:
     from wisper.linux import keyboard
 
+from wisper import glossary
 from wisper.backend import BatchedInferencePipeline
 from wisper.config import CFG, OUTPUT_DIR, logger
 from wisper.recording import MODEL_WAIT_SECONDS, _normalize_audio
@@ -198,6 +199,8 @@ class TranscriptionMixin:
         """
         template = CFG.cleanup_prompt_template
         prompt = template.replace("{text}", text) if "{text}" in template else f"{template}\n\nText: {text}"
+        if hinweis := glossary.cleanup_hint():
+            prompt = f"{hinweis}\n\n{prompt}"
         answer = self._ollama_generate(
             prompt=prompt,
             model=CFG.ollama_model_cleanup,
@@ -286,6 +289,7 @@ class TranscriptionMixin:
             "beam_size": CFG.transcription_beam_size,
             "condition_on_previous_text": CFG.transcription_condition_on_previous_text,
             "without_timestamps": CFG.transcription_without_timestamps,
+            "hotwords": glossary.hotwords(),  # Glossar: Namen und Begriffe öfter richtig erkennen
         }
         try:
             dauer = audio.size / max(CFG.sample_rate, 1)
@@ -298,7 +302,7 @@ class TranscriptionMixin:
                 )
             else:
                 segments, _ = model.transcribe(_normalize_audio(audio), **optionen)
-            return " ".join(segment.text.strip() for segment in segments).strip()
+            return glossary.apply_replacements(" ".join(segment.text.strip() for segment in segments).strip())
         except Exception:
             logger.exception("Whisper transcription failed")
             self.root.after(
@@ -404,7 +408,7 @@ class TranscriptionMixin:
         if CFG.ollama_cleanup_enabled:
             self.root.after(0, lambda: self._apply_state("cleaning"))
             try:
-                return self._cleanup_text(text)
+                return glossary.apply_replacements(self._cleanup_text(text))
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
                 logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
                 self.root.after(0, lambda: self._apply_state("done", "Eingefügt · ohne Bereinigung"))
