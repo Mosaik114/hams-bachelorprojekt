@@ -48,8 +48,8 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
         self.app = app
         self.win = tk.Toplevel(app.root)
         self.win.title(f"{branding.PRODUCT_NAME} — Einstellungen")
-        self.win.overrideredirect(True)
-        self.win.attributes("-topmost", True)
+        uk.frame_window(self.win)
+        self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
         try:
             px, py = app.root.winfo_rootx(), app.root.winfo_rooty()
@@ -102,9 +102,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
             return False
 
     def focus(self) -> None:
-        self.win.deiconify()
-        self.win.lift()
-        self.win.attributes("-topmost", True)
+        uk.bring_to_front(self.win)
 
     def retint(self) -> int:
         """Faerbt das Einstellungsfenster neu ein — ohne zu springen.
@@ -187,7 +185,8 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
             anchor="w",
         )
         title.pack(side="left")
-        for widget in (head, title):
+        # Ziehen am Kopf nur ohne Systemrahmen; unter Linux zieht man an der KDE-Titelleiste.
+        for widget in (head, title) if not uk.system_frame() else ():
             widget.bind("<ButtonPress-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._on_drag)
 
@@ -195,7 +194,8 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
             head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip="Einstellungen schließen"
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
-        self._close_btn.pack(side="right")
+        if not uk.system_frame():  # unter Linux hat die KDE-Titelleiste das Kreuz
+            self._close_btn.pack(side="right")
 
         # Trennlinie erscheint erst, wenn Inhalt darunter wegscrollt.
         self._head_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))

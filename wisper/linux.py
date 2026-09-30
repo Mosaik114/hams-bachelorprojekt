@@ -13,6 +13,7 @@ import fcntl
 import logging
 import os
 import shutil
+import signal
 import struct
 import subprocess
 import sys
@@ -122,18 +123,31 @@ _LOCK_FILE = None
 
 
 def acquire_lock() -> bool:
-    """Sperrdatei statt benanntem Mutex; der Kernel gibt sie beim Prozessende frei."""
+    """Sperrdatei statt benanntem Mutex; der Kernel gibt sie beim Prozessende frei.
+
+    Darin steht die Prozessnummer, damit `linux/hams-zeigen.sh` das Fenster per
+    SIGUSR1 nach vorn holen kann. Geöffnet mit "a", nicht "w": eine zweite Instanz
+    würde sonst die Nummer der ersten löschen, bevor sie an der Sperre scheitert.
+    """
     global _LOCK_FILE
     path = _runtime_dir() / "hams.lock"
     path.parent.mkdir(parents=True, exist_ok=True)
-    handle = open(path, "w")  # noqa: SIM115 – bleibt offen, solange die Sperre gilt
+    handle = open(path, "a")  # noqa: SIM115 – bleibt offen, solange die Sperre gilt
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         handle.close()
         return False
+    handle.truncate(0)
+    handle.write(f"{os.getpid()}\n")
+    handle.flush()
     _LOCK_FILE = handle
     return True
+
+
+def on_show_request(callback) -> None:
+    """SIGUSR1 (von `linux/hams-zeigen.sh`, Knopf im Kontrollzentrum) ruft `callback` auf."""
+    signal.signal(signal.SIGUSR1, lambda _signum, _frame: callback())
 
 
 def release_lock() -> bool:
@@ -162,21 +176,53 @@ def notify(title: str, message: str) -> None:
 # ---------------------------------------------------------------- Ton
 
 
+#: Weicher Glockenklang statt Piepton. Die Aufrufer stammen aus der Windows-Zeit
+#: und rufen `winsound.Beep(frequenz, dauer)`; die drei bekannten Frequenzen stehen
+#: für Aufnahme an (steigend), Aufnahme aus (fallend) und Beenden (tief fallend).
+CHIMES = {
+    880: (659.25, 987.77),  # E5 → H5
+    220: (987.77, 659.25),  # H5 → E5
+    440: (659.25, 493.88),  # E5 → H4
+}
+CHIME_RATE = 44_100
+CHIME_GAP = 0.07  # s zwischen den beiden Anschlägen
+CHIME_RING = 0.45  # s Ausklang je Anschlag
+CHIME_VOLUME = 0.16
+
+
+def bell(freq: float, rate: int = CHIME_RATE, seconds: float = CHIME_RING):
+    """Ein Anschlag wie eine kleine Glocke: Grundton, leise Obertöne, schneller Ausklang."""
+    import numpy as np
+
+    t = np.arange(int(rate * seconds)) / rate
+    tone = np.sin(2 * np.pi * freq * t) * np.exp(-t / 0.13)
+    tone += 0.25 * np.sin(2 * np.pi * 2 * freq * t) * np.exp(-t / 0.06)
+    tone += 0.06 * np.sin(2 * np.pi * 3.01 * freq * t) * np.exp(-t / 0.03)
+    attack = int(rate * 0.004)  # 4 ms einblenden, sonst knackt es
+    tone[:attack] *= np.linspace(0.0, 1.0, attack)
+    tone[-attack:] *= np.linspace(1.0, 0.0, attack)
+    return tone
+
+
+def chime(freq: int, duration_ms: int, rate: int = CHIME_RATE):
+    """Der ganze Klang als float32: zwei Anschläge für bekannte Frequenzen, sonst einer."""
+    import numpy as np
+
+    notes = CHIMES.get(freq, (float(freq),))
+    gap = int(rate * CHIME_GAP)
+    first = bell(notes[0], rate)
+    out = np.zeros(len(first) + gap * (len(notes) - 1))
+    for index, note in enumerate(notes):
+        out[index * gap : index * gap + len(first)] += bell(note, rate)
+    return (CHIME_VOLUME * out / max(1e-9, float(np.abs(out).max()))).astype(np.float32)
+
+
 def beep(freq: int, duration_ms: int) -> None:
-    """Ersatz fuer winsound.Beep: ein kurzer Sinuston mit weichen Kanten."""
+    """Ersatz fuer winsound.Beep: spielt den Glockenklang (`chime`)."""
     try:
-        import numpy as np
         import sounddevice as sd
 
-        rate = 44_100
-        t = np.arange(int(rate * duration_ms / 1000)) / rate
-        tone = 0.25 * np.sin(2 * np.pi * freq * t)
-        ramp = min(len(t) // 2, int(rate * 0.005))  # 5 ms ein- und ausblenden, sonst knackt es
-        if ramp:
-            fade = np.linspace(0.0, 1.0, ramp)
-            tone[:ramp] *= fade
-            tone[-ramp:] *= fade[::-1]
-        sd.play(tone.astype(np.float32), rate, blocking=True)
+        sd.play(chime(freq, duration_ms), CHIME_RATE, blocking=True)
     except Exception:
         logger.debug("Ton liess sich nicht abspielen", exc_info=True)
 

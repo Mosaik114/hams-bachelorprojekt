@@ -82,6 +82,16 @@ class TestScrollArea:
         root.update()
         assert area.offset > 0
 
+    def test_mouse_wheel_on_linux_scrolls_down_and_up(self, area, root):
+        area.canvas.event_generate("<Enter>")
+        root.update()
+        area.canvas.event_generate("<Button-5>")
+        root.update()
+        assert area.offset > 0
+        area.canvas.event_generate("<Button-4>")
+        root.update()
+        assert area.offset == 0
+
     def test_keyboard_scrolling(self, area, window, root):
         area.bind_keys(window)
         window.event_generate("<Down>")
@@ -150,7 +160,7 @@ class TestScrollArea:
         root.update()
         area.canvas.event_generate("<Leave>")
         root.update()
-        assert not area.canvas.bind_all("<MouseWheel>")
+        assert not any(area.canvas.bind_all(sequence) for sequence in area.WHEEL_EVENTS)
 
     def test_callbacks_removed_on_destroy(self, window, root):
         before = len(uk.Scale._callbacks)

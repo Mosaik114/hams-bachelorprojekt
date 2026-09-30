@@ -212,9 +212,7 @@ class TrayMixin:
 
     def _show_window(self) -> None:
         self._window_visible = True
-        self.root.deiconify()
-        self.root.lift()
-        self.root.attributes("-topmost", True)
+        uk.bring_to_front(self.root)
         uk.round_window_corners(self.root)
 
     def _toggle_visibility(self, icon=None, item=None) -> None:

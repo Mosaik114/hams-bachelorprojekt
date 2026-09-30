@@ -65,6 +65,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         self.root.bind("<Configure>", self._on_root_configure)
         self.root.protocol("WM_DELETE_WINDOW", self._hide_window)
         self._setup_tray()
+        if sys.platform != "win32":
+            linux.on_show_request(lambda: self.root.after(0, self._show_window))
         self.root.withdraw()
         logger.info("Wisper started")
 
@@ -81,12 +83,11 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
             uk.Scale.factor,
             float(self.root.tk.call("tk", "scaling")),
         )
-        self.root.overrideredirect(True)  # randlos für das eigene Mosaik-Design
+        uk.frame_window(self.root)  # Windows randlos im Mosaik-Design, Linux mit KDE-Titelleiste
         self._window_size = (uk.px(self.WINDOW_WIDTH), uk.px(self.WINDOW_MIN_HEIGHT))
         self._window_pos = window_position(CFG.window_x, CFG.window_y, *self._window_size, uk.work_areas())
         self._position_job: str | None = None
         self.root.geometry(f"+{self._window_pos[0]}+{self._window_pos[1]}")
-        self.root.attributes("-topmost", True)
         self.root.resizable(False, False)
         self.root.configure(bg=Theme.WINDOW_BG)
         self._apply_window_icon()

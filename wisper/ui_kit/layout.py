@@ -110,15 +110,28 @@ class ScrollArea(tk.Frame):
         widget.bind("<Home>", lambda _e: self.scroll_to(0), add="+")
         widget.bind("<End>", lambda _e: self.scroll_to(self.scrollable), add="+")
 
+    # Windows und macOS melden das Rad als <MouseWheel> mit `delta`; Tk 8.6 unter
+    # Linux (X11/XWayland) dagegen als Maustaste 4 (hoch) und 5 (runter).
+    WHEEL_EVENTS = ("<MouseWheel>", "<Button-4>", "<Button-5>")
+
     def _grab_wheel(self, _event=None) -> None:
-        self.canvas.bind_all("<MouseWheel>", self._on_wheel)
+        for sequence in self.WHEEL_EVENTS:
+            self.canvas.bind_all(sequence, self._on_wheel)
 
     def _release_wheel(self, _event=None) -> None:
         with contextlib.suppress(tk.TclError):
-            self.canvas.unbind_all("<MouseWheel>")
+            for sequence in self.WHEEL_EVENTS:
+                self.canvas.unbind_all(sequence)
 
     def _on_wheel(self, event: tk.Event) -> None:
-        self.scroll_by(-int(event.delta / 120) * px(self.STEP))
+        num = getattr(event, "num", None)
+        if num == 4:
+            notches = 1
+        elif num == 5:
+            notches = -1
+        else:
+            notches = int(event.delta / 120)
+        self.scroll_by(-notches * px(self.STEP))
 
     # ------------------------------------------------------------ Layout
 

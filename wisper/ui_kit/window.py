@@ -1,4 +1,4 @@
-"""Echte runde Fensterecken unter Windows 11."""
+"""Echte runde Fensterecken unter Windows 11 und der Fensterrahmen je System."""
 
 from __future__ import annotations
 
@@ -103,3 +103,33 @@ def round_window_corners(root: tk.Misc, radius: int = Radius.WINDOW) -> str:
         return "region"
     except (AttributeError, OSError, tk.TclError):
         return "keine"  # Rundung ist kosmetisch — nie den Start blockieren
+
+
+# --- Fensterrahmen -----------------------------------------------------------
+#
+# Windows: randlos und immer oben, der Rahmen ist Teil des eigenen Designs.
+# Linux: ein normales, von KWin verwaltetes Fenster. Randlose Fenster verwaltet
+# KWin gar nicht – sie hatten keine Titelleiste (Schließen, Minimieren) und lagen
+# über allem, sogar über dem Bildschirmfoto-Werkzeug und dem Mauszeiger.
+
+
+def frame_window(win: tk.Misc) -> None:
+    """Rahmen je System: randlos und oben (Windows) oder mit Titelleiste von KDE (Linux)."""
+    if not system_frame():
+        win.overrideredirect(True)
+        win.attributes("-topmost", True)
+
+
+def bring_to_front(win: tk.Misc) -> None:
+    """Fenster zeigen und nach vorn holen; nur unter Windows zusätzlich „immer oben“."""
+    win.deiconify()
+    win.lift()
+    if system_frame():
+        win.focus_force()
+    else:
+        win.attributes("-topmost", True)
+
+
+def system_frame() -> bool:
+    """True, wenn das System Titelleiste und Schließen-Knopf zeichnet (Linux)."""
+    return sys.platform != "win32"

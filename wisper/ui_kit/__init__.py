@@ -163,5 +163,8 @@ from wisper.ui_kit.window import (
     _WIN11_BUILD,
     _window_handle,
     _windows_build,
+    bring_to_front,
+    frame_window,
     round_window_corners,
+    system_frame,
 )

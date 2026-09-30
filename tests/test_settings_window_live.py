@@ -6,6 +6,7 @@ Mikrofon-Teilhabe mit der Aufnahme, Ollama-Abfrage, Schalter, Modellwahl,
 Download- und Loeschanzeige und das saubere Schliessen.
 """
 
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -18,6 +19,7 @@ from wisper import settings_status as status_mod
 from wisper import ui_kit as uk
 from wisper.config import CFG
 from wisper.models import CachedModel
+from wisper.ui_kit import window as uk_window
 
 
 @pytest.fixture
@@ -364,7 +366,10 @@ class TestWindow:
         win._on_scale_change(1.5)
         win.on_download_progress(1, 2, 50)
 
-    def test_dragging_moves_the_window(self, open_settings, live_app):
+    def test_dragging_moves_the_window(self, open_settings, live_app, monkeypatch):
+        # wie unter Windows: randlos, gezogen wird am eigenen Kopf
+        monkeypatch.setattr(uk, "system_frame", lambda: False)
+        monkeypatch.setattr(uk_window, "system_frame", lambda: False)
         win = open_settings()
         win.win.geometry("+100+100")
         live_app.root.update()
@@ -393,3 +398,13 @@ class TestWindow:
         win.focus()
         live_app.root.update()
         assert win.win.state() == "normal"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="nur Linux: unter Windows zeichnet Hams den Rahmen selbst")
+class TestSystemFrame:
+    def test_on_linux_the_settings_window_is_managed_by_kde(self, open_settings):
+        win = open_settings()
+        assert uk.system_frame()
+        assert not win.win.overrideredirect()
+        assert not win.win.attributes("-topmost")
+        assert not win._close_btn.winfo_ismapped()

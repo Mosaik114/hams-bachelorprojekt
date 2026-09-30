@@ -88,7 +88,8 @@ class MainWindowMixin:
             anchor="w",
         )
         title.pack(side="left")
-        for widget in (head, title):
+        # Ziehen am Kopf nur ohne Systemrahmen; unter Linux zieht man an der KDE-Titelleiste.
+        for widget in (head, title) if not uk.system_frame() else ():
             widget.bind("<ButtonPress-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._on_drag)
 
@@ -102,7 +103,8 @@ class MainWindowMixin:
             head, "close", self._hide_window, bg_under=Theme.WINDOW_BG, tooltip="Fenster ausblenden"
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
-        self._close_btn.pack(side="right")
+        if not uk.system_frame():  # unter Linux hat die KDE-Titelleiste das Kreuz
+            self._close_btn.pack(side="right")
         self._gear_btn.pack(side="right", padx=(0, uk.px(uk.Space.XS)))
 
     def _build_status_row(self, card: tk.Frame) -> None:
