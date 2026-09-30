@@ -464,3 +464,15 @@ class TestNormalize:
     def test_empty_audio_is_passed_through(self):
         empty = np.array([], dtype=np.float32)
         assert recording_mod._normalize_audio(empty) is empty
+
+
+class TestDisplayLevel:
+    def test_speech_from_half_a_metre_is_clearly_visible(self):
+        assert recording_mod._display_level(0.003**2) > 0.3
+
+    def test_room_noise_stays_at_zero(self):
+        assert recording_mod._display_level(10 ** (-64 / 10)) == 0.0
+        assert recording_mod._display_level(0.0) == 0.0
+
+    def test_close_speech_fills_the_meter(self):
+        assert recording_mod._display_level(0.05**2) == 1.0

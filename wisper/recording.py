@@ -22,6 +22,20 @@ SILENCE_PEAK_THRESHOLD = 0.005
 #: bemessen, aber vorhanden, damit kein Thread unbegrenzt haengt.
 MODEL_WAIT_SECONDS = 120.0
 
+#: Pegelanzeige in Dezibel statt linear: Sprache aus einem halben Meter Abstand liegt
+#: bei etwa -50 dBFS (RMS 0,003) und war linear kaum sichtbar. Gemessen am MV7+
+#: (29.09.2026): Grundrauschen bis -64 dBFS, Sprache nah am Mikro bis etwa -30 dBFS.
+LEVEL_FLOOR_DB = -62.0
+LEVEL_FULL_DB = -28.0
+
+
+def _display_level(mean_square: float) -> float:
+    """Anzeigepegel 0..1 aus dem mittleren Quadrat eines Blocks (logarithmisch wie das Gehör)."""
+    if mean_square <= 0.0:
+        return 0.0
+    db = 10.0 * float(np.log10(mean_square))
+    return max(0.0, min(1.0, (db - LEVEL_FLOOR_DB) / (LEVEL_FULL_DB - LEVEL_FLOOR_DB)))
+
 
 def _normalize_audio(audio: np.ndarray, target_peak: float = 0.35) -> np.ndarray:
     """Hebt leise Aufnahmen auf einen Zielpegel an, damit Whisper/VAD nicht an
@@ -164,8 +178,7 @@ class RecordingMixin:
     def _level_tick(self) -> None:
         if not self.is_recording:
             return
-        # RMS in [0..1], wahrnehmungsorientiert skalieren (sqrt hebt leise Pegel an)
-        level = min(1.0, float(np.sqrt(self._rms_level)) * 1.5)
+        level = _display_level(self._rms_level)
         self.level_meter.set_level(level)
         _notify_cursor_dot(self._state, level)
         self._level_tick_job = self.root.after(50, self._level_tick)
