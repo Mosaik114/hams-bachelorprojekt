@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Wisper-spezifisch
+transcripts/
+logs/
+*.log
+
+# Test / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Vom Messskript erzeugter Sprachkorpus (reproduzierbar, gehoert nicht ins Repo)
+tools/_korpus/
+
+# Secrets / lokale Konfiguration
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+config.toml
+config.local.toml
+config.user.toml
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Temporäre Dateien
+*.bak
+*.tmp
+*.old

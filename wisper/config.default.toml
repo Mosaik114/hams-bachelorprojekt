@@ -1,0 +1,85 @@
+# Wisper — mitgelieferte Voreinstellungen
+#
+# Diese Datei ist die Vorlage, nicht die persönliche Konfiguration. Wisper legt
+# beim ersten Start eine eigene Datei unter
+#
+#     %APPDATA%\Wisper\config.toml
+#
+# an und schreibt jede Änderung aus den Einstellungen nur noch dorthin. Hier
+# stehen deshalb ausschliesslich Voreinstellungen und keine Nutzerwahl.
+#
+# Alle Felder sind optional. Was hier fehlt, kommt aus den Defaults in main.py;
+# was in der Nutzerdatei fehlt, kommt aus dieser Vorlage.
+
+[audio]
+sample_rate = 16000
+channels = 1
+# Mikrofon: "default" für System-Standard, sonst Index (z. B. 3) oder ein
+# Teilstring des Gerätenamens (z. B. "Yeti"). Die tatsächliche Wahl trifft der
+# Nutzer in den Einstellungen; sie landet in der Nutzerkonfiguration.
+device = "default"
+# Max. Aufnahmedauer in Sekunden, danach wird automatisch gestoppt.
+max_recording_seconds = 300
+
+[model]
+size = "turbo"
+# Geräte-Reihenfolge beim Laden, das erste verfügbare mit passendem Compute-Type wird genutzt.
+device_priority = ["cuda", "cpu"]
+
+[model.compute_priority]
+cuda = ["float16", "int8_float16", "int8"]
+cpu = ["int8", "float32"]
+
+[transcription]
+language = "de"
+vad_filter = true
+word_timestamps = false
+# beam_size=1 (greedy) ist ~2-3x schneller als der Default 5, bei kaum merklichem Qualitätsverlust.
+beam_size = 1
+# Kontext aus voriger Aufnahme ausschalten — jede Aufnahme ist unabhängig.
+condition_on_previous_text = false
+# Internes Timestamp-Tracking überspringen — spart Post-Processing.
+without_timestamps = true
+
+[hotkeys]
+transcript = "ctrl+shift+space"
+prompt = "ctrl+shift+alt+space"
+
+[ollama]
+# Bewusst die Zahlenadresse und nicht "localhost": auf Windows loest
+# "localhost" zuerst zu ::1 auf, wo Ollama in der Voreinstellung nicht
+# lauscht. Der tote Versuch kostet gemessen 2,03 s vor *jedem* Aufruf.
+# Wer eine Ollama-Instanz nur auf IPv6 betreibt, traegt hier [::1] ein.
+url = "http://127.0.0.1:11434/api/generate"
+# Cleanup- und Prompt-Modell werden in den Einstellungen gewählt und in der
+# Nutzerkonfiguration abgelegt. Ein bestimmtes Modell hier vorzugeben hiesse
+# anzunehmen, dass es auf dem Rechner installiert ist.
+# model_transcript_cleanup = "qwen2.5:3b"
+# model_prompt_generate = "qwen2.5:7b"
+timeout_cleanup = 30
+timeout_prompt = 60
+# Cleanup komplett abschalten → Whisper-Rohtext wird direkt eingefügt (maximal schnell).
+cleanup_enabled = true
+# Streaming nur für Prompt-Modus sinnvoll (lange Antworten). Cleanup ist kurz → nicht-stream.
+stream_prompt = true
+# Hält das Modell nach Gebrauch im VRAM, damit der nächste Request nicht nachladen muss.
+# "30m", "1h", "-1" (unbegrenzt) oder "0" (sofort entladen) — siehe Ollama-Doku.
+keep_alive = "30m"
+# Lädt das Cleanup-Modell beim App-Start vor, damit der erste Request nicht 10-30s wartet.
+warmup_on_start = true
+# Datei relativ zum Projekt mit dem Cleanup-Prompt. {text} wird durch das Transkript ersetzt.
+cleanup_prompt_file = "prompts/cleanup.txt"
+
+[clipboard]
+# Max. Wartezeit (Sekunden), bis die Zwischenablage den neuen Inhalt bestätigt.
+paste_timeout = 0.3
+
+[ui]
+# Sound-Feedback (Beeps) bei Start/Stop aktivieren.
+sound_feedback = true
+# Darstellungsmodus: "light" oder "dark". Voreinstellung ist hell.
+# Umgestellt wird im Einstellungsfenster unter Allgemein; Hams schreibt
+# die Wahl dann in die Nutzerkonfiguration, nicht hierher.
+appearance = "light"
+# Die zuletzt gemerkte Fensterposition (window_x, window_y) schreibt Wisper
+# selbst in die Nutzerkonfiguration — hier hat sie nichts zu suchen.
