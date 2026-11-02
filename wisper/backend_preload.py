@@ -122,7 +122,35 @@ def add_cuda_libraries() -> tuple[str, ...]:
             "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
             "nvidia-cudnn-cu12?"
         )
+    _preload_cuda_libraries_windows()
     return tuple(angemeldet)
+
+
+#: Unter Windows: Paket -> DLLs, in dieser Reihenfolge vorgeladen.
+CUDA_LIBRARIES_WINDOWS = (
+    ("nvidia.cublas", ("cublasLt64_12.dll", "cublas64_12.dll")),
+    ("nvidia.cudnn", ("cudnn64_9.dll",)),
+)
+
+
+def _preload_cuda_libraries_windows() -> None:
+    """Laedt cuBLAS und cuDNN aus den NVIDIA-Paketen vor.
+
+    ctranslate2 laedt cuBLAS erst beim ersten Rechnen nach und sucht dabei
+    ueber den PATH, nicht ueber die mit `add_dll_directory` angemeldeten
+    Ordner. Steht eine DLL dieses Namens schon im Prozess, nimmt Windows sie.
+    """
+    import ctypes
+
+    for paket, dateien in CUDA_LIBRARIES_WINDOWS:
+        ordner = _paket_verzeichnis(paket, "bin")
+        if ordner is None:
+            continue
+        for datei in dateien:
+            try:
+                ctypes.WinDLL(str(ordner / datei))
+            except OSError:
+                logger.warning("CUDA-Bibliothek %s nicht ladbar", ordner / datei)
 
 
 #: Unter Linux: Paket -> Bibliotheken, in dieser Reihenfolge geladen.

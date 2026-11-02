@@ -221,3 +221,27 @@ class TestDieCudaBibliothekenBleibenErreichbar:
         assert bericht["geladen"] is True, (
             "cuBLAS ist nach dem Backend-Import nicht auffindbar — die GPU-Transkription wuerde scheitern"
         )
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="nur Windows")
+    def test_the_standalone_cublas_is_in_the_process_before_ctranslate2_needs_it(self, tmp_path):
+        """ctranslate2 laedt cuBLAS erst beim ersten Rechnen nach, und zwar ueber
+        den PATH. Ein mit add_dll_directory angemeldeter Ordner reicht dafuer nicht:
+        mit nvidia-cublas-cu12 ohne torch scheiterte die erste Transkription an
+
+            RuntimeError: Library cublas64_12.dll is not found or cannot be loaded
+        """
+        bericht = _in_a_fresh_interpreter(
+            """
+            import ctypes, importlib.util, json, sys
+            sys.path.insert(0, ".")
+            from wisper.backend_preload import preload_backend_without_torch
+            preload_backend_without_torch()
+            vorhanden = importlib.util.find_spec("nvidia.cublas") is not None
+            handle = ctypes.windll.kernel32.GetModuleHandleW("cublas64_12.dll")
+            print(json.dumps({"vorhanden": vorhanden, "im_prozess": bool(handle)}))
+        """,
+            tmp_path,
+        )
+        if not bericht["vorhanden"]:
+            pytest.skip("nvidia-cublas-cu12 ist hier nicht installiert")
+        assert bericht["im_prozess"] is True, "cuBLAS muss vorgeladen sein, sonst faellt die GPU aus"
