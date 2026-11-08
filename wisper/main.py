@@ -16,12 +16,54 @@ import contextlib
 
 from wisper import branding
 from wisper import ui_kit as uk
+from wisper.activation import SettingsRequests, request_settings
 from wisper.app import FloatingTranscriberApp
 from wisper.config import CFG, CONFIG_PATH, _load_config, ensure_user_config, logger
 from wisper.instance import _acquire_single_instance_mutex, _release_single_instance_mutex
 
 
-def main() -> None:
+def _second_instance(show_settings: bool) -> None:
+    """Hams läuft schon: Einstellungen dort öffnen lassen oder Bescheid geben und beenden."""
+    if sys.platform == "win32" and show_settings:
+        if request_settings():
+            return
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            "Hams bitte einmal neu starten, damit der neue Einstellungs-Starteintrag aktiv wird.",
+            branding.PRODUCT_NAME,
+            0x40,
+        )
+        return
+    logger.warning("Another Wisper instance is already running — exiting")
+    if sys.platform != "win32":
+        from wisper import linux
+
+        linux.notify(branding.PRODUCT_NAME, f"{branding.PRODUCT_NAME} läuft bereits.")
+        sys.exit(0)
+    with contextlib.suppress(Exception):
+        ctypes.windll.user32.MessageBoxW(
+            0,
+            f"{branding.PRODUCT_NAME} läuft bereits. Überprüfe das System-Tray.",
+            branding.PRODUCT_NAME,
+            0x40,
+        )
+    sys.exit(0)
+
+
+def _accept_settings_requests(root: tk.Tk, app: FloatingTranscriberApp) -> SettingsRequests | None:
+    """Unter Windows: das Startprogramm Hams.exe darf die Einstellungen der laufenden Instanz öffnen."""
+    if sys.platform != "win32":
+        return None
+    try:
+        requests = SettingsRequests(root, app._open_settings)
+    except OSError:
+        logger.exception("Einstellungs-Starteintrag konnte nicht verbunden werden")
+        return None
+    logger.info("Einstellungs-Anfragen werden angenommen")
+    return requests
+
+
+def main(*, show_settings: bool = False) -> None:
     state = ensure_user_config()
     logger.info("Nutzerkonfiguration %s (%s)", CONFIG_PATH, state)
     if state in ("migriert", "angelegt"):
@@ -31,28 +73,22 @@ def main() -> None:
 
     mutex_handle = _acquire_single_instance_mutex()
     if mutex_handle is None:
-        logger.warning("Another Wisper instance is already running — exiting")
-        if sys.platform != "win32":
-            from wisper import linux
+        _second_instance(show_settings)
+        return
 
-            linux.notify(branding.PRODUCT_NAME, f"{branding.PRODUCT_NAME} läuft bereits.")
-            sys.exit(0)
-        with contextlib.suppress(Exception):
-            ctypes.windll.user32.MessageBoxW(
-                0,
-                f"{branding.PRODUCT_NAME} läuft bereits. Überprüfe das System-Tray.",
-                branding.PRODUCT_NAME,
-                0x40,
-            )
-        sys.exit(0)
-
+    settings_requests = None
     try:
         awareness = uk.enable_dpi_awareness()  # muss vor tk.Tk() stehen
         logger.info("DPI awareness: %s", awareness)
         root = tk.Tk()
-        FloatingTranscriberApp(root)
+        app = FloatingTranscriberApp(root)
+        settings_requests = _accept_settings_requests(root, app)
+        if show_settings:
+            root.after_idle(app._open_settings)
         root.mainloop()
     finally:
+        if settings_requests is not None:
+            settings_requests.close()
         # Beim Neustart ist das Schloss schon freigegeben; dann ist hier nichts
         # mehr zu tun und der Nachfolger haelt es bereits.
         _release_single_instance_mutex()
@@ -64,4 +100,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    main(show_settings="--settings" in sys.argv[1:])
