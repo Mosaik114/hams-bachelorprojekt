@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/Mosaik114/hams-bachelorprojekt/security/advisories/new
+    about: Please report security issues privately, not as a public issue.
+  - name: Ollama models and setup
+    url: https://ollama.com/library
+    about: Questions about installing or choosing Ollama models are best answered by the Ollama docs.

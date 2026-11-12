@@ -23,13 +23,13 @@ from appearance_support import (  # noqa: F401 – Fixtures, pytest findet sie �
     window,
 )
 
-from wisper import config as config_mod
-from wisper import settings_window as settings_window_mod
-from wisper import tray as tray_mod
-from wisper import ui_kit as uk
-from wisper.app import FloatingTranscriberApp
-from wisper.settings_window import SettingsWindow
-from wisper.ui_kit import (
+from hams import config as config_mod
+from hams import settings_window as settings_window_mod
+from hams import tray as tray_mod
+from hams import ui_kit as uk
+from hams.app import FloatingTranscriberApp
+from hams.settings_window import SettingsWindow
+from hams.ui_kit import (
     Option,
     Popover,
     Select,
@@ -233,7 +233,7 @@ class TestTrayStaysIndependent:
 
     def test_the_tray_mask_is_untouched_by_the_theme(self):
         """Die Bildmarke bleibt dieselbe Datei — nur die Farbe kommt von aussen."""
-        from wisper import branding
+        from hams import branding
 
         Theme.apply(Theme.LIGHT)
         hell = branding.tray_image(tray_mod.TRAY_PALETTE["ACCENT_TINT"], 32)

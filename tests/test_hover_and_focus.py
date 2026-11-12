@@ -16,8 +16,8 @@ import tkinter as tk
 import pytest
 from conftest import fokus_erzwingen
 
-from wisper import ui_kit as uk
-from wisper.ui_kit import IconButton, Option, SecondaryButton, Select, SettingRow, State, StatusDot, Switch, Theme
+from hams import ui_kit as uk
+from hams.ui_kit import IconButton, Option, SecondaryButton, Select, SettingRow, State, StatusDot, Switch, Theme
 
 
 @pytest.fixture

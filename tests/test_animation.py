@@ -9,8 +9,8 @@ import tkinter as tk
 
 import pytest
 
-from wisper import ui_kit as uk
-from wisper.ui_kit import Animator, Popover, Select, StatusDot, Switch, Theme
+from hams import ui_kit as uk
+from hams.ui_kit import Animator, Popover, Select, StatusDot, Switch, Theme
 
 BG = Theme.GROUP_SURFACE
 

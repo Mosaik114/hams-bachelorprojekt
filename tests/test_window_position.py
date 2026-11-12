@@ -8,8 +8,8 @@ Bildschirme umzustecken. Der Lauf gegen die echten Monitore steht daneben.
 
 import pytest
 
-from wisper import ui_kit as uk
-from wisper.window_position import (
+from hams import ui_kit as uk
+from hams.window_position import (
     MIN_VISIBLE_H,
     MIN_VISIBLE_W,
     POSITION_FALLBACK,
@@ -113,7 +113,7 @@ class TestWindowPosition:
         assert window_position(3000, 300, *size, [PRIMARY, SECOND]) == (3000, 300)
 
     def test_a_removed_monitor_brings_the_window_home(self, size):
-        """Wisper lag auf Monitor 2, den es nicht mehr gibt."""
+        """Hams lag auf Monitor 2, den es nicht mehr gibt."""
         result = window_position(3000, 300, *size, [PRIMARY])
         assert result == (uk.px(POSITION_FALLBACK), uk.px(POSITION_FALLBACK))
 
@@ -219,8 +219,8 @@ class TestApplication:
 
     @pytest.fixture
     def app(self, monkeypatch):
-        from wisper.app import FloatingTranscriberApp as App
-        from wisper.config import CFG
+        from hams.app import FloatingTranscriberApp as App
+        from hams.config import CFG
 
         instance = App.__new__(App)
         instance.root = self._FakeRoot()
@@ -228,7 +228,7 @@ class TestApplication:
         instance._position_job = None
         instance.written = []
         monkeypatch.setattr(
-            "wisper.main_window._persist_config_value",
+            "hams.main_window._persist_config_value",
             lambda section, key, value: instance.written.append((section, key, value)) or True,
         )
         monkeypatch.setattr(CFG, "window_x", None)
@@ -253,7 +253,7 @@ class TestApplication:
         assert app.written == [("ui", "window_x", 812), ("ui", "window_y", 377)]
 
     def test_an_unchanged_position_writes_nothing(self, app, monkeypatch):
-        from wisper.config import CFG
+        from hams.config import CFG
 
         monkeypatch.setattr(CFG, "window_x", 812)
         monkeypatch.setattr(CFG, "window_y", 377)

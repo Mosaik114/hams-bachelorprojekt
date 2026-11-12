@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from wisper.app import FloatingTranscriberApp as App
+from hams.app import FloatingTranscriberApp as App
 
 
 class _FakeRoot:
@@ -55,7 +55,7 @@ def app(monkeypatch):
         App, "_apply_state", lambda self, state, detail=None, hint=None: self.states.append((state, detail, hint))
     )
     monkeypatch.setattr(
-        "wisper.whisper_model._persist_config_value", lambda section, key, value: instance.persisted.append(value)
+        "hams.whisper_model._persist_config_value", lambda section, key, value: instance.persisted.append(value)
     )
     monkeypatch.setattr(App, "_on_model_error", lambda self: self.states.append(("error", None, None)))
     return instance

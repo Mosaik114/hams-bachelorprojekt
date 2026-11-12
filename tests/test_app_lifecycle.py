@@ -15,10 +15,10 @@ import numpy as np
 import pytest
 from live_app import FakeHotkeys, FakeStream
 
-from wisper import recording as recording_mod
-from wisper import ui_kit as uk
-from wisper.config import CFG
-from wisper.settings_window import SettingsWindow
+from hams import recording as recording_mod
+from hams import ui_kit as uk
+from hams.config import CFG
+from hams.settings_window import SettingsWindow
 
 
 def flush(app) -> None:
@@ -75,7 +75,7 @@ class TestHotkeys:
 
     def test_only_a_failed_combo_falls_back_to_the_library(self, root, hams):
         FakeHotkeys.failing = {CFG.hotkey_prompt}
-        from wisper.app import FloatingTranscriberApp as App
+        from hams.app import FloatingTranscriberApp as App
 
         window = tk.Toplevel(root)
         try:
@@ -160,7 +160,7 @@ class TestStates:
         ],
     )
     def test_the_tray_colour_follows_the_state(self, live_app, state, key):
-        from wisper.tray import TRAY_PALETTE
+        from hams.tray import TRAY_PALETTE
 
         assert live_app._tray_colour(state) == TRAY_PALETTE[key]
         live_app._apply_state(state)

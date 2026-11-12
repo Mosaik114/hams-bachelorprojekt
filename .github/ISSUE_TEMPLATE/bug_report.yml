@@ -1,0 +1,53 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't paste dictated text, recordings or other personal data. For security issues, see SECURITY.md.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Press Ctrl+Shift+Space and speak
+        2. ...
+  - type: input
+    id: version
+    attributes:
+      label: Hams version
+      description: "`pip show hams`, or the version in CHANGELOG.md / the commit you are on"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux (KDE Plasma, Wayland)
+        - Linux (other)
+    validations:
+      required: true
+  - type: input
+    id: setup
+    attributes:
+      label: Hardware and models
+      placeholder: RTX 3060 / CPU only, Whisper turbo, Ollama qwen3.5:9b (or cleanup off)
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: >-
+        Relevant lines from hams/logs/hams.log in your Hams folder. The log contains timings and text lengths, never
+        the dictated text.
+      render: text

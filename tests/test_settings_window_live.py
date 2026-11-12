@@ -12,14 +12,14 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from wisper import models as whisper_models
-from wisper import ollama as ollama_api
-from wisper import settings_models as models_mod
-from wisper import settings_status as status_mod
-from wisper import ui_kit as uk
-from wisper.config import CFG
-from wisper.models import CachedModel
-from wisper.ui_kit import window as uk_window
+from hams import models as whisper_models
+from hams import ollama as ollama_api
+from hams import settings_models as models_mod
+from hams import settings_status as status_mod
+from hams import ui_kit as uk
+from hams.config import CFG
+from hams.models import CachedModel
+from hams.ui_kit import window as uk_window
 
 
 @pytest.fixture

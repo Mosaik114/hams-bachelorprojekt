@@ -7,8 +7,8 @@ import pytest
 gi = pytest.importorskip("gi")
 from gi.repository import Gio, GLib  # noqa: E402
 
-from wisper import portal_hotkeys  # noqa: E402
-from wisper.portal_hotkeys import PortalHotkeys  # noqa: E402
+from hams import portal_hotkeys  # noqa: E402
+from hams.portal_hotkeys import PortalHotkeys  # noqa: E402
 
 
 class Bus:

@@ -2,7 +2,7 @@
 # zwischen Versionen ändert.
 line-length = 120
 target-version = "py310"   # Hams läuft unter Windows auch mit älterem Python
-extend-exclude = ["**/.venv", "**/wisper.egg-info", "tools/_korpus"]
+extend-exclude = ["**/.venv", "**/*.egg-info", "tools/_korpus"]
 
 [lint]
 select = [
@@ -31,9 +31,9 @@ max-complexity = 10
 "tests/test_appearance*.py" = ["F811"]
 # E402 ist in main.py beabsichtigt: der Projekt-Root muss vor den übrigen Importen in sys.path, damit der
 # direkte Skriptstart aus dem Autostart-VBS die Paket-Importe darunter findet.
-"wisper/main.py" = ["E402"]
+"hams/main.py" = ["E402"]
 # Das Paket ui_kit bietet die Namen seiner Module gesammelt an; sie werden dort nur weitergereicht.
-"wisper/ui_kit/__init__.py" = ["F401"]
+"hams/ui_kit/__init__.py" = ["F401"]
 # Messwerkzeug: startet PowerShell für die Sprachausgabe und importiert nach dem sys.path-Eintrag
 "tools/*.py" = ["E402", "S101", "S311"]
 

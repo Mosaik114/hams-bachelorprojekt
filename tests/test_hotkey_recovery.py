@@ -81,7 +81,7 @@ class TestWhyALivenessCheckWouldMislead:
 
 class TestTheApplicationDrawsTheRightConclusion:
     def test_the_restart_is_documented_as_the_repair(self):
-        from wisper.app import FloatingTranscriberApp
+        from hams.app import FloatingTranscriberApp
 
         doku = FloatingTranscriberApp.restart_app.__doc__ or ""
         assert "Hook" in doku

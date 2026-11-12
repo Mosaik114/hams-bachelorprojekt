@@ -1,6 +1,6 @@
 """Tests for config loading."""
 
-from wisper.config import Config, _load_config
+from hams.config import Config, _load_config
 
 
 class TestLoadConfig:
@@ -8,7 +8,7 @@ class TestLoadConfig:
 
     def test_defaults_when_no_config(self, tmp_path, monkeypatch):
         """Should return defaults when config file doesn't exist."""
-        monkeypatch.setattr("wisper.config.CONFIG_PATH", tmp_path / "nonexistent.toml")
+        monkeypatch.setattr("hams.config.CONFIG_PATH", tmp_path / "nonexistent.toml")
         cfg = _load_config()
 
         assert isinstance(cfg, Config)
@@ -29,7 +29,7 @@ model_transcript_cleanup = "ministral-3:8b"
         config_file = tmp_path / "config.toml"
         config_file.write_text(config_content)
 
-        monkeypatch.setattr("wisper.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("hams.config.CONFIG_PATH", config_file)
         cfg = _load_config()
 
         assert cfg.sample_rate == 44100
@@ -41,7 +41,7 @@ model_transcript_cleanup = "ministral-3:8b"
         config_file = tmp_path / "invalid.toml"
         config_file.write_text("this is not valid toml = [")
 
-        monkeypatch.setattr("wisper.config.CONFIG_PATH", config_file)
+        monkeypatch.setattr("hams.config.CONFIG_PATH", config_file)
         cfg = _load_config()
 
         assert isinstance(cfg, Config)
@@ -52,7 +52,7 @@ def test_fensterposition_bleibt_wenn_eine_schicht_sie_nicht_nennt():
     """Q7: window_x wurde von jeder Schicht ohne den Schlüssel auf None gesetzt, window_y nicht."""
     import copy
 
-    from wisper import config
+    from hams import config
 
     cfg = copy.deepcopy(config.CFG)
     config._apply_toml(cfg, {"ui": {"window_x": 120, "window_y": 80}})

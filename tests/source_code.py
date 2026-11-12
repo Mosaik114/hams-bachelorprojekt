@@ -7,17 +7,17 @@ so haengt kein Test daran, in welcher Datei eine Funktion gerade liegt.
 
 from pathlib import Path
 
-WISPER = Path(__file__).resolve().parent.parent / "wisper"
+PACKAGE_DIR = Path(__file__).resolve().parent.parent / "hams"
 
 
-def module_files(package: Path = WISPER) -> list:
+def module_files(package: Path = PACKAGE_DIR) -> list:
     return sorted(path for path in package.rglob("*.py") if "__pycache__" not in path.parts)
 
 
-def all_source(package: Path = WISPER) -> str:
+def all_source(package: Path = PACKAGE_DIR) -> str:
     return "\n".join(path.read_text(encoding="utf-8") for path in module_files(package))
 
 
 def ui_kit_source() -> str:
     """Das ganze UI-Kit - es ist auf mehrere Module verteilt."""
-    return all_source(WISPER / "ui_kit")
+    return all_source(PACKAGE_DIR / "ui_kit")

@@ -2,7 +2,7 @@
 
 import pytest
 
-from wisper import ui_kit as uk
+from hams import ui_kit as uk
 
 FILL = "#0A6FE8"
 

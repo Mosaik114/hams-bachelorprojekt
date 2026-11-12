@@ -10,15 +10,14 @@ import inspect
 
 import pytest
 from PIL import Image
-from source_code import all_source
 
-from wisper import app as app_mod
-from wisper import branding
-from wisper import config as config_mod
-from wisper import instance as instance_mod
-from wisper import settings_window as settings_window_mod
-from wisper import tray as tray_mod
-from wisper.app import FloatingTranscriberApp
+from hams import app as app_mod
+from hams import branding
+from hams import config as config_mod
+from hams import instance as instance_mod
+from hams import settings_window as settings_window_mod
+from hams import tray as tray_mod
+from hams.app import FloatingTranscriberApp
 
 MARK_SIZES = (16, 20, 24, 32, 64)
 
@@ -202,18 +201,19 @@ class TestNoOldBrandInTheInterface:
         assert "base = branding.PRODUCT_NAME" in source
 
 
-class TestKeptInternally:
-    """Was bewusst `Wisper` heisst und es bleiben soll."""
+class TestRenamedFromWisper:
+    """Der fruehere Arbeitstitel `Wisper` ist auch intern abgeloest."""
 
-    def test_the_package_keeps_its_name(self):
-        assert config_mod.APP_DIR.name == "wisper"
+    def test_the_package_is_called_hams(self):
+        assert config_mod.APP_DIR.name == "hams"
 
-    def test_the_configuration_stays_where_it_is(self):
-        """Ein Umzug nach %APPDATA%\\Hams waere eine eigene Migration."""
-        assert '"Hams" / "config.toml"' not in all_source()
-        source = inspect.getsource(config_mod)
-        assert '"Wisper" / "config.toml"' in source
+    def test_the_configuration_lives_in_a_hams_folder(self):
+        assert config_mod.USER_DIR_NAME.lower() == "hams"
 
-    def test_the_single_instance_lock_keeps_its_name(self):
-        """Ein neuer Name liesse eine zweite Instanz neben einer alten starten."""
-        assert "Wisper" in instance_mod.MUTEX_NAME
+    def test_the_old_folder_is_only_a_migration_source(self):
+        assert config_mod.LEGACY_USER_DIR_NAME == "Wisper"
+
+    def test_the_single_instance_lock_is_called_hams(self):
+        """Den alten Namen haelt Hams nur zusaetzlich, siehe test_restart.TestLegacyInstanceName."""
+        assert "Hams" in instance_mod.MUTEX_NAME
+        assert "Wisper" in instance_mod.LEGACY_MUTEX_NAME

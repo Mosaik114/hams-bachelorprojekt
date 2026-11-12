@@ -4,7 +4,7 @@ Die Anmeldung selbst wird hier nicht ausprobiert: sie belegte die Kombination
 fuer den ganzen Rechner, auch fuer ein gerade laufendes Hams.
 """
 
-from wisper.system_hotkeys import MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, parse_combo
+from hams.system_hotkeys import MOD_ALT, MOD_CONTROL, MOD_SHIFT, MOD_WIN, parse_combo
 
 
 class TestParseCombo:

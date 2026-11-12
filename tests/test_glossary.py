@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import tomllib
 
-from wisper import glossary
+from hams import glossary
 
 
 @pytest.fixture

@@ -21,9 +21,9 @@ from appearance_support import (  # noqa: F401 â€“ Fixtures, pytest findet sie Ã
 )
 from source_code import all_source
 
-from wisper import config as config_mod
-from wisper import ui_kit as uk
-from wisper.ui_kit import (
+from hams import config as config_mod
+from hams import ui_kit as uk
+from hams.ui_kit import (
     Popover,
     Theme,
 )
@@ -71,7 +71,7 @@ class TestDefault:
         assert Theme.normalise(wert) == erwartet
 
     def test_the_repository_default_is_light(self):
-        from wisper.config import DEFAULT_CONFIG_PATH
+        from hams.config import DEFAULT_CONFIG_PATH
 
         text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
         assert 'appearance = "light"' in text

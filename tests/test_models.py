@@ -2,10 +2,10 @@
 
 import pytest
 
-from wisper import models
-from wisper.config import Config
-from wisper.config_validation import validate_config
-from wisper.settings_window import SettingsWindow as SW
+from hams import models
+from hams.config import Config
+from hams.config_validation import validate_config
+from hams.settings_window import SettingsWindow as SW
 
 
 class TestCatalog:
@@ -224,7 +224,7 @@ class _StubWindow:
 @pytest.fixture
 def config(monkeypatch):
     def _set(model_id):
-        monkeypatch.setattr("wisper.config.CFG.model_size", model_id)
+        monkeypatch.setattr("hams.config.CFG.model_size", model_id)
 
     return _set
 

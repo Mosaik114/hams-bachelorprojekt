@@ -10,9 +10,9 @@ import types
 
 import pytest
 
-from wisper import config as config_mod
-from wisper.app import FloatingTranscriberApp as App
-from wisper.settings_window import SettingsWindow as SW
+from hams import config as config_mod
+from hams.app import FloatingTranscriberApp as App
+from hams.settings_window import SettingsWindow as SW
 
 #: Platzhalter für „ein Mikrofon-Strom ist offen“
 _EIN_STROM = object()
@@ -35,7 +35,7 @@ class _Stub:
 @pytest.fixture
 def config(monkeypatch):
     def _set(device):
-        monkeypatch.setattr("wisper.config.CFG.mic_device_raw", device)
+        monkeypatch.setattr("hams.config.CFG.mic_device_raw", device)
 
     return _set
 
@@ -90,14 +90,14 @@ class TestMicConsumerApi:
 
 class TestDeviceState:
     def test_no_input_device_is_reported(self, config, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [])
+        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [])
         config("Shure MV7+")
         stub = _Stub([], "Shure MV7+")
         stub.refresh_device_state()
         assert stub._device_error == "Kein Mikrofon gefunden"
 
     def test_missing_selected_device_is_reported(self, config, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
+        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         config("Shure MV7+")
         stub = _Stub([], "Shure MV7+")
         stub.refresh_device_state()
@@ -106,7 +106,7 @@ class TestDeviceState:
     def test_substring_match_counts_as_present(self, config, monkeypatch):
         """Die Config speichert ein Namensfragment, keinen exakten Gerätenamen."""
         monkeypatch.setattr(
-            "wisper.settings_status._list_input_devices",
+            "hams.settings_status._list_input_devices",
             lambda: [("Mikrofon (Shure MV7+)", "3- Mikrofon (Shure MV7+)")],
         )
         config("Shure MV7+")
@@ -115,20 +115,20 @@ class TestDeviceState:
         assert stub._device_error == ""
 
     def test_default_device_never_errors(self, config, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
+        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         config("default")
         stub = _Stub([], "default")
         stub.refresh_device_state()
         assert stub._device_error == ""
 
     def test_options_always_offer_the_system_default(self, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
+        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         options = _Stub([], None).device_options()
         assert options[0] == ("System-Standard", None)
         assert ("Webcam", "Webcam") in options
 
     def test_options_are_pairs_of_label_and_value(self, monkeypatch):
-        monkeypatch.setattr("wisper.settings_status._list_input_devices", lambda: [("A", "A full"), ("B", "B full")])
+        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [("A", "A full"), ("B", "B full")])
         for label, value in _Stub([], None).device_options():
             assert isinstance(label, str)
             assert value is None or isinstance(value, str)
@@ -167,12 +167,12 @@ class TestInputDeviceList:
                 self._dev("Mikrofon (UGREEN Camera)", 3),
             ],
         )
-        monkeypatch.setattr("wisper.config.sd", fake)
+        monkeypatch.setattr("hams.config.sd", fake)
         assert config_mod._list_input_devices() == [("Mikrofon (3- Shure MV7+)", "Mikrofon (3- Shure MV7+)")]
 
     def test_without_wasapi_every_host_api_counts(self, monkeypatch):
         fake = _FakeSd(["MME"], [self._dev("3- Shure MV7+", 0)])
-        monkeypatch.setattr("wisper.config.sd", fake)
+        monkeypatch.setattr("hams.config.sd", fake)
         assert config_mod._list_input_devices() == [("Shure MV7+", "3- Shure MV7+")]
 
 
@@ -234,7 +234,7 @@ class TestCleanupDependency:
             self.description = text
 
     def _run(self, cleanup_on, ollama_online, monkeypatch):
-        monkeypatch.setattr("wisper.config.CFG.ollama_cleanup_enabled", cleanup_on)
+        monkeypatch.setattr("hams.config.CFG.ollama_cleanup_enabled", cleanup_on)
         window = SW.__new__(SW)
         window._alive = True
         window.win = type("W", (), {"winfo_exists": lambda self: True})()

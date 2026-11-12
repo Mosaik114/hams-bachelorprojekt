@@ -23,9 +23,9 @@ import inspect
 import numpy as np
 import pytest
 
-from wisper import config as config_mod
-from wisper import transcription as transcription_mod
-from wisper.app import FloatingTranscriberApp
+from hams import config as config_mod
+from hams import transcription as transcription_mod
+from hams.app import FloatingTranscriberApp
 
 
 class Aufzeichnung:

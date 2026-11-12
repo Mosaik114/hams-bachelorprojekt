@@ -69,8 +69,7 @@ addopts = "-v --tb=short"
 fail_under = 85
 
 [project.scripts]
-hams = "wisper.main:main"
-wisper = "wisper.main:main"   # alter Name aus der Zeit als „Wisper“, bleibt als Alias
+hams = "hams.main:main"
 
 [project.urls]
 Homepage = "https://github.com/Mosaik114/hams-bachelorprojekt"
@@ -79,9 +78,9 @@ Changelog = "https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/CHANGEL
 Documentation = "https://github.com/Mosaik114/hams-bachelorprojekt/tree/main/docs"
 
 [tool.setuptools]
-packages = ["wisper", "wisper.ui_kit", "wisper.prompts"]
+packages = ["hams", "hams.ui_kit", "hams.prompts"]
 
 [tool.setuptools.package-data]
-wisper = ["prompts/*.txt", "*.toml", "assets/branding/*"]
+hams = ["prompts/*.txt", "*.toml", "assets/branding/*"]
 
 # Linter- und Formatregeln: ruff.toml

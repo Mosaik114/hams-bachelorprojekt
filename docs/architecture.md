@@ -81,7 +81,7 @@ is pasted instead.
 
 - About 1,600 pytest tests. Many of them drive the real Tk application through `tests/live_app.py`, with fakes for
   the microphone, Whisper and Ollama.
-- Coverage gate of 85 % (Windows CI excludes the Linux-only modules, see `abdeckung-windows.ini`).
+- Coverage gate of 85 % (Windows CI excludes the Linux-only modules, see `coverage-windows.ini`).
 - ruff with pycodestyle, pyflakes, bugbear, bandit, import order and **max cyclomatic complexity 10**.
 - Dependencies are locked with hashes (`uv pip compile --generate-hashes`), audited with `pip-audit`, and updated by
   Dependabot. GitHub Actions are pinned to commit SHAs.

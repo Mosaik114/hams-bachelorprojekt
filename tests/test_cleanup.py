@@ -1,6 +1,6 @@
 """Tests for cleanup text processing."""
 
-from wisper.config import CFG
+from hams.config import CFG
 
 
 class TestCleanupText:

@@ -5,7 +5,7 @@ laufen zu lassen. Das setzt voraus, dass es beim Melden schon ein Log gibt:
 `CFG = _load_config()` laeuft auf Modulebene, und wenn `logger` dort noch nicht
 existiert, endet der Import in einem NameError.
 
-Sichtbar wird das fuer den Nutzer gar nicht — Wisper startet aus dem Autostart
+Sichtbar wird das fuer den Nutzer gar nicht — Hams startet aus dem Autostart
 ueber pythonw.exe ohne Konsole. Die Anwendung kaeme einfach nicht hoch, ohne
 Fenster, ohne Meldung und ohne Logzeile.
 
@@ -23,8 +23,8 @@ from pathlib import Path
 import pytest
 import tomllib
 
-from wisper.config import Config, _apply_toml
-from wisper.config_validation import validate_config
+from hams.config import Config, _apply_toml
+from hams.config_validation import validate_config
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
@@ -41,14 +41,14 @@ KAPUTTE_DATEIEN = {
 
 
 def _import_in_a_fresh_interpreter(config_file: Path) -> subprocess.CompletedProcess:
-    """Importiert wisper.main so, wie der Autostart es tut: von vorn."""
+    """Importiert hams.main so, wie der Autostart es tut: von vorn."""
     return subprocess.run(
         [
             sys.executable,
             "-c",
             textwrap.dedent("""
-            import wisper.main
-            print("IMPORT-OK", wisper.main.CFG.sample_rate)
+            import hams.main
+            print("IMPORT-OK", hams.main.CFG.sample_rate)
         """),
         ],
         cwd=PROJECT_ROOT,
@@ -57,9 +57,9 @@ def _import_in_a_fresh_interpreter(config_file: Path) -> subprocess.CompletedPro
         # aufloesen und legt einen Ordner namens "%SystemDrive%" im Projekt an.
         env={
             **os.environ,
-            "WISPER_CONFIG": str(config_file),
+            "HAMS_CONFIG": str(config_file),
             # Auch der Kindprozess schreibt sonst ins echte Log.
-            "WISPER_LOG_DIR": str(config_file.parent / "logs"),
+            "HAMS_LOG_DIR": str(config_file.parent / "logs"),
         },
         capture_output=True,
         text=True,

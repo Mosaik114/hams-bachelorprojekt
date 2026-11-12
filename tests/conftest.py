@@ -16,21 +16,21 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Die Testsuite darf die persoenliche Konfiguration des Nutzers weder lesen
-# noch beschreiben. `WISPER_CONFIG` muss stehen, *bevor* wisper.config importiert
+# noch beschreiben. `HAMS_CONFIG` muss stehen, *bevor* hams.config importiert
 # wird — conftest laeuft vor den Testmodulen, deshalb hier auf Modulebene.
-_config_dir = tempfile.mkdtemp(prefix="wisper-tests-")
+_config_dir = tempfile.mkdtemp(prefix="hams-tests-")
 _config_file = Path(_config_dir) / "config.toml"
-_template = project_root / "wisper" / "config.default.toml"
+_template = project_root / "hams" / "config.default.toml"
 if _template.exists():
     shutil.copy2(_template, _config_file)
-os.environ["WISPER_CONFIG"] = str(_config_file)
+os.environ["HAMS_CONFIG"] = str(_config_file)
 
 # Aus demselben Grund das Log: sonst schreibt jeder Testlauf seine Eintraege
-# in wisper/logs/wisper.log, zwischen die echten des Nutzers. Das ist die
+# in hams/logs/hams.log, zwischen die echten des Nutzers. Das ist die
 # Aufzeichnung, aus der spaeter ein Fehler rekonstruiert wird - sie darf
 # keine Zeitstempel aus pytest-Temporaerverzeichnissen enthalten.
-_log_dir = tempfile.mkdtemp(prefix="wisper-tests-logs-")
-os.environ["WISPER_LOG_DIR"] = _log_dir
+_log_dir = tempfile.mkdtemp(prefix="hams-tests-logs-")
+os.environ["HAMS_LOG_DIR"] = _log_dir
 
 atexit.register(shutil.rmtree, _config_dir, True)
 atexit.register(shutil.rmtree, _log_dir, True)
@@ -73,7 +73,7 @@ def no_animation():
     gerade ist: ein Toggle stuende mitten in der Bewegung, und die Farbe waere
     ein Zwischenwert. Die Animationen selbst pruefen `test_animation.py`.
     """
-    from wisper import ui_kit as _uk
+    from hams import ui_kit as _uk
 
     before = _uk.Animator.enabled
     _uk.Animator.enabled = False
@@ -83,18 +83,18 @@ def no_animation():
 
 @pytest.fixture
 def patch_everywhere(monkeypatch):
-    """Ersetzt eine Funktion aus wisper.config in jedem Modul, das sie importiert hat.
+    """Ersetzt eine Funktion aus hams.config in jedem Modul, das sie importiert hat.
 
     Fuer Pruefungen der Art "nirgends wird gespeichert": ein Patch an nur
     einer Stelle liesse jeden anderen Aufrufer unbemerkt durch.
     """
 
     def patch(name, value):
-        from wisper import config
+        from hams import config
 
         original = getattr(config, name)
         for module in list(sys.modules.values()):
-            if getattr(module, "__name__", "").startswith("wisper") and getattr(module, name, None) is original:
+            if getattr(module, "__name__", "").startswith("hams") and getattr(module, name, None) is original:
                 monkeypatch.setattr(module, name, value)
 
     return patch
@@ -107,13 +107,13 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
 
     from live_app import FakeClipboard, FakeHotkeys, FakeKeyboard, FakeStream, FakeTray, fake_sounddevice
 
-    from wisper import app as app_mod
-    from wisper import ollama as ollama_api
-    from wisper import recording as recording_mod
-    from wisper import settings_status as status_mod
-    from wisper import transcription as transcription_mod
-    from wisper.app import FloatingTranscriberApp as App
-    from wisper.config import CFG
+    from hams import app as app_mod
+    from hams import ollama as ollama_api
+    from hams import recording as recording_mod
+    from hams import settings_status as status_mod
+    from hams import transcription as transcription_mod
+    from hams.app import FloatingTranscriberApp as App
+    from hams.config import CFG
 
     fakes = SimpleNamespace(
         hotkeys=None,
@@ -170,8 +170,8 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
 @pytest.fixture
 def live_app(root, hams):
     """Die echte Anwendung in einem eigenen, versteckten Fenster."""
-    from wisper import ui_kit as _uk
-    from wisper.app import FloatingTranscriberApp as App
+    from hams import ui_kit as _uk
+    from hams.app import FloatingTranscriberApp as App
 
     theme = _uk.Theme.mode
     window = tk.Toplevel(root)
@@ -208,7 +208,7 @@ def root():
     window.tk.eval("catch {tk_focusNext .}")
     # Schriftrollen bereitstellen, damit Controls unter Testbedingungen
     # dieselben Fonts benutzen wie im Programm.
-    from wisper import ui_kit as _uk
+    from hams import ui_kit as _uk
 
     _uk.init_scale(window)
     _uk.init_fonts(window)

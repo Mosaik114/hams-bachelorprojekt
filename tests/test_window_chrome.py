@@ -15,8 +15,8 @@ import tkinter as tk
 import pytest
 from source_code import ui_kit_source
 
-from wisper import ui_kit as uk
-from wisper.ui_kit import window as window_mod
+from hams import ui_kit as uk
+from hams.ui_kit import window as window_mod
 
 windows_only = pytest.mark.skipif(sys.platform != "win32", reason="DWM und Fensterregionen gibt es nur unter Windows")
 

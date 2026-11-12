@@ -10,9 +10,9 @@ import time
 
 import pytest
 
-from wisper import hub_progress, models
-from wisper.app import FloatingTranscriberApp as App
-from wisper.settings_window import SettingsWindow as SW
+from hams import hub_progress, models
+from hams.app import FloatingTranscriberApp as App
+from hams.settings_window import SettingsWindow as SW
 
 TINY = models.find("tiny")
 LARGE = models.find("large-v3")
@@ -503,7 +503,7 @@ class _StubWindow:
 
 @pytest.fixture
 def config(monkeypatch):
-    monkeypatch.setattr("wisper.config.CFG.model_size", "turbo")
+    monkeypatch.setattr("hams.config.CFG.model_size", "turbo")
 
 
 class TestSettingsDownload:

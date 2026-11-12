@@ -2,8 +2,8 @@
 
 import pytest
 
-from wisper import ui_kit as uk
-from wisper.ui_kit import Theme
+from hams import ui_kit as uk
+from hams.ui_kit import Theme
 
 INK = "#F2F2F5"
 LINE_ICONS = ["settings", "close", "chevron", "check", "download"]

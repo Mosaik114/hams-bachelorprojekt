@@ -5,8 +5,8 @@ import tkinter as tk
 import pytest
 from conftest import fokus_erzwingen
 
-from wisper import ui_kit as uk
-from wisper.ui_kit import (
+from hams import ui_kit as uk
+from hams.ui_kit import (
     GroupSurface,
     Height,
     ScrollArea,

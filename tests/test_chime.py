@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 pytest.importorskip("fcntl", reason="Linux-Modul: der Signalton gehört zur Linux-Fassung")
-from wisper import linux  # noqa: E402
+from hams import linux  # noqa: E402
 
 
 def _dominant_hz(samples: np.ndarray) -> float:

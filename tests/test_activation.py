@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("hams_activation_test", ROOT / "wisper" / "activation.py")
+spec = importlib.util.spec_from_file_location("hams_activation_test", ROOT / "hams" / "activation.py")
 activation = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(activation)
 
@@ -78,7 +78,7 @@ class TestSettingsActivation(unittest.TestCase):
 
 class TestStartupActivation(unittest.TestCase):
     def setUp(self):
-        package = types.ModuleType("wisper")
+        package = types.ModuleType("hams")
         package.__path__ = []
         self.app = Mock()
         self.factory = Mock(return_value=self.app)
@@ -91,18 +91,18 @@ class TestStartupActivation(unittest.TestCase):
             _load_config=Mock(),
         )
         modules = {
-            "wisper": package,
-            "wisper.branding": types.SimpleNamespace(PRODUCT_NAME="Hams"),
-            "wisper.ui_kit": Mock(),
-            "wisper.activation": activation,
-            "wisper.app": types.SimpleNamespace(FloatingTranscriberApp=self.factory),
-            "wisper.config": config,
-            "wisper.instance": types.SimpleNamespace(
+            "hams": package,
+            "hams.branding": types.SimpleNamespace(PRODUCT_NAME="Hams"),
+            "hams.ui_kit": Mock(),
+            "hams.activation": activation,
+            "hams.app": types.SimpleNamespace(FloatingTranscriberApp=self.factory),
+            "hams.config": config,
+            "hams.instance": types.SimpleNamespace(
                 _acquire_single_instance_mutex=Mock(return_value=1),
                 _release_single_instance_mutex=self.release,
             ),
         }
-        spec = importlib.util.spec_from_file_location("hams_main_test", ROOT / "wisper" / "main.py")
+        spec = importlib.util.spec_from_file_location("hams_main_test", ROOT / "hams" / "main.py")
         self.main = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, modules), patch.object(sys, "path", list(sys.path)):
             spec.loader.exec_module(self.main)

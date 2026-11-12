@@ -19,8 +19,8 @@ September 2026). The thesis covers the Windows version only.
 | Whisper | `turbo`, CUDA `float16`, `beam_size = 1`, Silero VAD, German, `condition_on_previous_text = false`; batched (batch 8) above 30 s |
 | Cleanup LLM | `qwen2.5:7b` (Q4_K_M) via Ollama, `keep_alive = 30m`, warmed up at start, 30 s timeout |
 
-The current default cleanup model is `qwen3.5:9b` with thinking mode off. It was not part of the thesis
-measurements.
+All measurements in this document were taken with `qwen2.5:7b`. The current default cleanup and prompt model is
+`qwen3.5:9b` (thinking mode off); it was not part of the thesis measurements.
 
 **Metrics**
 
@@ -41,7 +41,7 @@ Comparability: **d** = directly comparable, **e** = limited, **n** = not directl
 | Ollama cleanup round trip | 2.941 s (n = 5) | **0.839 s** (n = 5) | d |
 | Ollama status query `probe()` | 4.023 s (n = 5) | **0.016 s** (n = 5) | d |
 | Whisper stage, real dictations | p50 0.26 s | p50 0.22 s | e |
-| Import `wisper.main` | 1.803 s (n = 5) | **0.298 s** (n = 5) | d |
+| Import `wisper.main` (today `hams.main`) | 1.803 s (n = 5) | **0.298 s** (n = 5) | d |
 | Hotkey ready after start | ≈ 3.0 s | **0.38 s** (n = 3) | n |
 | Working set after import | 505.9 MB | **74.8 MB** | d |
 | `site-packages` size | 6620 MB | 2280 MB | n |
@@ -83,7 +83,7 @@ A socket test confirmed the cause. Connecting to `::1` on a port where nothing l
 ## Recognition quality (WER)
 
 Corpus: 20 German sentences (219 words) produced by Windows text-to-speech, each clean and with white noise at
-20/10/5 dB SNR, giving 80 samples. Reproduce it with `python tools/wer_messung.py`, which uses a fixed noise seed.
+20/10/5 dB SNR, giving 80 samples. Reproduce it with `python tools/wer_benchmark.py`, which uses a fixed noise seed.
 
 **`float16` vs `int8_float16`** (`turbo`, RTX 5070):
 

@@ -7,9 +7,9 @@ Installation des Nutzers — und beim zweiten Lauf haette er nichts mehr zu tun.
 
 import pytest
 
-from wisper import models as whisper_models
-from wisper import ui_kit as uk
-from wisper.settings_window import SettingsWindow
+from hams import models as whisper_models
+from hams import ui_kit as uk
+from hams.settings_window import SettingsWindow
 
 # ------------------------------------------------------------------ Attrappen
 
@@ -239,7 +239,7 @@ def _fenster(aktiv=None):
 class TestDeletableRules:
     @pytest.fixture(autouse=True)
     def konfiguriert(self, monkeypatch):
-        monkeypatch.setattr("wisper.config.CFG.model_size", "turbo")
+        monkeypatch.setattr("hams.config.CFG.model_size", "turbo")
 
     def test_the_loaded_model_stays(self, cache):
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])

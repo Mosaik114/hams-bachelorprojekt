@@ -21,7 +21,7 @@ import time
 
 import pytest
 
-from wisper.app import FloatingTranscriberApp
+from hams.app import FloatingTranscriberApp
 
 
 @pytest.fixture

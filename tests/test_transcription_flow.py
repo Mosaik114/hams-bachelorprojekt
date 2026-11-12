@@ -17,10 +17,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from wisper import glossary
-from wisper import transcription as transcription_mod
-from wisper.config import CFG
-from wisper.transcription import PROMPT_PLAIN_SYSTEM
+from hams import glossary
+from hams import transcription as transcription_mod
+from hams.config import CFG
+from hams.transcription import PROMPT_PLAIN_SYSTEM
 
 AUDIO = np.full(16000, 0.2, dtype=np.float32)
 
@@ -277,7 +277,7 @@ class TestSaveAndWarmup:
         live_app._warmup_ollama()
 
     def test_the_warmup_thread_honours_the_setting(self, live_app, monkeypatch):
-        from wisper.transcription import TranscriptionMixin
+        from hams.transcription import TranscriptionMixin
 
         started = []
         monkeypatch.setattr(live_app, "_warmup_ollama", lambda: started.append(1))

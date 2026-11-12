@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="wisper/assets/branding/hams_mark_256.png" alt="Hams logo" width="104">
+  <img src="hams/assets/branding/hams_mark_256.png" alt="Hams logo" width="104">
 </p>
 
 <h1 align="center">Hams</h1>
@@ -63,13 +63,13 @@ flowchart LR
 ```
 
 The UI and the processing run on separate threads. A single-instance lock prevents duplicate hotkey owners.
-Configuration is layered: code defaults, then the shipped [`config.default.toml`](wisper/config.default.toml), then
+Configuration is layered: code defaults, then the shipped [`config.default.toml`](hams/config.default.toml), then
 the user file. More detail: [docs/architecture.md](docs/architecture.md).
 
 ## Measured results
 
 All numbers come from the thesis measurements (RTX 5070, Ryzen 7 9800X3D, Windows 11, Whisper `turbo` on CUDA,
-cleanup with `qwen2.5:7b`). Methodology, limitations and raw tables: [docs/evaluation.md](docs/evaluation.md).
+cleanup with `qwen2.5:7b`, the model used at the time; today's default is `qwen3.5:9b`). Methodology, limitations and raw tables: [docs/evaluation.md](docs/evaluation.md).
 
 | Metric | Before | After | Change |
 |---|---:|---:|---:|
@@ -85,7 +85,7 @@ of the wait was a *refused IPv6 connection*. `localhost` resolved to `::1` first
 Windows spent about 2 s before falling back. Addressing `127.0.0.1` directly fixed it; switching to a smaller model
 would have saved just 0.38 s.
 
-Other findings from the WER benchmark (`tools/wer_messung.py`, 80 synthetic samples, clean and at 20/10/5 dB SNR):
+Other findings from the WER benchmark (`tools/wer_benchmark.py`, 80 synthetic samples, clean and at 20/10/5 dB SNR):
 
 - `int8_float16` matched `float16` on WER (both 12.90 %) and was 8 % faster. `float16` stayed the default as a
   precaution.
@@ -117,16 +117,18 @@ install with hashes: `pip install --require-hashes -r requirements.txt` and then
 | `Ctrl+Shift+Space` | Dictation | record → Whisper → LLM cleanup → paste |
 | `Ctrl+Shift+Alt+Space` | Prompt | record → Whisper → LLM answer → paste |
 
-Press the same hotkey again to stop recording. Autostart: `python wisper/setup_autostart.py` (remove with `--remove`).
+Press the same hotkey again to stop recording. Autostart: `python hams/setup_autostart.py` (remove with `--remove`). It registers
+`scripts/start_hams.vbs`, which starts Hams without a console window. `scripts/build_launcher.cmd` builds an
+optional `Hams.exe` that opens the settings of the running instance.
 
 <details>
 <summary><b>Linux (Kubuntu / KDE Plasma on Wayland)</b></summary>
 
 ```bash
-sudo bash linux/system-einrichten.sh        # once: Tk, audio, clipboard, NVIDIA driver, uinput permission; then reboot
+sudo bash linux/setup-system.sh             # once: Tk, audio, clipboard, NVIDIA driver, uinput permission; then reboot
 uv venv --system-site-packages --python /usr/bin/python3 .venv
 uv pip install --python .venv/bin/python -e ".[cuda,dev]"
-.venv/bin/python wisper/setup_autostart.py  # start-menu entry and autostart
+.venv/bin/python hams/setup_autostart.py    # start-menu entry and autostart
 ```
 
 | | Windows | Linux |
@@ -134,15 +136,16 @@ uv pip install --python .venv/bin/python -e ".[cuda,dev]"
 | Global hotkeys | `RegisterHotKey` | XDG Desktop Portal `GlobalShortcuts` (KDE asks once) |
 | Paste | `keyboard` library | own virtual keyboard via `/dev/uinput` (Wayland blocks synthetic input otherwise) |
 | Sound | `winsound` | soft synthesised chime via `sounddevice` |
-| Config | `%APPDATA%\Wisper\config.toml` | `~/.config/Wisper/config.toml` |
+| Config | `%APPDATA%\Hams\config.toml` | `~/.config/hams/config.toml` (or `$XDG_CONFIG_HOME/hams`) |
 | Autostart | registry `Run` key | `~/.config/autostart` + systemd user service |
+| Bring to front | tray icon | `linux/show-hams.sh` (bind it to a key or panel button) |
 
 </details>
 
 ## Configuration
 
 Everything can be changed in the settings window or in `config.toml`. All defaults are documented in
-[`wisper/config.default.toml`](wisper/config.default.toml).
+[`hams/config.default.toml`](hams/config.default.toml).
 
 | Section | Key | Purpose |
 |---|---|---|
@@ -152,20 +155,23 @@ Everything can be changed in the settings window or in `config.toml`. All defaul
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
 
-The cleanup prompt is in [`wisper/prompts/cleanup.txt`](wisper/prompts/cleanup.txt). The glossary
-([`glossar.default.toml`](wisper/glossar.default.toml)) is copied next to your config on first start.
+The cleanup prompt is in [`hams/prompts/cleanup.txt`](hams/prompts/cleanup.txt). The glossary
+([`glossar.default.toml`](hams/glossar.default.toml)) is copied next to your config on first start.
+
+Upgrading from a version that still used the old working title *Wisper*: on first start Hams copies
+`%APPDATA%\Wisper` (Linux: `~/.config/Wisper`) to the new folder. The old folder is left untouched.
 
 ## Development
 
 ```powershell
 pip install --require-hashes -r requirements-dev.txt
 pip install --no-deps -e .
-pytest tests --cov=wisper     # about 1,600 tests; Tk tests open real windows
+pytest tests --cov=hams       # about 1,600 tests; Tk tests open real windows
 ruff check . ; ruff format --check .
 ```
 
 ```
-wisper/
+hams/
 ├── main.py              entry point: config, single instance, Tk root
 ├── app.py               main window, composed from the mixins below
 ├── recording.py         microphone → audio buffer, level meter (dBFS)
@@ -179,7 +185,9 @@ wisper/
 ├── settings_*.py        settings window, sections, live status, model manager
 ├── config*.py           layered TOML config, validation, persistence
 └── ui_kit/              a small design system for tkinter (theme, DPI scaling, controls, icons)
-tools/wer_messung.py     reproducible WER and latency benchmark (needs GPU and Windows TTS)
+scripts/                 Windows start script and settings launcher
+linux/                   system setup and bring-to-front helper for Linux
+tools/wer_benchmark.py   reproducible WER and latency benchmark (needs GPU and Windows TTS)
 ```
 
 The codebase is about 10.5k lines of application code and 12k lines of tests. CI rules: no function with a
@@ -192,8 +200,8 @@ modules above, ported to Linux/Wayland and hardened for daily use: standby-proof
 hash-locked dependencies. The commit history from that point on is preserved here, and
 [CHANGELOG.md](CHANGELOG.md) lists the user-visible changes.
 
-The internal package is still called `wisper` (the working title). The `wisper` command remains available as an
-alias for `hams`.
+The working title was *Wisper*; the package, the config folder and all other identifiers are now called
+`hams`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup.
 
 ## Roadmap
 

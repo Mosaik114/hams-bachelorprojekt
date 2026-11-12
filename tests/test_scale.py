@@ -4,7 +4,7 @@ import tkinter as tk
 
 import pytest
 
-from wisper import ui_kit as uk
+from hams import ui_kit as uk
 
 
 @pytest.fixture
@@ -140,8 +140,8 @@ class TestFonts:
 
     def test_roles_are_named_fonts(self, root):
         uk.init_fonts(root)
-        assert uk.font("row_title").name == "WisperFont_row_title"
-        assert uk.font("icon").name == "WisperFont_icon"
+        assert uk.font("row_title").name == "HamsFont_row_title"
+        assert uk.font("icon").name == "HamsFont_icon"
 
     def test_existing_widget_grows_with_dpi(self, root):
         """Der eigentliche Zweck benannter Fonts: bestehende Widgets wachsen mit."""

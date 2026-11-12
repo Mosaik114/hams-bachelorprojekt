@@ -11,9 +11,9 @@ import urllib.request
 
 import pytest
 
-from wisper import config as config_mod
-from wisper.app import FloatingTranscriberApp
-from wisper.transcription import plain_text
+from hams import config as config_mod
+from hams.app import FloatingTranscriberApp
+from hams.transcription import plain_text
 
 
 class TestBold:

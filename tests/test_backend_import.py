@@ -38,8 +38,8 @@ def _in_a_fresh_interpreter(code: str, tmp_path: Path) -> dict:
         # aufloesen und legt einen Ordner namens "%SystemDrive%" im Projekt an.
         env={
             **os.environ,
-            "WISPER_CONFIG": str(tmp_path / "config.toml"),
-            "WISPER_LOG_DIR": str(tmp_path / "logs"),
+            "HAMS_CONFIG": str(tmp_path / "config.toml"),
+            "HAMS_LOG_DIR": str(tmp_path / "logs"),
             "PYTHONIOENCODING": "utf-8",
         },
         capture_output=True,
@@ -55,7 +55,7 @@ class TestDerStartZiehtTorchNichtMit:
         bericht = _in_a_fresh_interpreter(
             """
             import json, sys
-            import wisper.main
+            import hams.main
             print(json.dumps({
                 "torch": "torch" in sys.modules,
                 "transformers": "transformers" in sys.modules,
@@ -73,7 +73,7 @@ class TestDerStartZiehtTorchNichtMit:
         bericht = _in_a_fresh_interpreter(
             """
             import json, sys
-            from wisper.backend_preload import preload_backend_without_torch
+            from hams.backend_preload import preload_backend_without_torch
             ohne_torch = preload_backend_without_torch()
             from faster_whisper import WhisperModel
             print(json.dumps({
@@ -95,7 +95,7 @@ class TestDerStartZiehtTorchNichtMit:
         bericht = _in_a_fresh_interpreter(
             """
             import json, sys
-            from wisper.backend_preload import preload_backend_without_torch
+            from hams.backend_preload import preload_backend_without_torch
             erst = preload_backend_without_torch()
             dann = preload_backend_without_torch()
             print(json.dumps({"erst": erst, "dann": dann,
@@ -124,7 +124,7 @@ class TestWennDieSperreNichtTraegt:
             """
             import json, sys
             sys.path.insert(0, ".")
-            from wisper import backend_preload as models
+            from hams import backend_preload as models
             models._AbgeschalteteImporte.__init__ = (
                 lambda self, *n: object.__setattr__(self, "_namen",
                                                     frozenset(n) | {"ctranslate2"}))
@@ -161,7 +161,7 @@ class TestDieCudaBibliothekenBleibenErreichbar:
     """
 
     def test_a_directory_is_registered(self):
-        from wisper.backend_preload import add_cuda_libraries
+        from hams.backend_preload import add_cuda_libraries
 
         ordner = add_cuda_libraries()
         if not ordner:
@@ -170,7 +170,7 @@ class TestDieCudaBibliothekenBleibenErreichbar:
 
     def test_the_registered_directories_hold_libraries(self):
         """Ein leeres Verzeichnis anzumelden waere ein stiller Fehlschlag."""
-        from wisper.backend_preload import add_cuda_libraries
+        from hams.backend_preload import add_cuda_libraries
 
         ordner = add_cuda_libraries()
         if not ordner:
@@ -185,7 +185,7 @@ class TestDieCudaBibliothekenBleibenErreichbar:
         Die Reihenfolge ist der Unterschied zwischen einer 1,9 GB und einer
         6,6 GB grossen Installation.
         """
-        from wisper.backend_preload import CUDA_LIBRARY_PACKAGES
+        from hams.backend_preload import CUDA_LIBRARY_PACKAGES
 
         namen = [paket for paket, _ in CUDA_LIBRARY_PACKAGES]
         assert namen.index("nvidia.cublas") < namen.index("torch")
@@ -197,7 +197,7 @@ class TestDieCudaBibliothekenBleibenErreichbar:
             """
             import ctypes, glob, json, os, sys
             sys.path.insert(0, ".")
-            from wisper.backend_preload import preload_backend_without_torch
+            from hams.backend_preload import preload_backend_without_torch
             ohne_torch = preload_backend_without_torch()
             import importlib.util
             spec = importlib.util.find_spec("torch")
@@ -234,7 +234,7 @@ class TestDieCudaBibliothekenBleibenErreichbar:
             """
             import ctypes, importlib.util, json, sys
             sys.path.insert(0, ".")
-            from wisper.backend_preload import preload_backend_without_torch
+            from hams.backend_preload import preload_backend_without_torch
             preload_backend_without_torch()
             # erst das Elternpaket: find_spec("nvidia.cublas") wirft, wenn es "nvidia" gar nicht gibt
             vorhanden = importlib.util.find_spec("nvidia") is not None and (

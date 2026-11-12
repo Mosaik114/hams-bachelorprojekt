@@ -11,9 +11,9 @@ wird auf `127.0.0.1` gelegt, und sonst wird an keiner Adresse etwas geaendert.
 
 import pytest
 
-from wisper import ollama as ollama_api
-from wisper.config import Config, _apply_toml, ipv4_loopback
-from wisper.config_validation import ollama_url_problem
+from hams import ollama as ollama_api
+from hams.config import Config, _apply_toml, ipv4_loopback
+from hams.config_validation import ollama_url_problem
 
 
 class TestLocalhostWirdUmgelegt:
@@ -119,7 +119,7 @@ class TestDiktateBleibenImHaus:
 
     def test_a_refused_address_is_not_used(self, caplog):
         cfg = Config()
-        with caplog.at_level("WARNING", logger="wisper"):
+        with caplog.at_level("WARNING", logger="hams"):
             _apply_toml(cfg, {"ollama": {"url": "http://192.168.1.5:11434/api/generate"}})
         assert cfg.ollama_url == Config().ollama_url
         assert "must use https" in caplog.text

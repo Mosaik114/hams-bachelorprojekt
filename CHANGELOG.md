@@ -3,6 +3,26 @@
 All notable changes to Hams. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions
 follow [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Renamed from the working title *Wisper* to Hams everywhere.** The Python package is now `hams` (`python -m hams.main`,
+  `hams/setup_autostart.py`); the `wisper` command alias is gone, use `hams`.
+- **User data moved** to `%APPDATA%\Hams` (Windows) and `~/.config/hams` (Linux). On first start, an existing
+  `Wisper` folder is copied there once; the old folder is never moved or deleted.
+- The single-instance lock is now named after Hams. Hams also holds the old `Wisper` lock, so an older installation
+  and Hams never run at the same time.
+- The Windows autostart entry is now called `Hams`; setting it up replaces an old `Wisper` entry, `--remove` deletes
+  both. The log file is now `hams.log`; the test overrides are `HAMS_CONFIG` and `HAMS_LOG_DIR`.
+- Helper scripts moved and got English names: `scripts/start_hams.vbs`, `scripts/build_launcher.cmd`,
+  `scripts/launch_hams.cs`, `linux/setup-system.sh`, `linux/show-hams.sh`, `tools/wer_benchmark.py`,
+  `coverage-windows.ini`. Re-run `hams/setup_autostart.py` so autostart points to the new start script.
+- The documented default Ollama model is `qwen3.5:9b` everywhere; the evaluation states that it measured
+  `qwen2.5:7b`.
+
+### Added
+- `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
+
 ## [1.0.0] – 2026-11-12
 
 First public release as a standalone repository. Earlier development took place inside a private monorepo; its

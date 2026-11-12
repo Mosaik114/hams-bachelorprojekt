@@ -14,11 +14,11 @@ from pathlib import Path
 
 import pytest
 
-from wisper import app as app_mod
-from wisper import config as config_mod
-from wisper import instance as instance_mod
-from wisper.app import FloatingTranscriberApp
-from wisper.settings_window import SettingsWindow
+from hams import app as app_mod
+from hams import config as config_mod
+from hams import instance as instance_mod
+from hams.app import FloatingTranscriberApp
+from hams.settings_window import SettingsWindow
 
 App = FloatingTranscriberApp
 
@@ -50,21 +50,21 @@ windows_only = pytest.mark.skipif(sys.platform != "win32", reason="benanntes Mut
 
 class TestMutex:
     def test_releasing_nothing_succeeds(self, monkeypatch):
-        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", None)
+        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
         assert instance_mod._release_single_instance_mutex() is True
 
     @windows_only
     def test_releasing_closes_the_handle_and_forgets_it(self, monkeypatch):
         geschlossen = []
-        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", 4711)
+        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (4711,))
         monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: geschlossen.append(h) or 1)
         assert instance_mod._release_single_instance_mutex() is True
         assert geschlossen == [4711]
-        assert instance_mod._MUTEX_HANDLE is None
+        assert instance_mod._MUTEX_HANDLES is None
 
     @windows_only
     def test_releasing_twice_is_harmless(self, monkeypatch):
-        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", 4711)
+        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (4711,))
         monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: 1)
         assert instance_mod._release_single_instance_mutex() is True
         assert instance_mod._release_single_instance_mutex() is True
@@ -76,9 +76,88 @@ class TestMutex:
         def _kaputt(_handle):
             raise OSError("geht nicht")
 
-        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", 4711)
+        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (4711,))
         monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", _kaputt)
         assert instance_mod._release_single_instance_mutex() is False
+
+    @windows_only
+    def test_releasing_closes_every_handle(self, monkeypatch):
+        geschlossen = []
+        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (11, 12))
+        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: geschlossen.append(h) or 1)
+        assert instance_mod._release_single_instance_mutex() is True
+        assert geschlossen == [11, 12]
+
+
+class _FakeKernel32:
+    """Benannte Mutexe ohne Betriebssystem: kein Test fasst die echten Namen an."""
+
+    def __init__(self, held=()):
+        self.held = set(held)
+        self.opened = {}
+        self.closed = []
+        self._last_error = 0
+        self._next = 100
+
+    def CreateMutexW(self, _security, _owner, name):
+        self._next += 1
+        self._last_error = instance_mod.ERROR_ALREADY_EXISTS if name in self.held else 0
+        self.held.add(name)
+        self.opened[self._next] = name
+        return self._next
+
+    def GetLastError(self):
+        return self._last_error
+
+    def CloseHandle(self, handle):
+        self.closed.append(handle)
+        return 1
+
+
+@pytest.fixture
+def kernel32(monkeypatch):
+    fake = _FakeKernel32()
+    monkeypatch.setattr(instance_mod, "_kernel32", lambda: fake)
+    monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
+    return fake
+
+
+class TestLegacyInstanceName:
+    """Hams und eine noch installierte Fassung aus der Wisper-Zeit laufen nie gleichzeitig."""
+
+    def test_the_new_name_is_hams(self):
+        assert "Hams" in instance_mod.MUTEX_NAME
+        assert "Wisper" in instance_mod.LEGACY_MUTEX_NAME
+
+    def test_both_names_are_held(self, kernel32):
+        assert instance_mod._acquire_windows() is not None
+        assert set(kernel32.opened.values()) == {instance_mod.MUTEX_NAME, instance_mod.LEGACY_MUTEX_NAME}
+        assert kernel32.closed == []
+
+    def test_a_running_old_instance_blocks_the_start(self, kernel32):
+        kernel32.held.add(instance_mod.LEGACY_MUTEX_NAME)
+        assert instance_mod._acquire_windows() is None
+
+    def test_a_running_hams_blocks_the_start(self, kernel32):
+        kernel32.held.add(instance_mod.MUTEX_NAME)
+        assert instance_mod._acquire_windows() is None
+
+    def test_a_failed_start_gives_everything_back(self, kernel32):
+        """Sonst hielte der scheiternde Prozess bis zu seinem Ende den neuen Namen fest."""
+        kernel32.held.add(instance_mod.LEGACY_MUTEX_NAME)
+        instance_mod._acquire_windows()
+        assert sorted(kernel32.closed) == sorted(kernel32.opened)
+
+    @windows_only
+    def test_acquiring_keeps_every_handle(self, kernel32):
+        assert instance_mod._acquire_single_instance_mutex() == 101
+        assert instance_mod._MUTEX_HANDLES == (101, 102)
+
+    @windows_only
+    def test_a_refused_start_keeps_nothing(self, kernel32):
+        kernel32.held.add(instance_mod.MUTEX_NAME)
+        assert instance_mod._acquire_single_instance_mutex() is None
+        assert instance_mod._MUTEX_HANDLES is None
 
 
 # ------------------------------------------------------------------ Neustart
@@ -124,7 +203,7 @@ def app(monkeypatch):
     monkeypatch.setattr(App, "_flush_position", lambda self: _flush())
     monkeypatch.setattr(App, "_release_resources", lambda self: _release())
     monkeypatch.setattr(App, "downloading_model", property(lambda self: None))
-    monkeypatch.setattr(instance_mod, "_MUTEX_HANDLE", None)
+    monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
     return instanz
 
 
@@ -147,7 +226,7 @@ class TestRestartUnderTheService:
     Dienststopp mit beendet."""
 
     def test_no_successor_is_started(self, app, popen, monkeypatch):
-        from wisper import linux
+        from hams import linux
 
         monkeypatch.setattr(linux, "under_systemd", lambda: True)
         monkeypatch.setattr(linux, "restart_requested", False)
@@ -156,7 +235,7 @@ class TestRestartUnderTheService:
         assert linux.restart_requested is True
 
     def test_the_service_restarts_on_the_agreed_code(self):
-        from wisper import linux
+        from hams import linux
 
         unit = linux.service_unit("/py", "/main.py")
         assert "Restart=on-failure" in unit

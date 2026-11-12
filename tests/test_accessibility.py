@@ -12,10 +12,10 @@ import tkinter as tk
 
 import pytest
 from conftest import fokus_erzwingen
-from source_code import WISPER, module_files
+from source_code import PACKAGE_DIR, module_files
 
-from wisper import ui_kit as uk
-from wisper.ui_kit import (
+from hams import ui_kit as uk
+from hams.ui_kit import (
     ControlStyle,
     IconButton,
     Option,
@@ -433,7 +433,7 @@ class TestGreyscale:
         assert parameter["text"].default is inspect.Parameter.empty, "SettingRow.set_status muss Text mitfuehren"
 
     def test_a_download_shows_numbers_not_only_a_bar(self):
-        from wisper.settings_window import SettingsWindow as SW
+        from hams.settings_window import SettingsWindow as SW
 
         text = SW.download_text("Tiny", 13_000_000, 78_000_000, 17)
         assert "17 %" in text and "13/78 MB" in text
@@ -564,7 +564,7 @@ class TestLanguage:
         assert not offenders, "\n".join(offenders)
 
     def test_the_window_titles_are_german(self):
-        from wisper.settings_window import SettingsWindow as SW
+        from hams.settings_window import SettingsWindow as SW
 
         assert "Einstellungen" in SW.MODEL_HINT or SW.MODEL_HINT
         assert SW.MODEL_HINT == "Tempo und Genauigkeit"
@@ -574,9 +574,9 @@ class TestNoLegacyGlyphs:
     #: Zeichen, die frueher als Ersatz fuer echte Icons dienten.
     GLYPHS = ["⚙", "⌄", "✕", "▾", "▼", "●", "✔"]
 
-    @pytest.mark.parametrize("path", [path.relative_to(WISPER).as_posix() for path in module_files()])
+    @pytest.mark.parametrize("path", [path.relative_to(PACKAGE_DIR).as_posix() for path in module_files()])
     def test_no_glyph_hacks_left(self, path):
-        source = (WISPER / path).read_text(encoding="utf-8")
+        source = (PACKAGE_DIR / path).read_text(encoding="utf-8")
         lines = [line for line in source.splitlines() if not line.lstrip().startswith("#")]
         body = "\n".join(lines)
         present = [glyph for glyph in self.GLYPHS if glyph in body]
@@ -584,8 +584,8 @@ class TestNoLegacyGlyphs:
 
     def test_the_download_marker_is_a_deliberate_character(self):
         """Der Pfeil vor der Groesse ist Text, kein Icon-Ersatz — und bleibt."""
-        from wisper import models
-        from wisper.settings_window import SettingsWindow as SW
+        from hams import models
+        from hams.settings_window import SettingsWindow as SW
 
         window = object.__new__(SW)
         window._installed_models = {"turbo"}

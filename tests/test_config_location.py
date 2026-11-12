@@ -2,7 +2,7 @@
 
 Keiner dieser Tests fasst die echte Konfiguration des Nutzers an: `CONFIG_PATH`
 und die beiden Quellpfade werden je Test auf ein temporäres Verzeichnis
-umgehängt. Die Suite als Ganzes läuft ausserdem mit `WISPER_CONFIG` auf einem
+umgehängt. Die Suite als Ganzes läuft ausserdem mit `HAMS_CONFIG` auf einem
 Wegwerfpfad (siehe conftest).
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 from source_code import all_source
 
-from wisper import config as config_mod
+from hams import config as config_mod
 
 TEMPLATE = """[audio]
 sample_rate = 16000
@@ -44,13 +44,15 @@ def paths(tmp_path, monkeypatch):
     """Vorlage, Altdatei und Nutzerdatei in einem Wegwerfverzeichnis."""
     template = tmp_path / "config.default.toml"
     legacy = tmp_path / "projekt" / "config.toml"
-    user = tmp_path / "appdata" / "Wisper" / "config.toml"
+    user = tmp_path / "appdata" / "Hams" / "config.toml"
+    old_dir = tmp_path / "appdata" / "Wisper"
     template.write_text(TEMPLATE, encoding="utf-8")
     legacy.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(config_mod, "DEFAULT_CONFIG_PATH", template)
     monkeypatch.setattr(config_mod, "LEGACY_CONFIG_PATH", legacy)
     monkeypatch.setattr(config_mod, "CONFIG_PATH", user)
-    return type("Paths", (), {"template": template, "legacy": legacy, "user": user})
+    monkeypatch.setattr(config_mod, "LEGACY_USER_DIR", old_dir)
+    return type("Paths", (), {"template": template, "legacy": legacy, "user": user, "old_dir": old_dir})
 
 
 # ------------------------------------------------------------------- Pfade
@@ -59,20 +61,39 @@ def paths(tmp_path, monkeypatch):
 class TestUserConfigPath:
     @pytest.mark.skipif(sys.platform != "win32", reason="Windows-Pfad")
     def test_it_lands_under_appdata(self, monkeypatch):
-        monkeypatch.delenv("WISPER_CONFIG", raising=False)
+        monkeypatch.delenv("HAMS_CONFIG", raising=False)
         monkeypatch.setenv("APPDATA", r"C:\Users\test\AppData\Roaming")
         path = config_mod._user_config_path()
-        assert path == Path(r"C:\Users\test\AppData\Roaming\Wisper\config.toml")
+        assert path == Path(r"C:\Users\test\AppData\Roaming\Hams\config.toml")
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="Windows-Pfad")
+    def test_the_old_folder_is_known_on_windows(self, monkeypatch):
+        monkeypatch.delenv("HAMS_CONFIG", raising=False)
+        monkeypatch.setenv("APPDATA", r"C:\Users\test\AppData\Roaming")
+        assert config_mod._legacy_user_dir() == Path(r"C:\Users\test\AppData\Roaming\Wisper")
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="XDG-Pfad")
+    def test_it_lands_under_xdg_config_home(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("HAMS_CONFIG", raising=False)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+        assert config_mod._user_config_path() == tmp_path / "xdg" / "hams" / "config.toml"
+        assert config_mod._legacy_user_dir() == tmp_path / "xdg" / "Wisper"
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="XDG-Pfad")
+    def test_without_xdg_it_uses_dot_config(self, monkeypatch):
+        monkeypatch.delenv("HAMS_CONFIG", raising=False)
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+        assert config_mod._user_config_path() == Path.home() / ".config" / "hams" / "config.toml"
 
     def test_the_environment_variable_wins(self, monkeypatch, tmp_path):
-        monkeypatch.setenv("WISPER_CONFIG", str(tmp_path / "eigene.toml"))
+        monkeypatch.setenv("HAMS_CONFIG", str(tmp_path / "eigene.toml"))
         assert config_mod._user_config_path() == tmp_path / "eigene.toml"
 
     def test_without_appdata_it_still_answers(self, monkeypatch):
-        monkeypatch.delenv("WISPER_CONFIG", raising=False)
+        monkeypatch.delenv("HAMS_CONFIG", raising=False)
         monkeypatch.delenv("APPDATA", raising=False)
         path = config_mod._user_config_path()
-        assert path.name == "config.toml" and "Wisper" in str(path)
+        assert path.name == "config.toml" and path.parent.name == config_mod.USER_DIR_NAME
 
     def test_the_live_path_is_not_in_the_repository(self):
         """Der eigentliche Punkt dieser Phase."""
@@ -105,13 +126,13 @@ class TestBootstrap:
 
     def test_a_blocked_place_is_reported(self, paths):
         paths.user.parent.parent.mkdir(parents=True, exist_ok=True)
-        (paths.user.parent.parent / "Wisper").write_text("keine Ablage", encoding="utf-8")
+        (paths.user.parent.parent / "Hams").write_text("keine Ablage", encoding="utf-8")
         assert config_mod.ensure_user_config() == "fehlgeschlagen"
 
     def test_nothing_falls_back_into_the_project(self, paths):
         """Persönliche Werte gehören nicht in den Programmordner."""
         paths.user.parent.parent.mkdir(parents=True, exist_ok=True)
-        (paths.user.parent.parent / "Wisper").write_text("blockiert", encoding="utf-8")
+        (paths.user.parent.parent / "Hams").write_text("blockiert", encoding="utf-8")
         before = paths.template.read_text(encoding="utf-8")
         config_mod.ensure_user_config()
         assert paths.template.read_text(encoding="utf-8") == before
@@ -143,10 +164,102 @@ class TestMigration:
         assert 'device = "meins"' in paths.user.read_text(encoding="utf-8")
 
     def test_the_old_file_is_not_deleted(self, paths):
-        """Wisper nimmt sich die Werte, raeumt aber nicht im Projektordner auf."""
+        """Hams nimmt sich die Werte, raeumt aber nicht im Projektordner auf."""
         paths.legacy.write_text(LEGACY, encoding="utf-8")
         config_mod.ensure_user_config()
         assert paths.legacy.exists()
+
+
+# ------------------------------------------------- Umzug aus dem Wisper-Ordner
+
+
+def _fill_old_dir(old_dir: Path) -> None:
+    (old_dir / "unterordner").mkdir(parents=True)
+    (old_dir / "config.toml").write_text(LEGACY, encoding="utf-8")
+    (old_dir / "glossar.toml").write_text('[begriffe]\n"hams" = "Hams"\n', encoding="utf-8")
+    (old_dir / "unterordner" / "notiz.txt").write_text("bleibt", encoding="utf-8")
+
+
+def _snapshot(folder: Path) -> dict:
+    return {p.relative_to(folder).as_posix(): p.read_bytes() for p in folder.rglob("*") if p.is_file()}
+
+
+class TestLegacyFolderMigration:
+    def test_the_old_folder_is_copied_on_first_start(self, paths):
+        _fill_old_dir(paths.old_dir)
+        assert config_mod.ensure_user_config() == "migriert"
+        assert paths.user.read_text(encoding="utf-8") == LEGACY
+        assert _snapshot(paths.user.parent) == _snapshot(paths.old_dir)
+
+    def test_the_old_folder_stays_untouched(self, paths):
+        """Kopieren, nie verschieben: eine aeltere Fassung liest dort weiter."""
+        _fill_old_dir(paths.old_dir)
+        before = _snapshot(paths.old_dir)
+        config_mod.ensure_user_config()
+        config_mod._persist_config_value("audio", "device", "Yeti")
+        assert _snapshot(paths.old_dir) == before
+
+    def test_it_is_logged(self, paths, caplog):
+        _fill_old_dir(paths.old_dir)
+        with caplog.at_level("INFO", logger="hams"):
+            config_mod.ensure_user_config()
+        assert any("kopiert" in record.getMessage() for record in caplog.records)
+
+    def test_an_existing_new_folder_wins(self, paths):
+        _fill_old_dir(paths.old_dir)
+        paths.user.parent.mkdir(parents=True)
+        assert config_mod.migrate_legacy_user_dir(paths.user.parent, paths.old_dir) is False
+        assert config_mod.ensure_user_config() == "angelegt"
+        assert paths.user.read_text(encoding="utf-8") == TEMPLATE
+
+    def test_it_happens_only_once(self, paths):
+        _fill_old_dir(paths.old_dir)
+        config_mod.ensure_user_config()
+        paths.user.write_text("# inzwischen geaendert\n", encoding="utf-8")
+        assert config_mod.ensure_user_config() == "vorhanden"
+        assert paths.user.read_text(encoding="utf-8") == "# inzwischen geaendert\n"
+
+    def test_without_an_old_folder_nothing_happens(self, paths):
+        assert config_mod.migrate_legacy_user_dir(paths.user.parent, paths.old_dir) is False
+        assert not paths.user.parent.exists()
+
+    def test_without_a_known_old_folder_nothing_happens(self, paths):
+        assert config_mod.migrate_legacy_user_dir(paths.user.parent, None) is False
+
+    def test_an_old_file_instead_of_a_folder_is_ignored(self, paths):
+        paths.old_dir.parent.mkdir(parents=True)
+        paths.old_dir.write_text("kein Ordner", encoding="utf-8")
+        assert config_mod.ensure_user_config() == "angelegt"
+
+    def test_an_old_folder_without_config_still_gets_the_template(self, paths):
+        paths.old_dir.mkdir(parents=True)
+        (paths.old_dir / "glossar.toml").write_text("[begriffe]\n", encoding="utf-8")
+        assert config_mod.ensure_user_config() == "angelegt"
+        assert paths.user.read_text(encoding="utf-8") == TEMPLATE
+        assert (paths.user.parent / "glossar.toml").exists()
+
+    def test_a_failed_copy_leaves_no_half_folder(self, paths, monkeypatch):
+        """Sonst saehe der naechste Start einen „vorhandenen" Ordner und uebernaehme nie."""
+        _fill_old_dir(paths.old_dir)
+
+        def _broken(_src, dst, **_kwargs):
+            Path(dst).mkdir(parents=True)
+            (Path(dst) / "config.toml").write_text("halb", encoding="utf-8")
+            raise OSError("Platte voll")
+
+        monkeypatch.setattr(config_mod.shutil, "copytree", _broken)
+        assert config_mod.migrate_legacy_user_dir(paths.user.parent, paths.old_dir) is False
+        assert not paths.user.parent.exists()
+        assert list(paths.user.parent.parent.iterdir()) == [paths.old_dir]
+
+    def test_a_leftover_staging_folder_is_replaced(self, paths):
+        _fill_old_dir(paths.old_dir)
+        staging = paths.user.parent.with_name(paths.user.parent.name + ".migrating")
+        staging.mkdir(parents=True)
+        (staging / "rest.txt").write_text("alt", encoding="utf-8")
+        assert config_mod.migrate_legacy_user_dir(paths.user.parent, paths.old_dir) is True
+        assert not (paths.user.parent / "rest.txt").exists()
+        assert not staging.exists()
 
 
 # --------------------------------------------------------------- Drei Ebenen
@@ -263,17 +376,17 @@ class TestResourcePaths:
         """Ausgeliefert liegt beides beim Paket — anders als die Konfiguration.
 
         Fuer das Log wird die Voreinstellung geprueft, nicht `config_mod.LOG_DIR`:
-        die Testsuite leitet es ueber `WISPER_LOG_DIR` in ein Temporaer-
+        die Testsuite leitet es ueber `HAMS_LOG_DIR` in ein Temporaer-
         verzeichnis um, damit ein Testlauf nicht in die Aufzeichnung des
         Nutzers schreibt. Ohne die Umleitung gilt weiter der Ort beim Paket.
         """
         assert config_mod.OUTPUT_DIR.parent == config_mod.APP_DIR
-        monkeypatch.delenv("WISPER_LOG_DIR", raising=False)
+        monkeypatch.delenv("HAMS_LOG_DIR", raising=False)
         assert config_mod._log_dir() == config_mod.APP_DIR / "logs"
 
     def test_the_log_can_be_moved_out_of_the_way(self, monkeypatch, tmp_path):
-        """Derselbe Ausweg wie bei WISPER_CONFIG, aus demselben Grund."""
-        monkeypatch.setenv("WISPER_LOG_DIR", str(tmp_path / "woanders"))
+        """Derselbe Ausweg wie bei HAMS_CONFIG, aus demselben Grund."""
+        monkeypatch.setenv("HAMS_LOG_DIR", str(tmp_path / "woanders"))
         assert config_mod._log_dir() == tmp_path / "woanders"
 
     def test_autostart_does_not_care_about_the_config(self):
@@ -314,10 +427,44 @@ class TestTemplateContent:
 
 class TestSuiteIsolation:
     def test_the_tests_run_against_a_throwaway_file(self):
-        override = os.environ.get("WISPER_CONFIG")
-        assert override, "conftest muss WISPER_CONFIG setzen"
+        override = os.environ.get("HAMS_CONFIG")
+        assert override, "conftest muss HAMS_CONFIG setzen"
         assert "AppData\\Roaming\\Wisper" not in override
+        assert "AppData\\Roaming\\Hams" not in override
 
     def test_the_real_user_config_is_out_of_reach(self):
-        real = Path(os.environ.get("APPDATA", "")) / "Wisper" / "config.toml"
-        assert real != config_mod.CONFIG_PATH
+        for name in ("Hams", "Wisper"):
+            real = Path(os.environ.get("APPDATA", "")) / name / "config.toml"
+            assert real != config_mod.CONFIG_PATH
+
+    def test_the_real_old_folder_is_out_of_reach(self):
+        """Mit umgeleiteter Konfiguration gibt es nichts zu uebernehmen."""
+        assert config_mod.LEGACY_USER_DIR is None
+        assert config_mod._legacy_user_dir() is None
+
+
+class TestDocumentedOllamaDefault:
+    """Ein Standardmodell, ueberall dasselbe: Code, Vorlage, README und Auswertung."""
+
+    ROOT = config_mod.APP_DIR.parent
+
+    @pytest.fixture
+    def default(self):
+        model = config_mod.Config().ollama_model_cleanup
+        assert model == config_mod.Config().ollama_model_prompt
+        return model
+
+    def test_the_template_names_it(self, default):
+        text = config_mod.DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
+        assert f"# model_transcript_cleanup = \"{default}\"" in text
+        assert f"# model_prompt_generate = \"{default}\"" in text
+        assert f"ollama pull {default}" in text
+
+    def test_the_readme_installs_it(self, default):
+        text = (self.ROOT / "README.md").read_text(encoding="utf-8")
+        assert f"ollama pull {default}" in text
+
+    def test_the_evaluation_separates_measured_and_default(self, default):
+        text = (self.ROOT / "docs" / "evaluation.md").read_text(encoding="utf-8")
+        assert f"current default cleanup and prompt model is\n`{default}`" in text
+        assert "All measurements in this document were taken with `qwen2.5:7b`" in text
