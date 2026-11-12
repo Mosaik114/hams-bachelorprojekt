@@ -236,7 +236,10 @@ class TestDieCudaBibliothekenBleibenErreichbar:
             sys.path.insert(0, ".")
             from wisper.backend_preload import preload_backend_without_torch
             preload_backend_without_torch()
-            vorhanden = importlib.util.find_spec("nvidia.cublas") is not None
+            # erst das Elternpaket: find_spec("nvidia.cublas") wirft, wenn es "nvidia" gar nicht gibt
+            vorhanden = importlib.util.find_spec("nvidia") is not None and (
+                importlib.util.find_spec("nvidia.cublas") is not None
+            )
             handle = ctypes.windll.kernel32.GetModuleHandleW("cublas64_12.dll")
             print(json.dumps({"vorhanden": vorhanden, "im_prozess": bool(handle)}))
         """,
