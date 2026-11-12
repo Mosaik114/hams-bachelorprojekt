@@ -1,40 +1,62 @@
-# Änderungen
+# Changelog
 
-Alle wichtigen Änderungen an Hams. Aufbau nach
-[Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach
-[Semantic Versioning](https://semver.org/lang/de/).
+All notable changes to Hams. Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), versions
+follow [Semantic Versioning](https://semver.org/).
 
-## [Unveröffentlicht]
+## [1.0.0] – 2026-11-12
 
-### Neu
-- Feste Paketversionen mit Prüfsumme: `requirements.txt` und `requirements-dev.txt`, erzeugt mit `pip-compile --generate-hashes`
-- CI prüft die Pakete mit `pip-audit` auf bekannte Sicherheitslücken
-- Tests für die laufende Anwendung (Start, Diktat, Einstellungsfenster); über 1500 Tests, Abdeckung 91 %
-- CI verlangt mindestens 85 % Testabdeckung
-- Prüfung der Einstellungen (`wisper/config_validation.py`) mit Warnungen im Protokoll
+First public release as a standalone repository. Earlier development took place inside a private monorepo; its
+history for Hams is preserved here.
 
-### Geändert
-- `main.py` und `ui_kit.py` in Module zerlegt (`app`, `recording`, `transcription`, `whisper_model`, `settings_*`, `ui_kit/…`)
-- Pakete mit bekannten Lücken angehoben (u. a. Pillow 12.3, pygments 2.20)
-- Bereinigungs-Prompt strenger gegen Überkorrektur
-- Standardmodell für Bereinigung und Prompt: `ministral-3:8b`
-- Protokoll: Datei ab DEBUG, Konsole ab WARNING
+### Added
+- **Glossary** (`glossary.py`, `glossar.default.toml`): words are passed to Whisper as hotwords, fixed mishearings
+  are corrected after transcription, and the LLM cleanup is told to keep those spellings. Changes apply without a
+  restart.
+- **Settings launcher** for Windows (`launch_hams.cs`, built with `build_launcher.cmd`): opens the settings of the
+  running instance, or starts Hams with the settings window.
+- Linux: native KDE title bar, `SIGUSR1` brings the window to the front (`linux/hams-zeigen.sh`), a soft chime
+  instead of a beep, and mouse-wheel scrolling in the settings.
+- Reproducible WER and latency benchmark `tools/wer_messung.py`.
+- CI on Windows and Linux (tests with an 85 % coverage gate, ruff, `pip-audit`, package build) and a gitleaks
+  secret scan.
+- English README, plus `docs/architecture.md` and `docs/evaluation.md` with the thesis measurements.
 
-### Sicherheit
-- Diktate gehen unverschlüsselt (`http://`) nur an den eigenen Rechner. Eine Ollama-Adresse auf einem anderen Rechner muss `https://` sein, sonst bleibt die Standardadresse und das Protokoll warnt.
-- Im Protokoll stehen nur Textlängen, nie der diktierte Text.
+### Changed
+- The level meter is logarithmic (dBFS). Speech from half a metre away was barely visible on the old linear scale.
+- Windows: cuBLAS and cuDNN are preloaded from the NVIDIA wheels, so the first GPU transcription no longer fails
+  without `torch`.
+- `main()` was split into smaller functions (complexity limit 10).
+- The distribution is now named `hams`, with a `hams` command; `wisper` stays as an alias.
+- Dependencies were updated to versions without known vulnerabilities (certifi, filelock, fsspec, Pillow).
 
-## [0.1.0] – erste Version
+## [0.2.0] – 2026-09-28
 
-### Neu
-- Schwebendes Fenster, immer im Vordergrund
-- Tray-Symbol mit Statusfarben
-- Globale Kurzbefehle: Strg+Shift+Leer für Diktat, Strg+Shift+Alt+Leer für Prompt
-- Aufnahme mit Pegelanzeige
-- Faster-Whisper mit CUDA
-- Ollama für Bereinigung und Prompt-Antworten
-- Einfügen über die Zwischenablage
-- Verlauf der Diktate im Tray-Menü
-- Autostart-Skript
-- Dokumentierte `config.toml`
-- Signaltöne bei Start und Stopp
+### Added
+- Linux support for Kubuntu / KDE Plasma on Wayland: hotkeys via the XDG Desktop Portal, a `uinput` virtual
+  keyboard, a systemd user service.
+- Hash-locked dependencies (`requirements.txt`, `requirements-dev.txt`), checked with `pip-audit`.
+- Tests for the running application (start, dictation, settings window): more than 1,500 tests, 91 % coverage.
+- Validation of the settings (`config_validation.py`), with warnings in the log.
+
+### Changed
+- `main.py` (≈3,400 lines) and `ui_kit.py` were split into modules (`app`, `recording`, `transcription`,
+  `whisper_model`, `settings_*`, `ui_kit/…`); no function exceeds complexity 10.
+- Hotkeys use `RegisterHotKey` instead of a keyboard hook and now survive standby.
+- The cleanup prompt is stricter against over-correction.
+- Logging goes to a file from DEBUG and to the console from WARNING.
+
+### Security
+- Dictations travel over plain HTTP only to the local machine; a remote Ollama URL must use HTTPS.
+- The log records text lengths, never the dictated text.
+
+## [0.1.0] – 2026-09-08
+
+The version evaluated in the Bachelor thesis.
+
+### Added
+- Floating always-on-top window and a tray icon with status colours.
+- Global hotkeys: Ctrl+Shift+Space for dictation, Ctrl+Shift+Alt+Space for prompt mode.
+- Recording with a level meter and start/stop sounds.
+- faster-whisper on CUDA, Ollama for cleanup and prompt answers.
+- Paste via the clipboard, a dictation history in the tray menu, and autostart.
+- A documented `config.toml`.
