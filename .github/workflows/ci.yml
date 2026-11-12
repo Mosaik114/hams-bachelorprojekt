@@ -60,11 +60,17 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      # Tk needs an X server (xvfb), sounddevice needs PortAudio
+      # Tk needs an X server (xvfb); sounddevice needs PortAudio and, through it, a running sound server.
+      # The runner has no sound card, so PulseAudio runs with a null sink.
       - name: System packages
         run: |
           sudo apt-get update -q
-          sudo apt-get install -y -q xvfb libportaudio2 libpulse0 libxkbcommon0 libdbus-1-3
+          sudo apt-get install -y -q xvfb libportaudio2 libpulse0 pulseaudio libxkbcommon0 libdbus-1-3
+      - name: Start PulseAudio (null sink)
+        run: |
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=ci_null
+          pactl info | head -5
       - name: Install dependencies
         run: |
           pip install --require-hashes -r requirements-dev.txt
