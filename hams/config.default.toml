@@ -83,5 +83,9 @@ sound_feedback = true
 # Umgestellt wird im Einstellungsfenster unter Allgemein; Hams schreibt
 # die Wahl dann in die Nutzerkonfiguration, nicht hierher.
 appearance = "light"
+# Sprache der Oberfläche / interface language: "auto", "de" oder "en".
+# "auto" folgt der Systemsprache: Deutsch auf einem deutschen System, sonst
+# Englisch. Eine Änderung gilt nach einem Neustart von Hams.
+language = "auto"
 # Die zuletzt gemerkte Fensterposition (window_x, window_y) schreibt Hams
 # selbst in die Nutzerkonfiguration — hier hat sie nichts zu suchen.

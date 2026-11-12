@@ -4,6 +4,8 @@ import ipaddress
 import urllib.parse
 from typing import Any
 
+from hams.i18n import SETTINGS as LANGUAGE_SETTINGS
+
 
 class ConfigValidationError(ValueError):
     """Raised when configuration values are invalid."""
@@ -75,4 +77,13 @@ def validate_config(cfg: Any) -> list[str]:
     if problem:
         errors.append(problem)
 
+    errors.extend(_ui_problems(cfg))
     return errors
+
+
+def _ui_problems(cfg: Any) -> list[str]:
+    """Problems in the [ui] section."""
+    language = getattr(cfg, "ui_language", "auto")
+    if language not in LANGUAGE_SETTINGS:
+        return [f"ui.language should be one of {', '.join(LANGUAGE_SETTINGS)}, got {language}"]
+    return []

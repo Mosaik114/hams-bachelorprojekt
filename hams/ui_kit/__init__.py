@@ -84,7 +84,7 @@ from hams.ui_kit.icons import (
     icon_names,
     render_icon,
 )
-from hams.ui_kit.keys import KEY_NAMES, KeyCombo, key_labels
+from hams.ui_kit.keys import KEY_MESSAGES, KeyCombo, key_labels
 from hams.ui_kit.layout import (
     GroupSurface,
     ScrollArea,

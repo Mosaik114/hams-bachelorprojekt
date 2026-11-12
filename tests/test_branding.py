@@ -12,7 +12,7 @@ import pytest
 from PIL import Image
 
 from hams import app as app_mod
-from hams import branding
+from hams import branding, i18n
 from hams import config as config_mod
 from hams import instance as instance_mod
 from hams import settings_window as settings_window_mod
@@ -36,7 +36,9 @@ class TestName:
 
     def test_the_settings_title_uses_it(self):
         source = inspect.getsource(settings_window_mod)
-        assert 'f"{branding.PRODUCT_NAME} — Einstellungen"' in source
+        assert 't("settings.window_title", product=branding.PRODUCT_NAME)' in source
+        for catalog in i18n.CATALOGS.values():
+            assert catalog["settings.window_title"].startswith("{product} — ")
 
 
 class TestAssets:
@@ -184,6 +186,9 @@ def visible_strings() -> list:
                     continue
                 if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, str):
                     found.append((path.name, keyword.value.value))
+    # Die meisten sichtbaren Texte stehen in den Meldungskatalogen.
+    for language, catalog in i18n.CATALOGS.items():
+        found.extend((f"messages_{language}.py", text) for text in catalog.values())
     return found
 
 
@@ -198,7 +203,7 @@ class TestNoOldBrandInTheInterface:
 
     def test_the_tooltip_carries_the_new_name(self):
         source = inspect.getsource(tray_mod)
-        assert "base = branding.PRODUCT_NAME" in source
+        assert "product = branding.PRODUCT_NAME" in source
 
 
 class TestRenamedFromWisper:

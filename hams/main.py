@@ -14,7 +14,7 @@ if _PROJECT_ROOT not in sys.path:
 
 import contextlib
 
-from hams import branding
+from hams import branding, i18n
 from hams import ui_kit as uk
 from hams.activation import SettingsRequests, request_settings
 from hams.app import FloatingTranscriberApp
@@ -29,7 +29,7 @@ def _second_instance(show_settings: bool) -> None:
             return
         ctypes.windll.user32.MessageBoxW(
             0,
-            "Hams bitte einmal neu starten, damit der neue Einstellungs-Starteintrag aktiv wird.",
+            i18n.t("instance.restart_for_settings", product=branding.PRODUCT_NAME),
             branding.PRODUCT_NAME,
             0x40,
         )
@@ -38,12 +38,12 @@ def _second_instance(show_settings: bool) -> None:
     if sys.platform != "win32":
         from hams import linux
 
-        linux.notify(branding.PRODUCT_NAME, f"{branding.PRODUCT_NAME} läuft bereits.")
+        linux.notify(branding.PRODUCT_NAME, i18n.t("instance.already_running", product=branding.PRODUCT_NAME))
         sys.exit(0)
     with contextlib.suppress(Exception):
         ctypes.windll.user32.MessageBoxW(
             0,
-            f"{branding.PRODUCT_NAME} läuft bereits. Überprüfe das System-Tray.",
+            i18n.t("instance.already_running_tray", product=branding.PRODUCT_NAME),
             branding.PRODUCT_NAME,
             0x40,
         )
@@ -70,6 +70,8 @@ def main(*, show_settings: bool = False) -> None:
         # die eben erst entstandene Datei mitnehmen; an Ort und Stelle, weil
         # alle Module dasselbe CFG-Objekt importiert haben
         vars(CFG).update(vars(_load_config()))
+    # Vor jedem sichtbaren Text, auch vor der Meldung an eine zweite Instanz.
+    logger.info("UI language: %s (setting %s)", i18n.set_language(CFG.ui_language), CFG.ui_language)
 
     mutex_handle = _acquire_single_instance_mutex()
     if mutex_handle is None:

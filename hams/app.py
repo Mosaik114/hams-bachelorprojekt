@@ -15,6 +15,7 @@ from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.backend import WhisperModel
 from hams.config import APP_DIR, CFG, CONFIG_PATH, logger
+from hams.i18n import Text, t
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex, restart_command
 from hams.main_window import MainWindowMixin
 from hams.recording import RecordingMixin
@@ -223,8 +224,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         """Erst ueber `RegisterHotKey` (uebersteht Standby und lange Pausen),
         nur was dort scheitert, ueber den Hook der `keyboard`-Bibliothek."""
         eintraege = (
-            (CFG.hotkey_transcript, self.toggle_recording, "Transkript"),
-            (CFG.hotkey_prompt, self.toggle_recording_generate, "Prompt"),
+            (CFG.hotkey_transcript, self.toggle_recording, "transcript"),
+            (CFG.hotkey_prompt, self.toggle_recording_generate, "prompt"),
         )
         gescheitert = self._system_hotkeys.register(
             [(combo, lambda h=handler: self._ui_call(h)) for combo, handler, _ in eintraege]
@@ -239,19 +240,17 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
             except (ValueError, KeyError) as exc:
                 logger.error("Hotkey '%s' invalid (%s): %s", combo, label, exc)
                 self._ui_call(
-                    lambda c=combo, bez=label: self._apply_state(
+                    lambda c=combo, key=label: self._apply_state(
                         "error",
-                        "Kurzbefehl nicht verfügbar",
-                        f"„{c}“ ({bez}) lässt sich nicht registrieren. Prüfe die Einstellung in {CONFIG_PATH}.",
+                        t("error.shortcut_unavailable"),
+                        t("error.shortcut_invalid", combo=c, name=t(f"shortcut.{key}"), path=CONFIG_PATH),
                     )
                 )
             except Exception:
                 logger.exception("Hotkey '%s' registration failed", combo)
                 self._ui_call(
                     lambda c=combo: self._apply_state(
-                        "error",
-                        "Kurzbefehl nicht verfügbar",
-                        f"„{c}“ konnte nicht registriert werden. Vermutlich belegt ihn ein anderes Programm.",
+                        "error", t("error.shortcut_unavailable"), t("error.shortcut_taken", combo=c)
                     )
                 )
 
@@ -282,13 +281,13 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         ein Rechner ohne laufendes Hams.
         """
         if self.is_recording:
-            return "Läuft gerade eine Aufnahme"
+            return t("restart.recording")
         if self.downloading_model is not None:
-            return "Ein Download läuft gerade"
+            return t("restart.downloading")
 
         self._flush_position()
         if not _release_single_instance_mutex():
-            return "Neustart nicht möglich"
+            return t("restart.unavailable")
 
         if sys.platform != "win32" and linux.under_systemd():
             # Der Dienst startet neu, sobald sich Hams mit dem vereinbarten Code
@@ -308,7 +307,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         except Exception:
             logger.exception("Neustart fehlgeschlagen: %s", befehl)
             _acquire_single_instance_mutex()  # Zustand zuruecknehmen
-            return "Neustart fehlgeschlagen"
+            return t("restart.failed")
 
         logger.info("Neustart angefordert: %s", befehl)
         self._shut_down()
@@ -355,28 +354,36 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
 
     # ------------------------------------------------------------------ Zustände
 
-    #: Zustand -> (Statuspunkt, Text, Buttonrolle, Buttontext, bedienbar)
-    STATE_TABLE = {
+    #: Zustand -> (Statuspunkt, Textschluessel, Buttonrolle, Buttonschluessel, bedienbar)
+    STATE_KEYS = {
         # Bedienbar, obwohl das Modell noch laedt: die Aufnahme braucht es
         # nicht (siehe `start_recording`), nur die Auswertung danach. Die
         # Statuszeile nennt den Zustand, der Knopf die moegliche Aktion.
-        "model_loading": ("idle", "Modell wird geladen …", "primary", "Aufnahme starten", True),
-        "ready": ("ready", None, "primary", "Aufnahme starten", True),
+        "model_loading": ("idle", "status.model_loading", "primary", "button.start_recording", True),
+        "ready": ("ready", None, "primary", "button.start_recording", True),
         # Waehrend der Aufnahme ist Stoppen die einzige sinnvolle Handlung —
         # deshalb eine gefuellte Flaeche in der Farbe des Zustands: rot fuer
         # Diktat, lila fuer den Prompt-Modus. Das weisse Stop-Symbol davor
         # sagt es zusaetzlich ohne Farbe.
-        "recording": ("recording", "Aufnahme läuft", "recording", "Stoppen", True),
-        "recording_prompt": ("ai", "Prompt-Modus · Aufnahme", "ai", "Stoppen", True),
+        "recording": ("recording", "status.recording", "recording", "button.stop", True),
+        "recording_prompt": ("ai", "status.recording_prompt", "ai", "button.stop", True),
         # Waehrend der Verarbeitung nennt der Button weiter die Aktion und ist
         # gesperrt; was gerade laeuft, sagt allein die Statuszeile.
-        "transcribing": ("processing", "Transkribiere …", "secondary", "Aufnahme starten", False),
-        "cleaning": ("processing", "Bereinige Text …", "secondary", "Aufnahme starten", False),
-        "generating": ("ai", "Generiere Antwort …", "secondary", "Aufnahme starten", False),
-        "done": ("ready", "Eingefügt", "primary", "Aufnahme starten", True),
-        "error": ("error", None, "secondary", "Erneut versuchen", True),
-        "no_signal": ("warning", "Kein Mikrofonsignal", "primary", "Aufnahme starten", True),
+        "transcribing": ("processing", "status.transcribing", "secondary", "button.start_recording", False),
+        "cleaning": ("processing", "status.cleaning", "secondary", "button.start_recording", False),
+        "generating": ("ai", "status.generating", "secondary", "button.start_recording", False),
+        "done": ("ready", "status.done", "primary", "button.start_recording", True),
+        "error": ("error", None, "secondary", "button.retry", True),
+        "no_signal": ("warning", "status.no_signal", "primary", "button.start_recording", True),
     }
+
+    #: Dieselbe Tabelle mit den Texten der aktiven Sprache (beim Zugriff uebersetzt).
+    STATE_TABLE = Text(
+        lambda: {
+            state: (dot, t(text) if text else None, role, t(button), enabled)
+            for state, (dot, text, role, button, enabled) in FloatingTranscriberApp.STATE_KEYS.items()
+        }
+    )
 
     RECORDING_STATES = ("recording", "recording_prompt")
 
@@ -401,7 +408,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
             label = text
         elif state == "ready":
             info = whisper_models.find(CFG.model_size)
-            label = f"Bereit · {info.label if info else CFG.model_size}"
+            label = t("status.ready", model=info.label if info else CFG.model_size)
         else:
             label = ""
         self.status_label.config(text=label)

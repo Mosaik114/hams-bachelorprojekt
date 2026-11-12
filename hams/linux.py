@@ -23,6 +23,8 @@ import time
 from functools import cache
 from pathlib import Path
 
+from hams.i18n import t_for
+
 logger = logging.getLogger("hams")
 
 IS_LINUX = sys.platform.startswith("linux")
@@ -73,7 +75,7 @@ def service_unit(python: str, main_py: str) -> str:
         "\n".join(
             [
                 "[Unit]",
-                "Description=Hams (Sprache zu Text)",
+                "Description=Hams (speech to text)",
                 "PartOf=graphical-session.target",
                 "After=graphical-session.target",
                 "",
@@ -396,14 +398,14 @@ class _KeyboardShim:
     def send(self, combo: str) -> None:
         keys = self._COMBOS.get(combo.replace(" ", "").lower())
         if keys is None:
-            raise ValueError(f"Unbekannte Tastenkombination: {combo}")
+            raise ValueError(f"Unknown key combination: {combo}")
         if not KEYBOARD.press_combo(*keys):
             logger.warning("Einfuegen nicht moeglich (%s) — Text liegt in der Zwischenablage", KEYBOARD.error)
 
     def add_hotkey(self, combo: str, _callback) -> None:
         # Nur der Rueckfall, wenn das Portal eine Kombination ablehnt; unter
         # Wayland gibt es keinen zweiten Weg.
-        raise ValueError(f"„{combo}“: unter Wayland nur ueber das Portal moeglich")
+        raise ValueError(f"{combo!r}: under Wayland only the portal can register shortcuts")
 
     def unhook_all_hotkeys(self) -> None:
         pass
@@ -429,7 +431,8 @@ def desktop_entry(exec_line: str, icon: str) -> str:
                 "[Desktop Entry]",
                 "Type=Application",
                 "Name=Hams",
-                "Comment=Sprache zu Text: diktieren und an der Cursorposition einfügen",
+                f"Comment={t_for('en', 'linux.desktop_comment')}",
+                f"Comment[de]={t_for('de', 'linux.desktop_comment')}",
                 f"Exec={exec_line}",
                 f"Icon={icon}",
                 "Terminal=false",

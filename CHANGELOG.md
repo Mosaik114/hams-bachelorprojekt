@@ -21,6 +21,11 @@ follow [Semantic Versioning](https://semver.org/).
   `qwen2.5:7b`.
 
 ### Added
+- **English interface.** Every visible text (main window, settings, tray menu, notifications, error messages,
+  keycaps) now comes from a message catalog in English and German. The new option `[ui] language` picks it:
+  `"auto"` (default) follows the operating system's display language, German on a German system and English
+  otherwise; `"en"` and `"de"` force a language. It can be changed under *General → Language* in the settings and
+  applies after a restart. Dictation itself is unchanged (`[transcription] language`).
 - `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
 
 ## [1.0.0] – 2026-11-12

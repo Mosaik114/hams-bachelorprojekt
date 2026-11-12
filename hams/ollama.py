@@ -17,6 +17,7 @@ import re
 import urllib.error
 import urllib.request
 
+from hams.i18n import t
 from hams.models import format_bytes
 
 logger = logging.getLogger("hams")
@@ -25,8 +26,10 @@ logger = logging.getLogger("hams")
 #: Einstellungsfensters und darf den Hintergrundthread nicht blockieren.
 TIMEOUT = 2.0
 
-#: Hinweiszeile im Popover. Kein auswählbarer Eintrag — nur eine Auskunft.
-PULL_HINT = "Weitere Modelle per ollama pull"
+
+def pull_hint() -> str:
+    """Hinweiszeile im Popover. Kein auswählbarer Eintrag — nur eine Auskunft."""
+    return t("ollama.pull_hint")
 
 
 #: Schreibweisen, die sich nicht aus dem Namen ergeben.
@@ -80,7 +83,7 @@ class OllamaModel:
         """
         parts = []
         if self.parameter_size:
-            parts.append(self.parameter_size.replace(".", ","))
+            parts.append(self.parameter_size.replace(".", t("number.decimal_separator")))
         if self.size_bytes > 0:
             parts.append(format_bytes(self.size_bytes))
         return " · ".join(parts)
@@ -173,10 +176,10 @@ def _parse_models(payload: dict) -> tuple[OllamaModel, ...]:
 def _describe_error(exc: BaseException) -> str:
     """Ein Satz für die Oberfläche, kein Stacktrace."""
     if isinstance(exc, urllib.error.HTTPError):
-        return f"Ollama antwortet mit Fehler {exc.code}"
+        return t("ollama.http_error", code=exc.code)
     if isinstance(exc, (json.JSONDecodeError, ValueError)):
-        return "Ollama antwortet unverständlich"
-    return "Ollama nicht erreichbar"
+        return t("ollama.bad_response")
+    return t("ollama.unreachable")
 
 
 def list_models(base: str, timeout: float = TIMEOUT) -> tuple[tuple[OllamaModel, ...], str]:
@@ -186,7 +189,7 @@ def list_models(base: str, timeout: float = TIMEOUT) -> tuple[tuple[OllamaModel,
     except Exception as exc:  # noqa: BLE001 - in Klartext übersetzen
         return (), _describe_error(exc)
     if not isinstance(payload, dict):
-        return (), "Ollama antwortet unverständlich"
+        return (), t("ollama.bad_response")
     return _parse_models(payload), ""
 
 

@@ -14,6 +14,7 @@ from PIL import Image, ImageTk
 from hams import branding
 from hams import ui_kit as uk
 from hams.config import logger
+from hams.i18n import t
 from hams.ui_kit import Theme
 
 #: Farben des Tray-Symbols — bewusst **fest**, nicht aus dem aktiven
@@ -96,17 +97,16 @@ class TrayMixin:
         self.root.iconphoto(True, self._tk_icon)
 
     def _tray_tooltip(self) -> str:
-        base = branding.PRODUCT_NAME
+        product = branding.PRODUCT_NAME
         if not self.model_ready.is_set():
-            return f"{base} — Modell lädt"
+            return t("tray.tooltip.loading", product=product)
         if self.is_recording:
-            mode = "Prompt-Modus" if self._prompt_mode else "Aufnahme"
-            return f"{base} — {mode}"
+            return t("tray.tooltip.prompt" if self._prompt_mode else "tray.tooltip.recording", product=product)
         with self._history_lock:
             last = self._history[0] if self._history else None
         if last is not None:
-            return f"{base} — zuletzt: {last[1]}"
-        return f"{base} — bereit"
+            return t("tray.tooltip.last", product=product, preview=last[1])
+        return t("tray.tooltip.ready", product=product)
 
     def _update_tray_tooltip(self) -> None:
         if hasattr(self, "tray_icon"):
@@ -147,15 +147,15 @@ class TrayMixin:
                 continue
             history_items.append(pystray.MenuItem(label, self._history_action(idx)))
         if not history_items:
-            history_items.append(pystray.MenuItem("Noch keine Transkripte", None, enabled=False))
+            history_items.append(pystray.MenuItem(t("tray.history_empty"), None, enabled=False))
 
         return pystray.Menu(
-            pystray.MenuItem("Fenster zeigen oder ausblenden", self._toggle_visibility, default=True),
-            pystray.MenuItem("Einstellungen …", self._open_settings),
+            pystray.MenuItem(t("tray.toggle_window"), self._toggle_visibility, default=True),
+            pystray.MenuItem(t("tray.settings"), self._open_settings),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Letzte Transkripte", pystray.Menu(*history_items)),
+            pystray.MenuItem(t("tray.history"), pystray.Menu(*history_items)),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("Beenden", self._quit_app),
+            pystray.MenuItem(t("tray.quit"), self._quit_app),
         )
 
     def _refresh_tray(self) -> None:
@@ -180,14 +180,14 @@ class TrayMixin:
             _stamp, _preview, full = self._history[index]
         try:
             pyperclip.copy(full)
-            self._ui_call(lambda: self._apply_state("done", "Aus Verlauf kopiert"))
+            self._ui_call(lambda: self._apply_state("done", t("status.copied_from_history")))
         except pyperclip.PyperclipException:
             logger.exception("Clipboard copy from history failed")
             self._ui_call(
                 lambda: self._apply_state(
                     "error",
-                    "Zwischenablage nicht verfügbar",
-                    "Ein anderes Programm blockiert sie gerade. Versuch es erneut.",
+                    t("error.clipboard_unavailable"),
+                    t("error.clipboard_blocked"),
                 )
             )
 

@@ -6,8 +6,10 @@ CONTROL_WIDTH stehen weiter an der Klasse SettingsWindow.
 
 import tkinter as tk
 
+from hams import i18n
 from hams import ui_kit as uk
 from hams.config import CFG
+from hams.i18n import t
 from hams.ui_kit import Theme
 
 
@@ -32,21 +34,21 @@ class SectionsMixin:
         return group
 
     def _build_recording(self, master: tk.Misc) -> None:
-        group = self._group(master, "Aufnahme", first=True)
+        group = self._group(master, t("settings.section.recording"), first=True)
 
         # Geraetenamen sind lang; das Feld steht deshalb in voller Breite unter
         # Titel und Status.
-        self.row_mic = uk.SettingRow(group.body, "Mikrofon", variant="status", stacked=True)
+        self.row_mic = uk.SettingRow(group.body, t("settings.mic.title"), variant="status", stacked=True)
         self.row_mic.pack(fill="x")
         self.mic_select = uk.Select(
             group.body,
             bg_under=Theme.GROUP_SURFACE,
             on_change=self._select_device,
-            placeholder="Kein Mikrofon gefunden",
+            placeholder=t("settings.mic.none"),
         )
         self.row_mic.set_control(self.mic_select)
 
-        self.row_level = uk.SettingRow(group.body, "Eingangspegel", variant="simple", hairline=False)
+        self.row_level = uk.SettingRow(group.body, t("settings.level.title"), variant="simple", hairline=False)
         self.row_level.pack(fill="x")
         self.meter = uk.SignalMeter(group.body, bg_under=Theme.GROUP_SURFACE)
         uk.keep_logical_width(self.meter, self.CONTROL_WIDTH)
@@ -55,10 +57,10 @@ class SectionsMixin:
         self._refresh_devices()
 
     def _build_transcription(self, master: tk.Misc) -> None:
-        group = self._group(master, "Transkription")
+        group = self._group(master, t("settings.section.transcription"))
 
         self.row_model = uk.SettingRow(
-            group.body, "Whisper-Modell", variant="description", description=self.MODEL_HINT, stacked=True
+            group.body, t("settings.model.title"), variant="description", description=self.MODEL_HINT, stacked=True
         )
         self.row_model.pack(fill="x")
         self.model_select = uk.Select(group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._select_model)
@@ -68,7 +70,11 @@ class SectionsMixin:
         # eine beschriftete Schaltflaeche nimmt der Fortschrittszeile die
         # Breite, und die Zeile ist die eigentliche Rueckmeldung.
         self.cancel_button = uk.IconButton(
-            group.body, "close", self._cancel_download, bg_under=Theme.GROUP_SURFACE, tooltip="Download abbrechen"
+            group.body,
+            "close",
+            self._cancel_download,
+            bg_under=Theme.GROUP_SURFACE,
+            tooltip=t("settings.download.cancel_tooltip"),
         )
         self.cancel_button.set_hover_colour(Theme.ERROR)
         self._refresh_models()
@@ -78,7 +84,9 @@ class SectionsMixin:
         # Modell, und genau das darf man nicht loeschen. Eine Loeschung braucht
         # deshalb eine eigene Auswahl — und die erscheint nur, wenn es etwas zu
         # loeschen gibt.
-        self.row_storage = uk.SettingRow(group.body, "Gespeicherte Modelle", variant="description", description="—")
+        self.row_storage = uk.SettingRow(
+            group.body, t("settings.storage.title"), variant="description", description="—"
+        )
         self.row_storage.pack(fill="x")
         self.select_delete = uk.Select(
             group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._choose_delete, placeholder=self.DELETE_PLACEHOLDER
@@ -93,7 +101,7 @@ class SectionsMixin:
         self._delete_box.focus_ring = True  # die Knoepfe darin tragen ihn
         self.delete_button = uk.SecondaryButton(
             self._delete_box,
-            "Löschen",
+            t("settings.storage.delete"),
             self._confirm_delete,
             bg_under=Theme.GROUP_SURFACE,
             role="recording",
@@ -102,22 +110,28 @@ class SectionsMixin:
         uk.keep_logical_width(self.delete_button, self.DELETE_WIDTH)
         self.delete_button.pack(side="left")
         self.delete_cancel = uk.IconButton(
-            self._delete_box, "close", self._abort_delete, bg_under=Theme.GROUP_SURFACE, tooltip="Löschen abbrechen"
+            self._delete_box,
+            "close",
+            self._abort_delete,
+            bg_under=Theme.GROUP_SURFACE,
+            tooltip=t("settings.storage.delete_cancel_tooltip"),
         )
         self.delete_cancel.pack(side="left", padx=(uk.px(uk.Space.XS), 0))
         self._refresh_storage()
 
-        self.row_hardware = uk.SettingRow(group.body, "Hardware", variant="display", value="—", hairline=False)
+        self.row_hardware = uk.SettingRow(
+            group.body, t("settings.hardware.title"), variant="display", value="—", hairline=False
+        )
         self.row_hardware.pack(fill="x")
 
     def _build_ai(self, master: tk.Misc) -> None:
-        group = self._group(master, "KI")
+        group = self._group(master, t("settings.section.ai"))
 
         self.row_cleanup = uk.SettingRow(
             group.body,
-            "Text bereinigen",
+            t("settings.cleanup.title"),
             variant="description",
-            description="Glättet das Transkript nach jeder Aufnahme",
+            description=t("settings.cleanup.hint"),
             interactive=True,
             command=self._toggle_cleanup,
         )
@@ -130,22 +144,24 @@ class SectionsMixin:
         # Zwei getrennte Auswahlfelder, kein gemeinsames "KI-Modell": Cleanup
         # laeuft oft mit einem kleinen schnellen Modell, der Prompt-Modus mit
         # einem groesseren. Gleiches Bedienelement, getrennte Werte.
-        self.row_cleanup_model = uk.SettingRow(group.body, "Modell zum Bereinigen", variant="status", stacked=True)
+        self.row_cleanup_model = uk.SettingRow(
+            group.body, t("settings.cleanup_model.title"), variant="status", stacked=True
+        )
         self.row_cleanup_model.pack(fill="x")
         self.select_cleanup_model = uk.Select(
             group.body,
             bg_under=Theme.GROUP_SURFACE,
             value=CFG.ollama_model_cleanup,
             on_change=self._select_cleanup_model,
-            placeholder="Kein Modell",
+            placeholder=t("settings.ollama.no_model"),
         )
         self.row_cleanup_model.set_control(self.select_cleanup_model)
 
         self.row_prompt_model = uk.SettingRow(
             group.body,
-            "Modell für Prompts",
+            t("settings.prompt_model.title"),
             variant="description",
-            description="Beantwortet gesprochene Prompts",
+            description=t("settings.prompt_model.hint"),
             hairline=False,
             stacked=True,
         )
@@ -155,7 +171,7 @@ class SectionsMixin:
             bg_under=Theme.GROUP_SURFACE,
             value=CFG.ollama_model_prompt,
             on_change=self._select_prompt_model,
-            placeholder="Kein Modell",
+            placeholder=t("settings.ollama.no_model"),
         )
         self.row_prompt_model.set_control(self.select_prompt_model)
         self._refresh_ollama_models()
@@ -168,7 +184,7 @@ class SectionsMixin:
         untereinander in einer Zeile („ctrl+shift+space“). Ohne Beschriftung
         war nicht zu erkennen, welche wofuer ist.
         """
-        group = self._group(master, "Kurzbefehle")
+        group = self._group(master, t("settings.section.shortcuts"))
 
         self.shortcut_keys = {}
         for key, title, combo in self.app.shortcuts():
@@ -185,23 +201,31 @@ class SectionsMixin:
         # innen laesst sich der Hook nicht neu setzen (siehe `restart_app`),
         # ein frischer Prozess dagegen schon.
         self.row_restart = uk.SettingRow(
-            group.body, "Neustart", variant="description", description=self.RESTART_HINT, hairline=False
+            group.body,
+            t("settings.restart.title"),
+            variant="description",
+            description=self.RESTART_HINT,
+            hairline=False,
         )
         self.row_restart.pack(fill="x")
         self.restart_button = uk.SecondaryButton(
-            group.body, "Neu starten", self._restart_app, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
+            group.body,
+            t("settings.restart.button"),
+            self._restart_app,
+            bg_under=Theme.GROUP_SURFACE,
+            height=uk.Height.STANDARD,
         )
         uk.keep_logical_width(self.restart_button, self.RESTART_WIDTH)
         self.row_restart.set_control(self.restart_button)
 
     def _build_general(self, master: tk.Misc) -> None:
-        group = self._group(master, "Allgemein")
+        group = self._group(master, t("settings.section.general"))
 
         self.row_sound = uk.SettingRow(
             group.body,
-            "Signalton",
+            t("settings.sound.title"),
             variant="description",
-            description="Kurzer Ton bei Start und Stopp",
+            description=t("settings.sound.hint"),
             interactive=True,
             command=self._toggle_sound,
         )
@@ -220,7 +244,7 @@ class SectionsMixin:
         #
         # Einzeilig, ohne Unterzeile: „Hell“ und „Dunkel“ sind kurz, das Feld
         # darf neben dem Titel stehen und sagt selbst, worum es geht.
-        self.row_appearance = uk.SettingRow(group.body, "Darstellung", hairline=False)
+        self.row_appearance = uk.SettingRow(group.body, t("settings.appearance.title"))
         self.row_appearance.pack(fill="x")
         self.select_appearance = uk.Select(
             group.body,
@@ -234,3 +258,31 @@ class SectionsMixin:
         )
         uk.keep_logical_width(self.select_appearance, self.CONTROL_WIDTH)
         self.row_appearance.set_control(self.select_appearance)
+
+        # Die Sprache gilt erst nach einem Neustart: jedes offene Fenster neu
+        # aufzubauen waere viel Aufwand fuer eine seltene Wahl. Die Unterzeile
+        # sagt das, sobald die Wahl von der laufenden Sprache abweicht.
+        self.row_language = uk.SettingRow(
+            group.body,
+            t("settings.language.title"),
+            variant="description",
+            description=self.language_hint(CFG.ui_language),
+            hairline=False,
+        )
+        self.row_language.pack(fill="x")
+        self.select_language = uk.Select(
+            group.body,
+            bg_under=Theme.GROUP_SURFACE,
+            options=[uk.Option(value, t(f"language.{value}")) for value in i18n.SETTINGS],
+            value=CFG.ui_language,
+            on_change=self._select_language,
+        )
+        uk.keep_logical_width(self.select_language, self.CONTROL_WIDTH)
+        self.row_language.set_control(self.select_language)
+
+    @staticmethod
+    def language_hint(setting: str) -> str:
+        """Unterzeile der Sprachzeile: Hinweis auf den Neustart, wenn die Wahl noch nicht gilt."""
+        if i18n.resolve_language(setting) != i18n.language():
+            return t("settings.language.restart")
+        return t("settings.language.hint")

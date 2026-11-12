@@ -10,6 +10,7 @@ import tkinter as tk
 from hams import branding
 from hams import ui_kit as uk
 from hams.config import CFG, _persist_config_value, logger
+from hams.i18n import t
 from hams.ui_kit import Theme
 from hams.window_position import POSITION_SAVE_DELAY_MS
 
@@ -65,7 +66,7 @@ class MainWindowMixin:
         # --- 4. Hauptaktion ---
         self.main_button = uk.SecondaryButton(
             card,
-            "Aufnahme starten",
+            t("button.start_recording"),
             self._on_main_action,
             bg_under=Theme.WINDOW_BG,
             role="primary",
@@ -97,10 +98,10 @@ class MainWindowMixin:
         # soll der Leserichtung folgen (Zahnrad, dann Kreuz). Gepackt wird
         # umgekehrt, weil `side="right"` das zuerst gepackte ganz aussen setzt.
         self._gear_btn = uk.IconButton(
-            head, "settings", self._open_settings, bg_under=Theme.WINDOW_BG, tooltip="Einstellungen"
+            head, "settings", self._open_settings, bg_under=Theme.WINDOW_BG, tooltip=t("main.settings_tooltip")
         )
         self._close_btn = uk.IconButton(
-            head, "close", self._hide_window, bg_under=Theme.WINDOW_BG, tooltip="Fenster ausblenden"
+            head, "close", self._hide_window, bg_under=Theme.WINDOW_BG, tooltip=t("main.hide_tooltip")
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
         if not uk.system_frame():  # unter Linux hat die KDE-Titelleiste das Kreuz
@@ -177,7 +178,10 @@ class MainWindowMixin:
         Kurze Bezeichnungen mit Absicht: vier Tasten brauchen bei 100 % schon
         249 px der 320 px Innenbreite; „Prompt an KI“ passte daneben nicht mehr.
         """
-        return (("transcript", "Diktieren", CFG.hotkey_transcript), ("prompt", "Prompt", CFG.hotkey_prompt))
+        return (
+            ("transcript", t("shortcut.transcript"), CFG.hotkey_transcript),
+            ("prompt", t("shortcut.prompt"), CFG.hotkey_prompt),
+        )
 
     def _show_footer_hint(self, hint: str | None) -> None:
         """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe."""

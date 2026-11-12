@@ -66,6 +66,31 @@ def fokus_erzwingen(fenster, root, frist: float = 0.5) -> bool:
 
 
 @pytest.fixture(autouse=True)
+def ui_language():
+    """Die Oberflaeche spricht in den Tests Deutsch, unabhaengig vom System.
+
+    Viele Tests pruefen sichtbare Texte woertlich. Ohne feste Sprache hinge ihr
+    Ergebnis an der Systemsprache des Rechners (der CI-Runner ist englisch).
+    Englische Texte pruefen `test_i18n.py` und die Tests, die die Sprache
+    ausdruecklich umstellen; danach gilt wieder Deutsch.
+    """
+    from hams import i18n
+
+    i18n.set_language("de")
+    yield "de"
+    i18n.set_language("de")
+
+
+@pytest.fixture
+def english(ui_language):
+    """Schaltet die Oberflaeche fuer einen Test auf Englisch."""
+    from hams import i18n
+
+    i18n.set_language("en")
+    return "en"
+
+
+@pytest.fixture(autouse=True)
 def no_animation():
     """Animationen aus, ausser ein Test schaltet sie ausdruecklich ein.
 

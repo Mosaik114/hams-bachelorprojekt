@@ -10,6 +10,7 @@ import sounddevice as sd
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.config import CFG, _list_input_devices, _persist_config_value, _resolve_mic_device, logger
+from hams.i18n import t
 
 
 class StatusSectionMixin:
@@ -20,7 +21,7 @@ class StatusSectionMixin:
 
         Phase 12 tauscht nur das Control aus; diese Liste bleibt unverändert.
         """
-        options = [("System-Standard", None)]
+        options = [(t("settings.mic.system_default"), None)]
         options += [(pretty, pretty) for pretty, _full in _list_input_devices()]
         return options
 
@@ -29,20 +30,20 @@ class StatusSectionMixin:
         self._devices = _list_input_devices()
         selected = CFG.mic_device_raw
         if not self._devices:
-            self._device_error = "Kein Mikrofon gefunden"
+            self._device_error = t("settings.mic.none")
         elif isinstance(selected, str) and selected.strip().lower() not in ("", "default"):
             # Die Config speichert einen Teilstring des Geraetenamens, keinen
             # exakten Namen - genau so sucht auch _resolve_mic_device().
             needle = selected.strip().lower()
             found = any(needle in pretty.lower() or needle in full.lower() for pretty, full in self._devices)
-            self._device_error = "" if found else f"„{selected}“ ist nicht verbunden"
+            self._device_error = "" if found else t("settings.mic.disconnected", device=selected)
         else:
             self._device_error = ""
 
     def _current_device_label(self) -> str:
         raw = CFG.mic_device_raw
         if not (isinstance(raw, str) and raw.strip() and raw.strip().lower() != "default"):
-            return "System-Standard"
+            return t("settings.mic.system_default")
         return re.sub(r"^\d+-\s*", "", raw)
 
     def _refresh_devices(self) -> None:
@@ -148,26 +149,26 @@ class StatusSectionMixin:
         if self._device_error:
             self.row_mic.set_status("error", self._device_error)
         elif self._mon_stream is None and not self.app.is_recording:
-            self.row_mic.set_status("warning", "Gerät nicht verfügbar")
+            self.row_mic.set_status("warning", t("settings.mic.unavailable"))
         elif level < 0.015:
-            self.row_mic.set_status("error", "Kein Signal")
+            self.row_mic.set_status("error", t("settings.mic.no_signal"))
         elif level < 0.08:
-            self.row_mic.set_status("warning", "Leiser Pegel")
+            self.row_mic.set_status("warning", t("settings.mic.low"))
         else:
-            self.row_mic.set_status("ready", "Gutes Signal")
+            self.row_mic.set_status("ready", t("settings.mic.good"))
 
     def _refresh_status(self) -> None:
         if not self.alive():
             return
         app = self.app
         if app.model_error:
-            self.row_hardware.set_value("Fehler beim Laden")
+            self.row_hardware.set_value(t("settings.hardware.error"))
         elif app.model_ready.is_set():
             device = app._active_device or "?"
             label = "GPU" if device == "cuda" else device.upper()
-            self.row_hardware.set_value(f"Automatisch · {label}")
+            self.row_hardware.set_value(t("settings.hardware.auto", device=label))
         else:
-            self.row_hardware.set_value("Modell wird geladen …")
+            self.row_hardware.set_value(t("status.model_loading"))
             self.win.after(800, self._refresh_status)
 
     def _schedule_ollama_check(self) -> None:
@@ -195,12 +196,12 @@ class StatusSectionMixin:
         waere schlicht falsch.
         """
         if not self.app.ollama_checked:
-            self.row_cleanup_model.set_status("idle", "Ollama wird geprüft …")
+            self.row_cleanup_model.set_status("idle", t("settings.ollama.checking"))
             return
         state = self._ollama_state
         self.row_cleanup_model.set_status(
             "ready" if state.online else "error",
-            "Ollama erreichbar" if state.online else state.error or "Ollama nicht erreichbar",
+            t("settings.ollama.online") if state.online else state.error or t("ollama.unreachable"),
         )
 
     def _apply_ollama_state(self, state) -> None:
@@ -235,8 +236,8 @@ class StatusSectionMixin:
                 model.name,
                 ollama_api.display_name(model.name),
                 meta=model.meta,
-                group="Installierte Modelle",
-                trailing="im Speicher" if model.name in state.warm else "",
+                group=t("settings.ollama.group_installed"),
+                trailing=t("settings.ollama.in_memory") if model.name in state.warm else "",
             )
             for model in state.models
         ]
@@ -245,7 +246,7 @@ class StatusSectionMixin:
             # gespeichert: stillschweigend ein anderes zu waehlen waere eine
             # Entscheidung, die dem Nutzer gehoert.
             if state.online:
-                meta = "Nicht installiert"
+                meta = t("settings.ollama.not_installed")
             elif state.error:
                 meta = state.error
             else:
@@ -253,11 +254,15 @@ class StatusSectionMixin:
             options.insert(
                 0,
                 uk.Option(
-                    current, ollama_api.display_name(current), meta=meta, group="Installierte Modelle", enabled=False
+                    current,
+                    ollama_api.display_name(current),
+                    meta=meta,
+                    group=t("settings.ollama.group_installed"),
+                    enabled=False,
                 ),
             )
         if state.online and options:
-            options.append(uk.Option("", ollama_api.PULL_HINT, enabled=False))
+            options.append(uk.Option("", ollama_api.pull_hint(), enabled=False))
         return options
 
     def _refresh_ollama_models(self) -> None:

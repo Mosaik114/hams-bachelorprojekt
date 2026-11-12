@@ -279,12 +279,12 @@ class TestOllamaOptions:
     def test_pull_hint_is_present_but_not_selectable(self):
         options = SW.ollama_options(state_with(), "a:1b")
         hint = options[-1]
-        assert hint.label == ollama.PULL_HINT
+        assert hint.label == ollama.pull_hint()
         assert hint.enabled is False and hint.value == ""
 
     def test_no_hint_without_a_service(self):
         options = SW.ollama_options(state_with(online=False, names=()), "a:1b")
-        assert all(o.label != ollama.PULL_HINT for o in options)
+        assert all(o.label != ollama.pull_hint() for o in options)
 
     def test_no_invented_catalog(self):
         """Ollama kennt ueber diese API keine entfernten Modelle."""

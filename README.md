@@ -154,6 +154,13 @@ Everything can be changed in the settings window or in `config.toml`. All defaul
 | `[ollama]` | `cleanup_enabled`, `keep_alive`, `warmup_on_start` | `cleanup_enabled = false` pastes the raw text, the fastest option |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
+| `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
+
+The interface is available in English and German. With `language = "auto"`, Hams uses German when the operating
+system's display language is German (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and
+English otherwise. A new language applies after a restart; the settings window says so and has a *Restart* button.
+The interface language is independent of the dictation language, which `[transcription] language` sets (`"de"` by
+default).
 
 The cleanup prompt is in [`hams/prompts/cleanup.txt`](hams/prompts/cleanup.txt). The glossary
 ([`glossar.default.toml`](hams/glossar.default.toml)) is copied next to your config on first start.
@@ -184,6 +191,7 @@ hams/
 ├── linux.py             uinput paste, chime, signals, lock file
 ├── settings_*.py        settings window, sections, live status, model manager
 ├── config*.py           layered TOML config, validation, persistence
+├── i18n.py              interface language; strings in messages_en.py / messages_de.py
 └── ui_kit/              a small design system for tkinter (theme, DPI scaling, controls, icons)
 scripts/                 Windows start script and settings launcher
 linux/                   system setup and bring-to-front helper for Linux
@@ -208,7 +216,6 @@ The working title was *Wisper*; the package, the config folder and all other ide
 - Standalone Windows build (PyInstaller) so no Python installation is needed
 - Measure WER with vs. without LLM cleanup and on real (non-synthetic) speech
 - Track VRAM per process, and look into the slower Whisper model load after the CUDA preload change
-- English UI strings (the UI is German today)
 
 ## Acknowledgements and license
 

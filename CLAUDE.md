@@ -13,7 +13,8 @@ Tkinter with its own design system (`hams/ui_kit`).
   or on a separate desktop on Windows.
 - **Lint:** `ruff check . && ruff format --check .` (rules in `ruff.toml`, max complexity 10).
 - **Never restart the running app unasked.** The author dictates with it.
-- Identifiers stay in English; comments and UI strings may be German.
+- Identifiers stay in English; comments may be German. UI strings go into both catalogs `hams/messages_en.py` and
+  `hams/messages_de.py` and are looked up with `hams.i18n.t()`; the tests run with the German UI (`conftest.py`).
 - Some tests read source code with `inspect.getsource` (order of the output paths). Update those search strings when
   refactoring.
 - Keep the Windows parts (`scripts/start_hams.vbs`, `system_hotkeys.py`, `activation.py`) working. Platform

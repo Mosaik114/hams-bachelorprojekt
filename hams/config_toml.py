@@ -59,7 +59,7 @@ def _toml_setzen(text: str, section: str, key: str, value: Any) -> str:
         line_eol = original[len(bare) :] or eol
         match = key_re.match(bare)
         if match is None:  # oben bereits geprüft – kann nicht eintreten
-            raise ValueError(f"Zeile {target} passt nicht mehr zum Schlüssel")
+            raise ValueError(f"line {target} no longer matches the key")
         lines[target] = match.group(1) + rhs + _trailing_comment(match.group(2)) + line_eol
     elif section_start is not None:
         insert_at = section_end if section_end is not None else len(lines)

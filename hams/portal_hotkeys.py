@@ -262,15 +262,22 @@ class PortalSystemHotkeys(PortalHotkeys):
         super().__init__(APP_ID)
 
     def register(self, entries):
+        from hams.branding import PRODUCT_NAME
         from hams.config import CFG
+        from hams.i18n import t
 
+        # Die Kennungen bleiben deutsch: KDE ordnet gespeicherte Belegungen ueber sie zu.
         named = {
-            CFG.hotkey_transcript: ("transkript", "Hams: Diktat aufnehmen"),
-            CFG.hotkey_prompt: ("prompt", "Hams: Prompt aufnehmen"),
+            CFG.hotkey_transcript: ("transkript", t("linux.shortcut.transcript", product=PRODUCT_NAME)),
+            CFG.hotkey_prompt: ("prompt", t("linux.shortcut.prompt", product=PRODUCT_NAME)),
         }
         return super().register(
             [
-                (*named.get(combo, (f"kurzbefehl{i}", f"Hams: Kurzbefehl {i}")), combo, handler)
+                (
+                    *named.get(combo, (f"kurzbefehl{i}", t("linux.shortcut.numbered", product=PRODUCT_NAME, number=i))),
+                    combo,
+                    handler,
+                )
                 for i, (combo, handler) in enumerate(entries, start=1)
             ]
         )

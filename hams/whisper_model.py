@@ -8,6 +8,7 @@ import tkinter as tk
 from hams import models as whisper_models
 from hams.backend import WhisperModel
 from hams.config import CFG, _persist_config_value, logger
+from hams.i18n import t
 
 
 class WhisperModelMixin:
@@ -61,7 +62,7 @@ class WhisperModelMixin:
             self._apply_state(
                 "recording_prompt" if self._prompt_mode else "recording",
                 None,
-                "Das Modell lässt sich während einer Aufnahme nicht wechseln.",
+                t("hint.no_switch_while_recording"),
             )
             return False
         if self.is_switching_model:
@@ -71,7 +72,7 @@ class WhisperModelMixin:
         generation = self._model_generation
         self._switching_to = model_id
         label = whisper_models.find(model_id)
-        self._apply_state("model_loading", f"{label.label if label else model_id} wird geladen")
+        self._apply_state("model_loading", t("status.model_loading_named", model=label.label if label else model_id))
         self._start_switch_thread(model_id, generation)
         return True
 
@@ -150,7 +151,7 @@ class WhisperModelMixin:
         """
         info = whisper_models.find(model_id)
         if info is None:
-            return "Unbekanntes Modell"
+            return t("download.unknown_model")
         self.download_done = 0
         self.download_total = info.size_bytes
         self.download_percent = 0
@@ -227,6 +228,6 @@ class WhisperModelMixin:
     def _on_model_error(self) -> None:
         self._apply_state(
             "error",
-            "Modell konnte nicht geladen werden",
-            f"„{CFG.model_size}“ ließ sich weder auf GPU noch auf CPU laden. Einzelheiten stehen im Log.",
+            t("error.model_load_failed"),
+            t("error.model_load_failed_detail", model=CFG.model_size),
         )

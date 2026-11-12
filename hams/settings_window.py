@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import sounddevice as sd
 
-from hams import branding
+from hams import branding, i18n
 from hams import ui_kit as uk
 from hams.ui_kit import Theme
 
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 import contextlib
 
 from hams.config import CFG, _persist_config_value, logger
+from hams.i18n import Text, t
 from hams.settings_models import ModelSectionMixin
 from hams.settings_sections import SectionsMixin
 from hams.settings_status import StatusSectionMixin
@@ -33,12 +34,14 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
     #: Breite der Controls, die *neben* dem Text stehen (Pegel, Darstellung,
     #: Loeschauswahl). Auswahlfelder mit langen Werten stehen gestapelt darunter.
     CONTROL_WIDTH = 160  # logisch
-    MODEL_HINT = "Tempo und Genauigkeit"
-    APPEARANCE_LABELS = {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
+    MODEL_HINT = Text("settings.model.hint")
+    APPEARANCE_LABELS = Text(
+        lambda: {Theme.LIGHT: t("settings.appearance.light"), Theme.DARK: t("settings.appearance.dark")}
+    )
     #: Die Beschreibung bricht um, sie darf also ein ganzer Satz sein.
-    RESTART_HINT = "Wenn Kurzbefehle nicht reagieren"
+    RESTART_HINT = Text("settings.restart.hint")
     RESTART_WIDTH = 108  # logisch; „Neu starten" plus Luft
-    DELETE_PLACEHOLDER = "Löschen …"
+    DELETE_PLACEHOLDER = Text("settings.storage.delete_placeholder")
     DELETE_WIDTH = 88  # logisch; „Löschen" plus Luft
     #: So lange bleibt die Erfolgsmeldung stehen, bevor die Zeile wieder den
     #: Bestand zeigt.
@@ -47,7 +50,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
     def __init__(self, app: "FloatingTranscriberApp") -> None:
         self.app = app
         self.win = tk.Toplevel(app.root)
-        self.win.title(f"{branding.PRODUCT_NAME} — Einstellungen")
+        self.win.title(t("settings.window_title", product=branding.PRODUCT_NAME))
         uk.frame_window(self.win)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
@@ -178,7 +181,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
 
         title = tk.Label(
             head,
-            text="Einstellungen",
+            text=t("settings.title"),
             bg=Theme.WINDOW_BG,
             fg=Theme.TEXT_PRIMARY,
             font=uk.font("window_title"),
@@ -191,7 +194,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
             widget.bind("<B1-Motion>", self._on_drag)
 
         self._close_btn = uk.IconButton(
-            head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip="Einstellungen schließen"
+            head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip=t("settings.close_tooltip")
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
         if not uk.system_frame():  # unter Linux hat die KDE-Titelleiste das Kreuz
@@ -253,12 +256,12 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
         # abzuschalten waere bequem und falsch: sie sind unabhaengig.
         self.row_prompt_model.set_enabled(self._ollama_online)
         self.row_prompt_model.set_description(
-            "Für den Prompt-Modus" if self._ollama_online else "Ollama nicht erreichbar"
+            t("settings.prompt_model.ready") if self._ollama_online else t("ollama.unreachable")
         )
         if CFG.ollama_cleanup_enabled and not self._ollama_online:
-            self.row_cleanup.set_description("Ollama ist nicht erreichbar — Rohtext wird eingefügt")
+            self.row_cleanup.set_description(t("settings.cleanup.offline"))
         else:
-            self.row_cleanup.set_description("Bereinigt das Transkript automatisch")
+            self.row_cleanup.set_description(t("settings.cleanup.active"))
 
     def _restart_app(self) -> None:
         """Startet Hams neu — oder sagt, warum gerade nicht.
@@ -269,7 +272,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
         `restart_app` von sich aus ab.
         """
         self.restart_button.set_enabled(False)
-        self.row_restart.set_description("Wird neu gestartet …")
+        self.row_restart.set_description(t("settings.restart.running"))
         grund = self.app.restart_app()
         if grund:
             self.restart_button.set_enabled(True)
@@ -288,6 +291,15 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
             return
         _persist_config_value("ui", "appearance", mode)
         self.app.set_appearance(mode)
+
+    def _select_language(self, setting) -> None:
+        """Speichert die Sprache; sie gilt ab dem naechsten Start (siehe `language_hint`)."""
+        setting = i18n.normalise_setting(setting)
+        if setting == CFG.ui_language:
+            return
+        CFG.ui_language = setting
+        _persist_config_value("ui", "language", setting)
+        self.row_language.set_description(self.language_hint(setting))
 
     def _on_sound(self, value: bool) -> None:
         CFG.sound_feedback = value

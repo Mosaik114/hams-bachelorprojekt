@@ -21,6 +21,7 @@ else:
 from hams import glossary
 from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
+from hams.i18n import t, tn
 from hams.recording import MODEL_WAIT_SECONDS, _normalize_audio
 
 #: Ab dieser Aufnahmelaenge wird die gebatchte Auswertung benutzt.
@@ -161,7 +162,7 @@ class TranscriptionMixin:
             if show_progress and now - last_update > 0.25:
                 last_update = now
                 total_len = sum(len(c) for c in chunks)
-                self.root.after(0, lambda n=total_len: self.elapsed_label.config(text=f"{n} Zeichen"))
+                self.root.after(0, lambda n=total_len: self.elapsed_label.config(text=tn("status.characters", n)))
         return "".join(chunks).strip()
 
     def _generate_from_prompt(self, text: str) -> str:
@@ -181,7 +182,7 @@ class TranscriptionMixin:
             model=CFG.ollama_model_prompt,
             timeout=CFG.ollama_timeout_prompt,
             stream=CFG.ollama_stream_prompt,
-            progress_label=f"Generiere ({CFG.ollama_model_prompt})",
+            progress_label=CFG.ollama_model_prompt or "prompt",
             system=PROMPT_PLAIN_SYSTEM,
         )
         return plain_text(answer)
@@ -305,9 +306,7 @@ class TranscriptionMixin:
             return glossary.apply_replacements(" ".join(segment.text.strip() for segment in segments).strip())
         except Exception:
             logger.exception("Whisper transcription failed")
-            self.root.after(
-                0, lambda: self._apply_state("error", "Transkription fehlgeschlagen", "Einzelheiten stehen im Log.")
-            )
+            self.root.after(0, lambda: self._apply_state("error", t("error.transcription_failed"), t("hint.see_log")))
             self._prompt_mode = False
             return None
 
@@ -325,7 +324,7 @@ class TranscriptionMixin:
         with self._transcribe_lock:
             model = self.current_model()
             if model is None:
-                self.root.after(0, lambda: self._apply_state("error", "Kein Modell geladen", "Versuch es erneut."))
+                self.root.after(0, lambda: self._apply_state("error", t("error.no_model"), t("hint.try_again")))
                 self._prompt_mode = False
                 return
             text = self._run_transcription(model, audio)
@@ -338,8 +337,8 @@ class TranscriptionMixin:
                     0,
                     lambda: self._apply_state(
                         "no_signal",
-                        "Keine Sprache erkannt",
-                        "Die Aufnahme enthielt keine verständlichen Wörter.",
+                        t("status.no_speech"),
+                        t("hint.no_words"),
                     ),
                 )
                 return
@@ -353,8 +352,8 @@ class TranscriptionMixin:
                 0,
                 lambda: self._apply_state(
                     "error",
-                    "Transkription fehlgeschlagen",
-                    "Einzelheiten stehen im Log.",
+                    t("error.transcription_failed"),
+                    t("hint.see_log"),
                 ),
             )
         finally:
@@ -369,8 +368,8 @@ class TranscriptionMixin:
             0,
             lambda: self._apply_state(
                 "transcribing",
-                "Modell wird noch geladen …",
-                "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
+                t("status.model_still_loading"),
+                t("hint.recording_kept"),
             ),
         )
         if not self._await_model(time.monotonic() + MODEL_WAIT_SECONDS):
@@ -379,8 +378,8 @@ class TranscriptionMixin:
                 0,
                 lambda: self._apply_state(
                     "error",
-                    "Modell nicht verfügbar",
-                    "Die Aufnahme liess sich nicht auswerten.",
+                    t("error.model_unavailable"),
+                    t("error.recording_not_transcribed"),
                 ),
             )
             self._prompt_mode = False
@@ -400,8 +399,8 @@ class TranscriptionMixin:
                     0,
                     lambda: self._apply_state(
                         "error",
-                        "KI-Antwort fehlgeschlagen",
-                        "Ollama antwortet nicht. Läuft der Dienst?",
+                        t("error.ai_failed"),
+                        t("error.ollama_not_responding"),
                     ),
                 )
                 return None
@@ -411,7 +410,7 @@ class TranscriptionMixin:
                 return glossary.apply_replacements(self._cleanup_text(text))
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
                 logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
-                self.root.after(0, lambda: self._apply_state("done", "Eingefügt · ohne Bereinigung"))
+                self.root.after(0, lambda: self._apply_state("done", t("status.done_raw")))
         return text  # Cleanup deaktiviert oder nicht erreichbar — Roh-Transkript
 
     def _abliefern(self, text: str) -> None:

@@ -5,7 +5,9 @@ Thanks for taking an interest. Bug reports, ideas and pull requests are welcome.
 ## Before you start
 
 - For anything bigger than a small fix, open an issue first so we can agree on the approach.
-- Identifiers and docs are English. The UI is German today; keep new UI strings next to the existing ones.
+- Identifiers and docs are English. Every user-visible string lives in `hams/messages_en.py` and
+  `hams/messages_de.py` (same keys, same placeholders) and is looked up with `hams.i18n.t()`; `tests/test_i18n.py`
+  fails on literals that bypass the catalogs.
 - Never log dictated text, only its length.
 
 ## Development setup

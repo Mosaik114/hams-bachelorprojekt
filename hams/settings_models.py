@@ -7,6 +7,7 @@ import tkinter as tk
 from hams import models as whisper_models
 from hams import ui_kit as uk
 from hams.config import CFG, logger
+from hams.i18n import t, tn
 
 
 class ModelSectionMixin:
@@ -31,7 +32,7 @@ class ModelSectionMixin:
                     info.model_id,
                     info.label,
                     meta=info.meta,
-                    group="Installiert" if is_installed else "Verfügbar",
+                    group=t("settings.model.group_installed" if is_installed else "settings.model.group_available"),
                     trailing="" if is_installed else f"↓ {info.size_label}",
                 )
             )
@@ -40,7 +41,10 @@ class ModelSectionMixin:
             options.insert(
                 0,
                 uk.Option(
-                    current, f"Benutzerdefiniert · {current}", meta="Aus der Konfigurationsdatei", group="Installiert"
+                    current,
+                    t("settings.model.custom", model=current),
+                    meta=t("settings.model.custom_meta"),
+                    group=t("settings.model.group_installed"),
                 ),
             )
         return options
@@ -73,9 +77,9 @@ class ModelSectionMixin:
         chosen = CFG.model_size
         active = self.app.active_model_size
         if chosen not in self._installed_models and whisper_models.find(chosen):
-            self.row_model.set_description("Muss zuerst geladen werden")
+            self.row_model.set_description(t("settings.model.needs_download"))
         elif active is not None and chosen != active:
-            self.row_model.set_description("Wird beim nächsten Start verwendet")
+            self.row_model.set_description(t("settings.model.next_start"))
         else:
             self.row_model.set_description(self.model_hint(chosen))
 
@@ -102,10 +106,10 @@ class ModelSectionMixin:
         self.model_select.set_value(model_id)
         if self.app.switch_model(model_id):
             self.model_select.set_enabled(False)
-            self.row_model.set_description("Modell wird geladen …")
+            self.row_model.set_description(t("status.model_loading"))
         else:
             self.model_select.set_value(CFG.model_size)
-            self.row_model.set_description("Während einer Aufnahme nicht wechselbar")
+            self.row_model.set_description(t("settings.model.locked_while_recording"))
 
     # ------------------------------------------------------- Modelle loeschen
 
@@ -143,10 +147,9 @@ class ModelSectionMixin:
         Welche es sind, steht im Auswahlfeld darueber und in der Loeschliste.
         """
         if not bestand:
-            return "Noch nichts gespeichert"
+            return t("settings.storage.empty")
         gesamt = sum(eintrag.size_bytes for eintrag in bestand)
-        wort = "Modell" if len(bestand) == 1 else "Modelle"
-        return f"{len(bestand)} {wort} · {whisper_models.format_bytes(gesamt)}"
+        return tn("settings.storage.summary", len(bestand), size=whisper_models.format_bytes(gesamt))
 
     def _refresh_storage(self) -> None:
         """Bestandszeile und Loeschauswahl neu aufbauen."""
@@ -182,8 +185,8 @@ class ModelSectionMixin:
         nicht wie viel.
         """
         if not eintrag.complete:
-            return f"Rest von {eintrag.label} entfernen?"
-        return f"{eintrag.label} löschen? {whisper_models.format_bytes(eintrag.size_bytes)} frei"
+            return t("settings.storage.confirm_partial", model=eintrag.label)
+        return t("settings.storage.confirm", model=eintrag.label, size=whisper_models.format_bytes(eintrag.size_bytes))
 
     def _abort_delete(self) -> None:
         self._refresh_storage()
@@ -196,7 +199,7 @@ class ModelSectionMixin:
         self._delete_target = ""
         self.delete_button.set_enabled(False)
         self.delete_cancel.set_enabled(False)
-        self.row_storage.set_description("Wird gelöscht …")
+        self.row_storage.set_description(t("settings.storage.deleting"))
         threading.Thread(target=self._delete_worker, args=(model_id,), daemon=True, name="hams-delete").start()
 
     def _delete_worker(self, model_id: str) -> None:
@@ -229,8 +232,9 @@ class ModelSectionMixin:
     def download_text(label: str, done: int, total: int, percent: int) -> str:
         """Was beim Warten trägt: Modell, Anteil, absolute Menge — in einer Zeile."""
         if total > 0:
-            return f"{label} · {percent} % · {whisper_models.format_progress(done, total)}"
-        return f"{label} · {whisper_models.format_bytes(done)} geladen"
+            progress = whisper_models.format_progress(done, total)
+            return t("settings.download.progress", model=label, percent=percent, progress=progress)
+        return t("settings.download.loaded", model=label, size=whisper_models.format_bytes(done))
 
     def _begin_download(self, model_id: str) -> None:
         """Startet den Download aus der Auswahl heraus.
@@ -252,7 +256,7 @@ class ModelSectionMixin:
         self._refresh_storage()
 
     def _cancel_download(self) -> None:
-        self.row_model.set_description("Wird abgebrochen …")
+        self.row_model.set_description(t("settings.download.cancelling"))
         self.cancel_button.set_enabled(False)
         self.app.cancel_download()
 
@@ -291,13 +295,13 @@ class ModelSectionMixin:
         label = info.label if info else model_id
         if error == whisper_models.CANCELLED:
             self.model_select.set_enabled(True)
-            self.row_model.set_description(f"{label}: Download abgebrochen")
+            self.row_model.set_description(t("settings.download.cancelled", model=label))
         elif error:
             self.model_select.set_enabled(True)
-            self.row_model.set_description(f"{error} — erneut auswählen")
+            self.row_model.set_description(t("settings.download.failed", error=error))
         elif switching:
             self.model_select.set_enabled(False)
-            self.row_model.set_description(f"{label} wird geladen …")
+            self.row_model.set_description(t("status.model_loading_named", model=label))
         else:
             self.model_select.set_enabled(True)
             self._update_model_hint()

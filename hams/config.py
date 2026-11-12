@@ -22,7 +22,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
 
 import contextlib
 
-from hams import branding
+from hams import branding, i18n
 from hams.config_toml import _abschnitt_finden, _toml_scalar, _toml_setzen, _trailing_comment  # noqa: F401
 from hams.config_validation import ollama_url_problem, validate_config
 from hams.ui_kit import Theme
@@ -161,6 +161,9 @@ class Config:
     #: zurueck, damit eine alte oder vertippte Datei nie ein farbloses Fenster
     #: ergibt.
     appearance: str = Theme.DEFAULT_MODE
+    #: Sprache der Oberflaeche: "auto" (Systemsprache), "de" oder "en". Gilt
+    #: ab dem Start; `main` aktiviert sie ueber `i18n.set_language`.
+    ui_language: str = i18n.DEFAULT_SETTING
 
 
 def _resolve_mic_device(raw: Any) -> str | int | None:
@@ -381,7 +384,7 @@ def _read_toml(path: Path) -> dict:
             return tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError) as exc:
         print(
-            f"[{branding.PRODUCT_NAME}] {path.name} konnte nicht geladen werden ({exc}) — nutze Defaults.",
+            f"[{branding.PRODUCT_NAME}] could not load {path.name} ({exc}) — using defaults.",
             file=sys.stderr,
         )
         return {}
@@ -428,6 +431,15 @@ def _apply_toml(cfg: Config, data: dict) -> None:
     # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
     # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
     cfg.appearance = Theme.normalise(ui.get("appearance", cfg.appearance))
+    cfg.ui_language = _clean_language(ui.get("language", cfg.ui_language))
+
+
+def _clean_language(value: Any) -> str:
+    """Ein gueltiger Wert fuer `ui.language`; ein unbekannter wird gemeldet und gilt als "auto"."""
+    setting = i18n.normalise_setting(value)
+    if setting != str(value).strip().lower():
+        logger.warning("Config: ui.language should be one of %s, got %r - using %s", i18n.SETTINGS, value, setting)
+    return setting
 
 
 def _audio_anwenden(cfg: Config, audio: dict) -> None:
@@ -486,7 +498,7 @@ def _ollama_anwenden(cfg: Config, ollama: dict) -> None:
             cfg.cleanup_prompt_template = prompt_path.read_text(encoding="utf-8")
         except OSError as exc:
             print(
-                f"[{branding.PRODUCT_NAME}] Cleanup-Prompt konnte nicht geladen werden ({exc}) — nutze Default.",
+                f"[{branding.PRODUCT_NAME}] could not load the cleanup prompt ({exc}) — using the default.",
                 file=sys.stderr,
             )
 

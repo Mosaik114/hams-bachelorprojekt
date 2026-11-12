@@ -7,42 +7,44 @@ from __future__ import annotations
 import contextlib
 import tkinter as tk
 
+from hams.i18n import Text, t
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.surfaces import surface
 from hams.ui_kit.text import _text_width
 from hams.ui_kit.theme import Height, Radius, Space, Theme
 
-#: Tastennamen, wie sie auf einer deutschen Tastatur stehen.
-KEY_NAMES = {
-    "ctrl": "Strg",
-    "control": "Strg",
-    "strg": "Strg",
-    "shift": "Umschalt",
-    "alt": "Alt",
-    "altgr": "AltGr",
-    "win": "Win",
-    "windows": "Win",
-    "cmd": "Win",
-    "super": "Win",
-    "space": "Leertaste",
-    "enter": "Eingabe",
-    "return": "Eingabe",
-    "esc": "Esc",
-    "escape": "Esc",
-    "tab": "Tab",
-    "backspace": "Rücktaste",
-    "delete": "Entf",
-    "del": "Entf",
-    "insert": "Einfg",
-    "home": "Pos1",
-    "end": "Ende",
-    "page up": "Bild auf",
-    "page down": "Bild ab",
-    "up": "↑",
-    "down": "↓",
-    "left": "←",
-    "right": "→",
+#: Schreibweisen im Kuerzel -> Katalogschluessel der Tastenbeschriftung. Die
+#: Beschriftung selbst steht im Katalog, so wie sie auf einer Tastatur der
+#: jeweiligen Sprache steht (deutsch „Strg“, englisch „Ctrl“).
+KEY_MESSAGES = {
+    "ctrl": "key.ctrl",
+    "control": "key.ctrl",
+    "strg": "key.ctrl",
+    "shift": "key.shift",
+    "alt": "key.alt",
+    "altgr": "key.altgr",
+    "win": "key.win",
+    "windows": "key.win",
+    "cmd": "key.win",
+    "super": "key.win",
+    "space": "key.space",
+    "enter": "key.enter",
+    "return": "key.enter",
+    "esc": "key.esc",
+    "escape": "key.esc",
+    "tab": "key.tab",
+    "backspace": "key.backspace",
+    "delete": "key.delete",
+    "del": "key.delete",
+    "insert": "key.insert",
+    "home": "key.home",
+    "end": "key.end",
+    "page up": "key.page_up",
+    "page down": "key.page_down",
 }
+
+#: Pfeiltasten sind Symbole und in jeder Sprache gleich.
+ARROW_KEYS = {"up": "↑", "down": "↓", "left": "←", "right": "→"}
 
 
 def key_labels(combo: str) -> list[str]:
@@ -56,8 +58,10 @@ def key_labels(combo: str) -> list[str]:
         key = part.strip().lower()
         if not key:
             continue
-        if key in KEY_NAMES:
-            labels.append(KEY_NAMES[key])
+        if key in KEY_MESSAGES:
+            labels.append(t(KEY_MESSAGES[key]))
+        elif key in ARROW_KEYS:
+            labels.append(ARROW_KEYS[key])
         elif len(key) == 1 or (key[0] == "f" and key[1:].isdigit()):
             labels.append(key.upper())
         else:
@@ -73,7 +77,7 @@ class KeyCombo(tk.Canvas):
     und brauchen keine Übersetzung im Kopf.
     """
 
-    EMPTY = "Nicht belegt"
+    EMPTY = Text("key.unset")
 
     def __init__(self, master: tk.Misc, *, bg_under: str, combo: str = "") -> None:
         self._bg_under = bg_under

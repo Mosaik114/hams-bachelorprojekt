@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from hams.hub_progress import _ProgressBar
+from hams.i18n import decimal, t
 
 logger = logging.getLogger("hams")
 
@@ -25,15 +26,23 @@ logger = logging.getLogger("hams")
 class WhisperModelInfo:
     """Ein Eintrag des kuratierten Katalogs."""
 
-    __slots__ = ("model_id", "label", "summary", "size_label", "size_bytes", "repo_id")
+    __slots__ = ("model_id", "label", "size_bytes", "repo_id")
 
-    def __init__(self, model_id: str, label: str, summary: str, size_label: str, size_bytes: int, repo_id: str) -> None:
+    def __init__(self, model_id: str, label: str, size_bytes: int, repo_id: str) -> None:
         self.model_id = model_id
         self.label = label
-        self.summary = summary  #: kurze Einordnung, Produkttext
-        self.size_label = size_label  #: für die Anzeige
-        self.size_bytes = size_bytes  #: grobe Schätzung, für die Platzprüfung
+        self.size_bytes = size_bytes  #: am Hub gemessen, für Anzeige und Platzprüfung
         self.repo_id = repo_id  #: Hugging-Face-Repository, für den Cache
+
+    @property
+    def summary(self) -> str:
+        """Kurze Einordnung, Produkttext — in der Sprache der Oberfläche."""
+        return t(f"model.summary.{self.model_id}")
+
+    @property
+    def size_label(self) -> str:
+        """Größe für die Anzeige, aus denselben Bytes wie die Fortschrittsanzeige."""
+        return format_bytes(self.size_bytes)
 
     @property
     def meta(self) -> str:
@@ -50,16 +59,12 @@ _MB = 1000**2
 #: bewusst zurückhaltend — wir haben keine eigenen Messwerte für Genauigkeit.
 #: Die Grössen sind am Hub gemessen, über genau die Dateien in ALLOW_PATTERNS.
 CATALOG: tuple[WhisperModelInfo, ...] = (
-    WhisperModelInfo(
-        "turbo", "Turbo", "Schnell · sehr gut", "1,6 GB", 1_621_665_983, "mobiuslabsgmbh/faster-whisper-large-v3-turbo"
-    ),
-    WhisperModelInfo(
-        "large-v3", "Large v3", "Höchste Genauigkeit", "3,1 GB", 3_090_835_702, "Systran/faster-whisper-large-v3"
-    ),
-    WhisperModelInfo("medium", "Medium", "Ausgewogen", "1,5 GB", 1_530_571_735, "Systran/faster-whisper-medium"),
-    WhisperModelInfo("small", "Small", "Schnell", "486 MB", 486_212_372, "Systran/faster-whisper-small"),
-    WhisperModelInfo("base", "Base", "Sehr schnell", "148 MB", 147_882_941, "Systran/faster-whisper-base"),
-    WhisperModelInfo("tiny", "Tiny", "Nur für Tests", "78 MB", 78_203_619, "Systran/faster-whisper-tiny"),
+    WhisperModelInfo("turbo", "Turbo", 1_621_665_983, "mobiuslabsgmbh/faster-whisper-large-v3-turbo"),
+    WhisperModelInfo("large-v3", "Large v3", 3_090_835_702, "Systran/faster-whisper-large-v3"),
+    WhisperModelInfo("medium", "Medium", 1_530_571_735, "Systran/faster-whisper-medium"),
+    WhisperModelInfo("small", "Small", 486_212_372, "Systran/faster-whisper-small"),
+    WhisperModelInfo("base", "Base", 147_882_941, "Systran/faster-whisper-base"),
+    WhisperModelInfo("tiny", "Tiny", 78_203_619, "Systran/faster-whisper-tiny"),
 )
 
 _BY_ID = {info.model_id: info for info in CATALOG}
@@ -130,7 +135,7 @@ class CachedModel:
     def meta(self) -> str:
         """Zweite Zeile im Auswahlfeld: Groesse, und ob es vollstaendig ist."""
         groesse = format_bytes(self.size_bytes)
-        return groesse if self.complete else f"{groesse} · unvollständig"
+        return groesse if self.complete else t("model.incomplete", size=groesse)
 
 
 def cached_whisper_models() -> tuple[CachedModel, ...]:
@@ -192,7 +197,7 @@ def delete_whisper_model(model_id: str) -> tuple[bool, int, str]:
     bestand = {eintrag.model_id: eintrag for eintrag in cached_whisper_models()}
     eintrag = bestand.get(model_id)
     if eintrag is None:
-        return False, 0, f"{label} liegt nicht im Speicher"
+        return False, 0, t("model.delete.missing", model=label)
 
     try:
         from huggingface_hub import scan_cache_dir
@@ -204,18 +209,18 @@ def delete_whisper_model(model_id: str) -> tuple[bool, int, str]:
         # Windows gibt eine geladene Modelldatei nicht her. Das ist der einzige
         # Fehler, der eine verstaendliche eigene Meldung verdient.
         logger.warning("Modell %s ist in Benutzung, nicht geloescht", model_id)
-        return False, 0, f"{label} wird gerade benutzt"
+        return False, 0, t("model.delete.in_use", model=label)
     except Exception:
         logger.exception("Modell %s konnte nicht geloescht werden", model_id)
-        return False, 0, f"{label} konnte nicht gelöscht werden"
+        return False, 0, t("model.delete.failed", model=label)
 
     frei = erwartet or eintrag.size_bytes
     logger.info("Modell %s geloescht, %s frei", model_id, format_bytes(frei))
     # Ohne belegten Platz keine Zahl: ein abgebrochener Download hinterlaesst
     # oft nur leere Ordner, und „0 B frei" waere eine Meldung ueber nichts.
     if frei <= 0:
-        return True, 0, f"{label} gelöscht"
-    return True, frei, f"{label} gelöscht · {format_bytes(frei)} frei"
+        return True, 0, t("model.delete.done", model=label)
+    return True, frei, t("model.delete.done_freed", model=label, size=format_bytes(frei))
 
 
 def cache_root() -> Path | None:
@@ -249,8 +254,8 @@ def free_space_bytes() -> int | None:
 #: nie jemand benutzt.
 ALLOW_PATTERNS = ("config.json", "preprocessor_config.json", "model.bin", "tokenizer.json", "vocabulary.*")
 
-#: Fehlertext, an dem die Oberflaeche einen Abbruch von einem Fehler trennt.
-CANCELLED = "abgebrochen"
+#: Kennung (kein Anzeigetext), an der die Oberflaeche einen Abbruch von einem Fehler trennt.
+CANCELLED = "cancelled"
 
 
 def disable_xet_transfer() -> bool:
@@ -304,7 +309,7 @@ class ModelDownloader:
             return ""  # nicht ermittelbar: nicht im Weg stehen
         needed = int(info.size_bytes * self.SPACE_MARGIN)
         if free < needed:
-            return f"Zu wenig Speicherplatz — {format_bytes(needed)} nötig, {format_bytes(free)} frei"
+            return t("download.no_space", needed=format_bytes(needed), free=format_bytes(free))
         return ""
 
     def start(self, info: WhisperModelInfo, on_progress, on_finished) -> str:
@@ -320,7 +325,7 @@ class ModelDownloader:
             Der Grund, warum nicht gestartet wurde — oder "".
         """
         if self.active:
-            return "Es läuft bereits ein Download"
+            return t("download.already_running")
         problem = self.check_space(info)
         if problem:
             return problem
@@ -382,11 +387,11 @@ def _describe_download_error(exc: BaseException) -> str:
     """
     text = f"{type(exc).__name__} {exc}".lower()
     if isinstance(exc, PermissionError):
-        return "Kein Schreibrecht im Modellordner"
+        return t("download.error.permission")
     if isinstance(exc, OSError) and getattr(exc, "errno", None) == 28:
-        return "Kein Speicherplatz mehr frei"
+        return t("download.error.disk_full")
     if "no space" in text or "not enough space" in text or "errno 28" in text:
-        return "Kein Speicherplatz mehr frei"
+        return t("download.error.disk_full")
     for marker in (
         "connection",
         "timed out",
@@ -401,16 +406,16 @@ def _describe_download_error(exc: BaseException) -> str:
         "ssl",
     ):
         if marker in text:
-            return "Keine Verbindung zum Modell-Server"
+            return t("download.error.network")
     if "404" in text or "not found" in text or "repositorynotfound" in text:
-        return "Modell nicht gefunden"
-    return "Download fehlgeschlagen"
+        return t("download.error.not_found")
+    return t("download.error.generic")
 
 
 def format_bytes(value: int) -> str:
     """Kompakte Groessenangabe fuer die Oberflaeche."""
     if value >= _GB:
-        return f"{value / _GB:.1f} GB".replace(".", ",")
+        return f"{decimal(value / _GB)} GB"
     if value >= _MB:
         return f"{value / _MB:.0f} MB"
     return f"{max(0, int(value))} B"
@@ -424,7 +429,7 @@ def format_progress(done: int, total: int) -> str:
     """
     done = max(0, min(int(done), int(total)))
     if total >= _GB:
-        return f"{done / _GB:.1f}/{total / _GB:.1f} GB".replace(".", ",")
+        return f"{decimal(done / _GB)}/{decimal(total / _GB)} GB"
     if total >= _MB:
         return f"{done / _MB:.0f}/{total / _MB:.0f} MB"
     return f"{int(done)}/{int(total)} B"

@@ -84,7 +84,7 @@ class TestStartupActivation(unittest.TestCase):
         self.factory = Mock(return_value=self.app)
         self.release = Mock()
         config = types.SimpleNamespace(
-            CFG=types.SimpleNamespace(),
+            CFG=types.SimpleNamespace(ui_language="de"),
             CONFIG_PATH="unused",
             logger=Mock(),
             ensure_user_config=Mock(return_value="vorhanden"),

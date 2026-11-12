@@ -9,6 +9,7 @@ import numpy as np
 import sounddevice as sd
 
 from hams.config import CFG, _resolve_mic_device, logger
+from hams.i18n import t
 from hams.tray import _notify_cursor_dot
 
 # Peak unterhalb dieser Schwelle gilt als "kein Signal" (Mikro stumm/falsches
@@ -232,16 +233,16 @@ class RecordingMixin:
             self.is_recording = False
             self._apply_state(
                 "error",
-                "Mikrofon nicht verfügbar",
-                f"„{CFG.mic_device_raw}“ antwortet nicht. Wähle in den Einstellungen ein anderes Gerät.",
+                t("error.mic_unavailable"),
+                t("error.mic_not_responding", device=CFG.mic_device_raw),
             )
         except Exception:
             logger.exception("Unexpected error on start_recording")
             self.is_recording = False
             self._apply_state(
                 "error",
-                "Aufnahme nicht gestartet",
-                "Einzelheiten stehen im Log.",
+                t("error.recording_not_started"),
+                t("hint.see_log"),
             )
 
     def stop_recording_and_transcribe(self) -> None:
@@ -271,7 +272,7 @@ class RecordingMixin:
             self.stream = None
 
         if not self.frames:
-            self._apply_state("no_signal", "Keine Aufnahme erkannt", "Es wurden keine Audiodaten empfangen.")
+            self._apply_state("no_signal", t("status.no_recording"), t("hint.no_audio"))
             self._prompt_mode = False
             return
 
@@ -291,7 +292,7 @@ class RecordingMixin:
             self._apply_state(
                 "no_signal",
                 None,
-                f"„{CFG.mic_device_raw}“ liefert kein Signal. Ist das Mikrofon stummgeschaltet?",
+                t("hint.mic_silent", device=CFG.mic_device_raw),
             )
             self._prompt_mode = False
             return
