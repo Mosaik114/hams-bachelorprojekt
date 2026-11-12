@@ -779,13 +779,13 @@ six==1.17.0 \
     # via
     #   pystray
     #   python-xlib
-sounddevice==0.5.5 \
-    --hash=sha256:05eb9fd6c54c38d67741441c19164c0dae8ce80453af2d8c4ad2e7823d15b722 \
-    --hash=sha256:1234cc9b4c9df97b6cbe748146ae0ec64dd7d6e44739e8e42eaa5b595313a103 \
-    --hash=sha256:22487b65198cb5bf2208755105b524f78ad173e5ab6b445bdab1c989f6698df3 \
-    --hash=sha256:30ff99f6c107f49d25ad16a45cacd8d91c25a1bcdd3e81a206b921a3a6405b1f \
-    --hash=sha256:3861901ddd8230d2e0e8ae62ac320cdd4c688d81df89da036dcb812f757bb3e6 \
-    --hash=sha256:cfc6b2c49fb7f555591c78cb8ecf48d6a637fd5b6e1db5fec6ed9365d64b3519
+sounddevice==0.5.6 \
+    --hash=sha256:7f4162f514f007b0bf25a3ccfed3f1705bc2ec311888a90232729eec4f57a4f4 \
+    --hash=sha256:8ec9fbfde2e32f020b167e348f3ab3bac6625a5f15af524d790108ac7147a410 \
+    --hash=sha256:b36b807eb02abd257198bf84b2af05e4fea199a9d2f0019014169c7136d45e9c \
+    --hash=sha256:c8ae19173e5f27f8c12d4b5eee2dbfe542cee125d591e663e0fb4dfb75246d45 \
+    --hash=sha256:de099612311ad81e55d31ccbd83f43ea6bf4d87b48f9b6ea55a1fbcde0eee4e0 \
+    --hash=sha256:e3aef00ad8b1d1740eb66d9a7671eab88a4d2b8fa4ab33498d742e63b65c309c
     # via hams (pyproject.toml)
 sympy==1.14.0 \
     --hash=sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517 \
