@@ -3,27 +3,32 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wisper"
-version = "0.1.0"
-description = "Always-on-top Sprach-zu-Text Tool für Windows mit Transkription und Prompt-Modus"
+name = "hams"
+version = "1.0.0"
+description = "Local, privacy-first voice input for Windows and Linux: faster-whisper speech recognition with optional LLM cleanup via Ollama, pasted wherever your cursor is."
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
-    {name = "Mosaik114"}
+    {name = "Mazgin Abdulwahed Ahmad"}
 ]
-keywords = ["speech-to-text", "transcription", "voice", "whisper", "ollama"]
+keywords = ["speech-to-text", "dictation", "whisper", "faster-whisper", "ollama", "local-llm", "voice-input"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Win32 (MS Windows)",
+    "Environment :: X11 Applications",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: Microsoft :: Windows",
+    "Natural Language :: German",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
     "faster-whisper>=1.1.0",
@@ -47,7 +52,7 @@ dev = [
 # meist torch als Nebenwirkung - gemessen 4337 MB, von denen 1712 MB die
 # Bibliotheken sind und der Rest ungenutzt bleibt. Einzeln installiert sind
 # es 1981 MB, und die Gesamtumgebung schrumpft von 6620 MB auf 2280 MB.
-# Ohne diese Pakete (und ohne torch) laeuft Wisper auf der CPU weiter.
+# Ohne diese Pakete (und ohne torch) laeuft Hams auf der CPU weiter.
 cuda = [
     "nvidia-cublas-cu12",
     "nvidia-cudnn-cu12",
@@ -64,30 +69,19 @@ addopts = "-v --tb=short"
 fail_under = 85
 
 [project.scripts]
-wisper = "wisper.main:main"
+hams = "wisper.main:main"
+wisper = "wisper.main:main"   # alter Name aus der Zeit als „Wisper“, bleibt als Alias
 
 [project.urls]
-Homepage = "https://github.com/Mosaik114/Mosaiks-Desktop/tree/main/Hams"
-Repository = "https://github.com/Mosaik114/Mosaiks-Desktop"
+Homepage = "https://github.com/Mosaik114/hams-bachelorprojekt"
+Repository = "https://github.com/Mosaik114/hams-bachelorprojekt"
+Changelog = "https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/Mosaik114/hams-bachelorprojekt/tree/main/docs"
 
 [tool.setuptools]
-packages = ["wisper", "wisper.ui_kit"]
+packages = ["wisper", "wisper.ui_kit", "wisper.prompts"]
 
 [tool.setuptools.package-data]
-wisper = ["prompts/*.txt"]
+wisper = ["prompts/*.txt", "*.toml", "assets/branding/*"]
 
-[tool.ruff]
-# Regeln: gemeinsame ../ruff.toml an der Wurzel (Qualitätsplan Q2)
-extend = "../ruff.toml"
-target-version = "py310"   # Hams läuft auch unter Windows mit älterem Python
-
-[tool.ruff.lint.extend-per-file-ignores]
-# E402 ist in main.py unvermeidlich und beabsichtigt: der Projekt-Root muss
-# *vor* den uebrigen Importen in sys.path, damit der direkte Skriptstart aus
-# dem Autostart-VBS die Package-Importe darunter ueberhaupt findet. (Der
-# zweite Fall, preload_backend_without_torch() vor faster-whisper, steht in
-# backend.py und ist dort an der einen Zeile vermerkt.)
-"wisper/main.py" = ["E402"]
-# Das Paket ui_kit bietet die Namen seiner Module gesammelt an; sie werden
-# dort importiert, um weitergereicht zu werden, nicht um benutzt zu werden.
-"wisper/ui_kit/__init__.py" = ["F401"]
+# Linter- und Formatregeln: ruff.toml

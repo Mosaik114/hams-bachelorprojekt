@@ -1,14 +1,21 @@
-# CLAUDE.md – Hams (Diktat)
+# CLAUDE.md – Hams
 
-Taste drücken, sprechen, Text erscheint korrigiert an der Schreibmarke: Whisper (faster-whisper) transkribiert, Ollama
-bereinigt, eine uinput-Tastatur fügt mit Strg+V ein. Tkinter-Fenster im Mosaik-Design (`wisper/ui_kit`).
+Context for AI coding assistants working in this repository.
 
-- **Einstieg:** `wisper/main.py` → `wisper/app.py` (`FloatingTranscriberApp`, erbt die Mixins `main_window`, `tray`,
-  `whisper_model`, `recording`, `transcription`). Einstellungen: `wisper/config.py` (+ `config_toml.py`), Fenster
-  `settings_window.py` mit den Gruppen in `settings_sections.py`.
-- **Tests:** `cd Hams && ../werkzeuge/unsichtbar.sh .venv/bin/python -m pytest -q -p no:cacheprovider tests`
-  (Tk braucht eine Anzeige – nur in der Test-Sitzung, nie auf dem echten Bildschirm).
-- **Nie ungefragt neu starten** – der Nutzer diktiert damit. Das laufende Hams nutzt neuen Code erst nach dem Neustart.
-- **Namen bleiben englisch** (Windows-Herkunft); neue Kommentare dürfen deutsch sein.
-- Tests lesen teils Quelltext mit `inspect.getsource` (Reihenfolge der Ausgabewege) – beim Umbau Suchtexte mitziehen.
-- Windows-Teile (`start_wisper.vbs`, `system_hotkeys.py`) bleiben lauffähig; Linux-Weichen über `sys.platform`.
+Press a hotkey, speak, and the corrected text appears at the cursor. faster-whisper transcribes, Ollama cleans up,
+and the text is pasted via the clipboard and Ctrl+V. On Linux, a `uinput` keyboard does the pasting. The UI is
+Tkinter with its own design system (`wisper/ui_kit`).
+
+- **Entry point:** `wisper/main.py` → `wisper/app.py` (`FloatingTranscriberApp`, composed of the mixins
+  `main_window`, `tray`, `whisper_model`, `recording`, `transcription`). Settings: `wisper/config.py` (+
+  `config_toml.py`), window `settings_window.py` with its groups in `settings_sections.py`.
+- **Tests:** `pytest tests` (about 1,600). Tk tests open real windows. Run them headless: under `xvfb-run` on Linux,
+  or on a separate desktop on Windows.
+- **Lint:** `ruff check . && ruff format --check .` (rules in `ruff.toml`, max complexity 10).
+- **Never restart the running app unasked.** The author dictates with it.
+- Identifiers stay in English; comments and UI strings may be German.
+- Some tests read source code with `inspect.getsource` (order of the output paths). Update those search strings when
+  refactoring.
+- Keep the Windows parts (`start_wisper.vbs`, `system_hotkeys.py`, `activation.py`) working. Platform switches use
+  `sys.platform`.
+- Never log dictated text, only its length.

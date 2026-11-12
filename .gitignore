@@ -24,10 +24,14 @@ dist/
 *.swo
 .DS_Store
 
-# Wisper-spezifisch
+# Hams-spezifisch: Diktate und Protokolle bleiben auf dem eigenen Rechner
 transcripts/
 logs/
 *.log
+# Startprogramm wird mit build_launcher.cmd erzeugt und als Release-Datei verteilt
+*.exe
+# Messkorpus von tools/wer_messung.py (wird bei Bedarf neu erzeugt)
+tools/_korpus/
 
 # Test / Coverage
 .pytest_cache/

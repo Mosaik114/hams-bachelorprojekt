@@ -1,0 +1,8 @@
+# Zeilenenden einheitlich im Repo; Windows-Skripte behalten CRLF, Shell-Skripte LF
+* text=auto
+*.vbs text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf
+*.png binary
+*.ico binary

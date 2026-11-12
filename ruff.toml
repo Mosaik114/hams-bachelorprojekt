@@ -1,0 +1,42 @@
+# Linter- und Formatregeln für Hams. Die Regelauswahl steht hier fest, weil ruff seine Voreinstellung
+# zwischen Versionen ändert.
+line-length = 120
+target-version = "py310"   # Hams läuft unter Windows auch mit älterem Python
+extend-exclude = ["**/.venv", "**/wisper.egg-info", "tools/_korpus"]
+
+[lint]
+select = [
+    "E", "W",   # Stil und Syntax (pycodestyle)
+    "F",        # echte Fehler: unbenutzte Namen, falsche Importe (Pyflakes)
+    "B",        # wahrscheinliche Fehler (flake8-bugbear)
+    "SIM",      # einfachere Schreibweisen
+    "C90",      # Komplexität (höchstens 10 Verzweigungen je Funktion)
+    "I",        # Import-Reihenfolge
+    "UP",       # zeitgemäße Python-Schreibweisen
+    "S",        # Sicherheit (bandit)
+]
+ignore = [
+    # Programme ohne vollen Pfad (S607) und subprocess ohne Shell (S603): Hams ruft unter Linux bewusst
+    # systemctl, wl-copy & Co. aus dem PATH auf; Eingaben von außen gibt es dort nicht.
+    "S603", "S607",
+]
+
+[lint.mccabe]
+max-complexity = 10
+
+[lint.per-file-ignores]
+# assert ist in Tests genau richtig; Schein-Pfade und -Kennungen ebenso
+"tests/**" = ["S101", "S105", "S106", "S108"]
+# Fixtures aus appearance_support.py importiert: die Testparameter heißen wie sie (so will es pytest)
+"tests/test_appearance*.py" = ["F811"]
+# E402 ist in main.py beabsichtigt: der Projekt-Root muss vor den übrigen Importen in sys.path, damit der
+# direkte Skriptstart aus dem Autostart-VBS die Paket-Importe darunter findet.
+"wisper/main.py" = ["E402"]
+# Das Paket ui_kit bietet die Namen seiner Module gesammelt an; sie werden dort nur weitergereicht.
+"wisper/ui_kit/__init__.py" = ["F401"]
+# Messwerkzeug: startet PowerShell für die Sprachausgabe und importiert nach dem sys.path-Eintrag
+"tools/*.py" = ["E402", "S101", "S311"]
+
+[format]
+# Einheitlicher Stil (ruff format); Anführungszeichen bleiben, wie sie sind
+quote-style = "preserve"
