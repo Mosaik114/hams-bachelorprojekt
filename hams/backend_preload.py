@@ -116,14 +116,44 @@ def add_cuda_libraries() -> tuple[str, ...]:
             logger.warning("CUDA-Bibliotheken unter %s nicht anmeldbar", ordner)
             continue
         angemeldet.append(str(ordner))
+    heruntergeladen = _downloaded_cuda_dir()
+    if heruntergeladen is not None:
+        os.add_dll_directory(str(heruntergeladen))
+        angemeldet.append(str(heruntergeladen))
     if not angemeldet:
         logger.warning(
             "Keine CUDA-Bibliotheken gefunden — Transkription "
             "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
-            "nvidia-cudnn-cu12?"
+            "nvidia-cudnn-cu12 (installiert: Hams.exe --install-gpu-support)?"
         )
     _preload_cuda_libraries_windows()
     return tuple(angemeldet)
+
+
+def _downloaded_cuda_dir() -> Path | None:
+    """Die vom installierten Programm nachgeladenen Bibliotheken (`gpu_support`), falls vollstaendig."""
+    from hams import gpu_support
+
+    return gpu_support.installed_dir()
+
+
+def _windows_library_dir(paket: str) -> Path | None:
+    """Erst das pip-Paket (Quellinstallation), dann der Download des installierten Programms."""
+    return _paket_verzeichnis(paket, "bin") or _downloaded_cuda_dir()
+
+
+def cuda_libraries_found() -> bool:
+    """Ob cuBLAS fuer ctranslate2 erreichbar ist: Paket, Download oder PATH (CUDA-Toolkit).
+
+    Ohne cuBLAS laedt ctranslate2 ein Modell zwar auf der GPU, scheitert aber
+    erst beim ersten Diktat. Wer das vorher weiss, nimmt gleich die CPU.
+    Ausserhalb von Windows immer True: dort entscheidet weiter der Ladeversuch.
+    """
+    if sys.platform != "win32":
+        return True
+    import ctypes.util
+
+    return _windows_library_dir("nvidia.cublas") is not None or ctypes.util.find_library("cublas64_12") is not None
 
 
 #: Unter Windows: Paket -> DLLs, in dieser Reihenfolge vorgeladen.
@@ -143,7 +173,7 @@ def _preload_cuda_libraries_windows() -> None:
     import ctypes
 
     for paket, dateien in CUDA_LIBRARIES_WINDOWS:
-        ordner = _paket_verzeichnis(paket, "bin")
+        ordner = _windows_library_dir(paket)
         if ordner is None:
             continue
         for datei in dateien:

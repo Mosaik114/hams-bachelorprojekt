@@ -22,14 +22,15 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
 
 import contextlib
 
-from hams import branding
+from hams import app_paths, branding
 from hams.config_toml import _abschnitt_finden, _toml_scalar, _toml_setzen, _trailing_comment  # noqa: F401
 from hams.config_validation import ollama_url_problem, validate_config
 from hams.ui_kit import Theme
 from hams.window_position import _clean_coordinate
 
 APP_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = APP_DIR / "transcripts"
+#: Not inside the package: installed, the program folder belongs to the installer (see app_paths).
+OUTPUT_DIR = app_paths.transcripts_dir()
 
 
 def _log_dir() -> Path:
@@ -40,9 +41,12 @@ def _log_dir() -> Path:
     beschreiben. Ein Testlauf legte hier sonst 218 Zeilen ab, zwischen denen
     die echten Eintraege des Nutzers stehen; wer spaeter einen Fehler sucht,
     liest dann Zeitstempel aus pytest-Temporaerverzeichnissen.
+
+    Sonst `%LOCALAPPDATA%\\Hams\\logs` bzw. `~/.local/share/hams/logs` — nie der
+    Programmordner, den der Installer verwaltet.
     """
     override = os.environ.get("HAMS_LOG_DIR")
-    return Path(override) if override else APP_DIR / "logs"
+    return Path(override) if override else app_paths.default_log_dir()
 
 
 LOG_DIR = _log_dir()

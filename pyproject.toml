@@ -69,7 +69,7 @@ addopts = "-v --tb=short"
 fail_under = 85
 
 [project.scripts]
-hams = "hams.main:main"
+hams = "hams.cli:run"
 
 [project.urls]
 Homepage = "https://github.com/Mosaik114/hams-bachelorprojekt"

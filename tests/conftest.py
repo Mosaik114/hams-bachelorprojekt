@@ -32,8 +32,14 @@ os.environ["HAMS_CONFIG"] = str(_config_file)
 _log_dir = tempfile.mkdtemp(prefix="hams-tests-logs-")
 os.environ["HAMS_LOG_DIR"] = _log_dir
 
+# Und die uebrigen Laufzeitdaten (Transkripte, heruntergeladene GPU-Bibliotheken,
+# siehe hams/app_paths.py): nie der echte Ordner %LOCALAPPDATA%\Hams.
+_data_dir = tempfile.mkdtemp(prefix="hams-tests-data-")
+os.environ["HAMS_DATA_DIR"] = _data_dir
+
 atexit.register(shutil.rmtree, _config_dir, True)
 atexit.register(shutil.rmtree, _log_dir, True)
+atexit.register(shutil.rmtree, _data_dir, True)
 
 
 def fokus_erzwingen(fenster, root, frist: float = 0.5) -> bool:

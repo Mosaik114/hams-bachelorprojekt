@@ -94,7 +94,33 @@ Other findings from the WER benchmark (`tools/wer_benchmark.py`, 80 synthetic sa
 - Removing an accidental `torch` dependency (CTranslate2 only needs cuBLAS and cuDNN) shrank the environment from
   6.6 GB to 2.3 GB.
 
-## Quick start (Windows)
+## Install (Windows)
+
+1. Download `Hams-Setup-<version>.exe` from the [latest release](https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest)
+   and double-click it. No Python, git or admin rights needed: Hams installs for your user only, to
+   `%LOCALAPPDATA%\Programs\Hams`, with a Start menu entry and (optional) autostart.
+2. The installer is not code-signed, so Windows SmartScreen may warn about an unknown publisher. Click
+   **More info → Run anyway**.
+3. Optional, for the LLM cleanup: install [Ollama](https://ollama.com/download) and run
+   `ollama pull qwen3.5:9b`. Without it, Hams pastes the raw transcript.
+
+On first start, faster-whisper downloads the `turbo` model (about 1.5 GB). Without a GPU, Hams transcribes on the
+CPU. With an NVIDIA GPU, Hams can fetch the CUDA libraries it needs (cuBLAS and cuDNN, a one-time download of about
+1.4 GB, unpacked 2.1 GB) from PyPI. The installer does not include them because most of their size is useless without
+an NVIDIA card. For now, run this once in a terminal and restart Hams:
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" --install-gpu-support
+```
+
+The download is checked against pinned SHA-256 hashes and can be resumed. It goes to `%LOCALAPPDATA%\Hams\cuda`, next to
+the logs (`%LOCALAPPDATA%\Hams\logs`) and saved transcripts. Settings stay in `%APPDATA%\Hams`. Uninstall Hams from
+Windows Settings → Apps. The uninstaller asks whether to delete these folders as well. Whisper models stay in the
+Hugging Face cache (`%USERPROFILE%\.cache\huggingface`).
+
+`Hams.exe --self-test` checks an installation without opening a window. Add `--report <file>` to save the result.
+
+### From source (developers)
 
 Requirements: Windows 10/11, Python 3.10+, an NVIDIA GPU for the default settings (the CPU works too, just slower),
 and [Ollama](https://ollama.com/download).
@@ -170,6 +196,17 @@ pytest tests --cov=hams       # about 1,600 tests; Tk tests open real windows
 ruff check . ; ruff format --check .
 ```
 
+The Windows installer is built from a clean environment without the `[cuda]` extra. The frozen app comes from
+PyInstaller (onedir), and Inno Setup turns it into `build\installer\Hams-Setup-<version>.exe`:
+
+```powershell
+.\packaging\build.ps1 -InstallDependencies -Installer   # needs Inno Setup 6 for -Installer
+build\dist\Hams\Hams.exe --self-test
+```
+
+CI builds the installer on every push. It installs the result silently, runs `--self-test`, uninstalls it, and checks
+that nothing is left. On a `v*` tag, CI also attaches the installer to the GitHub release.
+
 ```
 hams/
 ├── main.py              entry point: config, single instance, Tk root
@@ -178,6 +215,8 @@ hams/
 ├── transcription.py     Whisper, glossary, Ollama cleanup, paste
 ├── whisper_model.py     load, switch and download models with fallback
 ├── backend_preload.py   load CUDA libs without torch (−1.5 s per start)
+├── gpu_support.py       on-demand CUDA download for the installed app
+├── cli.py, self_test.py command line: --self-test, --install-gpu-support
 ├── glossary.py          hotwords, fixed corrections, live reload
 ├── ollama.py            local Ollama status and model list
 ├── system_hotkeys.py    Windows hotkeys     │ portal_hotkeys.py  Linux hotkeys
@@ -186,6 +225,7 @@ hams/
 ├── config*.py           layered TOML config, validation, persistence
 └── ui_kit/              a small design system for tkinter (theme, DPI scaling, controls, icons)
 scripts/                 Windows start script and settings launcher
+packaging/               PyInstaller spec, Inno Setup script, build and smoke test
 linux/                   system setup and bring-to-front helper for Linux
 tools/wer_benchmark.py   reproducible WER and latency benchmark (needs GPU and Windows TTS)
 ```
