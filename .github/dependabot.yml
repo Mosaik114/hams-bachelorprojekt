@@ -1,0 +1,20 @@
+# Proposes newer package versions and Actions once a week. Security updates arrive immediately.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # sympy requires mpmath < 1.4
+      - dependency-name: mpmath
+        versions: [">=1.4"]
+      # numpy 2.5+ drops Python 3.11
+      - dependency-name: numpy
+        versions: [">=2.5"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
