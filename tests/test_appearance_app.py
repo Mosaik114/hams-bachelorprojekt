@@ -12,7 +12,9 @@ Was sich hier nicht prüfen lässt: wie die beiden Modi auf einem echten
 Bildschirm *wirken*. Das steht im Bericht unter der Sichtprüfung.
 """
 
-import inspect
+import os
+import subprocess
+import sys
 import tkinter as tk
 
 import pytest
@@ -128,13 +130,20 @@ class TestKeyboard:
 
 
 class TestApplicationWiring:
-    def test_the_mode_is_applied_before_the_first_widget(self):
-        """Beim Import steht der Modus bereits — sonst entstünde das erste
-        Fenster in der falschen Palette und müsste sofort neu gezeichnet."""
-        quelle = inspect.getsource(config_mod)
-        laden = quelle.index("CFG = _load_config()")
-        anwenden = quelle.index("Theme.apply(CFG.appearance)")
-        assert laden < anwenden
+    def test_the_configured_mode_is_active_before_the_first_window(self, tmp_path):
+        """Otherwise the first window would be built in the wrong palette and repainted at once."""
+        config_file = tmp_path / "config.toml"
+        config_file.write_text('[ui]\nappearance = "dark"\n', encoding="utf-8")
+        probe = "import hams.config; from hams.ui_kit import Theme; print(Theme.mode)"
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=config_mod.APP_DIR.parent,
+            env={**os.environ, "HAMS_CONFIG": str(config_file)},
+        )
+        assert result.stdout.strip() == Theme.DARK
 
     def test_set_appearance_paints_both_windows(self, monkeypatch, root):
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
@@ -165,13 +174,6 @@ class TestApplicationWiring:
 
     def test_the_settings_window_offers_the_two_labels(self):
         assert SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
-
-    def test_the_appearance_row_follows_sound_and_the_group_ends_without_a_line(self):
-        block = inspect.getsource(SettingsWindow._build_general)
-        assert block.index("row_appearance") > block.index("row_sound")
-        # Die letzte Zeile der Gruppe ist der Einrichtungsassistent; sie traegt keine Trennlinie mehr.
-        assert block.rstrip().endswith("self._build_setup_row(group)")
-        assert "hairline=False" in inspect.getsource(SettingsWindow._build_setup_row)
 
     def test_choosing_persists_before_it_switches(self, monkeypatch):
         """Erst schreiben, dann umschalten — sonst fiele ein Schreibfehler

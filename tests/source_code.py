@@ -1,8 +1,7 @@
-"""Quelltext von Hams fuer Pruefungen, die eine Regel am Code selbst festhalten.
+"""The Python files of the `hams` package, for the few rules that scan the whole code base.
 
-Regeln, die fuer das ganze Programm gelten, pruefen alle Module; wer eine
-einzelne Funktion meint, holt sich deren Quelltext mit `inspect.getsource` -
-so haengt kein Test daran, in welcher Datei eine Funktion gerade liegt.
+Only project-wide conventions are checked this way (strings go through the catalogs, colours through the theme,
+identifiers are English); single functions are tested by their behaviour, never by their source text.
 """
 
 from pathlib import Path
@@ -12,12 +11,3 @@ PACKAGE_DIR = Path(__file__).resolve().parent.parent / "hams"
 
 def module_files(package: Path = PACKAGE_DIR) -> list:
     return sorted(path for path in package.rglob("*.py") if "__pycache__" not in path.parts)
-
-
-def all_source(package: Path = PACKAGE_DIR) -> str:
-    return "\n".join(path.read_text(encoding="utf-8") for path in module_files(package))
-
-
-def ui_kit_source() -> str:
-    """Das ganze UI-Kit - es ist auf mehrere Module verteilt."""
-    return all_source(PACKAGE_DIR / "ui_kit")

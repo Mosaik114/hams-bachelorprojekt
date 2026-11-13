@@ -15,7 +15,9 @@ import threading
 import pystray
 import pytest
 
+from hams import config
 from hams.app import FloatingTranscriberApp as App
+from hams.config import CFG
 
 
 class _FakeIcon:
@@ -186,3 +188,66 @@ class TestRefresh:
 
     def test_the_tooltip_without_history(self, app):
         assert app._tray_tooltip().endswith("bereit")
+
+
+class _NotifyingTray:
+    HAS_NOTIFICATION = True
+
+    def __init__(self):
+        self.notes = []
+        self.icon = None
+        self.title = ""
+
+    def notify(self, message, title):
+        self.notes.append((title, message))
+
+    def stop(self):
+        pass
+
+
+class TestTheFirstHideExplainsTheTray:
+    def test_once_per_installation(self, live_app, hams):
+        live_app.tray_icon = _NotifyingTray()
+        CFG.tray_hint_shown = False
+        live_app._hide_window()
+        live_app._show_window()
+        live_app._hide_window()
+        assert live_app.tray_icon.notes == [
+            (
+                "Hams läuft im Tray weiter",
+                "Die Kurzbefehle funktionieren weiter. Ein Klick auf das Tray-Symbol zeigt das Fenster wieder; "
+                "es kann hinter dem Pfeil ^ liegen.",
+            )
+        ]
+        assert ("ui", "tray_hint_shown", True) in hams.saved
+        assert CFG.tray_hint_shown is True
+
+    def test_not_again_after_a_restart(self, live_app):
+        live_app.tray_icon = _NotifyingTray()
+        CFG.tray_hint_shown = True
+        live_app._hide_window()
+        assert live_app.tray_icon.notes == []
+
+    def test_a_tray_without_notifications_asks_again_next_time(self, live_app, hams):
+        CFG.tray_hint_shown = False
+        live_app._hide_window()  # FakeTray: no notifications
+        assert CFG.tray_hint_shown is False
+        assert not [entry for entry in hams.saved if entry[1] == "tray_hint_shown"]
+
+    def test_a_failing_notification_does_not_block_hiding(self, live_app):
+        tray = _NotifyingTray()
+
+        def broken(message, title):
+            raise RuntimeError("shell weg")
+
+        tray.notify = broken
+        live_app.tray_icon = tray
+        CFG.tray_hint_shown = False
+        live_app._hide_window()
+        assert live_app._window_visible is False
+        assert CFG.tray_hint_shown is False
+
+    def test_the_setting_is_read_from_the_file(self):
+        cfg = config.Config()
+        config._apply_toml(cfg, {"ui": {"tray_hint_shown": True}})
+        assert cfg.tray_hint_shown is True

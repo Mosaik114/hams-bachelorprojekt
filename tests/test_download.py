@@ -12,6 +12,7 @@ import pytest
 
 from hams import hub_progress, models
 from hams.app import FloatingTranscriberApp as App
+from hams.config import CFG
 from hams.settings_window import SettingsWindow as SW
 
 TINY = models.find("tiny")
@@ -629,3 +630,70 @@ class TestTransport:
         monkeypatch.setattr(constants, "HF_HUB_DISABLE_XET", False)
         run_download(monkeypatch, lambda _bar: None)
         assert constants.HF_HUB_DISABLE_XET is True
+
+
+class _Downloader:
+    def __init__(self):
+        self.model_id, self.active, self.started = None, False, []
+
+    def start(self, info, on_progress, on_finished):
+        self.started.append(info.model_id)
+        self.model_id, self.active = info.model_id, True
+        return ""
+
+    def cancel(self):
+        self.active = False
+
+
+class TestALateDownloadNeverOverridesANewerChoice:
+    @pytest.fixture
+    def app(self, live_app, model_cache_check, monkeypatch):
+        from hams.whisper_model import WhisperModelMixin
+
+        live_app.downloader = _Downloader()
+        live_app.loaded = []
+
+        def run_now(model_id, generation, persist=True):
+            live_app.loaded.append(model_id)
+            live_app._switch_worker(model_id, generation, persist)
+
+        monkeypatch.setattr(live_app, "_start_switch_thread", run_now)
+        monkeypatch.setattr(live_app, "_build_model", lambda model_id: (object(), "cpu", "int8"))
+        monkeypatch.setattr(live_app, "_load_model_async", lambda: WhisperModelMixin._load_model_async(live_app))
+        CFG.model_size = "small"
+        return live_app
+
+    def settle(self, app):
+        app._ui_dispatcher.drain()
+        app.root.update()
+
+    def test_download_a_switch_to_b_a_finishes_b_stays(self, app, hams):
+        app._load_model_async()  # "small" isn't cached: it is downloaded first
+        assert app._load_after_download == "small"
+        assert app.switch_model("base")
+        self.settle(app)
+        assert app._load_after_download is None
+        assert (app.active_model_size, CFG.model_size) == ("base", "base")
+        app.downloader.active = False
+        app._on_download_finished("small", "")
+        self.settle(app)
+        assert app.loaded == ["base"], "the finished download of small loads nothing"
+        assert (app.active_model_size, CFG.model_size) == ("base", "base")
+        assert ("model", "size", "small") not in hams.saved
+
+    def test_a_download_from_the_settings_still_switches_when_nothing_else_was_chosen(self, app):
+        app.start_download("base")
+        app.downloader.active = False
+        app._on_download_finished("base", "")
+        self.settle(app)
+        assert app.loaded == ["base"]
+        assert app.active_model_size == "base"
+
+    def test_the_awaited_download_does_not_draw_over_a_recording(self, app):
+        app._load_model_async()
+        app.toggle_recording()
+        app.downloader.active = False
+        app._on_download_finished("small", "")
+        self.settle(app)
+        assert app.loaded == ["small"], "the recording waits for this model: load it"
+        assert app._state == "recording"

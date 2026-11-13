@@ -6,13 +6,12 @@ umgehängt. Die Suite als Ganzes läuft ausserdem mit `HAMS_CONFIG` auf einem
 Wegwerfpfad (siehe conftest).
 """
 
-import inspect
 import os
+import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from source_code import all_source
 
 from hams import app_paths
 from hams import config as config_mod
@@ -364,14 +363,25 @@ class TestWriting:
 
 
 class TestResourcePaths:
-    def test_the_cleanup_prompt_stays_with_the_package(self):
-        """Eine Produktdatei, keine Nutzerkonfiguration."""
-        source = inspect.getsource(config_mod._load_cleanup_prompt)  # aus _apply_ollama ausgelagert
-        assert "(APP_DIR / prompt_file_rel)" in source
-        assert "CONFIG_PATH / prompt_file_rel" not in all_source()
-
     def test_the_shipped_prompt_exists(self):
         assert (config_mod.APP_DIR / "prompts" / "cleanup.txt").exists()
+
+    def test_a_relative_prompt_file_is_read_from_the_package_not_the_user_folder(self, paths):
+        """A product file, not user configuration: `cleanup_prompt_file` resolves against the package."""
+        paths.user.parent.mkdir(parents=True)
+        (paths.user.parent / "prompts").mkdir()
+        (paths.user.parent / "prompts" / "cleanup.txt").write_text("from the user folder {text}", encoding="utf-8")
+        paths.user.write_text('[ollama]\ncleanup_prompt_file = "prompts/cleanup.txt"\n', encoding="utf-8")
+        shipped = (config_mod.APP_DIR / "prompts" / "cleanup.txt").read_text(encoding="utf-8")
+        assert config_mod._load_config().cleanup_prompt_template == shipped
+
+    def test_the_autostart_helper_runs_without_the_config(self):
+        """The installer calls `setup_autostart` before any configuration exists: it must not load it."""
+        probe = "import sys, hams.setup_autostart; print('hams.config' in sys.modules)"
+        result = subprocess.run(
+            [sys.executable, "-c", probe], capture_output=True, text=True, cwd=config_mod.APP_DIR.parent, check=True
+        )
+        assert result.stdout.strip() == "False"
 
     def test_transcripts_and_logs_live_outside_the_package(self, monkeypatch, tmp_path):
         """Installiert gehoert der Programmordner dem Installer: ein Update ersetzt ihn.
@@ -392,10 +402,6 @@ class TestResourcePaths:
         """Derselbe Ausweg wie bei HAMS_CONFIG, aus demselben Grund."""
         monkeypatch.setenv("HAMS_LOG_DIR", str(tmp_path / "woanders"))
         assert config_mod._log_dir() == tmp_path / "woanders"
-
-    def test_autostart_does_not_care_about_the_config(self):
-        source = (config_mod.APP_DIR / "setup_autostart.py").read_text(encoding="utf-8")
-        assert "config" not in source.lower()
 
 
 # ------------------------------------------------------------------- Vorlage

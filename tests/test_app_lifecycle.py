@@ -6,6 +6,7 @@ Zustandsmaschine und dem echten Ablauf von Start bis Stopp. Nur was den
 Rechner beruehrt, ist ersetzt (siehe tests/live_app.py).
 """
 
+import logging
 import threading
 import time
 import tkinter as tk
@@ -507,3 +508,70 @@ class TestDisplayLevel:
 
     def test_close_speech_fills_the_meter(self):
         assert recording_mod._display_level(0.05**2) == 1.0
+
+
+class TestQuitWaitsForQueuedDictations:
+    def test_quit_waits_while_a_dictation_is_transcribed(self, live_app, hams):
+        live_app._pipeline_job_running = True
+        live_app._quit_on_ui_thread()
+        assert not live_app._shutting_down
+        assert hams.hotkeys.entries == [], "no new dictation starts while quitting"
+        live_app._pipeline_job_running = False
+        live_app._quit_on_ui_thread()  # the next poll
+        assert live_app._shutting_down
+
+    def test_after_the_grace_period_the_rest_is_dropped_and_logged(self, live_app, caplog, monkeypatch):
+        monkeypatch.setattr(live_app, "QUIT_DRAIN_SECONDS", 0.0)
+        live_app._pipeline_job_running = True
+        live_app._pipeline_jobs = __import__("collections").deque([("audio", False, 1)])
+        with caplog.at_level(logging.WARNING, logger="hams"):
+            live_app._quit_on_ui_thread()
+        assert live_app._shutting_down
+        assert any("2 dictation(s)" in r.getMessage() for r in caplog.records)
+
+    def test_nothing_queued_quits_at_once(self, live_app):
+        live_app._quit_on_ui_thread()
+        assert live_app._shutting_down
+
+
+class _Consumer:
+    def __init__(self):
+        self.events = []
+
+    def suspend_microphone(self):
+        self.events.append("suspend")
+
+    def resume_microphone(self):
+        streams = FakeStream.opened
+        self.events.append(("resume", bool(streams) and streams[-1].closed))
+
+
+class TestTheMicrophoneIsSharedCleanly:
+    @pytest.fixture
+    def consumer(self, live_app):
+        consumer = _Consumer()
+        live_app.register_mic_consumer(consumer)
+        return consumer
+
+    def test_the_level_monitor_comes_back_after_the_recording_released_the_device(self, live_app, consumer):
+        live_app.toggle_recording()
+        live_app.toggle_recording()
+        assert consumer.events == ["suspend", ("resume", True)]
+
+    def test_a_start_that_fails_gives_the_microphone_back(self, live_app, consumer):
+        import sounddevice as sd
+
+        FakeStream.fail_with = sd.PortAudioError("weg")
+        live_app.toggle_recording()
+        assert live_app._state == "error"
+        assert consumer.events == ["suspend", ("resume", False)]
+
+    def test_a_stream_that_opens_but_does_not_start_is_closed(self, live_app, consumer, monkeypatch):
+        def refuse(self):
+            raise RuntimeError("Gerät belegt")
+
+        monkeypatch.setattr(FakeStream, "start", refuse)
+        live_app.toggle_recording()
+        assert FakeStream.opened[-1].closed
+        assert live_app.stream is None and live_app.is_recording is False
+        assert consumer.events == ["suspend", ("resume", True)]

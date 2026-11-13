@@ -16,8 +16,10 @@ new ones; `hams.ui_kit` exports only what the app uses (tests take internals fro
 - **Never restart the running app unasked.** The author dictates with it.
 - Identifiers stay in English; comments may be German. UI strings go into both catalogs `hams/messages_en.py` and
   `hams/messages_de.py` and are looked up with `hams.i18n.t()`; the tests run with the German UI (`conftest.py`).
-- Some tests read source code with `inspect.getsource` (order of the output paths). Update those search strings when
-  refactoring.
+- Tests check behaviour, never source text: build the real objects with the fakes from `tests/live_app.py` and
+  observe what they do. The only exceptions are project-wide AST rules (strings through the catalogs, colours through
+  the theme, English identifiers; helper `tests/source_code.py`) and `test_hotkey_recovery.py`, which pins a property
+  of the third-party `keyboard` library.
 - Keep the Windows parts (`scripts/start_hams.vbs`, `system_hotkeys.py`, `activation.py`) working. Platform
   switches use `sys.platform`.
 - User data lives in `%APPDATA%\Hams` / `~/.config/hams`; tests redirect it with `HAMS_CONFIG` and `HAMS_LOG_DIR`

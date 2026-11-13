@@ -125,6 +125,16 @@ class TestOpening:
         win = open_settings()
         assert win in live_app._mic_consumers
 
+    def test_the_title_names_the_product(self, open_settings):
+        assert open_settings().win.title() == "Hams — Einstellungen"
+
+    def test_the_general_group_puts_appearance_after_sound_and_ends_on_the_assistant(self, open_settings):
+        win = open_settings()
+        rows = win.row_sound.master.pack_slaves()
+        assert rows.index(win.row_appearance) > rows.index(win.row_sound)
+        assert rows[-1] is win.row_setup
+        assert win.row_setup.hairline is None  # the last row of a group draws no line under it
+
 
 class TestLevel:
     @pytest.mark.parametrize(

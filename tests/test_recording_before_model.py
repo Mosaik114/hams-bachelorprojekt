@@ -15,13 +15,16 @@ Gemessen war die wahrgenommene Startzeit dadurch 3,0 s statt 0,8 s: der Nutzer
 wartete auf etwas, das er zum Sprechen gar nicht braucht.
 """
 
-import inspect
 import threading
 import time
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
 
 from hams.app import FloatingTranscriberApp
+from hams.app import FloatingTranscriberApp as App
+from hams.config import CFG
 
 
 @pytest.fixture
@@ -113,26 +116,86 @@ class TestDasWartenAufDasModell:
         assert 0.4 < time.monotonic() - t0 < 2.0
 
 
-class TestDieAnnahmeDahinter:
-    """Die ganze Aenderung steht und faellt mit einer Eigenschaft."""
+class TestEndToEnd:
+    def test_words_spoken_while_the_model_loads_are_pasted_once_it_is_there(self, live_app, hams):
+        """The recording never needs the model; the transcription waits for it and then pastes."""
+        CFG.ollama_cleanup_enabled = False
+        live_app.toggle_recording()
+        assert live_app.is_recording
+        hams.streams[-1].feed(np.full(1600, 0.2))
+        live_app.toggle_recording()
+        assert not live_app.is_recording
+        assert hams.clipboard.copies == []  # nothing to transcribe with yet
 
-    @staticmethod
-    def _rumpf(name: str) -> str:
-        return inspect.getsource(getattr(FloatingTranscriberApp, name))
+        live_app.model = SimpleNamespace(transcribe=lambda audio, **options: ([SimpleNamespace(text=" Gesagt ")], None))
+        live_app.model_ready.set()
+        deadline = time.monotonic() + 5
+        while not hams.clipboard.copies:
+            assert time.monotonic() < deadline, "the waiting dictation was never pasted"
+            time.sleep(0.02)
+        assert hams.clipboard.copies == ["Gesagt"]
 
-    def test_start_recording_never_touches_the_model(self):
-        """Faellt das, ist die Aufnahme vor dem Modell nicht mehr sicher."""
-        rumpf = self._rumpf("start_recording")
-        for verboten in ("self.model", "model_ready", "WhisperModel", "current_model", "_transcribe_lock"):
-            assert verboten not in rumpf, (
-                f"start_recording benutzt {verboten!r} — die Aufnahme haengt damit doch wieder am Modell"
-            )
 
-    def test_the_transcription_waits_instead(self):
-        rumpf = self._rumpf("_transcribe_job")
-        # Q7: das Warten steht in _auf_modell_warten, aufgerufen vor dem Lock
-        assert "_await_model" in self._rumpf("_auf_modell_warten"), (
-            "Wenn die Aufnahme nicht mehr wartet, muss die Auswertung es tun"
-        )
-        assert "_auf_modell_warten" in rumpf
-        assert rumpf.index("_auf_modell_warten") < rumpf.index("self._transcribe_lock")
+class TestStoppingAlwaysWorks:
+    def _recording_app(self):
+        app = App.__new__(App)
+        app.model_ready = threading.Event()
+        app._switching_to = None
+        app._prompt_mode = False
+        app.is_recording = True
+        app.model_error = "download failed"
+        app._state = "error"
+        app.stopped = []
+        app.stop_recording_and_transcribe = lambda: app.stopped.append(True)
+        app._on_model_error = lambda: pytest.fail("the error must not refuse the stop")
+        return app
+
+    @pytest.mark.parametrize("toggle", ["toggle_recording", "toggle_recording_generate"])
+    def test_a_failed_model_never_refuses_the_stop(self, toggle):
+        app = self._recording_app()
+        getattr(App, toggle)(app)
+        assert app.stopped == [True]
+
+    def test_a_model_error_during_the_recording_waits_for_the_stop(self, live_app, hams):
+        live_app.toggle_recording()
+        assert live_app._state == "recording"
+        live_app._after_switch("turbo", False, persist=False, requested="turbo")
+        assert live_app._state == "recording", "the window keeps saying Recording"
+        live_app.toggle_recording()  # nothing recorded
+        assert live_app.is_recording is False
+        assert live_app._state == "error"
+        assert live_app.status_label.cget("text") == "Modell konnte nicht geladen werden"
+
+    def test_a_failed_download_during_the_recording_waits_for_the_stop(self, live_app, hams):
+        live_app.toggle_recording()
+        live_app._on_model_download_failed("small", "Server nicht erreichbar")
+        assert live_app._state == "recording"
+        assert live_app.model_error == "Server nicht erreichbar"
+        live_app.toggle_recording()
+        assert live_app.footer_label.cget("text") == "Server nicht erreichbar"
+
+    def test_a_fallback_during_the_recording_follows_the_pasted_dictation(self, live_app, hams, monkeypatch):
+        monkeypatch.setattr(live_app, "_enqueue_transcription", lambda *job: None)
+        live_app.model_ready.set()
+        live_app.toggle_recording()
+        live_app._after_switch("turbo", True, persist=True, requested="small")
+        assert live_app._state == "recording"
+        hams.streams[-1].feed(np.full(800, 0.2))
+        live_app.toggle_recording()
+        assert live_app._state == "transcribing"
+        live_app._back_to_ready()  # the pasted dictation's "done" runs out
+        assert live_app.status_label.cget("text") == "Small ließ sich nicht laden"
+
+    def test_a_missing_model_is_left_to_the_queued_dictation(self, live_app, hams, monkeypatch):
+        monkeypatch.setattr(live_app, "_enqueue_transcription", lambda *job: None)
+        live_app.toggle_recording()
+        live_app.model_error = "CUDA out of memory"  # what the failed load leaves behind
+        live_app._after_switch("turbo", False, persist=False, requested="turbo")
+        hams.streams[-1].feed(np.full(800, 0.2))
+        live_app.toggle_recording()
+        assert live_app._notice_after_pipeline is None, "the dictation reports the missing model itself"
+
+    def test_a_model_ready_during_the_recording_leaves_the_window_alone(self, live_app):
+        live_app.toggle_recording()
+        live_app._after_switch("turbo", True, persist=False, requested="turbo")
+        assert live_app._state == "recording"

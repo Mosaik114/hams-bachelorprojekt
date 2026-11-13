@@ -21,9 +21,11 @@ import sys
 import textwrap
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from hams import cli, main, setup_autostart
 from hams.config import Config, _apply_toml
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -109,3 +111,65 @@ class TestJederFehlerWirdGemeldet:
         _apply_toml(cfg, tomllib.loads('[ollama]\nurl = "ftp://127.0.0.1:11434/api/generate"\n'))
 
         assert cfg.ollama_url == Config().ollama_url
+
+
+ISS = (Path(__file__).resolve().parent.parent / "packaging" / "hams.iss").read_text(encoding="utf-8-sig")
+
+
+class _Root:
+    def __init__(self):
+        self.idle = []
+
+    def after_idle(self, fn):
+        self.idle.append(fn)
+
+
+class TestTheWindowOnStart:
+    @pytest.fixture
+    def app(self):
+        return SimpleNamespace(_show_window="show", _open_setup="setup", _open_settings="settings")
+
+    @pytest.mark.parametrize(
+        ("flags", "expected"),
+        [
+            ({}, ["show"]),
+            ({"background": True}, []),
+            ({"setup": True}, ["setup"]),
+            ({"setup": True, "background": True}, ["setup"]),
+            ({"settings": True}, ["show", "settings"]),
+            ({"settings": True, "background": True}, ["settings"]),
+        ],
+    )
+    def test_only_the_autostart_starts_hidden(self, app, flags, expected):
+        root = _Root()
+        options = {"setup": False, "settings": False, "background": False, **flags}
+        main._first_windows(root, app, **options)
+        assert root.idle == expected
+
+    def test_the_command_line_passes_background_on(self, monkeypatch):
+        seen = {}
+        monkeypatch.setattr(main, "main", lambda **kwargs: seen.update(kwargs))
+        assert cli.run(["--background"]) == 0
+        assert seen == {"show_settings": False, "show_setup": False, "background": True}
+        cli.run([])
+        assert seen["background"] is False
+
+    def test_the_installer_autostart_entry_and_only_it_starts_in_the_background(self):
+        run_value = next(line for line in ISS.splitlines() if "CurrentVersion\\Run" in line and "ValueData" in line)
+        assert "--background" in run_value
+        icons_and_launch = [line for line in ISS.splitlines() if line.startswith(("Name:", "Filename:"))]
+        assert icons_and_launch and not any("--background" in line for line in icons_and_launch)
+
+    def test_a_source_autostart_entry_starts_in_the_background(self, monkeypatch):
+        monkeypatch.setattr(setup_autostart.sys, "frozen", True, raising=False)
+        assert setup_autostart._resolve_launch_command().endswith(" --background")
+
+    def test_the_start_script_passes_its_arguments_on(self):
+        script = (setup_autostart.PROJECT_ROOT / "scripts" / "start_hams.vbs").read_text(encoding="utf-8")
+        assert "WScript.Arguments" in script and "& args" in script
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="hams.linux needs Linux")
+    def test_the_linux_service_is_the_autostart_and_starts_in_the_background(self):
+        from hams import linux
+
+        assert '"/main.py" --background' in linux.service_unit("/py", "/main.py")

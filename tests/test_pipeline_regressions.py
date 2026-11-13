@@ -3,6 +3,7 @@
 Each class pins one finding: the fix must hold, or a dictation gets lost, mangled or overwritten.
 """
 
+import logging
 import socket
 import threading
 import time
@@ -290,8 +291,108 @@ class TestTranscriptFiles:
             App._create_transcript_file("stamp", "neu", attempts=1)
         assert Path(tmp_path / "stamp.txt").read_text(encoding="utf-8") == "alt"
 
-    def test_the_paste_function_has_one_docstring(self):
-        import inspect
 
-        source = inspect.getsource(App._copy_and_paste)
-        assert source.count('"""') == 2
+@pytest.fixture
+def pipeline_app(monkeypatch, tmp_path):
+    """The app without window: UI calls run at once and are recorded, pasting is recorded too."""
+    instance = App.__new__(App)
+    instance.model_ready = threading.Event()
+    instance.model_ready.set()
+    instance._transcribe_lock = threading.Lock()
+    instance._model_lock = threading.Lock()
+    instance.model = object()
+    instance.is_recording = False
+    instance._prompt_mode = False
+    instance.states = []
+    instance.pasted = []
+    instance._ui_call = lambda fn: fn()
+    instance._apply_state = lambda state, detail=None, hint=None, **_: instance.states.append((state, detail, hint))
+    instance._add_to_history = lambda text: None
+    instance._copy_and_paste = instance.pasted.append
+    instance._save_transcript_file = lambda text: None
+    instance.elapsed_label = SimpleNamespace(config=lambda **_: None)
+    monkeypatch.setattr(CFG, "ollama_cleanup_enabled", False)
+    return instance
+
+
+GLOSSARY = 'words = ["Müller"]\n[replace]\n"mueller" = "Müller"\n'
+
+
+class TestGlossaryEncodings:
+    @pytest.fixture
+    def path(self, tmp_path, monkeypatch):
+        target = tmp_path / "glossary.toml"
+        monkeypatch.setattr(glossary, "glossary_path", lambda: target)
+        monkeypatch.setitem(glossary._cache, "path", None)
+        return target
+
+    @pytest.mark.parametrize("encoding", ["cp1252", "utf-16"])
+    def test_a_file_in_another_encoding_never_breaks_a_dictation(self, pipeline_app, path, encoding, caplog):
+        path.write_bytes(GLOSSARY.encode(encoding))
+        pipeline_app._run_transcription = lambda model, audio: ("frau mueller", "de")
+        with caplog.at_level(logging.WARNING, logger="hams"):
+            pipeline_app._transcribe_audio(AUDIO)
+            pipeline_app._transcribe_audio(AUDIO)
+        assert pipeline_app.pasted == ["frau mueller", "frau mueller"], "an empty glossary, the text still comes"
+        warnings = [r for r in caplog.records if "Glossar" in r.getMessage()]
+        assert len(warnings) == 1, "cached for this file version: one warning, not one per dictation"
+        assert glossary.hotwords("de") is None
+
+    def test_a_utf8_file_with_byte_order_mark_counts(self, pipeline_app, path):
+        path.write_bytes(GLOSSARY.encode("utf-8-sig"))
+        pipeline_app._run_transcription = lambda model, audio: ("frau mueller", "de")
+        pipeline_app._transcribe_audio(AUDIO)
+        assert pipeline_app.pasted == ["frau Müller"]
+        assert "Müller" in glossary.hotwords("de")
+
+
+class _Response:
+    def __init__(self, body: bytes, lines=None):
+        self.body = body
+        self.lines = lines or []
+
+    def read(self):
+        return self.body
+
+    def __iter__(self):
+        return iter(self.lines)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class TestAnUnusableAiAnswerIsAFailure:
+    @pytest.fixture
+    def answer(self, monkeypatch, pipeline_app):
+        def install(response):
+            monkeypatch.setattr(transcription_mod.urllib.request, "urlopen", lambda request, timeout=None: response)
+            pipeline_app._run_transcription = lambda model, audio: ("was ist die hauptstadt", "de")
+            pipeline_app._transcribe_audio(AUDIO, prompt_mode=True)
+            return pipeline_app
+
+        return install
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            _Response(b"", [b'{"response": "", "done": true}\n']),
+            _Response(b"", [b'{"error": "model not found"}\n']),
+            _Response(b"", [b'{"response": "Oslo"}\n', b'{"error": "out of memory"}\n']),
+            _Response(b"", [b'{"response": "Os"}\n', b'{"response": "lo"}\n']),  # cut off, no "done"
+            _Response(b"", [b'{"response": "   ", "done": true}\n']),
+        ],
+        ids=["empty", "error-field", "error-in-stream", "no-done", "blank-stream"],
+    )
+    def test_nothing_is_pasted_and_the_error_says_so(self, answer, response):
+        app = answer(response)
+        assert app.pasted == [], "the clipboard stays untouched"
+        state, detail, hint = app.states[-1]
+        assert (state, detail) == ("error", "KI-Antwort fehlgeschlagen")
+        assert hint.startswith("Die KI hat keine brauchbare Antwort geliefert")
+
+    def test_a_complete_stream_is_pasted(self, answer):
+        app = answer(_Response(b"", [b'{"response": "Os"}\n', b'{"response": "lo", "done": true}\n']))
+        assert app.pasted == ["Oslo"]

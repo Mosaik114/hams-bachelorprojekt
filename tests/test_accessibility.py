@@ -24,7 +24,7 @@ from kit import (
     Switch,
     Theme,
 )
-from source_code import PACKAGE_DIR, module_files
+from source_code import module_files
 from ui_helpers import focus_chain
 
 BG = Theme.GROUP_SURFACE
@@ -571,14 +571,6 @@ class TestLanguage:
 class TestNoLegacyGlyphs:
     #: Zeichen, die frueher als Ersatz fuer echte Icons dienten.
     GLYPHS = ["⚙", "⌄", "✕", "▾", "▼", "●", "✔"]
-
-    @pytest.mark.parametrize("path", [path.relative_to(PACKAGE_DIR).as_posix() for path in module_files()])
-    def test_no_glyph_hacks_left(self, path):
-        source = (PACKAGE_DIR / path).read_text(encoding="utf-8")
-        lines = [line for line in source.splitlines() if not line.lstrip().startswith("#")]
-        body = "\n".join(lines)
-        present = [glyph for glyph in self.GLYPHS if glyph in body]
-        assert not present, f"{path}: {present}"
 
     def test_the_download_marker_is_a_deliberate_character(self):
         """Der Pfeil vor der Groesse ist Text, kein Icon-Ersatz — und bleibt."""

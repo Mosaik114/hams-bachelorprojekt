@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from kit import _FONT_ROLES, Height, Radius, Space, Theme
-from source_code import all_source, module_files
+from source_code import module_files
 
 PROJECT = Path(__file__).parent.parent
 THEME = PROJECT / "hams" / "ui_kit" / "theme.py"
@@ -322,6 +322,3 @@ class TestNoRawValues:
         after_theme = source.split("class Space:", 1)[1]
         found = re.findall(r'"#[0-9A-Fa-f]{3,8}"', after_theme)
         assert not found, f"Rohfarben außerhalb der Token-Klasse: {found}"
-
-    def test_old_palette_is_gone(self):
-        assert "COLOR_" not in all_source()

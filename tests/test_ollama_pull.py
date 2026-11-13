@@ -4,6 +4,7 @@ Geprüft an einer Ersatzantwort im Format von `/api/pull`; es wird nie eine Verb
 """
 
 import json
+import threading
 import urllib.error
 
 import pytest
@@ -97,3 +98,23 @@ class TestPull:
 
     def test_cancelled_is_a_pull_error(self):
         assert issubclass(ollama.PullCancelled, ollama.PullError)
+
+
+class TestTheOllamaPullReportsThroughTheDispatcher:
+    def test_post_pull_never_calls_tk_from_the_worker(self, live_app, monkeypatch):
+        live_app._open_settings()
+        live_app.root.update()
+        win = live_app.settings_win
+        queued = []
+        monkeypatch.setattr(live_app, "_ui_call", queued.append)
+        touched = []
+        win.win.after = lambda *args: touched.append(args)
+        try:
+            worker = threading.Thread(target=win._post_pull, args=(lambda: None,), name="pull")
+            worker.start()
+            worker.join(2)
+        finally:
+            del win.win.after
+        assert touched == [], "Tk called from the pull thread"
+        assert len(queued) == 1
+        queued[0]()  # on the Tk thread: runs the callback and refreshes the row

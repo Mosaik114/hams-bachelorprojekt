@@ -97,6 +97,27 @@ class TestPipeline:
         assert [f.read_text(encoding="utf-8") for f in files] == ["Hallo Welt"]
         assert ready._state == "done"
 
+    def test_history_clipboard_and_file_get_the_cleaned_text_in_that_order(self, ready, hams, ollama):
+        """The cleanup runs before any output, and every output path gets its result: first the tray history,
+        then the clipboard and Ctrl+V, the file last (in the background, after the paste)."""
+        CFG.ollama_cleanup_enabled = True
+        CFG.save_transcripts = True
+        CFG.cleanup_prompt_template = "Korrigiere: {text}"
+        ollama.answer = "Hallo, Welt."
+        events = []
+        copy = hams.clipboard.copy
+
+        def copy_after_history(text):
+            events.append(("clipboard", text, ready._history[0][2]))
+            copy(text)
+
+        hams.clipboard.copy = copy_after_history
+        run(ready)
+        files = list(transcription_mod.OUTPUT_DIR.glob("*.txt"))
+        assert events == [("clipboard", "Hallo, Welt.", "Hallo, Welt.")]  # the history had it before the paste
+        assert hams.keyboard.sent == ["ctrl+v"]
+        assert [f.read_text(encoding="utf-8") for f in files] == ["Hallo, Welt."]
+
     def test_cleanup_goes_through_ollama_and_loses_its_markdown(self, ready, hams, ollama):
         CFG.ollama_cleanup_enabled = True
         CFG.cleanup_prompt_template = "Korrigiere: {text}"

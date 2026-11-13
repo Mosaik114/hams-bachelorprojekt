@@ -17,7 +17,10 @@ import tomllib
 import pytest
 
 import hams.config as config_mod
-from hams.config import Config, _apply_toml, _load_config, _persist_config_value
+from hams import config
+from hams import main_window as main_window_mod
+from hams.config import CFG, Config, _apply_toml, _load_config, _persist_config_value
+from hams.config import _persist_config_value as REAL_PERSIST  # before any fixture replaces it
 from hams.config_toml import _set_toml_value, verify_toml_value
 from hams.config_validation import SectionReader
 
@@ -500,3 +503,48 @@ class TestRetiredKeys:
         }
         assert COMPUTE_PRIORITY["cuda"][0] == "float16"
         assert COMPUTE_PRIORITY["cpu"][0] == "int8"
+
+
+class TestConfigEncodings:
+    @pytest.fixture
+    def path(self, tmp_path, monkeypatch):
+        target = tmp_path / "config.toml"
+        monkeypatch.setattr(config, "CONFIG_PATH", target)
+        monkeypatch.setattr(config, "BROKEN_CONFIG", None)
+        return target
+
+    def test_a_cp1252_file_is_not_written_and_does_not_raise(self, path):
+        original = '[audio]\ndevice = "Mikrofon (Realtek\xae Audio)"\n'.encode("cp1252")
+        path.write_bytes(original)
+        assert REAL_PERSIST("ui", "window_x", 5) is False
+        assert path.read_bytes() == original
+
+    def test_a_cp1252_file_is_reported_as_unreadable(self, path):
+        path.write_bytes('[audio]\ndevice = "Realtek\xae"\n'.encode("cp1252"))
+        assert config._read_toml(path) == {}
+        assert config.BROKEN_CONFIG is not None and "UTF-8" in config.BROKEN_CONFIG.error
+
+    def test_a_file_with_byte_order_mark_loads_and_saves(self, path):
+        path.write_bytes('[ui]\nsound_feedback = false\n'.encode("utf-8-sig"))
+        assert config._read_toml(path) == {"ui": {"sound_feedback": False}}
+        assert config.BROKEN_CONFIG is None
+        assert REAL_PERSIST("ui", "window_x", 5) is True
+        assert config._read_toml(path) == {"ui": {"sound_feedback": False, "window_x": 5}}
+
+    def test_quit_reaches_the_shutdown_with_a_cp1252_config(self, live_app, path, monkeypatch):
+        path.write_bytes('[audio]\ndevice = "Realtek\xae"\n'.encode("cp1252"))
+        monkeypatch.setattr(main_window_mod, "_persist_config_value", REAL_PERSIST)
+        live_app._window_pos = (CFG.window_x or 0) + 7, (CFG.window_y or 0) + 7
+        window = live_app.root
+        live_app._quit_on_ui_thread()
+        assert live_app._shutting_down and live_app.tray_icon.stopped
+        window.update()
+        assert not window.winfo_exists()
+
+    def test_hiding_survives_a_failing_save(self, live_app, monkeypatch):
+        def broken():
+            raise RuntimeError("Datei weg")
+
+        monkeypatch.setattr(live_app, "_save_position", broken)
+        live_app._hide_window()
+        assert live_app._window_visible is False

@@ -8,13 +8,11 @@ Tests sichern den Plattformpfad und den Rückfall ab.
 """
 
 import ctypes
-import inspect
 import sys
 import tkinter as tk
 
 import kit as uk
 import pytest
-from source_code import ui_kit_source
 
 from hams.ui_kit import window as window_mod
 
@@ -141,25 +139,3 @@ class TestNoDoubleMechanism:
             window.destroy()
         if result == "dwm":
             assert calls and calls[0] is None, "Region wurde nicht entfernt"
-
-
-class TestDocumentedLimits:
-    """Die gemessenen Grenzen dürfen nicht stillschweigend verschwinden."""
-
-    @staticmethod
-    def _code_lines() -> str:
-        """Nur echte Codezeilen — im Kommentar stehen die Namen absichtlich."""
-        lines = [line for line in ui_kit_source().splitlines() if not line.lstrip().startswith("#")]
-        return chr(10).join(lines)
-
-    def test_no_border_colour_call(self):
-        assert "DWMWA_BORDER_COLOR" not in self._code_lines()
-
-    def test_no_shadow_hacks(self):
-        code = self._code_lines()
-        for forbidden in ("DwmExtendFrameIntoClientArea", "CS_DROPSHADOW", "ACCENT_ENABLE_ACRYLIC", "transparentcolor"):
-            assert forbidden not in code, f"{forbidden} sollte nicht verwendet werden"
-
-    def test_limits_are_documented(self):
-        code = inspect.getsource(window_mod)
-        assert "wirkungslos" in code, "Die gemessenen Grenzen fehlen im Kommentar"

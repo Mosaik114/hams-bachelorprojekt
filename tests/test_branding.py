@@ -6,16 +6,13 @@ ist), und dass in der sichtbaren Oberfläche kein alter Produktname steht.
 """
 
 import ast
-import inspect
 
 import pytest
 from PIL import Image
 
-from hams import app as app_mod
 from hams import branding, i18n
 from hams import config as config_mod
 from hams import instance as instance_mod
-from hams import settings_window as settings_window_mod
 from hams import tray as tray_mod
 from hams.app import FloatingTranscriberApp
 
@@ -26,16 +23,12 @@ class TestName:
     def test_the_visible_product_name(self):
         assert branding.PRODUCT_NAME == "Hams"
 
-    def test_the_window_title_uses_it(self):
-        source = inspect.getsource(app_mod)
-        assert 'self.root.title(branding.PRODUCT_NAME)' in source
-        assert 'self.root.title("Wisper")' not in source
+    def test_the_main_window_carries_it(self, live_app):
+        assert live_app.root.title() == branding.PRODUCT_NAME
 
-    def test_the_settings_title_uses_it(self):
-        source = inspect.getsource(settings_window_mod)
-        assert 't("settings.window_title", product=branding.PRODUCT_NAME)' in source
-        for catalog in i18n.CATALOGS.values():
-            assert catalog["settings.window_title"].startswith("{product} — ")
+    def test_the_tray_tooltip_carries_it(self, live_app):
+        live_app._update_tray_tooltip()
+        assert live_app.tray_icon.title.startswith(branding.PRODUCT_NAME)
 
 
 class TestAssets:
@@ -64,6 +57,11 @@ class TestAssets:
 
 
 class TestTrayImage:
+    @pytest.mark.parametrize("state", ["ready", "recording", "recording_prompt", "error"])
+    def test_the_tray_icon_is_the_brand_mark_in_the_state_colour(self, state):
+        colour = FloatingTranscriberApp._tray_colour(state)
+        assert tray_mod._create_tray_icon_image(colour).tobytes() == branding.tray_image(colour).tobytes()
+
     @pytest.mark.parametrize("size", MARK_SIZES)
     def test_the_requested_size_comes_back(self, size):
         assert branding.tray_image("#0A84FF", size).size == (size, size)
@@ -120,19 +118,6 @@ class TestTrayImage:
         chosen = colour or FloatingTranscriberApp._tray_colour(state)
         alpha = branding.tray_image(chosen, 32).getchannel("A")
         assert sum(1 for p in alpha.getdata() if p > 0) > 100
-
-
-class TestNoOldLetter:
-    def test_no_letter_is_drawn_any_more(self):
-        """Frueher stand hier `draw.text(..., "W", ...)` als Symbol."""
-        source = inspect.getsource(tray_mod)
-        assert 'draw.text' not in source
-        assert '"W"' not in source
-
-    def test_the_tray_helper_delegates_to_the_brand(self):
-        body = inspect.getsource(tray_mod._create_tray_icon_image)
-        assert "branding.tray_image" in body
-        assert "ellipse" not in body
 
 
 #: Wo Text sichtbar gesetzt wird — dieselben Wege wie in test_accessibility.
@@ -196,10 +181,6 @@ class TestNoOldBrandInTheInterface:
     def test_no_old_product_name_is_shown(self, old):
         offenders = [f"{name}: {text!r}" for name, text in visible_strings() if old in text]
         assert not offenders, "\n".join(offenders)
-
-    def test_the_tooltip_carries_the_new_name(self):
-        source = inspect.getsource(tray_mod)
-        assert "product = branding.PRODUCT_NAME" in source
 
 
 class TestRenamedFromWisper:

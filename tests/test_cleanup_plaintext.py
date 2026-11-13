@@ -5,7 +5,6 @@ Die Regel ist eng: entfernt werden ein Codeblock um die ganze Antwort und die
 und Unterstriche, die zum Inhalt gehören.
 """
 
-import inspect
 import json
 import urllib.request
 
@@ -182,28 +181,6 @@ class TestPosition:
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         app._cleanup_text("text")
         assert "system" not in gesehen
-
-    def test_all_output_paths_see_the_same_string(self):
-        """Verlauf, Zwischenablage und Datei bekommen dasselbe `text`.
-
-        Der Rumpf wird ueber den Syntaxbaum geholt, nicht ueber eine feste
-        Zeichenzahl: ein Fenster fester Groesse rutscht aus der Funktion
-        heraus, sobald jemand oben etwas einfuegt, und der Test scheitert
-        dann an seiner eigenen Mechanik statt an der Regel.
-        """
-        body = inspect.getsource(FloatingTranscriberApp._abliefern)  # Q7: aus _transcribe_audio ausgelagert
-        order = [
-            body.index("self._add_to_history(text)"),
-            body.index("self._copy_and_paste(text)"),
-            body.index("args=(text,)"),
-        ]
-        assert order == sorted(order), "die Reihenfolge der Ausgabewege hat sich geändert"
-        # Bereinigung (_nachbearbeiten) läuft vor der Ausgabe, und die Ausgabe bekommt ihr Ergebnis
-        nachbearbeiten = inspect.getsource(FloatingTranscriberApp._nachbearbeiten)
-        assert "return glossary.apply_replacements(self._cleaned_or_raw(text, language))" in nachbearbeiten
-        assert "return self._cleanup_text(text, language)" in inspect.getsource(FloatingTranscriberApp._cleaned_or_raw)
-        ablauf = inspect.getsource(FloatingTranscriberApp._transcribe_job)
-        assert ablauf.index("text = self._nachbearbeiten(text") < ablauf.index("self._abliefern(text)")
 
 
 class TestPrompt:

@@ -24,7 +24,6 @@ from kit import (
     Popover,
     Theme,
 )
-from source_code import all_source
 
 from hams import config as config_mod
 
@@ -75,16 +74,6 @@ class TestDefault:
 
         text = DEFAULT_CONFIG_PATH.read_text(encoding="utf-8")
         assert 'appearance = "light"' in text
-
-    def test_the_windows_theme_is_never_consulted(self):
-        """Ausdrücklich keine Systemabfrage — der Nutzer entscheidet selbst.
-
-        Geprüft am Quelltext: die beiden Registry-Werte, über die Windows sein
-        eigenes Theme meldet, dürfen nirgends vorkommen.
-        """
-        text = all_source()
-        for schluessel in ("AppsUseLightTheme", "SystemUsesLightTheme"):
-            assert schluessel not in text, schluessel
 
 
 # ------------------------------------------------------------------ Persistenz

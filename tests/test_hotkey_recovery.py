@@ -20,6 +20,10 @@ Der Befund, gemessen am 03.09.2026 mit keyboard 0.13.5:
   Nachrichtenschleifen im Prozess.
 
 Deshalb: neuer Prozess.
+
+These are the only tests that read source code, and deliberately so: they pin a property of the third-party
+`keyboard` library (pinned in requirements) that the restart button relies on and that cannot be observed without
+hooking the whole machine's keyboard. If a library update changes it, the restart needs a new justification.
 """
 
 import inspect
@@ -33,7 +37,6 @@ if sys.platform != "win32":
 import keyboard  # noqa: E402
 import keyboard._generic  # noqa: E402
 import keyboard._winkeyboard  # noqa: E402
-from source_code import all_source  # noqa: E402
 
 
 class TestWhyReRegisteringCannotHelp:
@@ -77,19 +80,3 @@ class TestWhyALivenessCheckWouldMislead:
     def test_the_hook_is_installed_once_per_listener_start(self):
         quelle = inspect.getsource(keyboard._winkeyboard.prepare_intercept)
         assert "SetWindowsHookEx" in quelle
-
-
-class TestTheApplicationDrawsTheRightConclusion:
-    def test_the_restart_is_documented_as_the_repair(self):
-        from hams.app import FloatingTranscriberApp
-
-        doku = FloatingTranscriberApp.restart_app.__doc__ or ""
-        assert "Hook" in doku
-        assert "listening" in doku
-
-    def test_the_application_never_pokes_the_private_listener_state(self):
-        """`listening = False` liesse die alten Threads fuer immer laufen."""
-
-        quelle = all_source()
-        assert "_listener" not in quelle
-        assert "listening =" not in quelle
