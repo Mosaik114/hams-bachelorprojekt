@@ -48,13 +48,11 @@ from hams.config_toml import (  # noqa: F401
     verify_toml_value,
 )
 from hams.config_validation import (
-    CHANNELS,
     MAX_BEAM_SIZE,
     MAX_CLEANUP_TEMPERATURE,
     MAX_OLLAMA_TIMEOUT,
     MAX_PASTE_TIMEOUT,
     MAX_RECORDING_SECONDS,
-    SAMPLE_RATES,
     SectionReader,
     ollama_url_problem,
     validate_config,
@@ -139,8 +137,6 @@ DEFAULT_CLEANUP_PROMPT = dictation_language.DEFAULT_CLEANUP_PROMPT
 
 @dataclass
 class Config:
-    sample_rate: int = 16_000
-    channels: int = 1
     mic_device: str | int | None = None
     # Roher Config-Wert (z.B. "Shure MV7+"), damit das Gerät pro Aufnahme frisch
     # aufgelöst werden kann — Indizes verschieben sich beim Aus-/Einstecken.
@@ -533,6 +529,7 @@ def _load_layers() -> Config:
         data = _read_toml(path)
         if data:
             _apply_toml(cfg, data)
+            _note_retired_keys(data, path)
 
     if not cfg.transcription_language:
         cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
@@ -542,6 +539,28 @@ def _load_layers() -> Config:
         logger.warning("Config validation: %s", error)
 
     return cfg
+
+
+#: Keys older versions read and that are now fixed in the code, with the value the code uses. Every user file
+#: started as a copy of the template, so most still carry them: such a key is ignored, and only a value that
+#: differs from the fixed one is reported (once per start), because only then does the file ask for something
+#: Hams no longer does.
+RETIRED_KEYS: dict[tuple[str, str], Any] = {
+    # Whisper takes 16 kHz mono and nothing converted other rates: 48 kHz stereo came out as gibberish.
+    ("audio", "sample_rate"): 16_000,
+    ("audio", "channels"): 1,
+}
+
+
+def _note_retired_keys(data: dict, path: Path) -> None:
+    """One warning for retired keys in `data` whose value differs from the one the code uses."""
+    differing = []
+    for (section, key), fixed in RETIRED_KEYS.items():
+        table = data.get(section) if isinstance(data, dict) else None
+        if isinstance(table, dict) and key in table and table[key] != fixed:
+            differing.append(f"{section}.{key} = {table[key]!r} (fixed: {fixed!r})")
+    if differing:
+        logger.warning("Config %s: no longer settings, ignored: %s", path.name, "; ".join(differing))
 
 
 def _warn_config(message: str) -> None:
@@ -590,8 +609,6 @@ def _clean_device(audio: SectionReader) -> Any:
 
 
 def _apply_audio(cfg: Config, audio: SectionReader) -> None:
-    cfg.sample_rate = audio.choice("sample_rate", cfg.sample_rate, SAMPLE_RATES)
-    cfg.channels = audio.choice("channels", cfg.channels, CHANNELS)
     cfg.mic_device_raw = _clean_device(audio)
     cfg.mic_device = _resolve_mic_device(cfg.mic_device_raw)
     cfg.max_recording_seconds = audio.integer(

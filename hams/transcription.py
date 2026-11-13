@@ -23,7 +23,7 @@ from hams import cleanup_guard, dictation_language, glossary
 from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
 from hams.i18n import t, tn
-from hams.recording import MODEL_WAIT_SECONDS, _normalize_audio
+from hams.recording import MODEL_WAIT_SECONDS, SAMPLE_RATE, _normalize_audio
 
 #: Ab dieser Aufnahmelaenge wird die gebatchte Auswertung benutzt.
 #: Gemessen (turbo/float16, RTX 5070, gegen bekannten Referenztext):
@@ -395,7 +395,7 @@ class TranscriptionMixin:
                 # Glossar: Namen und Begriffe öfter richtig erkennen
                 "hotwords": glossary.hotwords(language),
             }
-            dauer = audio.size / max(CFG.sample_rate, 1)
+            dauer = audio.size / SAMPLE_RATE
             if dauer >= BATCHED_MIN_SECONDS:
                 # Erlaubt ist das nur, weil zwischen den Segmenten ohnehin kein
                 # Kontext fliesst — `condition_on_previous_text` ist aus. Sonst

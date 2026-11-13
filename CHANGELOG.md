@@ -5,6 +5,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **48 kHz or stereo in `[audio]` turned every dictation into gibberish.** Nothing converted the audio, so Whisper got
+  it three times too slow or interleaved, without an error. Hams now always records 16 kHz mono, which is what
+  Whisper takes; `sample_rate` and `channels` are no longer settings. An old file that still sets another value is
+  ignored with one warning in the log.
+
 ## [1.1.2] – 2026-11-13
 
 Fixes from the third independent review ([review log](https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/docs/reviews.md#round-3--112)).

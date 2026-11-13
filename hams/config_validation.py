@@ -10,8 +10,6 @@ from hams.dictation_language import SETTINGS as DICTATION_SETTINGS
 from hams.i18n import SETTINGS as LANGUAGE_SETTINGS
 
 #: Allowed values, shared by the typed readers below and by `validate_config`.
-SAMPLE_RATES = (16000, 22050, 44100, 48000)
-CHANNELS = (1, 2)
 MODEL_SIZES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
 MAX_RECORDING_SECONDS = 3600
 MAX_BEAM_SIZE = 10
@@ -64,12 +62,6 @@ def validate_config(cfg: Any) -> list[str]:
     Returns a list of error messages (empty if valid).
     """
     errors: list[str] = []
-
-    if cfg.sample_rate not in SAMPLE_RATES:
-        errors.append(f"audio.sample_rate should be 16000, 22050, 44100 or 48000, got {cfg.sample_rate}")
-
-    if cfg.channels not in CHANNELS:
-        errors.append(f"audio.channels should be 1 or 2, got {cfg.channels}")
 
     if cfg.max_recording_seconds <= 0 or cfg.max_recording_seconds > MAX_RECORDING_SECONDS:
         errors.append(f"audio.max_recording_seconds should be between 1 and 3600, got {cfg.max_recording_seconds}")
@@ -186,15 +178,6 @@ class SectionReader:
         if not valid or not low <= value <= high:
             return self.reject(key, f"a number from {low} to {high}", value, current)
         return float(value)
-
-    def choice(self, key: str, current: Any, allowed: tuple) -> Any:
-        """One of `allowed`, with the same type (16000.0 or "16000" is not 16000)."""
-        if key not in self.values:
-            return current
-        value = self.values[key]
-        if any(type(value) is type(option) and value == option for option in allowed):
-            return value
-        return self.reject(key, "one of " + ", ".join(map(str, allowed)), value, current)
 
     def text(self, key: str, current: str) -> str:
         if key not in self.values:

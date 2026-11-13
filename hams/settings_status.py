@@ -11,6 +11,7 @@ from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.config import CFG, _list_input_devices, _persist_config_value, _resolve_mic_device, logger
 from hams.i18n import t
+from hams.recording import CHANNELS, SAMPLE_RATE
 
 
 class StatusSectionMixin:
@@ -92,8 +93,8 @@ class StatusSectionMixin:
                 self._mon_rms = float(np.mean(indata.astype(np.float32) ** 2))
 
             self._mon_stream = sd.InputStream(
-                samplerate=CFG.sample_rate,
-                channels=CFG.channels,
+                samplerate=SAMPLE_RATE,
+                channels=CHANNELS,
                 device=dev,
                 dtype="float32",
                 callback=cb,

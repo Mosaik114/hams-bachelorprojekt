@@ -23,8 +23,6 @@ from hams.config_validation import SectionReader
 
 # (section, key, Config attribute, kind) for every key the loader reads.
 FIELDS = [
-    ("audio", "sample_rate", "sample_rate", "choice"),
-    ("audio", "channels", "channels", "choice"),
     ("audio", "max_recording_seconds", "max_recording_seconds", "int"),
     ("model", "size", "model_size", "text"),
     ("transcription", "vad_filter", "transcription_vad_filter", "bool"),
@@ -50,7 +48,6 @@ FIELDS = [
 ]
 
 WRONG_VALUES = {
-    "choice": ["16000", 16000.5, True, [16000], {"a": 1}, 12345],
     "int": ["30s", "30", True, 1.5, [30], {"a": 1}, 0, -5, 10**9],
     "number": ["0.3", True, [0.3], {"a": 1}, -1.0, 99.0, math.nan, math.inf],
     "text": [42, 1.5, True, ["x"], {"a": 1}],
@@ -145,7 +142,7 @@ class TestBooleans:
 class TestValidValuesStillWork:
     def test_valid_values_are_taken(self, caplog):
         data = {
-            "audio": {"sample_rate": 48000, "channels": 2, "max_recording_seconds": 60, "device": 3},
+            "audio": {"max_recording_seconds": 60, "device": 3},
             "model": {"size": "small", "device_priority": ["cpu"], "compute_priority": {"cpu": ["int8"]}},
             "transcription": {"beam_size": 5, "vad_filter": False},
             "hotkeys": {"transcript": "ctrl+h"},
@@ -155,7 +152,7 @@ class TestValidValuesStillWork:
         cfg = Config()
         with caplog.at_level(logging.WARNING, logger="hams"):
             _apply_toml(cfg, data)
-        assert (cfg.sample_rate, cfg.channels, cfg.max_recording_seconds, cfg.mic_device_raw) == (48000, 2, 60, 3)
+        assert (cfg.max_recording_seconds, cfg.mic_device_raw) == (60, 3)
         assert cfg.model_size == "small"
         assert cfg.model_device_priority == ("cpu",)
         assert cfg.model_compute_priority == {"cpu": ("int8",)}
@@ -266,7 +263,7 @@ class TestLoadingNeverRaises:
         monkeypatch.setattr(config_mod, "_apply_toml", explode)
         with caplog.at_level(logging.ERROR, logger="hams"):
             cfg = _load_config()
-        assert cfg.sample_rate == Config().sample_rate
+        assert cfg.max_recording_seconds == Config().max_recording_seconds
         assert cfg.transcription_language
         assert any("could not be loaded" in r.getMessage() for r in caplog.records)
 

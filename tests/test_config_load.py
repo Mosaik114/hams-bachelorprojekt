@@ -12,16 +12,14 @@ class TestLoadConfig:
         cfg = _load_config()
 
         assert isinstance(cfg, Config)
-        assert cfg.sample_rate == 16000
-        assert cfg.channels == 1
+        assert cfg.max_recording_seconds == 300
         assert cfg.model_size == "turbo"
 
     def test_loads_existing_config(self, tmp_path, monkeypatch):
         """Should load values from existing config file."""
         config_content = """
 [audio]
-sample_rate = 44100
-channels = 2
+max_recording_seconds = 90
 
 [ollama]
 model_transcript_cleanup = "ministral-3:8b"
@@ -32,8 +30,7 @@ model_transcript_cleanup = "ministral-3:8b"
         monkeypatch.setattr("hams.config.CONFIG_PATH", config_file)
         cfg = _load_config()
 
-        assert cfg.sample_rate == 44100
-        assert cfg.channels == 2
+        assert cfg.max_recording_seconds == 90
         assert cfg.ollama_model_cleanup == "ministral-3:8b"
 
     def test_invalid_toml_returns_defaults(self, tmp_path, monkeypatch):
@@ -45,7 +42,7 @@ model_transcript_cleanup = "ministral-3:8b"
         cfg = _load_config()
 
         assert isinstance(cfg, Config)
-        assert cfg.sample_rate == 16000
+        assert cfg.max_recording_seconds == 300
 
 
 def test_fensterposition_bleibt_wenn_eine_schicht_sie_nicht_nennt():

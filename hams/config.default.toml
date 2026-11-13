@@ -13,8 +13,7 @@
 # was in der Nutzerdatei fehlt, kommt aus dieser Vorlage.
 
 [audio]
-sample_rate = 16000
-channels = 1
+# Aufgenommen wird immer mit 16 kHz mono – das braucht Whisper.
 # Mikrofon: "default" für System-Standard, sonst Index (z. B. 3) oder ein
 # Teilstring des Gerätenamens (z. B. "Yeti"). Die tatsächliche Wahl trifft der
 # Nutzer in den Einstellungen; sie landet in der Nutzerkonfiguration.

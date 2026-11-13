@@ -26,6 +26,7 @@ import pytest
 from hams import config as config_mod
 from hams import transcription as transcription_mod
 from hams.app import FloatingTranscriberApp
+from hams.recording import SAMPLE_RATE
 
 
 class Aufzeichnung:
@@ -65,7 +66,7 @@ def modell(monkeypatch):
 
 def _audio(sekunden: float) -> np.ndarray:
     rng = np.random.default_rng(7)
-    return (0.2 * rng.standard_normal(int(sekunden * config_mod.CFG.sample_rate))).astype(np.float32)
+    return (0.2 * rng.standard_normal(int(sekunden * SAMPLE_RATE))).astype(np.float32)
 
 
 class TestWelcherWegGenommenWird:

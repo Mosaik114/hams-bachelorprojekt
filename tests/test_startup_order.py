@@ -31,8 +31,6 @@ PROJECT_ROOT = Path(__file__).parent.parent
 
 #: Je ein Wert, der genau eine Regel in `validate_config` reisst.
 KAPUTTE_DATEIEN = {
-    "sample_rate": '[audio]\nsample_rate = 12345\n',
-    "channels": '[audio]\nchannels = 7\n',
     "max_recording_seconds": '[audio]\nmax_recording_seconds = 99999\n',
     "model_size": '[model]\nsize = "gibtsnicht"\n',
     "beam_size": '[transcription]\nbeam_size = 99\n',
@@ -49,7 +47,7 @@ def _import_in_a_fresh_interpreter(config_file: Path) -> subprocess.CompletedPro
             "-c",
             textwrap.dedent("""
             import hams.main
-            print("IMPORT-OK", hams.main.CFG.sample_rate)
+            print("IMPORT-OK", hams.main.CFG.max_recording_seconds)
         """),
         ],
         cwd=PROJECT_ROOT,
@@ -79,7 +77,7 @@ class TestEineKaputteKonfigurationHaeltNichtAuf:
 
     def test_the_app_still_comes_up(self, tmp_path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text(KAPUTTE_DATEIEN["sample_rate"], encoding="utf-8")
+        config_file.write_text(KAPUTTE_DATEIEN["max_recording_seconds"], encoding="utf-8")
 
         result = _import_in_a_fresh_interpreter(config_file)
 
@@ -90,20 +88,18 @@ class TestEineKaputteKonfigurationHaeltNichtAuf:
     def test_the_broken_value_is_reported(self, tmp_path):
         """Durchlassen heisst nicht verschweigen."""
         config_file = tmp_path / "config.toml"
-        config_file.write_text(KAPUTTE_DATEIEN["sample_rate"], encoding="utf-8")
+        config_file.write_text(KAPUTTE_DATEIEN["max_recording_seconds"], encoding="utf-8")
 
         result = _import_in_a_fresh_interpreter(config_file)
 
-        assert "Config: audio.sample_rate" in result.stderr
-        assert "12345" in result.stderr
+        assert "Config: audio.max_recording_seconds" in result.stderr
+        assert "99999" in result.stderr
 
 
 class TestDieRegelnSindAbgedeckt:
     def test_every_rule_has_a_case(self):
         """Kommt eine Regel dazu, faellt hier auf, dass sie ungeprueft ist."""
         cfg = Config()
-        cfg.sample_rate = 12345
-        cfg.channels = 7
         cfg.max_recording_seconds = 99999
         cfg.model_size = "gibtsnicht"
         cfg.transcription_beam_size = 99
@@ -111,7 +107,7 @@ class TestDieRegelnSindAbgedeckt:
         cfg.ollama_timeout_prompt = 0
         cfg.clipboard_paste_timeout = -1.0
         cfg.ollama_url = "ftp://127.0.0.1:11434/api/generate"
-        assert len(validate_config(cfg)) == 9
+        assert len(validate_config(cfg)) == 7
 
     @pytest.mark.parametrize("regel", sorted(KAPUTTE_DATEIEN))
     def test_each_broken_file_is_reported(self, regel, caplog):

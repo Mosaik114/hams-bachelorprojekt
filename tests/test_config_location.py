@@ -18,7 +18,7 @@ from hams import app_paths
 from hams import config as config_mod
 
 TEMPLATE = """[audio]
-sample_rate = 16000
+max_recording_seconds = 300
 device = "default"
 
 [model]
@@ -29,7 +29,7 @@ sound_feedback = true
 """
 
 LEGACY = """[audio]
-sample_rate = 48000
+max_recording_seconds = 120
 device = "Shure MV7+"
 
 [model]
@@ -269,7 +269,7 @@ class TestLegacyFolderMigration:
 class TestLayering:
     def test_the_template_alone_is_enough(self, paths):
         config = config_mod._load_config()
-        assert config.sample_rate == 16000 and config.model_size == "turbo"
+        assert config.max_recording_seconds == 300 and config.model_size == "turbo"
 
     def test_the_user_file_wins(self, paths):
         paths.user.parent.mkdir(parents=True)
@@ -282,13 +282,13 @@ class TestLayering:
         paths.user.parent.mkdir(parents=True)
         paths.user.write_text('[model]\nsize = "small"\n', encoding="utf-8")
         config = config_mod._load_config()
-        assert config.sample_rate == 16000
+        assert config.max_recording_seconds == 300
         assert config.sound_feedback is True
 
     def test_missing_everywhere_falls_back_to_the_code(self, paths):
         paths.template.write_text("", encoding="utf-8")
         config = config_mod._load_config()
-        assert config.sample_rate == config_mod.Config().sample_rate
+        assert config.max_recording_seconds == config_mod.Config().max_recording_seconds
 
     def test_a_broken_user_file_does_not_stop_the_program(self, paths):
         paths.user.parent.mkdir(parents=True)

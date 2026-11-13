@@ -12,6 +12,11 @@ from hams.config import CFG, _resolve_mic_device, logger
 from hams.i18n import t
 from hams.tray import _notify_cursor_dot
 
+#: Whisper takes 16 kHz mono. Recording in exactly that format means nothing has to be converted: other rates
+#: or a second channel used to reach Whisper unconverted and came out as gibberish.
+SAMPLE_RATE = 16_000
+CHANNELS = 1
+
 # Peak unterhalb dieser Schwelle gilt als "kein Signal" (Mikro stumm/falsches
 # Gerät). Sprache liegt typ. bei 0.05+, Grundrauschen bei ~0.0002 — 0.005 trennt
 # beides sauber. Wird sowohl für die Normalisierung als auch die Kein-Signal-
@@ -215,8 +220,8 @@ class RecordingMixin:
 
         try:
             self.stream = sd.InputStream(
-                samplerate=CFG.sample_rate,
-                channels=CFG.channels,
+                samplerate=SAMPLE_RATE,
+                channels=CHANNELS,
                 device=device,
                 dtype="float32",
                 callback=callback,
