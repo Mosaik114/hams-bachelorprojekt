@@ -64,19 +64,19 @@ class TestTrayImage:
 
     @pytest.mark.parametrize("size", MARK_SIZES)
     def test_the_requested_size_comes_back(self, size):
-        assert branding.tray_image("#0A84FF", size).size == (size, size)
+        assert branding.tray_image("#2AC8A6", size).size == (size, size)
 
     @pytest.mark.parametrize("size", MARK_SIZES)
     def test_the_shape_is_the_shipped_mark(self, size):
         """Die Geometrie stammt aus der Vorlage — nicht aus gezeichnetem Text."""
-        image = branding.tray_image("#0A84FF", size)
+        image = branding.tray_image("#2AC8A6", size)
         path = branding.ASSET_DIR / branding._TRAY_MASKS[size]
         with Image.open(path) as template:
             expected = template.convert("RGBA").getchannel("A")
         assert list(image.getchannel("A").getdata()) == list(expected.getdata())
 
     def test_the_colour_follows_the_state(self):
-        for colour in ("#0A84FF", "#FF453A", "#BF5AF2"):
+        for colour in ("#2AC8A6", "#FF453A", "#BF5AF2"):
             image = branding.tray_image(colour, 32)
             pixels = [p for p in image.convert("RGBA").getdata() if p[3] > 250]
             assert pixels, "die Marke ist unsichtbar"
@@ -84,31 +84,31 @@ class TestTrayImage:
             assert all(p[:3] == expected for p in pixels)
 
     def test_different_states_look_different(self):
-        ready = branding.tray_image("#0A84FF", 32).tobytes()
+        ready = branding.tray_image("#2AC8A6", 32).tobytes()
         recording = branding.tray_image("#FF453A", 32).tobytes()
         assert ready != recording
 
     def test_it_is_not_a_filled_disc(self):
         """Der alte Kreis mit weissem Buchstaben deckte fast die ganze Kachel."""
-        alpha = branding.tray_image("#0A84FF", 32).getchannel("A")
+        alpha = branding.tray_image("#2AC8A6", 32).getchannel("A")
         coverage = sum(1 for p in alpha.getdata() if p > 0) / (32 * 32)
         assert 0.2 < coverage < 0.7, f"Deckung {coverage:.0%} sieht nach Fläche aus"
 
     def test_a_size_between_the_templates_still_works(self):
-        assert branding.tray_image("#0A84FF", 22).size == (22, 22)
+        assert branding.tray_image("#2AC8A6", 22).size == (22, 22)
 
     def test_a_size_beyond_the_templates_still_works(self):
-        assert branding.tray_image("#0A84FF", 128).size == (128, 128)
+        assert branding.tray_image("#2AC8A6", 128).size == (128, 128)
 
     def test_the_application_asks_for_the_mark(self):
-        image = tray_mod._create_tray_icon_image("#0A84FF")
-        assert image.size == branding.tray_image("#0A84FF", 64).size
-        assert image.tobytes() == branding.tray_image("#0A84FF", 64).tobytes()
+        image = tray_mod._create_tray_icon_image("#2AC8A6")
+        assert image.size == branding.tray_image("#2AC8A6", 64).size
+        assert image.tobytes() == branding.tray_image("#2AC8A6", 64).tobytes()
 
     @pytest.mark.parametrize(
         "state,colour",
         [
-            ("ready", "#0A84FF"),
+            ("ready", "#2AC8A6"),
             ("recording", None),
             ("error", None),
             ("generating", None),
