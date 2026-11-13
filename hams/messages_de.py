@@ -99,6 +99,13 @@ MESSAGES: dict[str, str] = {
     "instance.restart_for_settings": (
         "{product} bitte einmal neu starten, damit der neue Einstellungs-Starteintrag aktiv wird."
     ),
+    # --- Unlesbare Einstellungsdatei
+    "config.broken": (
+        "{product} konnte die Einstellungsdatei nicht lesen und nutzt vorerst die Voreinstellungen.\n\n"
+        "Datei: {path}\nProblem: {error}\n\n"
+        "Repariere die Datei oder lösche sie für einen Neuanfang. Bis dahin speichert {product} nichts hinein.\n"
+        "Eine Kopie der Datei liegt hier: {backup}"
+    ),
     # --- Einstellungsfenster
     "settings.title": "Einstellungen",
     "settings.window_title": "{product} — Einstellungen",

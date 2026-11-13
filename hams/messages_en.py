@@ -95,6 +95,13 @@ MESSAGES: dict[str, str] = {
     "instance.already_running": "{product} is already running.",
     "instance.already_running_tray": "{product} is already running. Look for it in the system tray.",
     "instance.restart_for_settings": "Please restart {product} once so the new Settings shortcut takes effect.",
+    # --- unreadable settings file
+    "config.broken": (
+        "{product} could not read its settings file and uses the default settings for now.\n\n"
+        "File: {path}\nProblem: {error}\n\n"
+        "Fix the file or delete it to start over. Until then, {product} saves no changes into it.\n"
+        "A copy of the file was kept: {backup}"
+    ),
     # --- settings window
     "settings.title": "Settings",
     "settings.window_title": "{product} — Settings",

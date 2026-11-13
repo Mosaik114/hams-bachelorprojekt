@@ -110,7 +110,7 @@ class TestUserConfigPath:
 
 class TestBootstrap:
     def test_a_new_installation_gets_the_template(self, paths):
-        assert config_mod.ensure_user_config() == "angelegt"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_CREATED
         assert paths.user.exists()
         assert paths.user.read_text(encoding="utf-8") == TEMPLATE
 
@@ -122,13 +122,13 @@ class TestBootstrap:
     def test_an_existing_file_is_left_alone(self, paths):
         paths.user.parent.mkdir(parents=True)
         paths.user.write_text("# meins\n", encoding="utf-8")
-        assert config_mod.ensure_user_config() == "vorhanden"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_EXISTING
         assert paths.user.read_text(encoding="utf-8") == "# meins\n"
 
     def test_a_blocked_place_is_reported(self, paths):
         paths.user.parent.parent.mkdir(parents=True, exist_ok=True)
         (paths.user.parent.parent / "Hams").write_text("keine Ablage", encoding="utf-8")
-        assert config_mod.ensure_user_config() == "fehlgeschlagen"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_FAILED
 
     def test_nothing_falls_back_into_the_project(self, paths):
         """Persönliche Werte gehören nicht in den Programmordner."""
@@ -146,7 +146,7 @@ class TestBootstrap:
 class TestMigration:
     def test_an_old_installation_keeps_its_values(self, paths):
         paths.legacy.write_text(LEGACY, encoding="utf-8")
-        assert config_mod.ensure_user_config() == "migriert"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_MIGRATED
         assert paths.user.read_text(encoding="utf-8") == LEGACY
 
     def test_it_happens_only_once(self, paths):
@@ -154,7 +154,7 @@ class TestMigration:
         config_mod.ensure_user_config()
         paths.user.write_text("# inzwischen geaendert\n", encoding="utf-8")
         paths.legacy.write_text("[audio]\ndevice = \"anders\"\n", encoding="utf-8")
-        assert config_mod.ensure_user_config() == "vorhanden"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_EXISTING
         assert paths.user.read_text(encoding="utf-8") == "# inzwischen geaendert\n"
 
     def test_a_changed_template_never_overwrites_user_values(self, paths):
@@ -188,7 +188,7 @@ def _snapshot(folder: Path) -> dict:
 class TestLegacyFolderMigration:
     def test_the_old_folder_is_copied_on_first_start(self, paths):
         _fill_old_dir(paths.old_dir)
-        assert config_mod.ensure_user_config() == "migriert"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_MIGRATED
         assert paths.user.read_text(encoding="utf-8") == LEGACY
         assert _snapshot(paths.user.parent) == _snapshot(paths.old_dir)
 
@@ -210,14 +210,14 @@ class TestLegacyFolderMigration:
         _fill_old_dir(paths.old_dir)
         paths.user.parent.mkdir(parents=True)
         assert config_mod.migrate_legacy_user_dir(paths.user.parent, paths.old_dir) is False
-        assert config_mod.ensure_user_config() == "angelegt"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_CREATED
         assert paths.user.read_text(encoding="utf-8") == TEMPLATE
 
     def test_it_happens_only_once(self, paths):
         _fill_old_dir(paths.old_dir)
         config_mod.ensure_user_config()
         paths.user.write_text("# inzwischen geaendert\n", encoding="utf-8")
-        assert config_mod.ensure_user_config() == "vorhanden"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_EXISTING
         assert paths.user.read_text(encoding="utf-8") == "# inzwischen geaendert\n"
 
     def test_without_an_old_folder_nothing_happens(self, paths):
@@ -230,12 +230,12 @@ class TestLegacyFolderMigration:
     def test_an_old_file_instead_of_a_folder_is_ignored(self, paths):
         paths.old_dir.parent.mkdir(parents=True)
         paths.old_dir.write_text("kein Ordner", encoding="utf-8")
-        assert config_mod.ensure_user_config() == "angelegt"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_CREATED
 
     def test_an_old_folder_without_config_still_gets_the_template(self, paths):
         paths.old_dir.mkdir(parents=True)
         (paths.old_dir / "glossar.toml").write_text("[begriffe]\n", encoding="utf-8")
-        assert config_mod.ensure_user_config() == "angelegt"
+        assert config_mod.ensure_user_config() == config_mod.CONFIG_CREATED
         assert paths.user.read_text(encoding="utf-8") == TEMPLATE
         assert (paths.user.parent / "glossar.toml").exists()
 
@@ -366,7 +366,7 @@ class TestWriting:
 class TestResourcePaths:
     def test_the_cleanup_prompt_stays_with_the_package(self):
         """Eine Produktdatei, keine Nutzerkonfiguration."""
-        source = inspect.getsource(config_mod._ollama_anwenden)  # Q7: aus _apply_toml ausgelagert
+        source = inspect.getsource(config_mod._load_cleanup_prompt)  # aus _apply_ollama ausgelagert
         assert "(APP_DIR / prompt_file_rel)" in source
         assert "CONFIG_PATH / prompt_file_rel" not in all_source()
 

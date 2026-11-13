@@ -89,23 +89,23 @@ class TestMarker:
         assert not sw.write_marker(blocker / "unter" / sw.MARKER_NAME, True)
 
     def test_fresh_configuration_gets_the_wizard(self, tmp_path):
-        assert sw.needs_setup("angelegt", tmp_path / sw.MARKER_NAME)
+        assert sw.needs_setup("created", tmp_path / sw.MARKER_NAME)
 
-    @pytest.mark.parametrize("state", ["vorhanden", "migriert"])
+    @pytest.mark.parametrize("state", ["existing", "migrated"])
     def test_existing_installation_is_marked_as_set_up(self, tmp_path, state):
         path = tmp_path / sw.MARKER_NAME
         assert not sw.needs_setup(state, path)
         assert sw.read_marker(path) is True
 
     def test_unwritable_configuration_gets_no_wizard(self, tmp_path):
-        assert not sw.needs_setup("fehlgeschlagen", tmp_path / sw.MARKER_NAME)
+        assert not sw.needs_setup("failed", tmp_path / sw.MARKER_NAME)
 
     def test_unfinished_setup_comes_back(self, tmp_path):
         path = tmp_path / sw.MARKER_NAME
         sw.write_marker(path, False)
-        assert sw.needs_setup("vorhanden", path)
+        assert sw.needs_setup("existing", path)
         sw.write_marker(path, True)
-        assert not sw.needs_setup("angelegt", path)
+        assert not sw.needs_setup("created", path)
 
 
 # ---------------------------------------------------------------- tasks

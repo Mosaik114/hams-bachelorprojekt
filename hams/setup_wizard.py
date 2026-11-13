@@ -66,7 +66,7 @@ def recommended_model(hardware: str) -> str:
 
 MARKER_NAME = "setup.json"
 #: `config.ensure_user_config()` results that mean "this configuration existed before".
-EXISTING_CONFIG = ("vorhanden", "migriert")
+EXISTING_CONFIG = ("existing", "migrated")
 
 
 def marker_path(config_path: Path) -> Path:
@@ -99,7 +99,7 @@ def needs_setup(config_state: str, path: Path) -> bool:
 
     Without a marker, a configuration that already existed means an installation from
     before the wizard: it is marked as set up instead. A configuration that could not be
-    created ("fehlgeschlagen") gets no wizard either, nothing it chose could be saved.
+    created ("failed") gets no wizard either, nothing it chose could be saved.
     """
     completed = read_marker(path)
     if completed is not None:
@@ -107,7 +107,7 @@ def needs_setup(config_state: str, path: Path) -> bool:
     if config_state in EXISTING_CONFIG:
         write_marker(path, True)
         return False
-    return config_state == "angelegt"
+    return config_state == "created"
 
 
 # ----------------------------------------------------------------- tasks

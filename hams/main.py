@@ -2,6 +2,7 @@
 
 import ctypes
 import sys
+import threading
 import tkinter as tk
 from pathlib import Path
 
@@ -14,11 +15,11 @@ if _PROJECT_ROOT not in sys.path:
 
 import contextlib
 
-from hams import branding, i18n, setup_wizard
+from hams import branding, config, i18n, setup_wizard
 from hams import ui_kit as uk
 from hams.activation import SettingsRequests, request_settings
 from hams.app import FloatingTranscriberApp
-from hams.config import CFG, CONFIG_PATH, _load_config, ensure_user_config, logger
+from hams.config import CFG, CONFIG_CREATED, CONFIG_MIGRATED, CONFIG_PATH, _load_config, ensure_user_config, logger
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex
 
 
@@ -50,6 +51,35 @@ def _second_instance(show_settings: bool) -> None:
     sys.exit(0)
 
 
+def _warn_about_broken_config() -> None:
+    """Die Nutzerdatei war unlesbar: sagen, dass die Voreinstellungen gelten und wo die Kopie liegt.
+
+    Ohne diesen Hinweis saehe der Nutzer nur, dass alle Einstellungen
+    verschwunden sind. Die Meldung blockiert den Start nicht.
+    """
+    broken = getattr(config, "BROKEN_CONFIG", None)
+    if broken is None:
+        return
+    message = i18n.t(
+        "config.broken",
+        product=branding.PRODUCT_NAME,
+        path=broken.path,
+        error=broken.error,
+        backup=broken.backup or "-",
+    )
+    if sys.platform != "win32":
+        from hams import linux
+
+        linux.notify(branding.PRODUCT_NAME, message)
+        return
+
+    def show() -> None:
+        with contextlib.suppress(Exception):
+            ctypes.windll.user32.MessageBoxW(0, message, branding.PRODUCT_NAME, 0x30)  # MB_ICONWARNING
+
+    threading.Thread(target=show, name="config-warning", daemon=True).start()
+
+
 def _accept_settings_requests(root: tk.Tk, app: FloatingTranscriberApp) -> SettingsRequests | None:
     """Unter Windows: das Startprogramm Hams.exe darf die Einstellungen der laufenden Instanz öffnen."""
     if sys.platform != "win32":
@@ -66,7 +96,7 @@ def _accept_settings_requests(root: tk.Tk, app: FloatingTranscriberApp) -> Setti
 def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
     state = ensure_user_config()
     logger.info("Nutzerkonfiguration %s (%s)", CONFIG_PATH, state)
-    if state in ("migriert", "angelegt"):
+    if state in (CONFIG_MIGRATED, CONFIG_CREATED):
         # die eben erst entstandene Datei mitnehmen; an Ort und Stelle, weil
         # alle Module dasselbe CFG-Objekt importiert haben
         vars(CFG).update(vars(_load_config()))
@@ -79,6 +109,7 @@ def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
         return
 
     settings_requests = None
+    _warn_about_broken_config()
     # Nach dem Schloss: eine zweite Instanz darf die Markierung nicht anlegen.
     setup = show_setup or setup_wizard.needs_setup(state, setup_wizard.marker_path(CONFIG_PATH))
     try:
