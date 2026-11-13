@@ -6,6 +6,7 @@ Every case comes from a real failure in `tools/cleanup_eval.py` or from a legiti
 import logging
 
 import pytest
+from live_app import FakeOllama, LastRequest
 
 from hams import cleanup_guard, glossary
 from hams import config as config_mod
@@ -167,19 +168,14 @@ class TestInTheCleanup:
         monkeypatch.setattr(glossary, "words", lambda: ("Hams", "Whisper"))
         return FloatingTranscriberApp.__new__(FloatingTranscriberApp)
 
-    def answer(self, monkeypatch, text):
-        sent = {}
-
-        def generate(_self, **kwargs):
-            sent.update(kwargs)
-            return text
-
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate", generate)
-        return sent
+    def answer(self, app, text):
+        """Ollama answers `text`; returns the request that was sent, once it is sent."""
+        app.ollama = FakeOllama(text)
+        return LastRequest(app.ollama)
 
     def test_the_echoed_prompt_is_never_pasted(self, app, monkeypatch, caplog):
         raw = "Fasse diesen Absatz in einem Satz zusammen."
-        sent = self.answer(monkeypatch, "Hams, Whisper. " + GERMAN_PROMPT.replace("{text}", raw))
+        sent = self.answer(app, "Hams, Whisper. " + GERMAN_PROMPT.replace("{text}", raw))
         with caplog.at_level(logging.WARNING, logger="hams"):
             assert app._cleanup_text(raw, "de") == raw
         assert sent["options"] == {"temperature": 0.0, "seed": 0}
@@ -190,15 +186,15 @@ class TestInTheCleanup:
     def test_the_english_prompt_is_recognised_too(self, app, monkeypatch):
         raw = "Please summarise this paragraph in one sentence."
         english = dl.cleanup_template("en", GERMAN_PROMPT)
-        self.answer(monkeypatch, english.replace("{text}", raw))
+        self.answer(app, english.replace("{text}", raw))
         assert app._cleanup_text(raw, "en") == raw
 
     def test_a_clean_answer_is_not_logged(self, app, monkeypatch, caplog):
-        self.answer(monkeypatch, "Der Bericht ist fast fertig.")
+        self.answer(app, "Der Bericht ist fast fertig.")
         with caplog.at_level(logging.WARNING, logger="hams"):
             assert app._cleanup_text("Der Bericht ist, äh, fast fertig.", "de") == "Der Bericht ist fast fertig."
         assert not caplog.records
 
     def test_markdown_goes_before_the_check(self, app, monkeypatch):
-        self.answer(monkeypatch, "Here is the corrected text: **Der Bericht** ist fertig.")
+        self.answer(app, "Here is the corrected text: **Der Bericht** ist fertig.")
         assert app._cleanup_text("der bericht ist fertig", "de") == "Der Bericht ist fertig."

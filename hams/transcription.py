@@ -1,15 +1,10 @@
 """Aus der Tonspur wird Text: Whisper, Bereinigung mit Ollama, Einfuegen."""
 
 import collections
-import http.client
-import json
 import re
 import sys
 import threading
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +17,7 @@ else:
     from hams.linux import keyboard
 
 from hams import cleanup_guard, dictation_language, glossary
+from hams import ollama as ollama_api
 from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
 from hams.i18n import t, tn
@@ -48,19 +44,6 @@ WHISPER_OPTIONS = {
     "word_timestamps": False,
     "without_timestamps": True,
 }
-
-#: Everything a failing Ollama request can raise: no connection, a connection dropped mid-answer
-#: (ConnectionResetError, RemoteDisconnected, IncompleteRead), a timeout, broken JSON or an answer of the
-#: wrong shape. Each of them must end in the raw text, never in a lost dictation.
-OLLAMA_ERRORS = (OSError, http.client.HTTPException, ValueError, KeyError, TypeError)
-#: The subset that means "Ollama cannot be reached": only these pause the cleanup for a while. An HTTP error
-#: status is an answer from a reachable server and counts as a bad answer instead.
-OLLAMA_UNREACHABLE = (OSError, http.client.HTTPException)
-
-
-class OllamaAnswerError(ValueError):
-    """Ollama answered, but not with a usable text: an `error` field, a cut-off stream or an empty answer."""
-
 
 #: The run id of the pipeline job this thread is working on (see `TranscriptionMixin._pipeline_ui`).
 _pipeline_run = threading.local()
@@ -194,92 +177,6 @@ class TranscriptionMixin:
 
     # ------------------------------------------------------------------ transcription
 
-    def _ollama_generate(
-        self,
-        prompt: str,
-        model: str,
-        timeout: int,
-        stream: bool = False,
-        progress_label: str | None = None,
-        system: str | None = None,
-        options: dict | None = None,
-    ) -> str:
-        """Sendet den Prompt an Ollama. stream=True ist nur für lange Antworten
-        sinnvoll (Prompt-Modus); für kurze Cleanup-Antworten lohnt der Overhead
-        nicht. keep_alive sorgt dafür, dass das Modell zwischen Aufrufen im
-        VRAM bleibt und nicht 10–30s nachgeladen werden muss.
-
-        `system` geht als eigenes Feld an Ollama. So lässt sich eine Regel für
-        die Form der Antwort setzen, ohne den Prompt des Nutzers anzufassen.
-        `options` sind Ollamas Sampling-Optionen; ohne sie gelten die Vorgaben
-        des Modells."""
-        body = {
-            "model": model,
-            "prompt": prompt,
-            "stream": stream,
-            "keep_alive": CFG.ollama_keep_alive,
-            # Denkende Modelle (Qwen 3.5, Granite 4.2) überlegen sonst erst
-            # sekundenlang, bevor sie antworten. Für Diktat und Prompt zählt
-            # die Zeit. Modelle ohne Denkmodus übergehen das Feld.
-            "think": False,
-        }
-        if system:
-            body["system"] = system
-        if options:
-            body["options"] = options
-        payload = json.dumps(body).encode()
-        # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
-        req = urllib.request.Request(  # noqa: S310
-            CFG.ollama_url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
-            if not stream:
-                result = json.loads(resp.read())
-                if isinstance(result, dict) and result.get("error"):
-                    raise OllamaAnswerError("Ollama reported an error")
-                answer = result.get("response") if isinstance(result, dict) else None
-                if not isinstance(answer, str):
-                    raise ValueError("Ollama answered without a text response")
-                return answer.strip()
-
-            return self._read_ollama_stream(resp, show_progress=bool(progress_label))
-
-    def _read_ollama_stream(self, resp, show_progress: bool) -> str:
-        """Die gestreamte Antwort Zeile für Zeile; zeigt dabei höchstens viermal pro Sekunde die Zeichenzahl."""
-        chunks: list[str] = []
-        last_update = 0.0
-        finished = False
-        for raw_line in resp:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning("Ollama stream: non-JSON line ignored")
-                continue
-            if not isinstance(obj, dict):
-                continue
-            if obj.get("error"):
-                # Nur die Art loggen: die Meldung kann Teile des Prompts enthalten.
-                raise OllamaAnswerError("Ollama reported an error in the stream")
-            piece = obj.get("response")
-            if isinstance(piece, str):
-                chunks.append(piece)
-            if obj.get("done"):
-                finished = True
-                break
-            now = time.monotonic()
-            if show_progress and now - last_update > 0.25:
-                last_update = now
-                total_len = sum(len(c) for c in chunks)
-                self._pipeline_ui(lambda n=total_len: self.elapsed_label.config(text=tn("status.characters", n)))
-        if not finished:
-            raise OllamaAnswerError("Ollama's answer stream ended before it was done")
-        return "".join(chunks).strip()
-
     def _generate_from_prompt(self, text: str, language: str = "") -> str:
         """Die KI-Antwort zum diktierten Prompt — ebenfalls als Klartext.
 
@@ -294,18 +191,21 @@ class TranscriptionMixin:
 
         `language` ist die diktierte Sprache (leer: die eingestellte); sie waehlt die Systemanweisung.
         """
-        answer = self._ollama_generate(
-            prompt=text,
-            model=CFG.ollama_model_prompt,
+        answer = self.ollama.generate(
+            text,
+            CFG.ollama_model_prompt,
             timeout=CFG.ollama_timeout_prompt,
-            stream=True,  # long answers: the window counts the characters as they arrive
-            progress_label=CFG.ollama_model_prompt or "prompt",
+            keep_alive=CFG.ollama_keep_alive,
             system=dictation_language.plain_system(_prompt_language(language)),
+            on_progress=self._show_answer_length,  # long answers: the window counts the characters as they arrive
         )
         answer = plain_text(answer)
         if not answer.strip():
-            raise OllamaAnswerError("Ollama gave an empty answer")
+            raise ollama_api.OllamaAnswerError("Ollama gave an empty answer")
         return answer
+
+    def _show_answer_length(self, characters: int) -> None:
+        self._pipeline_ui(lambda: self.elapsed_label.config(text=tn("status.characters", characters)))
 
     def _cleanup_text(self, text: str, language: str = "") -> str:
         """Clean up transcript text using LLM.
@@ -331,11 +231,11 @@ class TranscriptionMixin:
             prompt = f"{hinweis}\n\n{prompt}"
             instructions = f"{hinweis}\n\n{template}"
         answer = plain_text(
-            self._ollama_generate(
-                prompt=prompt,
-                model=CFG.ollama_model_cleanup,
+            self.ollama.generate(
+                prompt,
+                CFG.ollama_model_cleanup,
                 timeout=CFG.ollama_timeout_cleanup,
-                stream=False,
+                keep_alive=CFG.ollama_keep_alive,
                 options=cleanup_options(),
             )
         )
@@ -399,22 +299,7 @@ class TranscriptionMixin:
             return
         model = CFG.ollama_model_cleanup
         try:
-            payload = json.dumps(
-                {
-                    "model": model,
-                    "prompt": "",
-                    "stream": False,
-                    "keep_alive": CFG.ollama_keep_alive,
-                }
-            ).encode()
-            # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
-            req = urllib.request.Request(  # noqa: S310
-                CFG.ollama_url,
-                data=payload,
-                headers={"Content-Type": "application/json"},
-            )
-            with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
-                resp.read()
+            self.ollama.warm_up(model, CFG.ollama_keep_alive)
             logger.info("Ollama warmed up: %s", model)
         except Exception as exc:  # noqa: BLE001 - Grenze des Threads: Vorwaermen ist nur ein Versuch
             logger.warning("Ollama warmup failed for %s: %s", model, exc)
@@ -653,9 +538,10 @@ class TranscriptionMixin:
         self._pipeline_ui(lambda: self._apply_state("generating"))
         try:
             return self._generate_from_prompt(text, language)
-        except OLLAMA_ERRORS as exc:
+        except ollama_api.OLLAMA_ERRORS as exc:
             logger.exception("Ollama prompt-generation failed")
-            hint = t("error.ai_no_answer") if isinstance(exc, OllamaAnswerError) else t("error.ollama_not_responding")
+            unusable = isinstance(exc, ollama_api.OllamaAnswerError)
+            hint = t("error.ai_no_answer") if unusable else t("error.ollama_not_responding")
             self._pipeline_ui(lambda: self._apply_state("error", t("error.ai_failed"), hint))
             return None
 
@@ -669,8 +555,8 @@ class TranscriptionMixin:
         self._pipeline_ui(lambda: self._apply_state("cleaning"))
         try:
             return self._cleanup_text(text, language)
-        except OLLAMA_ERRORS as exc:
-            if isinstance(exc, OLLAMA_UNREACHABLE) and not isinstance(exc, urllib.error.HTTPError):
+        except ollama_api.OLLAMA_ERRORS as exc:
+            if ollama_api.is_unreachable(exc):
                 logger.warning("Ollama cleanup unavailable, using raw transcript: %s", type(exc).__name__)
                 self._note_cleanup_offline()
             else:

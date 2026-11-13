@@ -237,7 +237,7 @@ class StatusSectionMixin:
 
     def _check_ollama(self) -> None:
         """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
-        state = ollama_api.probe_or_offline(lambda: ollama_api.probe(ollama_api.base_url(CFG.ollama_url)))
+        state = ollama_api.probe_or_offline(self.app.ollama.probe)
         self.app._ui_call(lambda: self._apply_ollama_state(state))
 
     def _show_ollama_status(self) -> None:

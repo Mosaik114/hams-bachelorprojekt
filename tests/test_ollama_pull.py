@@ -1,4 +1,4 @@
-"""`ollama.pull`: der einzige Weg, auf dem Hams ein Ollama-Modell lädt (aus dem Einrichtungsassistenten).
+"""`OllamaClient.pull`: der einzige Weg, auf dem Hams ein Ollama-Modell lädt (aus dem Einrichtungsassistenten).
 
 Geprüft an einer Ersatzantwort im Format von `/api/pull`; es wird nie eine Verbindung aufgebaut.
 """
@@ -51,12 +51,8 @@ STREAM = [
 class TestPull:
     def test_progress_adds_up_all_layers(self):
         seen, progress = [], []
-        ollama.pull(
-            "http://127.0.0.1:11434",
-            "qwen3.5:9b",
-            lambda d, t: progress.append((d, t)),
-            lambda: False,
-            opener=opener_for(STREAM, seen),
+        ollama.OllamaClient("http://127.0.0.1:11434", opener=opener_for(STREAM, seen)).pull(
+            "qwen3.5:9b", lambda d, t: progress.append((d, t)), lambda: False
         )
         url, body, timeout = seen[0]
         assert url == "http://127.0.0.1:11434/api/pull"
@@ -66,16 +62,16 @@ class TestPull:
 
     def test_blank_and_broken_lines_are_skipped(self):
         lines = [b"", b"kein json", b"[1, 2]", {"status": "success"}]
-        ollama.pull("http://x", "m", lambda d, t: None, lambda: False, opener=opener_for(lines))
+        ollama.OllamaClient("http://x", opener=opener_for(lines)).pull("m", lambda d, t: None, lambda: False)
 
     def test_error_line_becomes_a_sentence(self, english):
         lines = [{"error": "pull model manifest: file does not exist"}]
         with pytest.raises(ollama.PullError, match="couldn't download the model: pull model manifest"):
-            ollama.pull("http://x", "m", lambda d, t: None, lambda: False, opener=opener_for(lines))
+            ollama.OllamaClient("http://x", opener=opener_for(lines)).pull("m", lambda d, t: None, lambda: False)
 
     def test_stream_without_success_is_incomplete(self, english):
         with pytest.raises(ollama.PullError, match="stopped before"):
-            ollama.pull("http://x", "m", lambda d, t: None, lambda: False, opener=opener_for(STREAM[:3]))
+            ollama.OllamaClient("http://x", opener=opener_for(STREAM[:3])).pull("m", lambda d, t: None, lambda: False)
 
     def test_cancel_stops_before_the_next_line(self):
         asked = []
@@ -86,7 +82,9 @@ class TestPull:
 
         progress = []
         with pytest.raises(ollama.PullCancelled):
-            ollama.pull("http://x", "m", lambda d, t: progress.append(d), cancel, opener=opener_for(STREAM))
+            ollama.OllamaClient("http://x", opener=opener_for(STREAM)).pull(
+                "m", lambda d, t: progress.append(d), cancel
+            )
         assert progress == [0]
 
     def test_unreachable_service(self, english):
@@ -94,7 +92,7 @@ class TestPull:
             raise urllib.error.URLError("refused")
 
         with pytest.raises(ollama.PullError, match="Ollama isn't reachable"):
-            ollama.pull("http://x", "m", lambda d, t: None, lambda: False, opener=opener)
+            ollama.OllamaClient("http://x", opener=opener).pull("m", lambda d, t: None, lambda: False)
 
     def test_cancelled_is_a_pull_error(self):
         assert issubclass(ollama.PullCancelled, ollama.PullError)

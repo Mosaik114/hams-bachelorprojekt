@@ -5,10 +5,8 @@ Die Regel ist eng: entfernt werden ein Codeblock um die ganze Antwort und die
 und Unterstriche, die zum Inhalt gehören.
 """
 
-import json
-import urllib.request
-
 import pytest
+from live_app import FakeOllama
 
 from hams import config as config_mod
 from hams.app import FloatingTranscriberApp
@@ -140,33 +138,29 @@ class TestPosition:
 
     def test_cleanup_normalises_its_answer(self, monkeypatch):
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: "Das ist **wichtig**.")
+        app.ollama = FakeOllama("Das ist **wichtig**.")
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         assert app._cleanup_text("das ist wichtig") == "Das ist wichtig."
 
     def test_the_prompt_mode_is_plain_too(self, monkeypatch):
         """Auch die KI-Antwort wird unveraendert eingefuegt."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        monkeypatch.setattr(
-            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: "Die Antwort ist **42**."
-        )
+        app.ollama = FakeOllama("Die Antwort ist **42**.")
         assert app._generate_from_prompt("Frage") == "Die Antwort ist 42."
 
     def test_the_prompt_mode_keeps_its_paragraphs(self, monkeypatch):
         """Zeilenumbrueche tragen dort Bedeutung — Hervorhebungen nicht."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
         antwort = "Erstens: **Oslo**.\nZweitens: Bergen.\n\nSoweit dazu."
-        monkeypatch.setattr(FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: antwort)
+        app.ollama = FakeOllama(antwort)
         assert app._generate_from_prompt("Frage") == ("Erstens: Oslo.\nZweitens: Bergen.\n\nSoweit dazu.")
 
     def test_the_dictated_prompt_goes_out_untouched(self, monkeypatch):
         """Die Regel steht im Systemfeld, nicht im Prompt des Nutzers."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        gesehen = {}
-        monkeypatch.setattr(
-            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: gesehen.update(kwargs) or "ok"
-        )
+        app.ollama = FakeOllama()
         app._generate_from_prompt("Nenne die Hauptstadt von Norwegen.")
+        gesehen = app.ollama.requests[0]
         assert gesehen["prompt"] == "Nenne die Hauptstadt von Norwegen."
         assert "Klartext" in gesehen["system"]
         assert "Markdown" in gesehen["system"]
@@ -174,13 +168,10 @@ class TestPosition:
     def test_the_cleanup_does_not_send_a_system_instruction(self, monkeypatch):
         """Dort steht die Regel bereits im Prompt selbst."""
         app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        gesehen = {}
-        monkeypatch.setattr(
-            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: gesehen.update(kwargs) or "ok"
-        )
+        app.ollama = FakeOllama()
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
         app._cleanup_text("text")
-        assert "system" not in gesehen
+        assert "system" not in app.ollama.requests[0]
 
 
 class TestPrompt:
@@ -222,28 +213,3 @@ class TestPrompt:
 
     def test_it_is_the_file_the_configuration_points_at(self):
         assert "Klartext" in config_mod.CFG.cleanup_prompt_template
-
-
-class TestRequest:
-    def test_thinking_is_switched_off(self, monkeypatch):
-        """Qwen 3.5 dachte ohne das Feld 7 s über ein „ok“ nach."""
-        gesendet = {}
-
-        class _Antwort:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_):
-                return False
-
-            def read(self):
-                return b'{"response": "ok"}'
-
-        def urlopen(req, timeout):
-            gesendet.update(json.loads(req.data))
-            return _Antwort()
-
-        monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-        app = object.__new__(FloatingTranscriberApp)
-        assert app._ollama_generate(prompt="Hallo", model="qwen3.5:9b", timeout=5) == "ok"
-        assert gesendet["think"] is False

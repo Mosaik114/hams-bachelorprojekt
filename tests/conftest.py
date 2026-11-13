@@ -233,7 +233,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(status_mod, "sd", fake_sounddevice())
     monkeypatch.setattr(status_mod, "_resolve_mic_device", lambda raw: 7)
     monkeypatch.setattr(status_mod, "_list_input_devices", lambda: list(fakes.devices))
-    monkeypatch.setattr(ollama_api, "probe", lambda base, timeout=None: fakes.probe)
+    monkeypatch.setattr(ollama_api.OllamaClient, "probe", lambda client, timeout=None: fakes.probe)
     patch_everywhere("_persist_config_value", lambda *args: fakes.saved.append(args) or True)
     monkeypatch.setattr(App, "_load_model_async", load)
     monkeypatch.setattr(App, "_warmup_ollama_async", lambda self: None)

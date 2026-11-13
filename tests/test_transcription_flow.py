@@ -299,16 +299,18 @@ class TestStreaming:
             json.dumps({"response": "", "done": True}).encode(),
             json.dumps({"response": "zu spaet"}).encode(),
         ]
-        answer = live_app._ollama_generate("Frage", "llama", 30, stream=True, progress_label="Generiere")
+        answer = live_app._generate_from_prompt("Frage")
         live_app.root.update()
         assert answer == "Hallo Welt"
         assert live_app.elapsed_label.cget("text") == "6 Zeichen"
+        assert ollama.requests[0][0]["stream"] is True
 
-    def test_without_a_label_nothing_is_shown(self, live_app, ollama):
-        ollama.lines = [json.dumps({"response": "x", "done": True}).encode()]
-        assert live_app._ollama_generate("Frage", "llama", 30, stream=True) == "x"
-        live_app.root.update()
-        assert live_app.elapsed_label.cget("text") == ""
+    def test_the_cleanup_is_one_plain_request(self, ready, ollama):
+        CFG.ollama_cleanup_enabled = True
+        ollama.answer = "Hallo Welt."
+        run(ready)
+        assert ollama.requests[0][0]["stream"] is False
+        assert ready.elapsed_label.cget("text") == ""
 
 
 class TestPaste:

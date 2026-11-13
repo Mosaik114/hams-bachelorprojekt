@@ -150,6 +150,8 @@ class FloatingTranscriberApp(
         #: ein neu geoeffnetes Einstellungsfenster nicht faelschlich "nicht
         #: erreichbar" behauptet, bis die erste eigene Abfrage zurueck ist.
         self.ollama_state = ollama_api.OllamaState(False)
+        #: The one client for the Ollama service: cleanup, *Ask AI*, warm-up, the settings' checks and pulls.
+        self.ollama = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
         self.ollama_checked = False
         self.downloader = whisper_models.ModelDownloader()
         # Muss vor dem ersten Modellzugriff stehen; der Schalter gilt fuer den

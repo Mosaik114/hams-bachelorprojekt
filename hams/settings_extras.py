@@ -74,11 +74,10 @@ class ExtrasSectionMixin:
         if self.pull_task.running or not self._pull_model:
             return
         name = self._pull_model
-        base = ollama_api.base_url(CFG.ollama_url)
         logger.info("Settings: pulling Ollama model %s", name)
 
         def work(progress, cancelled) -> None:
-            ollama_api.pull(base, name, progress, cancelled)
+            self.app.ollama.pull(name, progress, cancelled)
 
         setup_wizard.run_task(self.pull_task, work, self._post_pull, setup_wizard.describe_error)
         self._refresh_pull_row()

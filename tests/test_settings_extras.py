@@ -79,12 +79,12 @@ class TestPullRow:
         hams.probe = online("gemma3:4b")
         calls = []
 
-        def pull(base, name, progress, cancelled):
+        def pull(client, name, progress, cancelled):
             calls.append(name)
             progress(50, 100)
             hams.probe = online("gemma3:4b", name)
 
-        monkeypatch.setattr(ollama_api, "pull", pull)
+        monkeypatch.setattr(ollama_api.OllamaClient, "pull", pull)
         win = settings()
         assert shown(win)
         assert win.pull_row.row._control is win.pull_row.button
@@ -97,10 +97,10 @@ class TestPullRow:
     def test_a_failed_download_offers_retry(self, settings, hams, live_app, monkeypatch):
         hams.probe = online()
 
-        def pull(base, name, progress, cancelled):
+        def pull(client, name, progress, cancelled):
             raise ollama_api.PullError("kaputt")
 
-        monkeypatch.setattr(ollama_api, "pull", pull)
+        monkeypatch.setattr(ollama_api.OllamaClient, "pull", pull)
         win = settings()
         win._start_model_pull()
         live_app.root.update()

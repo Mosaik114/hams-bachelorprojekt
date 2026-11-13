@@ -241,13 +241,23 @@ class _NoRoot:
         return None
 
 
+#: What-if Ollama options from `--options`, merged over the ones Hams sends (None: Hams' own).
+WHAT_IF_OPTIONS: dict | None = None
+
+
 def make_pipeline():
+    from hams import ollama as ollama_api
+    from hams.config import CFG
     from hams.transcription import TranscriptionMixin
 
     class Pipeline(TranscriptionMixin):
         root = _NoRoot()
 
-    return Pipeline()
+    pipeline = Pipeline()
+    pipeline.ollama = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
+    if WHAT_IF_OPTIONS:
+        add_ollama_options(pipeline.ollama, WHAT_IF_OPTIONS)
+    return pipeline
 
 
 def use_language(language: str, workdir: Path) -> None:
@@ -260,18 +270,15 @@ def use_language(language: str, workdir: Path) -> None:
     glossary.glossary_path = lambda: path
 
 
-def add_ollama_options(options: dict) -> None:
-    """What-if only: merges `options` over the ones Hams sends, in every Ollama request of this process."""
-    original = urllib.request.urlopen
+def add_ollama_options(client, options: dict) -> None:
+    """What-if only: merges `options` over the ones Hams sends, in every text request of this one client."""
+    generate = client.generate
 
-    def patched(request, *args, **kwargs):
-        if isinstance(request, urllib.request.Request) and request.data:
-            body = json.loads(request.data)
-            body["options"] = {**body.get("options", {}), **options}
-            request.data = json.dumps(body).encode()
-        return original(request, *args, **kwargs)
+    def merged(prompt, model, **kwargs):
+        kwargs["options"] = {**(kwargs.get("options") or {}), **options}
+        return generate(prompt, model, **kwargs)
 
-    urllib.request.urlopen = patched
+    client.generate = merged
 
 
 #: Reasons the output guard gave in the current `clean()` call (None = answer kept as it was).
@@ -586,7 +593,8 @@ def main() -> int:
     if args.model:
         CFG.ollama_model_cleanup = args.model
     if args.options:
-        add_ollama_options(args.options)
+        global WHAT_IF_OPTIONS
+        WHAT_IF_OPTIONS = args.options
     record_guard_reasons()
 
     print("Preparing corpus …")

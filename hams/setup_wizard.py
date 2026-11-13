@@ -297,8 +297,7 @@ def default_services() -> SetupServices:  # pragma: no cover - wiring of the rea
 
     download = sum(wheel.size for wheel in gpu_support.CUDA_WHEELS)
 
-    def base() -> str:
-        return ollama_api.base_url(CFG.ollama_url)
+    ollama = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
 
     return SetupServices(
         gpu_present=lambda: gpu_support.nvidia_gpu_present() or (sys.platform != "win32" and _linux_nvidia_present()),
@@ -310,8 +309,8 @@ def default_services() -> SetupServices:  # pragma: no cover - wiring of the rea
         gpu_space_needed=int(download * 2.5),
         free_space=lambda: _free_space_at(app_paths.local_data_dir()),
         installed_models=whisper_models.installed_whisper_models,
-        probe_ollama=lambda: ollama_api.probe(base()),
-        pull_ollama=lambda name, progress, cancelled: ollama_api.pull(base(), name, progress, cancelled),
+        probe_ollama=ollama.probe,
+        pull_ollama=ollama.pull,
         persist=_persist_config_value,
         open_url=webbrowser.open,
     )

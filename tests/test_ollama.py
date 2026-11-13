@@ -5,9 +5,13 @@ Zeitüberschreitung, kaputte Antwort und fehlendes `/api/ps` prüfbar sind. Der
 Lauf gegen das echte Ollama lief als Integrationstest.
 """
 
+import importlib.util
+import io
 import json
+import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -117,50 +121,50 @@ class TestBaseUrl:
 class TestListModels:
     def test_several_models(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TAGS})
-        models, error = ollama.list_models(BASE)
+        models, error = ollama.OllamaClient(BASE).list_models()
         assert error == ""
         assert [m.name for m in models] == ["ministral-3:8b", "qwen3.5:9b", "qwen2.5:3b"]
 
     def test_empty_list_is_not_an_error(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": {"models": []}})
-        models, error = ollama.list_models(BASE)
+        models, error = ollama.OllamaClient(BASE).list_models()
         assert models == () and error == ""
 
     def test_timeout_is_reported_in_plain_words(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TimeoutError("timed out")})
-        models, error = ollama.list_models(BASE)
+        models, error = ollama.OllamaClient(BASE).list_models()
         assert models == () and error == "Ollama nicht erreichbar"
 
     def test_service_down(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": ConnectionRefusedError("refused")})
-        _models, error = ollama.list_models(BASE)
+        _models, error = ollama.OllamaClient(BASE).list_models()
         assert error == "Ollama nicht erreichbar"
 
     def test_http_error_names_the_code(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": urllib.error.HTTPError(BASE, 500, "boom", {}, None)})
-        _models, error = ollama.list_models(BASE)
+        _models, error = ollama.OllamaClient(BASE).list_models()
         assert "500" in error
 
     def test_broken_answer(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": b"<html>kein json</html>"})
-        models, error = ollama.list_models(BASE)
+        models, error = ollama.OllamaClient(BASE).list_models()
         assert models == () and "unverständlich" in error
 
     def test_entries_without_a_name_are_skipped(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": {"models": [{"size": 1}, "quatsch"]}})
-        models, error = ollama.list_models(BASE)
+        models, error = ollama.OllamaClient(BASE).list_models()
         assert models == () and error == ""
 
     def test_missing_details_are_left_out(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": {"models": [{"name": "nackt:1b"}]}})
-        models, _error = ollama.list_models(BASE)
+        models, _error = ollama.OllamaClient(BASE).list_models()
         assert models[0].meta == "", "nichts erfinden, was die API nicht liefert"
 
 
 class TestMeta:
     def test_parameters_and_size(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TAGS})
-        models, _error = ollama.list_models(BASE)
+        models, _error = ollama.OllamaClient(BASE).list_models()
         assert models[0].meta == "8,9B · 6,0 GB"
 
     def test_only_a_size(self):
@@ -176,68 +180,68 @@ class TestMeta:
 class TestRunningModels:
     def test_one_warm_model(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/ps": PS_ONE})
-        assert ollama.running_models(BASE) == frozenset({"ministral-3:8b"})
+        assert ollama.OllamaClient(BASE).running_models() == frozenset({"ministral-3:8b"})
 
     def test_several_warm_models(self, monkeypatch):
         """keep_alive haelt durchaus mehrere Modelle gleichzeitig im Speicher."""
         fake_urlopen(monkeypatch, {"/api/ps": PS_TWO})
-        assert ollama.running_models(BASE) == frozenset({"ministral-3:8b", "qwen2.5:3b"})
+        assert ollama.OllamaClient(BASE).running_models() == frozenset({"ministral-3:8b", "qwen2.5:3b"})
 
     def test_missing_endpoint_is_tolerated(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TAGS})  # /api/ps -> 404
-        assert ollama.running_models(BASE) == frozenset()
+        assert ollama.OllamaClient(BASE).running_models() == frozenset()
 
     def test_nothing_warm(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/ps": {"models": []}})
-        assert ollama.running_models(BASE) == frozenset()
+        assert ollama.OllamaClient(BASE).running_models() == frozenset()
 
     @pytest.mark.parametrize("answer", [[1, 2], "text", 42, None, {"models": "x"}, {"models": {"a": 1}}])
     def test_an_answer_of_another_shape_is_nothing_warm(self, monkeypatch, answer):
         """Regression: a list instead of an object raised AttributeError outside the try."""
         fake_urlopen(monkeypatch, {"/api/ps": answer})
-        assert ollama.running_models(BASE) == frozenset()
+        assert ollama.OllamaClient(BASE).running_models() == frozenset()
 
 
 class TestProbe:
     def test_online_with_warm_model(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TAGS, "/api/ps": PS_ONE})
-        state = ollama.probe(BASE)
+        state = ollama.OllamaClient(BASE).probe()
         assert state.online and len(state.models) == 3
         assert state.warm == frozenset({"ministral-3:8b"})
 
     def test_online_without_ps(self, monkeypatch):
         """Ohne /api/ps muss die Auswahl trotzdem funktionieren."""
         fake_urlopen(monkeypatch, {"/api/tags": TAGS})
-        state = ollama.probe(BASE)
+        state = ollama.OllamaClient(BASE).probe()
         assert state.online and state.warm == frozenset()
         assert len(state.models) == 3
 
     def test_a_strange_ps_answer_keeps_the_service_online(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TAGS, "/api/ps": ["unexpected"]})
-        state = ollama.probe(BASE)
+        state = ollama.OllamaClient(BASE).probe()
         assert state.online and state.warm == frozenset()
 
     def test_tags_with_a_strange_models_field(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": {"models": 7}})
-        assert ollama.probe(BASE).models == ()
+        assert ollama.OllamaClient(BASE).probe().models == ()
 
     def test_probe_never_raises(self, monkeypatch):
-        def broken(base, timeout):
+        def broken(client, timeout):
             raise RuntimeError("unexpected")
 
-        monkeypatch.setattr(ollama, "list_models", broken)
-        state = ollama.probe(BASE)
+        monkeypatch.setattr(ollama.OllamaClient, "list_models", broken)
+        state = ollama.OllamaClient(BASE).probe()
         assert not state.online and state.error
 
     def test_offline_does_not_ask_for_ps(self, monkeypatch):
         calls = fake_urlopen(monkeypatch, {"/api/tags": TimeoutError("x")})
-        state = ollama.probe(BASE)
+        state = ollama.OllamaClient(BASE).probe()
         assert not state.online and state.error
         assert not any("/api/ps" in url for url in calls)
 
     def test_find_and_names(self, monkeypatch):
         fake_urlopen(monkeypatch, {"/api/tags": TAGS, "/api/ps": PS_ONE})
-        state = ollama.probe(BASE)
+        state = ollama.OllamaClient(BASE).probe()
         assert state.find("qwen3.5:9b").parameter_size == "9.7B"
         assert state.find("gibtsnicht") is None
         assert "qwen2.5:3b" in state.names
@@ -246,7 +250,7 @@ class TestProbe:
 class TestSignature:
     def _state(self, monkeypatch, tags, ps):
         fake_urlopen(monkeypatch, {"/api/tags": tags, "/api/ps": ps})
-        return ollama.probe(BASE)
+        return ollama.OllamaClient(BASE).probe()
 
     def test_same_answer_gives_the_same_signature(self, monkeypatch):
         first = self._state(monkeypatch, TAGS, PS_ONE)
@@ -266,7 +270,7 @@ class TestSignature:
     def test_going_offline_changes_it(self, monkeypatch):
         first = self._state(monkeypatch, TAGS, PS_ONE)
         fake_urlopen(monkeypatch, {"/api/tags": TimeoutError("x")})
-        assert ollama.probe(BASE).signature() != first.signature()
+        assert ollama.OllamaClient(BASE).probe().signature() != first.signature()
 
 
 # ----------------------------------------------------------- Auswahllisten
@@ -541,3 +545,132 @@ class TestDisplayName:
         state = ollama.OllamaState(True, models=[])
         option = SW.ollama_options(state, "llama3.2:3b")[0]
         assert (option.value, option.label) == ("llama3.2:3b", "Llama 3.2 · 3B")
+
+
+# ------------------------------------------------------------------- generate and warm-up
+
+
+class _Lines(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def recording_opener(answer: bytes):
+    """An opener that records (url, body, timeout) and answers `answer`."""
+    sent = []
+
+    def opener(request, timeout=None):
+        sent.append((request.full_url, json.loads(request.data), timeout))
+        return _Lines(answer)
+
+    return opener, sent
+
+
+class TestGenerate:
+    def test_a_plain_request_with_thinking_switched_off(self):
+        """Qwen 3.5 thought for 7 s about an "ok" without `think: false`."""
+        opener, sent = recording_opener(b'{"response": " ok "}')
+        client = ollama.OllamaClient(BASE, opener=opener)
+        assert client.generate("Hallo", "qwen3.5:9b", timeout=5, keep_alive="30m", options={"seed": 0}) == "ok"
+        url, body, timeout = sent[0]
+        assert url == f"{BASE}/api/generate" and timeout == 5
+        assert body == {
+            "model": "qwen3.5:9b",
+            "prompt": "Hallo",
+            "stream": False,
+            "keep_alive": "30m",
+            "think": False,
+            "options": {"seed": 0},
+        }
+
+    def test_the_system_field_is_sent_only_when_given(self):
+        opener, sent = recording_opener(b'{"response": "ok"}')
+        client = ollama.OllamaClient(BASE, opener=opener)
+        client.generate("p", "m", timeout=1, keep_alive="1m")
+        client.generate("p", "m", timeout=1, keep_alive="1m", system="Klartext")
+        assert "system" not in sent[0][1] and sent[1][1]["system"] == "Klartext"
+
+    @pytest.mark.parametrize("answer", [b'{"error": "model not found"}', b'{"done": true}', b"[1]"])
+    def test_an_answer_without_text_is_an_error(self, answer):
+        opener, _sent = recording_opener(answer)
+        with pytest.raises(ValueError):
+            ollama.OllamaClient(BASE, opener=opener).generate("p", "m", timeout=1, keep_alive="1m")
+
+    def test_a_stream_reports_its_length_and_stops_at_done(self):
+        lines = b'{"response": "Hallo "}\n\nkein json\n{"response": "Welt"}\n{"done": true}\n{"response": "zu spaet"}\n'
+        opener, sent = recording_opener(lines)
+        reported = []
+        answer = ollama.OllamaClient(BASE, opener=opener).generate(
+            "p", "m", timeout=1, keep_alive="1m", on_progress=reported.append
+        )
+        assert answer == "Hallo Welt"
+        assert sent[0][1]["stream"] is True
+        assert reported and reported[0] == 6
+
+    def test_a_cut_off_stream_is_an_error(self):
+        opener, _sent = recording_opener(b'{"response": "Os"}\n')
+        with pytest.raises(ollama.OllamaAnswerError):
+            ollama.OllamaClient(BASE, opener=opener).generate(
+                "p", "m", timeout=1, keep_alive="1m", on_progress=lambda n: None
+            )
+
+    def test_the_address_follows_the_setting(self):
+        opener, sent = recording_opener(b'{"response": "ok"}')
+        url = ["http://127.0.0.1:11434/api/generate"]
+        client = ollama.OllamaClient.for_url(lambda: url[0], opener=opener)
+        client.generate("p", "m", timeout=1, keep_alive="1m")
+        url[0] = "http://10.0.0.2:9999/api/generate"
+        client.generate("p", "m", timeout=1, keep_alive="1m")
+        assert [entry[0] for entry in sent] == [
+            "http://127.0.0.1:11434/api/generate",
+            "http://10.0.0.2:9999/api/generate",
+        ]
+
+    def test_warm_up_sends_an_empty_prompt(self):
+        opener, sent = recording_opener(b"{}")
+        ollama.OllamaClient(BASE, opener=opener).warm_up("qwen3.5:9b", "30m")
+        assert sent == [
+            (
+                f"{BASE}/api/generate",
+                {"model": "qwen3.5:9b", "prompt": "", "stream": False, "keep_alive": "30m"},
+                60.0,
+            )
+        ]
+
+    @pytest.mark.parametrize(
+        ("error", "unreachable"),
+        [
+            (ConnectionRefusedError("refused"), True),
+            (TimeoutError("timed out"), True),
+            (urllib.error.HTTPError(BASE, 500, "boom", {}, None), False),
+            (ValueError("bad json"), False),
+        ],
+    )
+    def test_only_a_missing_service_counts_as_unreachable(self, error, unreachable):
+        assert ollama.is_unreachable(error) is unreachable
+
+
+class TestCleanupEvalOptions:
+    """`tools/cleanup_eval.py --options` merges what-if options into its own client, nothing global."""
+
+    @pytest.fixture
+    def tool(self, monkeypatch):
+        path = Path(__file__).resolve().parent.parent / "tools" / "cleanup_eval.py"
+        monkeypatch.syspath_prepend(str(path.parent))  # the tool imports its neighbour wer_benchmark
+        spec = importlib.util.spec_from_file_location("cleanup_eval_under_test", path)
+        module = importlib.util.module_from_spec(spec)
+        monkeypatch.setitem(sys.modules, spec.name, module)  # its dataclasses look themselves up there
+        spec.loader.exec_module(module)
+        return module
+
+    def test_the_options_are_merged_over_hams_own(self, tool):
+        urlopen = urllib.request.urlopen
+        opener, sent = recording_opener(b'{"response": "ok"}')
+        client = ollama.OllamaClient(BASE, opener=opener)
+        tool.add_ollama_options(client, {"temperature": 1})
+        client.generate("p", "m", timeout=1, keep_alive="1m", options={"temperature": 0, "seed": 0})
+        assert sent[0][1]["options"] == {"temperature": 1, "seed": 0}
+        assert urllib.request.urlopen is urlopen, "the tool must not patch urlopen for the whole process"

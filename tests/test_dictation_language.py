@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from live_app import FakeOllama, LastRequest
 
 from hams import config as config_mod
 from hams import dictation_language as dl
@@ -379,11 +380,9 @@ class TestTranscription:
 
 class TestOllamaInstructions:
     @pytest.fixture
-    def sent(self, monkeypatch):
-        seen = {}
-        monkeypatch.setattr(
-            FloatingTranscriberApp, "_ollama_generate", lambda self, **kwargs: seen.update(kwargs) or "ok"
-        )
+    def sent(self, monkeypatch, app):
+        app.ollama = FakeOllama()
+        seen = LastRequest(app.ollama)
         monkeypatch.setattr(glossary, "words", lambda: ("Hams",))
         monkeypatch.setattr(CFG, "cleanup_prompt_template", dl.GERMAN_CLEANUP_FILE.read_text(encoding="utf-8"))
         return seen

@@ -7,16 +7,19 @@ import logging
 import socket
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from live_app import FakeOllama
 
 from hams import glossary
 from hams import transcription as transcription_mod
 from hams.app import FloatingTranscriberApp as App
 from hams.config import CFG
+from hams.ollama import OllamaClient
 
 AUDIO = np.full(1600, 0.2, dtype=np.float32)
 
@@ -25,6 +28,7 @@ AUDIO = np.full(1600, 0.2, dtype=np.float32)
 def app(monkeypatch, tmp_path):
     """The app without window: every UI call runs at once and is recorded, pasting is recorded too."""
     instance = App.__new__(App)
+    instance.ollama = OllamaClient.for_url(lambda: CFG.ollama_url)
     instance.model_ready = threading.Event()
     instance.model_ready.set()
     instance._transcribe_lock = threading.Lock()
@@ -237,8 +241,8 @@ class TestGlossaryAppliesOnce:
         [("ich nutze hams", "ich nutze Hams App"), ("Ich nutze Hams App.", "Ich nutze Hams App.")],
     )
     def test_the_cleaned_text_gets_them_once(self, hams_app, monkeypatch, answer, pasted):
-        sent = []
-        monkeypatch.setattr(hams_app, "_ollama_generate", lambda **request: sent.append(request) or answer)
+        hams_app.ollama = FakeOllama(answer)
+        sent = hams_app.ollama.requests
         hams_app._run_transcription = lambda model, audio: ("ich nutze hams", "de")
         hams_app._transcribe_audio(AUDIO)
         assert "ich nutze hams" in sent[0]["prompt"], "the cleanup gets the raw text"
@@ -251,8 +255,8 @@ class TestGlossaryAppliesOnce:
         assert hams_app.pasted == ["ich nutze Hams App"]
 
     def test_the_prompt_gets_them_before_it_goes_to_the_ai(self, hams_app, monkeypatch):
-        sent = []
-        monkeypatch.setattr(hams_app, "_ollama_generate", lambda **request: sent.append(request) or "Antwort")
+        hams_app.ollama = FakeOllama("Antwort")
+        sent = hams_app.ollama.requests
         hams_app._run_transcription = lambda model, audio: ("frag hams", "de")
         hams_app._transcribe_audio(AUDIO, prompt_mode=True)
         assert sent[0]["prompt"] == "frag Hams App"
@@ -296,6 +300,7 @@ class TestTranscriptFiles:
 def pipeline_app(monkeypatch, tmp_path):
     """The app without window: UI calls run at once and are recorded, pasting is recorded too."""
     instance = App.__new__(App)
+    instance.ollama = OllamaClient.for_url(lambda: CFG.ollama_url)
     instance.model_ready = threading.Event()
     instance.model_ready.set()
     instance._transcribe_lock = threading.Lock()
@@ -368,7 +373,7 @@ class TestAnUnusableAiAnswerIsAFailure:
     @pytest.fixture
     def answer(self, monkeypatch, pipeline_app):
         def install(response):
-            monkeypatch.setattr(transcription_mod.urllib.request, "urlopen", lambda request, timeout=None: response)
+            monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout=None: response)
             pipeline_app._run_transcription = lambda model, audio: ("was ist die hauptstadt", "de")
             pipeline_app._transcribe_audio(AUDIO, prompt_mode=True)
             return pipeline_app

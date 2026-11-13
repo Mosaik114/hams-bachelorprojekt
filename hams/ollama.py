@@ -1,22 +1,23 @@
-"""Auskunft über den lokalen Ollama-Dienst: installierte und warme Modelle.
+"""The local Ollama service: the one HTTP client Hams talks to it through, and what Hams knows about it.
 
-Bewusst nur Lesezugriffe. Das Erzeugen von Text bleibt in `transcription.py` — hier
-steht ausschließlich, was Hams über den Dienst *weiß*, damit die Oberfläche
-nichts erfinden muss.
+`OllamaClient` is the only place that builds Ollama requests: text generation for the cleanup and *Ask AI*
+(streamed, with a live character count), the warm-up at start, the installed and loaded models (`/api/tags`,
+`/api/ps`) and `pull`, with which the setup assistant fetches the default cleanup model. Its size is only known once
+a layer starts downloading, so the progress adds up what has been announced so far.
 
-Die Auswahl in den Einstellungen zeigt nur, was wirklich installiert ist, und lädt
-nichts nach. Einzige Ausnahme ist `pull`: der Einrichtungsassistent bietet an, das
-voreingestellte Cleanup-Modell zu holen. Die Größe kennt `/api/pull` erst, wenn eine
-Schicht zu laden beginnt; die Anzeige zählt deshalb mit, was bisher angemeldet ist.
+The model lists in the settings show only what is installed and never download anything.
 """
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
 import re
+import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 
 from hams.i18n import t
 from hams.models import format_bytes
@@ -145,11 +146,26 @@ def base_url(generate_url: str) -> str:
     return (head or url).rstrip("/")
 
 
-def _get_json(url: str, timeout: float) -> dict:
-    request = urllib.request.Request(url, headers={"Accept": "application/json"})  # noqa: S310
-    # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
-    with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
-        return json.loads(response.read())
+#: Everything a failing Ollama request can raise: no connection, a connection dropped mid-answer
+#: (ConnectionResetError, RemoteDisconnected, IncompleteRead), a timeout, broken JSON or an answer of the
+#: wrong shape. Each of them must end in the raw text, never in a lost dictation.
+OLLAMA_ERRORS = (OSError, http.client.HTTPException, ValueError, KeyError, TypeError)
+
+
+def is_unreachable(exc: BaseException) -> bool:
+    """Whether `exc` means no Ollama answered at all, rather than a bad answer from a running one.
+
+    Only this pauses the cleanup for a while; an HTTP error status comes from a reachable server.
+    """
+    return isinstance(exc, (OSError, http.client.HTTPException)) and not isinstance(exc, urllib.error.HTTPError)
+
+
+class OllamaAnswerError(ValueError):
+    """Ollama answered, but not with a usable text: an `error` field, a cut-off stream or an empty answer."""
+
+
+#: A streamed answer reports its length at most this often (seconds between two reports).
+PROGRESS_INTERVAL = 0.25
 
 
 def _parse_models(payload: dict) -> tuple[OllamaModel, ...]:
@@ -189,54 +205,7 @@ def _describe_error(exc: BaseException) -> str:
     return t("ollama.unreachable")
 
 
-def list_models(base: str, timeout: float = TIMEOUT) -> tuple[tuple[OllamaModel, ...], str]:
-    """(Modelle, Fehlertext). Leerer Fehlertext heißt: Dienst hat geantwortet."""
-    try:
-        payload = _get_json(f"{base}/api/tags", timeout)
-    except Exception as exc:  # noqa: BLE001 - in Klartext übersetzen
-        return (), _describe_error(exc)
-    if not isinstance(payload, dict):
-        return (), t("ollama.bad_response")
-    return _parse_models(payload), ""
-
-
-def running_models(base: str, timeout: float = TIMEOUT) -> frozenset[str]:
-    """Namen der Modelle im Speicher.
-
-    `/api/ps` gibt es erst ab neueren Ollama-Versionen. Fehlt der Endpunkt oder
-    scheitert er, bleibt die Menge leer — die Auswahl muss trotzdem gehen.
-    """
-    try:
-        payload = _get_json(f"{base}/api/ps", timeout)
-    except Exception:  # noqa: BLE001 - kein Grund, die Auswahl zu blockieren
-        logger.debug("Ollama /api/ps nicht verfügbar", exc_info=True)
-        return frozenset()
-    names = set()
-    for entry in _entries(payload):
-        if isinstance(entry, dict):
-            name = entry.get("name") or entry.get("model")
-            if name:
-                names.add(str(name))
-    return frozenset(names)
-
-
-def probe(base: str, timeout: float = TIMEOUT) -> OllamaState:
-    """Ein Durchgang: erreichbar, installierte Modelle, warme Modelle.
-
-    Genau ein Ort, an dem Hams den Dienst befragt — die Statusanzeige und die
-    beiden Auswahlfelder leben von derselben Antwort.
-    """
-    try:
-        models, error = list_models(base, timeout)
-        if error:
-            return OllamaState(False, (), (), error)
-        return OllamaState(True, models, running_models(base, timeout), "")
-    except Exception:  # noqa: BLE001 - callers run this on worker threads and must always get a state
-        logger.exception("Ollama probe failed")
-        return OllamaState(False, (), (), t("ollama.bad_response"))
-
-
-# --------------------------------------------------------------------- pull
+# --------------------------------------------------------------------- client and pull
 
 #: Zwischen zwei Statuszeilen von `/api/pull` vergeht selten mehr als eine
 #: Sekunde; eine Minute Stille heißt, dass die Verbindung hängt.
@@ -264,30 +233,201 @@ def probe_or_offline(probe) -> OllamaState:
         return OllamaState(False, (), (), t("ollama.bad_response"))
 
 
-def pull(base: str, name: str, progress, cancel, *, opener=None, timeout: float = PULL_TIMEOUT) -> None:
-    """Lädt ein Modell über `/api/pull` und meldet den Fortschritt.
+class OllamaClient:
+    """The one HTTP client for the local Ollama service.
 
-    Args:
-        progress: (geladen, gesamt) in Bytes über alle bisher angemeldeten Schichten.
-        cancel: wird vor jeder Statuszeile gefragt; True bricht ab.
-        opener: Ersatz für `urllib.request.urlopen` (Tests).
-
-    Raises:
-        PullCancelled: `cancel()` war True.
-        PullError: Ollama meldet einen Fehler oder ist nicht erreichbar.
+    `base` is the service address (`http://127.0.0.1:11434`), or a function returning it, so a client created at
+    start follows the setting. `opener` replaces `urllib.request.urlopen` (tests, `tools/cleanup_eval.py`); without
+    one, `urlopen` is looked up at every request.
     """
-    opener = opener or urllib.request.urlopen
-    body = json.dumps({"model": name, "stream": True}).encode()
-    # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
-    request = urllib.request.Request(  # noqa: S310
-        f"{base}/api/pull", data=body, headers={"Content-Type": "application/json"}
-    )
+
+    def __init__(self, base: str | Callable[[], str], *, opener=None) -> None:
+        self._base = base
+        self._opener = opener
+
+    @classmethod
+    def for_url(cls, generate_url: str | Callable[[], str], *, opener=None) -> OllamaClient:
+        """A client for the configured `/api/generate` address (`[ollama] url`)."""
+        if callable(generate_url):
+            return cls(lambda: base_url(generate_url()), opener=opener)
+        return cls(base_url(generate_url), opener=opener)
+
+    @property
+    def base(self) -> str:
+        return self._base() if callable(self._base) else self._base
+
+    def _open(self, request: urllib.request.Request, timeout: float):
+        opener = self._opener or urllib.request.urlopen
+        return opener(request, timeout=timeout)
+
+    def _post(self, path: str, body: dict, timeout: float):
+        # The address comes from the settings; scheme and host are checked in config_validation.ollama_url_problem.
+        request = urllib.request.Request(  # noqa: S310
+            f"{self.base}{path}", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+        )
+        return self._open(request, timeout)
+
+    def _get_json(self, path: str, timeout: float):
+        request = urllib.request.Request(f"{self.base}{path}", headers={"Accept": "application/json"})  # noqa: S310
+        with self._open(request, timeout) as response:
+            return json.loads(response.read())
+
+    # ------------------------------------------------------------------ text
+
+    def generate(
+        self,
+        prompt: str,
+        model: str,
+        *,
+        timeout: float,
+        keep_alive: str,
+        system: str | None = None,
+        options: dict | None = None,
+        on_progress: Callable[[int], None] | None = None,
+    ) -> str:
+        """The model's answer to `prompt`, stripped.
+
+        With `on_progress` the answer is streamed and `on_progress(characters so far)` is called at most four times
+        a second (long *Ask AI* answers); without it, one plain request (the short cleanup answers). `keep_alive`
+        keeps the model in memory between dictations instead of reloading it for 10-30 s. `system` is sent as a
+        field of its own, so a rule for the form of the answer never touches the user's prompt; `options` are
+        Ollama's sampling options (without them the model's defaults apply).
+
+        Raises:
+            OllamaAnswerError: an `error` field or a stream cut off before `done`.
+            One of `OLLAMA_ERRORS` for anything else that went wrong.
+        """
+        body = {
+            "model": model,
+            "prompt": prompt,
+            "stream": on_progress is not None,
+            "keep_alive": keep_alive,
+            # Thinking models (Qwen 3.5, Granite 4.2) would think for seconds before answering; models without a
+            # thinking mode ignore the field.
+            "think": False,
+        }
+        if system:
+            body["system"] = system
+        if options:
+            body["options"] = options
+        with self._post("/api/generate", body, timeout) as response:
+            if on_progress is None:
+                return _plain_answer(json.loads(response.read()))
+            return _read_stream(response, on_progress)
+
+    def warm_up(self, model: str, keep_alive: str, timeout: float = 60.0) -> None:
+        """Loads `model` into memory with an empty prompt, so the first dictation does not wait for a cold start."""
+        body = {"model": model, "prompt": "", "stream": False, "keep_alive": keep_alive}
+        with self._post("/api/generate", body, timeout) as response:
+            response.read()
+
+    # ------------------------------------------------------------------ models
+
+    def list_models(self, timeout: float = TIMEOUT) -> tuple[tuple[OllamaModel, ...], str]:
+        """(models, error text). An empty error text means the service answered."""
+        try:
+            payload = self._get_json("/api/tags", timeout)
+        except Exception as exc:  # noqa: BLE001 - translated into a sentence
+            return (), _describe_error(exc)
+        if not isinstance(payload, dict):
+            return (), t("ollama.bad_response")
+        return _parse_models(payload), ""
+
+    def running_models(self, timeout: float = TIMEOUT) -> frozenset[str]:
+        """Names of the models in memory.
+
+        `/api/ps` exists only in newer Ollama versions. If it is missing or fails, the set stays empty: the model
+        choice must work anyway.
+        """
+        try:
+            payload = self._get_json("/api/ps", timeout)
+        except Exception:  # noqa: BLE001 - no reason to block the model choice
+            logger.debug("Ollama /api/ps not available", exc_info=True)
+            return frozenset()
+        names = set()
+        for entry in _entries(payload):
+            if isinstance(entry, dict):
+                name = entry.get("name") or entry.get("model")
+                if name:
+                    names.add(str(name))
+        return frozenset(names)
+
+    def probe(self, timeout: float = TIMEOUT) -> OllamaState:
+        """One pass: reachable, installed models, models in memory.
+
+        The status line and both model lists in the settings live off the same answer.
+        """
+        try:
+            models, error = self.list_models(timeout)
+            if error:
+                return OllamaState(False, (), (), error)
+            return OllamaState(True, models, self.running_models(timeout), "")
+        except Exception:  # noqa: BLE001 - callers run this on worker threads and must always get a state
+            logger.exception("Ollama probe failed")
+            return OllamaState(False, (), (), t("ollama.bad_response"))
+
+    def pull(self, name: str, progress, cancel, *, timeout: float = PULL_TIMEOUT) -> None:
+        """Downloads a model through `/api/pull` and reports the progress.
+
+        Args:
+            progress: (done, total) in bytes over all layers announced so far.
+            cancel: asked before every status line; True cancels.
+
+        Raises:
+            PullCancelled: `cancel()` was True.
+            PullError: Ollama reports an error or cannot be reached.
+        """
+        try:
+            response = self._post("/api/pull", {"model": name, "stream": True}, timeout)
+        except Exception as exc:  # noqa: BLE001 - translated into a sentence
+            raise PullError(_describe_error(exc)) from exc
+        with response:
+            _read_pull_stream(response, progress, cancel)
+
+
+def _plain_answer(result) -> str:
+    """The text of a non-streamed answer; an `error` field or a missing text is an error."""
+    if isinstance(result, dict) and result.get("error"):
+        raise OllamaAnswerError("Ollama reported an error")
+    answer = result.get("response") if isinstance(result, dict) else None
+    if not isinstance(answer, str):
+        raise ValueError("Ollama answered without a text response")
+    return answer.strip()
+
+
+def _read_stream(lines, on_progress: Callable[[int], None]) -> str:
+    """A streamed answer line by line, reporting its length at most every `PROGRESS_INTERVAL` seconds."""
+    chunks: list[str] = []
+    last_report = 0.0
+    for raw_line in lines:
+        obj = _stream_entry(raw_line)
+        if obj is None:
+            continue
+        if obj.get("error"):
+            # Only the kind is logged: the message can contain parts of the prompt.
+            raise OllamaAnswerError("Ollama reported an error in the stream")
+        piece = obj.get("response")
+        if isinstance(piece, str):
+            chunks.append(piece)
+        if obj.get("done"):
+            return "".join(chunks).strip()
+        now = time.monotonic()
+        if now - last_report > PROGRESS_INTERVAL:
+            last_report = now
+            on_progress(sum(len(chunk) for chunk in chunks))
+    raise OllamaAnswerError("Ollama's answer stream ended before it was done")
+
+
+def _stream_entry(raw_line) -> dict | None:
+    line = raw_line.strip()
+    if not line:
+        return None
     try:
-        response = opener(request, timeout=timeout)
-    except Exception as exc:  # noqa: BLE001 - in Klartext übersetzen
-        raise PullError(_describe_error(exc)) from exc
-    with response:
-        _read_pull_stream(response, progress, cancel)
+        obj = json.loads(line)
+    except json.JSONDecodeError:
+        logger.warning("Ollama stream: non-JSON line ignored")
+        return None
+    return obj if isinstance(obj, dict) else None
 
 
 def _read_pull_stream(lines, progress, cancel) -> None:

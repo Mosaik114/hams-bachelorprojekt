@@ -129,3 +129,38 @@ def fake_sounddevice() -> SimpleNamespace:
     fake._terminate = lambda: None
     fake._initialize = lambda: setattr(fake, "reinits", fake.reinits + 1)
     return fake
+
+
+class FakeOllama:
+    """`OllamaClient` without a service: records every request and answers with `answer`.
+
+    `answer` is the text, an exception to raise, or a function of the prompt. `requests` holds one dict per
+    `generate` call: `prompt`, `model` and the keyword arguments that were passed.
+    """
+
+    def __init__(self, answer="ok") -> None:
+        self.answer = answer
+        self.requests: list = []
+        self.warmed: list = []
+
+    def generate(self, prompt, model, **kwargs) -> str:
+        self.requests.append({"prompt": prompt, "model": model, **kwargs})
+        if isinstance(self.answer, BaseException):
+            raise self.answer
+        return self.answer(prompt) if callable(self.answer) else self.answer
+
+    def warm_up(self, model, keep_alive, timeout=60.0) -> None:
+        self.warmed.append((model, keep_alive))
+
+
+class LastRequest:
+    """The newest request a `FakeOllama` received, read like a dict at the moment it is asked."""
+
+    def __init__(self, ollama: FakeOllama) -> None:
+        self.ollama = ollama
+
+    def __getitem__(self, key):
+        return self.ollama.requests[-1][key]
+
+    def __contains__(self, key) -> bool:
+        return key in self.ollama.requests[-1]
