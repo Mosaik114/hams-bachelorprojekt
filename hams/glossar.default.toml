@@ -1,7 +1,8 @@
 # Glossar für Hams: Wörter, die Hams immer richtig schreiben soll.
 #
-# Hams legt beim ersten Start eine Kopie neben der Konfiguration an (Windows: %APPDATA%\Hams\glossar.toml,
-# Linux: ~/.config/hams/glossar.toml) – die darfst du frei bearbeiten. Änderungen gelten ab der nächsten
+# Hams legt beim ersten Start eine Kopie neben der Konfiguration an (Windows: %APPDATA%\Hams\glossary.toml,
+# Linux: ~/.config/hams/glossary.toml; ältere Installationen behalten glossar.toml). Einstellungen → Allgemein →
+# Glossar → Bearbeiten öffnet sie – die darfst du frei bearbeiten. Änderungen gelten ab der nächsten
 # Aufnahme, ohne Neustart. Dieses Beispiel enthält nur Fachbegriffe; trag dort deine eigenen Namen und Begriffe ein.
 #
 # woerter:   So werden die Wörter geschrieben. Whisper bekommt sie als Hinweis mit und erkennt sie dadurch öfter.

@@ -15,13 +15,14 @@ import contextlib
 
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import Text, t
+from hams.settings_extras import ExtrasSectionMixin
 from hams.settings_models import ModelSectionMixin
 from hams.settings_sections import SectionsMixin
 from hams.settings_shortcuts import ShortcutsSectionMixin
 from hams.settings_status import StatusSectionMixin
 
 
-class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, StatusSectionMixin):
+class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, StatusSectionMixin, ExtrasSectionMixin):
     """Randloses Einstellungsfenster im Mosaik-Design.
 
     Zeigt Mikrofon-Auswahl mit Live-Pegel, Status-Lampen (Modell/Ollama/Mikro)
@@ -142,6 +143,7 @@ class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, St
     def close(self) -> None:
         self._alive = False
         self._close_capture()
+        self._cancel_model_pull()  # kein Download, den niemand mehr sieht
         uk.Scale.unregister(self._on_scale_change)
         if self._ollama_job is not None:
             with contextlib.suppress(ValueError, tk.TclError):
@@ -260,6 +262,7 @@ class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, St
         # Der Prompt-Modus haengt nicht am Cleanup-Schalter. Beide gemeinsam
         # abzuschalten waere bequem und falsch: sie sind unabhaengig.
         self.row_prompt_model.set_enabled(self._ollama_online)
+        self._refresh_pull_row()
         self.row_prompt_model.set_description(
             t("settings.prompt_model.ready") if self._ollama_online else t("ollama.unreachable")
         )

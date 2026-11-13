@@ -663,7 +663,7 @@ class SetupWindow(StatusSectionMixin):
                 group.body, t("setup.cleanup.get"), lambda: self.controller.services.open_url(OLLAMA_DOWNLOAD_URL)
             )
         )
-        again = uk.SettingRow(group.body, t("setup.cleanup.check_again"), hairline=False)
+        again = uk.SettingRow(group.body, t("setup.cleanup.after_install"), hairline=False)
         again.pack(fill="x")
         again.set_control(self._row_button(group.body, t("setup.cleanup.check_again"), self.check_ollama))
         self._paragraph(box, t("setup.cleanup.offline_body", product=branding.PRODUCT_NAME), tertiary=True)

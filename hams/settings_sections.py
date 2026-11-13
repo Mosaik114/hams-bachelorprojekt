@@ -185,6 +185,8 @@ class SectionsMixin:
             placeholder=t("settings.ollama.no_model"),
         )
         self.row_cleanup_model.set_control(self.select_cleanup_model)
+        # Fehlt das eingestellte Modell, laedt es diese Zeile per Knopf nach — ohne Terminal.
+        self._build_pull_row(group)
 
         self.row_prompt_model = uk.SettingRow(
             group.body,
@@ -267,6 +269,7 @@ class SectionsMixin:
         uk.keep_logical_width(self.select_language, self.CONTROL_WIDTH)
         self.row_language.set_control(self.select_language)
         self._build_update_rows(group)
+        self._build_glossary_row(group)
         self._build_setup_row(group)
 
     def _build_update_rows(self, group: uk.GroupSurface) -> None:

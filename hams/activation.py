@@ -1,4 +1,4 @@
-"""Oeffnet die Einstellungen in der laufenden Windows-Instanz."""
+"""Weckt die laufende Windows-Instanz: Einstellungen oeffnen oder das Hauptfenster zeigen."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import time
 from ctypes import wintypes
 
 SETTINGS_EVENT = "Local\\Hams.OpenSettings-7a3f2c1b"
+SHOW_EVENT = "Local\\Hams.ShowWindow-7a3f2c1b"
 EVENT_MODIFY_STATE = 0x0002
 WAIT_OBJECT_0 = 0
 WAIT_TIMEOUT = 258
@@ -43,6 +44,11 @@ def request_settings(*, timeout: float = 3.0, name: str = SETTINGS_EVENT) -> boo
         if time.monotonic() >= deadline:
             return False
         time.sleep(0.05)
+
+
+def request_show(*, timeout: float = 3.0) -> bool:
+    """Bittet die laufende Instanz, ihr Hauptfenster nach vorn zu holen."""
+    return request_settings(timeout=timeout, name=SHOW_EVENT)
 
 
 class SettingsRequests:

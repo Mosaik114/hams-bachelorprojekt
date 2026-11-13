@@ -44,6 +44,7 @@ def check_package_data() -> str:
     files = [
         config.DEFAULT_CONFIG_PATH,
         config.APP_DIR / "glossar.default.toml",
+        config.APP_DIR / "glossar.default.en.toml",
         config.APP_DIR / "prompts" / "cleanup.txt",
         branding.ASSET_DIR / "hams.ico",
     ]

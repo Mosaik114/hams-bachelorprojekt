@@ -5,18 +5,22 @@ Zwei Wege, die sich ergänzen:
 - `apply_replacements()` – feste Korrekturen „falsch = richtig“ für Verhörer, die immer gleich kommen.
 Dazu `cleanup_hint()`: ein Satz für die Ollama-Bereinigung, damit sie die Schreibweisen nicht „verbessert“.
 
-Die Datei liegt neben der Konfiguration (`glossar.toml` im Ordner `Hams` unter %APPDATA% bzw. in
-~/.config/hams) und wird beim ersten Zugriff aus einer Vorlage angelegt: `glossar.default.toml` (deutsch kommentiert)
+Die Datei liegt neben der Konfiguration (`glossary.toml` im Ordner `Hams` unter %APPDATA% bzw. in
+~/.config/hams; aeltere Installationen behalten ihr `glossar.toml`, das weiter gilt) und wird beim ersten Zugriff
+aus einer Vorlage angelegt: `glossar.default.toml` (deutsch kommentiert)
 fuer deutsches Diktat, sonst `glossar.default.en.toml` (englisch, ohne deutsche Schreibweisen wie „Pull-Request“).
-Beide Schluesselpaare gelten in jeder Datei: `woerter`/`ersetzen` und `words`/`replace`. Sie wird neu gelesen,
-sobald sie sich ändert – ohne Neustart. Eine kaputte Datei legt nichts lahm: dann gilt ein leeres Glossar,
-und das Log sagt, warum.
+Beide Schluesselpaare gelten in jeder Datei: `woerter`/`ersetzen` und `words`/`replace`. Sie wird bei jedem Diktat
+auf Änderungen geprüft und dann neu gelesen – ohne Neustart. `open_in_editor()` öffnet sie im Standard-Editor.
+Eine kaputte Datei legt nichts lahm: dann gilt ein leeres Glossar, und das Log sagt, warum.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 import tomllib
@@ -30,8 +34,15 @@ DEFAULT_PATH_EN = APP_DIR / "glossar.default.en.toml"
 _cache: dict = {"path": None, "mtime": None, "words": (), "replacements": ()}
 
 
+#: Der Dateiname neuer Installationen.
+FILE_NAME = "glossary.toml"
+#: Der deutsche Name aus Versionen bis 1.0; eine vorhandene Datei dieses Namens gilt weiter.
+LEGACY_FILE_NAME = "glossar.toml"
+
+
 def glossary_path() -> Path:
-    return CONFIG_PATH.parent / "glossar.toml"
+    legacy = CONFIG_PATH.parent / LEGACY_FILE_NAME
+    return legacy if legacy.exists() else CONFIG_PATH.parent / FILE_NAME
 
 
 def default_path() -> Path:
@@ -50,6 +61,30 @@ def _ensure_file(path: Path) -> None:
         logger.info("Glossar angelegt: %s", path)
     except OSError:
         logger.warning("Glossar konnte nicht angelegt werden: %s", path)
+
+
+def open_in_editor(*, platform: str | None = None, launch=None) -> Path:
+    """Öffnet das Glossar im Standard-Editor; legt es vorher aus der Vorlage an, falls es fehlt.
+
+    Raises:
+        OSError: die Datei ließ sich nicht anlegen oder kein Programm öffnen.
+    """
+    path = glossary_path()
+    _ensure_file(path)
+    if not path.exists():
+        # Ohne Vorlage (kaputte Installation) wenigstens eine leere Datei, damit der Editor etwas öffnet.
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("words = []\n\n[replace]\n", encoding="utf-8")
+    platform = platform or sys.platform
+    if launch is None:
+        launch = os.startfile if platform == "win32" else _xdg_open  # type: ignore[attr-defined]
+    launch(str(path))
+    logger.info("Glossar im Editor geöffnet")
+    return path
+
+
+def _xdg_open(path: str) -> None:
+    subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)  # noqa: S603, S607
 
 
 def _list(value) -> list:

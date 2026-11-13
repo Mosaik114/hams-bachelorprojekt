@@ -32,8 +32,9 @@ logger = logging.getLogger("hams")
 # ----------------------------------------------------------------- pages
 
 PAGES = ("welcome", "hardware", "model", "microphone", "cleanup", "finish")
-#: Pages with a "Skip" button. The model page has none: without a model there is no dictation.
-SKIPPABLE = frozenset({"hardware", "microphone", "cleanup"})
+#: Pages with a "Skip" button: only where skipping differs from "Next" (it leaves cleanup off). On the
+#: hardware and microphone pages both would do the same, so they only offer "Next".
+SKIPPABLE = frozenset({"cleanup"})
 
 # ----------------------------------------------------------------- hardware
 

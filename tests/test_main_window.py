@@ -125,7 +125,7 @@ class TestGeometry:
 class TestShortcutHint:
     def test_names_both_shortcuts(self):
         names = [title for _key, title, _combo in App.shortcuts()]
-        assert names == ["Diktieren", "Prompt"]
+        assert names == ["Diktieren", "KI fragen"]
 
     def test_keys_use_german_names(self):
         assert uk.key_labels("ctrl+shift+space") == ["Strg", "Umschalt", "Leertaste"]

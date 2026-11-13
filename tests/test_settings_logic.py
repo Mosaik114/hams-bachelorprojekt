@@ -270,7 +270,7 @@ class TestCleanupDependency:
         """Prompt-Modus und Cleanup sind unabhängig voneinander."""
         window = self._run(False, True, monkeypatch)
         assert window.row_prompt_model.enabled
-        assert "Prompt" in window.row_prompt_model.description
+        assert "KI fragen" in window.row_prompt_model.description
 
     def test_offline_disables_the_prompt_model(self, monkeypatch):
         window = self._run(True, False, monkeypatch)

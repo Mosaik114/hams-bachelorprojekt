@@ -99,7 +99,7 @@ line `Model ready (cuda/float16)` or `Model ready (cpu/int8)` says the same.
 1. **NVIDIA only.** Hams uses CUDA; AMD and Intel GPUs are not supported, Hams uses the CPU on those machines.
 2. **Driver.** Install a current NVIDIA driver from nvidia.com or through the NVIDIA app. The bundled libraries are
    CUDA 12, which needs a reasonably recent driver; RTX 50-series cards need a driver from 2025 or newer.
-3. **GPU libraries.** The installer does not include cuBLAS and cuDNN (about 2 GB). If the log says
+3. **GPU libraries.** The installer does not include cuBLAS and cuDNN (1.37 GB download, about 2 GB unpacked). If the log says
    `CUDA libraries missing - skipping the GPU, using the next device`, download them once and restart Hams:
 
    ```powershell
@@ -137,13 +137,16 @@ On the CPU, the large models need several seconds per sentence. [hardware.md](ha
 ## Ollama is not reachable
 
 Ollama is optional. Without it, dictation still works and pastes the raw text (*Pasted · without cleanup*). Only
-prompt mode needs it.
+*Ask AI* (prompt mode) needs it.
 
 - *Settings → AI* shows *Ollama is running* or *Ollama isn't reachable — raw text will be pasted*.
 - Is Ollama started? It normally runs in the tray after installation. Test it in a browser:
   `http://127.0.0.1:11434` should answer *Ollama is running*.
-- Is the selected model installed? `ollama list` shows them; `ollama pull qwen3.5:9b` fetches the default. The
-  settings list installed models and mark the selected one *Not installed* if it is missing.
+- Is the selected model installed? The settings list installed models and mark the selected one *Not installed*
+  if it is missing; *Settings → AI* then shows a *Download* button that fetches it through Ollama with a progress
+  bar. In a terminal, `ollama list` shows the models and `ollama pull qwen3.5:9b` fetches the default.
+- Installed Ollama after the first start? Run the setup assistant again (*Settings → General → Setup assistant →
+  Run again*); it finds Ollama, downloads the model and switches cleanup on.
 - Hams uses `127.0.0.1`, not `localhost`, on purpose (see [architecture.md](architecture.md#design-decisions)). If
   you run Ollama on a different port or machine, set `[ollama] url`, for example
   `url = "http://127.0.0.1:11500/api/generate"`. Other machines must be reached over `https://`.

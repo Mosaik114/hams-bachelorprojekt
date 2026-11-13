@@ -25,7 +25,7 @@ MESSAGES: dict[str, str] = {
     "status.model_loading_named": "Loading {model} …",
     "status.ready": "Ready · {model}",
     "status.recording": "Recording",
-    "status.recording_prompt": "Prompt mode · Recording",
+    "status.recording_prompt": "Ask AI · Recording",
     "status.transcribing": "Transcribing …",
     "status.cleaning": "Cleaning up …",
     "status.generating": "Writing answer …",
@@ -42,7 +42,7 @@ MESSAGES: dict[str, str] = {
     "main.settings_tooltip": "Settings",
     "main.hide_tooltip": "Hide window",
     "shortcut.transcript": "Dictate",
-    "shortcut.prompt": "Prompt",
+    "shortcut.prompt": "Ask AI",
     # --- hints and errors in the main window
     "hint.see_log": "See the log for details.",
     "hint.try_again": "Please try again.",
@@ -79,7 +79,7 @@ MESSAGES: dict[str, str] = {
     # --- tray
     "tray.tooltip.loading": "{product} — loading model",
     "tray.tooltip.recording": "{product} — recording",
-    "tray.tooltip.prompt": "{product} — prompt mode",
+    "tray.tooltip.prompt": "{product} — Ask AI",
     "tray.tooltip.last": "{product} — last: {preview}",
     "tray.tooltip.ready": "{product} — ready",
     "tray.toggle_window": "Show or hide window",
@@ -149,9 +149,9 @@ MESSAGES: dict[str, str] = {
     "settings.cleanup.active": "Cleans up the transcript automatically",
     "settings.cleanup.offline": "Ollama isn't reachable — raw text will be pasted",
     "settings.cleanup_model.title": "Cleanup model",
-    "settings.prompt_model.title": "Prompt model",
-    "settings.prompt_model.hint": "Answers spoken prompts",
-    "settings.prompt_model.ready": "Used in prompt mode",
+    "settings.prompt_model.title": "Ask AI model",
+    "settings.prompt_model.hint": "Answers what you ask by voice",
+    "settings.prompt_model.ready": "Used by Ask AI",
     "settings.ollama.no_model": "No model",
     "settings.ollama.checking": "Checking Ollama …",
     "settings.ollama.online": "Ollama is running",
@@ -159,12 +159,20 @@ MESSAGES: dict[str, str] = {
     "settings.ollama.in_memory": "loaded",
     "settings.ollama.not_installed": "Not installed",
     "settings.ollama.optional": "Optional · Ollama isn't running",
+    "settings.ollama.pull_title": "Missing model",
+    "settings.ollama.pull_idle": "{model} isn't installed · several GB, Ollama downloads it",
+    "settings.ollama.pull_done": "{model} is installed",
+    "settings.glossary.title": "Glossary",
+    "settings.glossary.hint": "Names and terms to spell right · applies from the next dictation",
+    "settings.glossary.button": "Edit",
+    "settings.glossary.opened": "Opened in your editor · save it, the next dictation uses it",
+    "settings.glossary.failed": "Couldn't open an editor. The file is {path}",
     "settings.restart.title": "Restart",
     "settings.restart.hint": "If shortcuts stop responding",
     "settings.restart.button": "Restart",
     "settings.restart.running": "Restarting …",
     "settings.shortcut.transcript_hint": "Starts and stops dictation",
-    "settings.shortcut.prompt_hint": "Records a prompt for the AI",
+    "settings.shortcut.prompt_hint": "Speak a question or task; the AI's answer is pasted",
     "settings.shortcut.linux_hint": "Change it in System Settings → Keyboard → Shortcuts",
     "settings.shortcut.change": "Change",
     "settings.shortcut.default": "Default",
@@ -219,7 +227,7 @@ MESSAGES: dict[str, str] = {
     "ollama.unreachable": "Ollama isn't reachable",
     "ollama.http_error": "Ollama returned error {code}",
     "ollama.bad_response": "Ollama sent an unreadable response",
-    "ollama.pull_hint": "Get more models with ollama pull",
+    "ollama.pull_hint": "Other models: add them in the Ollama app",
     "ollama.pull_failed": "Ollama couldn't download the model: {error}",
     "ollama.pull_incomplete": "The download stopped before it was complete",
     # --- keys on the keycaps
@@ -243,7 +251,7 @@ MESSAGES: dict[str, str] = {
     # --- Linux desktop integration
     "linux.desktop_comment": "Speech to text: dictate and paste at the cursor",
     "linux.shortcut.transcript": "{product}: Dictate",
-    "linux.shortcut.prompt": "{product}: Record a prompt",
+    "linux.shortcut.prompt": "{product}: Ask AI",
     "linux.shortcut.numbered": "{product}: Shortcut {number}",
     # --- autostart setup (command line)
     "autostart.added": "Autostart enabled.",
@@ -293,7 +301,7 @@ MESSAGES: dict[str, str] = {
         "speech model; the next step suggests one."
     ),
     "setup.gpu.row": "GPU support",
-    "setup.gpu.offer": "{size} from NVIDIA, verified after download",
+    "setup.gpu.offer": "NVIDIA libraries from PyPI ({size}), verified after download",
     "setup.gpu.done": "Installed · the GPU is used from now on",
     "setup.model.title": "Speech model",
     "setup.model.gpu": "Whisper turns your voice into text. With your graphics card, Turbo is fast and very accurate.",
@@ -302,7 +310,7 @@ MESSAGES: dict[str, str] = {
         "second. Turbo is more accurate but takes about three times as long without a graphics card."
     ),
     "setup.model.choose": "Model",
-    "setup.model.row": "Download",
+    "setup.model.row": "Status",
     "setup.model.missing": "{size} · not downloaded yet",
     "setup.model.installed": "Downloaded and ready",
     "setup.model.recommended": "Recommended",
@@ -316,18 +324,19 @@ MESSAGES: dict[str, str] = {
     "setup.cleanup.title": "Text cleanup (optional)",
     "setup.cleanup.body": (
         "{product} can polish every transcript with a local AI model in Ollama: punctuation, filler words, small "
-        "slips. You don't need it. Without it, {product} pastes the Whisper text as it is, with your glossary "
+        "slips. You don't need it. Without it, {product} pastes the recognised text as it is, with your glossary "
         "replacements applied."
     ),
     "setup.cleanup.service": "Ollama",
     "setup.cleanup.checking": "Checking …",
     "setup.cleanup.offline": "Not running on this computer",
     "setup.cleanup.offline_body": (
-        "Cleanup stays off, and {product} works fine without it. To add it later, install Ollama and turn on Settings "
-        "→ AI → Clean up text."
+        "Cleanup stays off, and {product} works fine without it. To add it later, install Ollama, then run this setup "
+        "again: Settings → General → Setup assistant → Run again."
     ),
     "setup.cleanup.get": "Get Ollama",
     "setup.cleanup.check_again": "Check again",
+    "setup.cleanup.after_install": "After installing",
     "setup.cleanup.online": "Running",
     "setup.cleanup.model_missing": "{model} isn't installed yet · several GB",
     "setup.cleanup.model_ready": "{model} is installed",

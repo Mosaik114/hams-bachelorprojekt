@@ -89,3 +89,41 @@ def test_the_shipped_glossary_is_valid_toml() -> None:
     """Ein doppelter Eintrag macht die ganze Datei ungültig – dann wäre das Glossar leer."""
     daten = tomllib.loads(glossary.DEFAULT_PATH.read_text(encoding="utf-8"))
     assert daten["woerter"] and daten["ersetzen"]
+
+
+def test_new_installs_use_the_english_file_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(glossary, "CONFIG_PATH", tmp_path / "config.toml")
+    assert glossary.glossary_path() == tmp_path / "glossary.toml"
+
+
+def test_an_existing_german_file_name_keeps_working(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(glossary, "CONFIG_PATH", tmp_path / "config.toml")
+    (tmp_path / "glossar.toml").write_text('words = ["Alt"]\n', encoding="utf-8")
+    assert glossary.glossary_path() == tmp_path / "glossar.toml"
+
+
+def test_open_in_editor_creates_the_file_first(datei: Path) -> None:
+    launched = []
+    path = glossary.open_in_editor(launch=launched.append)
+    assert path == datei and datei.exists()
+    assert launched == [str(datei)]
+
+
+def test_open_in_editor_without_a_template_writes_an_empty_glossary(
+    datei: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(glossary, "default_path", lambda: datei.parent / "fehlt.toml")
+    glossary.open_in_editor(launch=lambda _path: None)
+    assert tomllib.loads(datei.read_text(encoding="utf-8")) == {"words": [], "replace": {}}
+
+
+def test_open_in_editor_picks_the_platform_opener(datei: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    popen = []
+    monkeypatch.setattr(glossary.subprocess, "Popen", lambda args, **_kw: popen.append(args))
+    glossary.open_in_editor(platform="linux")
+    assert popen == [["xdg-open", str(datei)]]
+    if hasattr(glossary.os, "startfile"):
+        started = []
+        monkeypatch.setattr(glossary.os, "startfile", started.append)
+        glossary.open_in_editor(platform="win32")
+        assert started == [str(datei)]

@@ -16,51 +16,61 @@ import contextlib
 
 from hams import branding, i18n, setup_wizard
 from hams import ui_kit as uk
-from hams.activation import SettingsRequests, request_settings
+from hams.activation import SETTINGS_EVENT, SHOW_EVENT, SettingsRequests, request_settings, request_show
 from hams.app import FloatingTranscriberApp
 from hams.config import CFG, CONFIG_PATH, _load_config, ensure_user_config, logger
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex
 
 
 def _second_instance(show_settings: bool) -> None:
-    """Hams läuft schon: Einstellungen dort öffnen lassen oder Bescheid geben und beenden."""
-    if sys.platform == "win32" and show_settings:
-        if request_settings():
-            return
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            i18n.t("instance.restart_for_settings", product=branding.PRODUCT_NAME),
-            branding.PRODUCT_NAME,
-            0x40,
-        )
+    """Hams läuft schon: dort Einstellungen oder Hauptfenster zeigen lassen; nur notfalls Bescheid geben."""
+    if sys.platform == "win32":
+        _wake_running_instance(show_settings)
         return
     logger.warning("Another Hams instance is already running — exiting")
-    if sys.platform != "win32":
-        from hams import linux
+    from hams import linux
 
+    if not linux.request_show():
         linux.notify(branding.PRODUCT_NAME, i18n.t("instance.already_running", product=branding.PRODUCT_NAME))
-        sys.exit(0)
-    with contextlib.suppress(Exception):
-        ctypes.windll.user32.MessageBoxW(
-            0,
-            i18n.t("instance.already_running_tray", product=branding.PRODUCT_NAME),
-            branding.PRODUCT_NAME,
-            0x40,
-        )
     sys.exit(0)
 
 
-def _accept_settings_requests(root: tk.Tk, app: FloatingTranscriberApp) -> SettingsRequests | None:
-    """Unter Windows: das Startprogramm Hams.exe darf die Einstellungen der laufenden Instanz öffnen."""
+def _wake_running_instance(show_settings: bool) -> None:
+    """Windows: Anfrage an die laufende Instanz; die Meldung kommt nur, wenn niemand antwortet."""
+    if show_settings:
+        if request_settings():
+            return
+        key = "instance.restart_for_settings"
+    else:
+        if request_show():
+            logger.info("Another Hams instance is already running — asked it to show its window")
+            return
+        logger.warning("Another Hams instance is already running and did not answer")
+        key = "instance.already_running_tray"
+    with contextlib.suppress(Exception):
+        ctypes.windll.user32.MessageBoxW(0, i18n.t(key, product=branding.PRODUCT_NAME), branding.PRODUCT_NAME, 0x40)
+
+
+def _bring_to_front(app: FloatingTranscriberApp) -> None:
+    """Zweiter Start: Hauptfenster zeigen; ein offener Assistent kommt obendrauf."""
+    app._show_window()
+    setup_win = getattr(app, "setup_win", None)
+    if setup_win is not None and setup_win.alive():
+        setup_win.focus()
+
+
+def _accept_requests(root: tk.Tk, app: FloatingTranscriberApp) -> list[SettingsRequests]:
+    """Unter Windows: eine zweite Instanz (Hams.exe) darf Einstellungen oder Hauptfenster der laufenden öffnen."""
     if sys.platform != "win32":
-        return None
-    try:
-        requests = SettingsRequests(root, app._open_settings)
-    except OSError:
-        logger.exception("Einstellungs-Starteintrag konnte nicht verbunden werden")
-        return None
-    logger.info("Einstellungs-Anfragen werden angenommen")
-    return requests
+        return []
+    receivers = []
+    for name, callback in ((SETTINGS_EVENT, app._open_settings), (SHOW_EVENT, lambda: _bring_to_front(app))):
+        try:
+            receivers.append(SettingsRequests(root, callback, name=name))
+        except OSError:
+            logger.exception("Aktivierungs-Ereignis %s konnte nicht verbunden werden", name)
+    logger.info("Activation requests accepted (%d)", len(receivers))
+    return receivers
 
 
 def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
@@ -78,7 +88,7 @@ def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
         _second_instance(show_settings)
         return
 
-    settings_requests = None
+    receivers: list[SettingsRequests] = []
     # Nach dem Schloss: eine zweite Instanz darf die Markierung nicht anlegen.
     setup = show_setup or setup_wizard.needs_setup(state, setup_wizard.marker_path(CONFIG_PATH))
     try:
@@ -86,15 +96,15 @@ def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
         logger.info("DPI awareness: %s", awareness)
         root = tk.Tk()
         app = FloatingTranscriberApp(root, setup=setup)
-        settings_requests = _accept_settings_requests(root, app)
+        receivers = _accept_requests(root, app)
         if setup:
             root.after_idle(app._open_setup)
         elif show_settings:
             root.after_idle(app._open_settings)
         root.mainloop()
     finally:
-        if settings_requests is not None:
-            settings_requests.close()
+        for receiver in receivers:
+            receiver.close()
         # Beim Neustart ist das Schloss schon freigegeben; dann ist hier nichts
         # mehr zu tun und der Nachfolger haelt es bereits.
         _release_single_instance_mutex()

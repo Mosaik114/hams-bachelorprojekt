@@ -54,6 +54,18 @@ class TestSettingsActivation(unittest.TestCase):
         self.assertFalse(root.jobs)
         self.assertFalse(activation.request_settings(timeout=0, name=name))
 
+    def test_show_request_uses_its_own_event(self):
+        root, shown = FakeRoot(), Mock()
+        with patch.object(activation, "SHOW_EVENT", "Local\\Hams.ShowTest." + uuid.uuid4().hex):
+            receiver = activation.SettingsRequests(root, shown, name=activation.SHOW_EVENT)
+            try:
+                self.assertTrue(activation.request_show(timeout=0))
+                root.tick()
+                shown.assert_called_once_with()
+            finally:
+                receiver.close()
+            self.assertFalse(activation.request_show(timeout=0))
+
     def test_native_launcher_activates_without_starting_python(self):
         executable = os.environ.get("HAMS_TEST_LAUNCHER")
         if not executable:
@@ -115,6 +127,7 @@ class TestStartupActivation(unittest.TestCase):
         self.main.ctypes = types.SimpleNamespace(windll=types.SimpleNamespace(user32=Mock()))
         self.main.SettingsRequests = Mock()
         self.main.request_settings = Mock(return_value=True)
+        self.main.request_show = Mock(return_value=True)
 
     def test_existing_instance_receives_settings_request_without_another_window(self):
         self.main._acquire_single_instance_mutex.return_value = None
@@ -123,12 +136,63 @@ class TestStartupActivation(unittest.TestCase):
         self.main.tk.Tk.assert_not_called()
         self.main.ctypes.windll.user32.MessageBoxW.assert_not_called()
 
-    def test_cold_start_opens_settings_and_closes_receiver(self):
+    def test_second_start_brings_the_running_window_to_the_front(self):
+        self.main._acquire_single_instance_mutex.return_value = None
+        self.main.main()
+        self.main.request_show.assert_called_once_with()
+        self.main.request_settings.assert_not_called()
+        self.main.tk.Tk.assert_not_called()
+        self.main.ctypes.windll.user32.MessageBoxW.assert_not_called()
+
+    def test_second_start_falls_back_to_the_tray_message(self):
+        self.main._acquire_single_instance_mutex.return_value = None
+        self.main.request_show.return_value = False
+        self.main.main()
+        text = self.main.ctypes.windll.user32.MessageBoxW.call_args.args[1]
+        self.assertIn("Hams", text)
+
+    def test_on_linux_a_second_start_signals_the_running_instance(self):
+        self.main._acquire_single_instance_mutex.return_value = None
+        self.main.sys.platform = "linux"
+        fake = types.SimpleNamespace(request_show=Mock(return_value=True), notify=Mock())
+        with patch.dict(sys.modules, {"hams.linux": fake}), self.assertRaises(SystemExit):
+            self.main.main()
+        fake.notify.assert_not_called()
+        fake.request_show.return_value = False
+        with patch.dict(sys.modules, {"hams.linux": fake}), self.assertRaises(SystemExit):
+            self.main.main()
+        fake.notify.assert_called_once()
+
+    def test_old_instance_without_settings_receiver_gets_a_hint(self):
+        self.main._acquire_single_instance_mutex.return_value = None
+        self.main.request_settings.return_value = False
+        self.main.main(show_settings=True)
+        self.main.request_show.assert_not_called()
+        self.main.ctypes.windll.user32.MessageBoxW.assert_called_once()
+
+    def test_cold_start_opens_settings_and_closes_receivers(self):
         self.main.main(show_settings=True)
         self.root.after_idle.assert_called_once_with(self.app._open_settings)
-        self.main.SettingsRequests.assert_called_once_with(self.root, self.app._open_settings)
-        self.main.SettingsRequests.return_value.close.assert_called_once_with()
+        calls = self.main.SettingsRequests.call_args_list
+        self.assertEqual([c.kwargs["name"] for c in calls], [activation.SETTINGS_EVENT, activation.SHOW_EVENT])
+        self.assertEqual(calls[0].args, (self.root, self.app._open_settings))
+        self.assertEqual(self.main.SettingsRequests.return_value.close.call_count, 2)
         self.release.assert_called_once_with()
+
+    def test_show_request_shows_the_window_and_focuses_an_open_wizard(self):
+        self.main.main()
+        show = self.main.SettingsRequests.call_args_list[1].args[1]
+        show()
+        self.app._show_window.assert_called_once_with()
+        self.app.setup_win.focus.assert_called_once_with()
+        self.app.setup_win.alive.return_value = False
+        show()
+        self.app.setup_win.focus.assert_called_once_with()
+
+    def test_a_failing_receiver_does_not_stop_the_start(self):
+        self.main.SettingsRequests.side_effect = [OSError("busy"), Mock()]
+        self.main.main()
+        self.root.mainloop.assert_called_once_with()
 
     def test_normal_autostart_stays_hidden(self):
         self.main.main()
@@ -148,7 +212,7 @@ class TestStartupActivation(unittest.TestCase):
         self.root.mainloop.side_effect = RuntimeError("test")
         with self.assertRaises(RuntimeError):
             self.main.main(show_settings=True)
-        self.main.SettingsRequests.return_value.close.assert_called_once_with()
+        self.assertEqual(self.main.SettingsRequests.return_value.close.call_count, 2)
         self.release.assert_called_once_with()
 
 

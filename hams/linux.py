@@ -152,6 +152,26 @@ def on_show_request(callback) -> None:
     signal.signal(signal.SIGUSR1, lambda _signum, _frame: callback())
 
 
+def request_show(lock_path: Path | None = None) -> bool:
+    """Zweiter Start: die laufende Instanz per SIGUSR1 ihr Fenster zeigen lassen (wie `linux/show-hams.sh`).
+
+    Nur an einen Hams-Prozess: eine fremde Nummer in einer alten Sperrdatei bekommt kein Signal.
+    """
+    path = lock_path or _runtime_dir() / "hams.lock"
+    try:
+        pid = int(path.read_text(encoding="utf-8").split()[0])
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except (OSError, ValueError, IndexError):
+        return False
+    if b"hams" not in cmdline.lower() or pid == os.getpid():
+        return False
+    try:
+        os.kill(pid, signal.SIGUSR1)
+    except OSError:
+        return False
+    return True
+
+
 def release_lock() -> bool:
     global _LOCK_FILE
     if _LOCK_FILE is not None:

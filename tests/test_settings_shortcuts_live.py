@@ -77,7 +77,7 @@ class TestCapture:
         [
             ((SHIFT, ord("A")), "Mit Strg, Alt oder Win kombinieren; nur F-Tasten gehen allein"),
             ((CTRL, ord("V")), "Strg+V ist von Windows oder für Kopieren und Einfügen belegt"),
-            ((CTRL, SHIFT, ALT, 0x20), "Strg+Umschalt+Alt+Leertaste ist schon der Kurzbefehl für Prompt"),
+            ((CTRL, SHIFT, ALT, 0x20), "Strg+Umschalt+Alt+Leertaste ist schon der Kurzbefehl für KI fragen"),
             ((CTRL, 0xBA), "Diese Taste geht nicht für einen Kurzbefehl"),
         ],
     )
@@ -103,7 +103,8 @@ class TestCapture:
         press(win, 0x1B)
         assert win._capture is None
         assert combos(hams) == ["ctrl+shift+space", "ctrl+shift+alt+space"]
-        assert win.shortcut_rows["prompt"].row.sub_text == "Nimmt einen Prompt für die KI auf"
+        hint = "Frage oder Auftrag sprechen; die Antwort der KI wird eingefügt"
+        assert win.shortcut_rows["prompt"].row.sub_text == hint
         assert hams.saved == []
 
     def test_the_cancel_button_does_the_same(self, win, hams):

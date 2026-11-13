@@ -25,7 +25,7 @@ MESSAGES: dict[str, str] = {
     "status.model_loading_named": "{model} wird geladen …",
     "status.ready": "Bereit · {model}",
     "status.recording": "Aufnahme läuft",
-    "status.recording_prompt": "Prompt-Modus · Aufnahme",
+    "status.recording_prompt": "KI fragen · Aufnahme",
     "status.transcribing": "Transkribiere …",
     "status.cleaning": "Bereinige Text …",
     "status.generating": "Generiere Antwort …",
@@ -42,7 +42,7 @@ MESSAGES: dict[str, str] = {
     "main.settings_tooltip": "Einstellungen",
     "main.hide_tooltip": "Fenster ausblenden",
     "shortcut.transcript": "Diktieren",
-    "shortcut.prompt": "Prompt",
+    "shortcut.prompt": "KI fragen",
     # --- Hinweise und Fehler im Hauptfenster
     "hint.see_log": "Einzelheiten stehen im Log.",
     "hint.try_again": "Versuch es erneut.",
@@ -81,7 +81,7 @@ MESSAGES: dict[str, str] = {
     # --- Tray
     "tray.tooltip.loading": "{product} — Modell lädt",
     "tray.tooltip.recording": "{product} — Aufnahme",
-    "tray.tooltip.prompt": "{product} — Prompt-Modus",
+    "tray.tooltip.prompt": "{product} — KI fragen",
     "tray.tooltip.last": "{product} — zuletzt: {preview}",
     "tray.tooltip.ready": "{product} — bereit",
     "tray.toggle_window": "Fenster zeigen oder ausblenden",
@@ -153,9 +153,9 @@ MESSAGES: dict[str, str] = {
     "settings.cleanup.active": "Bereinigt das Transkript automatisch",
     "settings.cleanup.offline": "Ollama ist nicht erreichbar — Rohtext wird eingefügt",
     "settings.cleanup_model.title": "Modell zum Bereinigen",
-    "settings.prompt_model.title": "Modell für Prompts",
-    "settings.prompt_model.hint": "Beantwortet gesprochene Prompts",
-    "settings.prompt_model.ready": "Für den Prompt-Modus",
+    "settings.prompt_model.title": "Modell für „KI fragen“",
+    "settings.prompt_model.hint": "Beantwortet, was du per Sprache fragst",
+    "settings.prompt_model.ready": "Für „KI fragen“",
     "settings.ollama.no_model": "Kein Modell",
     "settings.ollama.checking": "Ollama wird geprüft …",
     "settings.ollama.online": "Ollama erreichbar",
@@ -163,12 +163,20 @@ MESSAGES: dict[str, str] = {
     "settings.ollama.in_memory": "im Speicher",
     "settings.ollama.not_installed": "Nicht installiert",
     "settings.ollama.optional": "Optional · Ollama läuft nicht",
+    "settings.ollama.pull_title": "Fehlendes Modell",
+    "settings.ollama.pull_idle": "{model} ist nicht installiert · mehrere GB, Ollama lädt es",
+    "settings.ollama.pull_done": "{model} ist installiert",
+    "settings.glossary.title": "Glossar",
+    "settings.glossary.hint": "Namen und Begriffe richtig schreiben · gilt ab dem nächsten Diktat",
+    "settings.glossary.button": "Bearbeiten",
+    "settings.glossary.opened": "Im Editor geöffnet · speichern, das nächste Diktat nutzt es",
+    "settings.glossary.failed": "Kein Editor ließ sich öffnen. Die Datei: {path}",
     "settings.restart.title": "Neustart",
     "settings.restart.hint": "Wenn Kurzbefehle nicht reagieren",
     "settings.restart.button": "Neu starten",
     "settings.restart.running": "Wird neu gestartet …",
     "settings.shortcut.transcript_hint": "Startet und beendet ein Diktat",
-    "settings.shortcut.prompt_hint": "Nimmt einen Prompt für die KI auf",
+    "settings.shortcut.prompt_hint": "Frage oder Auftrag sprechen; die Antwort der KI wird eingefügt",
     "settings.shortcut.linux_hint": "Ändern unter Systemeinstellungen → Tastatur → Kurzbefehle",
     "settings.shortcut.change": "Ändern",
     "settings.shortcut.default": "Standard",
@@ -223,7 +231,7 @@ MESSAGES: dict[str, str] = {
     "ollama.unreachable": "Ollama nicht erreichbar",
     "ollama.http_error": "Ollama antwortet mit Fehler {code}",
     "ollama.bad_response": "Ollama antwortet unverständlich",
-    "ollama.pull_hint": "Weitere Modelle per ollama pull",
+    "ollama.pull_hint": "Weitere Modelle über die Ollama-App",
     "ollama.pull_failed": "Ollama konnte das Modell nicht laden: {error}",
     "ollama.pull_incomplete": "Der Download brach ab, bevor er vollständig war",
     # --- Tastenkappen (Beschriftung einer deutschen Tastatur)
@@ -247,7 +255,7 @@ MESSAGES: dict[str, str] = {
     # --- Linux-Desktop
     "linux.desktop_comment": "Sprache zu Text: diktieren und an der Cursorposition einfügen",
     "linux.shortcut.transcript": "{product}: Diktat aufnehmen",
-    "linux.shortcut.prompt": "{product}: Prompt aufnehmen",
+    "linux.shortcut.prompt": "{product}: KI fragen",
     "linux.shortcut.numbered": "{product}: Kurzbefehl {number}",
     # --- Autostart einrichten (Kommandozeile)
     "autostart.added": "Autostart eingerichtet.",
@@ -297,7 +305,7 @@ MESSAGES: dict[str, str] = {
         "kleineren Sprachmodell; der nächste Schritt schlägt eines vor."
     ),
     "setup.gpu.row": "GPU-Unterstützung",
-    "setup.gpu.offer": "{size} von NVIDIA, nach dem Laden geprüft",
+    "setup.gpu.offer": "NVIDIA-Bibliotheken von PyPI ({size}), nach dem Laden geprüft",
     "setup.gpu.done": "Installiert · ab jetzt rechnet die GPU",
     "setup.model.title": "Sprachmodell",
     "setup.model.gpu": "Whisper macht aus deiner Stimme Text. Mit deiner Grafikkarte ist Turbo schnell und sehr genau.",
@@ -306,7 +314,7 @@ MESSAGES: dict[str, str] = {
         "einer Sekunde fertig. Turbo ist genauer, braucht ohne Grafikkarte aber etwa dreimal so lange."
     ),
     "setup.model.choose": "Modell",
-    "setup.model.row": "Download",
+    "setup.model.row": "Status",
     "setup.model.missing": "{size} · noch nicht geladen",
     "setup.model.installed": "Geladen und bereit",
     "setup.model.recommended": "Empfohlen",
@@ -321,18 +329,19 @@ MESSAGES: dict[str, str] = {
     "setup.cleanup.title": "Textbereinigung (optional)",
     "setup.cleanup.body": (
         "{product} kann jedes Transkript mit einem lokalen KI-Modell in Ollama glätten: Satzzeichen, Füllwörter, "
-        "kleine Versprecher. Nötig ist das nicht. Ohne Ollama fügt {product} den Whisper-Text unverändert ein, mit den "
-        "Ersetzungen aus dem Glossar."
+        "kleine Versprecher. Nötig ist das nicht. Ohne Ollama fügt {product} den erkannten Text unverändert ein, "
+        "mit den Ersetzungen aus dem Glossar."
     ),
     "setup.cleanup.service": "Ollama",
     "setup.cleanup.checking": "Wird geprüft …",
     "setup.cleanup.offline": "Läuft nicht auf diesem Rechner",
     "setup.cleanup.offline_body": (
         "Die Bereinigung bleibt aus, und {product} funktioniert ohne sie. Wer sie später möchte, installiert Ollama "
-        "und schaltet Einstellungen → KI → Text bereinigen ein."
+        "und startet diese Einrichtung noch einmal: Einstellungen → Allgemein → Einrichtungsassistent → Erneut starten."
     ),
     "setup.cleanup.get": "Ollama holen",
     "setup.cleanup.check_again": "Erneut prüfen",
+    "setup.cleanup.after_install": "Nach der Installation",
     "setup.cleanup.online": "Läuft",
     "setup.cleanup.model_missing": "{model} ist noch nicht installiert · mehrere GB",
     "setup.cleanup.model_ready": "{model} ist installiert",

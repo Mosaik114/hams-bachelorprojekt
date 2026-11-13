@@ -124,7 +124,7 @@ class TestCheck:
 
     def test_the_other_shortcut_is_not_taken_twice(self):
         result = he.check("ctrl+alt+shift+space", "transcript", CURRENT)
-        assert result.problem == "Strg+Umschalt+Alt+Leertaste ist schon der Kurzbefehl für Prompt"
+        assert result.problem == "Strg+Umschalt+Alt+Leertaste ist schon der Kurzbefehl für KI fragen"
 
     def test_garbage_is_unsupported(self):
         assert he.check("ctrl+a+b", "prompt", CURRENT).problem == "Diese Taste geht nicht für einen Kurzbefehl"

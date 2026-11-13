@@ -29,6 +29,7 @@ NUMERIC = tuple(int(part) for part in (VERSION.split("+")[0].split(".") + ["0"] 
 datas = [
     (str(PACKAGE / "config.default.toml"), "hams"),
     (str(PACKAGE / "glossar.default.toml"), "hams"),
+    (str(PACKAGE / "glossar.default.en.toml"), "hams"),
     (str(PACKAGE / "prompts"), "hams/prompts"),
     (str(PACKAGE / "assets" / "branding"), "hams/assets/branding"),
 ]

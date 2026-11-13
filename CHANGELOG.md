@@ -6,6 +6,25 @@ follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- **Starting Hams again brings the running window to the front** instead of a message box that says to look in the
+  system tray. The second start asks the running instance through a named event (Windows) or `SIGUSR1` (Linux); the
+  old message only appears when the running instance doesn't answer (for example an older version).
+- **The prompt mode is called *Ask AI*** in the main window, settings, setup assistant and tray (German *KI fragen*),
+  so the label says what it does; the settings hint reads "Speak a question or task; the AI's answer is pasted".
+  Config keys (`[hotkeys] prompt`, `model_prompt_generate`) are unchanged.
+- **No terminal needed for Ollama.** The setup assistant's offline hint now says to install Ollama and run the setup
+  again (*Settings → General → Setup assistant → Run again*); the model list no longer points to `ollama pull`.
+- Setup assistant wording: the hardware and microphone pages only show *Next* (*Skip* did the same there); rows no
+  longer repeat their button (*After installing* / *Check again*, *Status* / *Download*); the GPU offer reads
+  "NVIDIA libraries from PyPI (1.4 GB)"; the cleanup page says "pastes the recognised text as it is".
+- **New installs keep the glossary in `glossary.toml`.** An existing `glossar.toml` is still used.
+- `linux/setup-system.sh` speaks English, has `--help`, refuses to run without `apt`, and installs the NVIDIA driver
+  only with `--with-nvidia-driver` (it used to by default). `--remove` replaces `--entfernen` (still accepted);
+  `NO_NVIDIA` / `OHNE_NVIDIA` still switch the driver off.
+- Docs: the README starts with the download link, then highlights, screenshots and install; the thesis measurements
+  follow further down, and the configuration reference moved to the user guide. The user guide has new sections
+  *Updating Hams* and *Linux* (step by step, without the developer extras). Sizes come from one source everywhere:
+  Turbo 1.6 GB, Small 486 MB, GPU libraries 1.37 GB download / about 2 GB unpacked, minimum disk with *Small*.
 - **Ollama is optional, and its absence is calm.** The assistant switches cleanup off when Ollama isn't running.
   With cleanup on and Ollama offline, the raw transcript (with glossary replacements) is pasted as before, but the
   status now really says *Pasted · without cleanup*, a single neutral hint appears once per session instead of
@@ -33,6 +52,11 @@ follow [Semantic Versioning](https://semver.org/).
   `glossary.HOTWORD_FRAME` and `transcription.PROMPT_PLAIN_SYSTEM` still name the German versions.
 
 ### Added
+- **Download a missing Ollama model in *Settings → AI*.** When Ollama runs but the selected cleanup model isn't
+  installed, a row offers *Download* with a progress bar and cancel, the same download as in the setup assistant.
+- **Edit the glossary from the settings.** *Settings → General → Glossary → Edit* opens the file in the default
+  editor (`os.startfile` on Windows, `xdg-open` on Linux) and creates it from the template first. Changes apply from
+  the next dictation, as before.
 - **Change the hotkeys in the settings.** *Settings → Shortcuts* has *Change* next to each hotkey: press the new
   combination (Esc cancels), and Hams checks it (needs Ctrl, Alt or Win unless it is an F key; no combinations
   Windows reserves or that break copy and paste; not the other Hams hotkey; not one another program registered,
@@ -78,6 +102,10 @@ follow [Semantic Versioning](https://semver.org/).
 - `--self-test` (also `python -m hams --self-test`): checks imports, package data, audio backend and Tk without a
   window or microphone.
 - `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
+
+### Fixed
+- The packaged app was missing the English glossary template (`glossar.default.en.toml`), so users who don't
+  dictate German got no glossary file. The PyInstaller spec now includes it and `--self-test` checks for it.
 
 ## [1.0.0] – 2026-11-12
 

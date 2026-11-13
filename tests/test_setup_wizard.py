@@ -253,7 +253,7 @@ class TestNavigation:
             wizard.index = sw.PAGES.index(page)
             if wizard.can_skip():
                 skippable.append(page)
-        assert skippable == ["hardware", "microphone", "cleanup"]
+        assert skippable == ["cleanup"], "nur dort tut Überspringen etwas anderes als Weiter"
 
     def test_model_page_needs_a_model(self):
         wizard = controller()

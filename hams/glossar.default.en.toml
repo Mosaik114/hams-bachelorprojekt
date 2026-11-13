@@ -1,8 +1,9 @@
 # Glossary for Hams: words that Hams should always spell correctly.
 #
-# On first use, Hams puts a copy next to its configuration (Windows: %APPDATA%\Hams\glossar.toml,
-# Linux: ~/.config/hams/glossar.toml). Edit that copy freely; changes apply from the next recording,
-# without a restart. This example only contains technical terms; add your own names and terms.
+# On first use, Hams puts a copy next to its configuration (Windows: %APPDATA%\Hams\glossary.toml,
+# Linux: ~/.config/hams/glossary.toml; older installs keep glossar.toml). Settings -> General -> Glossary -> Edit
+# opens it. Edit that copy freely; changes apply from the next recording, without a restart.
+# This example only contains technical terms; add your own names and terms.
 #
 # words:    How the words are spelled. Whisper gets them as a hint and recognises them more often.
 #           Put the important ones first: Whisper only reads roughly the first 200 tokens (including a short

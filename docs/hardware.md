@@ -1,6 +1,7 @@
 # Hardware requirements and speed
 
-Hams runs on any 64-bit Windows 10 or 11 PC. How fast it feels depends mostly on one thing: whether Whisper can run
+Hams runs on any 64-bit Windows 10 or 11 PC, and on Linux (Kubuntu / KDE Plasma; see the
+[user guide](user-guide.md#linux)). How fast it feels depends mostly on one thing: whether Whisper can run
 on an NVIDIA GPU. This page lists what Hams needs, shows measured timings for every Whisper model in the settings,
 and recommends a model for typical machines.
 
@@ -12,7 +13,7 @@ and recommends a model for typical machines.
 | CPU | any 64-bit x86 CPU | 6 or more cores, 2020 or newer |
 | RAM | 4 GB free for *Base*/*Small*; 8 GB for *Turbo* | 16 GB, more if Ollama runs on the same machine |
 | GPU | none (CPU works) | NVIDIA GPU with 4 GB VRAM or more and a current driver |
-| Disk | about 0.5 GB (app + *Base*) | about 4 GB (app + *Turbo* + GPU libraries) |
+| Disk | about 0.8 GB (app + *Small*, the CPU suggestion of the setup assistant) | about 4 GB (app + *Turbo* + GPU libraries); the GPU download needs about 3.4 GB free while it unpacks |
 | Microphone | any input device Windows recognises | a headset or USB microphone close to your mouth |
 
 Windows on ARM is not supported. AMD and Intel GPUs are not used (Whisper runs on the CPU there). Ollama is optional and has its
@@ -23,7 +24,7 @@ own requirements; a 7–9 B model wants roughly 6–8 GB of VRAM to be quick.
 | Item | Size | Where |
 |---|---:|---|
 | Hams (installed) | ~257 MB | `%LOCALAPPDATA%\Programs\Hams` |
-| GPU libraries (cuBLAS, cuDNN, NVRTC), optional | 1.37 GB download, about 2 GB unpacked | `%LOCALAPPDATA%\Hams\cuda` |
+| GPU libraries (cuBLAS, cuDNN, NVRTC), optional | 1.37 GB download, about 2 GB unpacked (about 3.4 GB free needed during the install) | `%LOCALAPPDATA%\Hams\cuda` |
 | Whisper *Tiny* | 78 MB | `%USERPROFILE%\.cache\huggingface\hub` |
 | Whisper *Base* | 148 MB | same |
 | Whisper *Small* | 486 MB | same |

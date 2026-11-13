@@ -152,17 +152,19 @@ class TestNavigation:
         win = wizard()
         win.go_next()
         assert win.controller.page == "hardware"
-        assert win.skip_button.winfo_manager() == "pack"
+        assert win.skip_button.winfo_manager() == "", "Weiter genügt: Überspringen täte dasselbe"
         assert win.back_button.enabled
         win.go_back()
         assert win.controller.page == "welcome"
         win.go_back()  # auf der ersten Seite wirkungslos
         assert win.controller.page == "welcome"
         go_to(win, "hardware")
+        win.skip()  # ohne Knopf auch per Aufruf wirkungslos
+        assert win.controller.page == "hardware"
+        go_to(win, "cleanup")
+        assert win.skip_button.winfo_manager() == "pack"
         win.skip()
-        assert win.controller.page == "model"
-        win.skip()  # das Modell laesst sich nicht ueberspringen
-        assert win.controller.page == "model"
+        assert win.controller.page == "finish"
 
     def test_model_page_blocks_until_a_model_is_there(self, wizard):
         win = wizard()
@@ -208,7 +210,7 @@ class TestHardware:
         win = wizard(gpu_present=lambda: True, gpu_libraries_found=lambda: found["libs"], install_gpu=install)
         go_to(win, "hardware")
         row = win.gpu_row
-        assert status(row.row) == ("idle", "1,4 GB von NVIDIA, nach dem Laden geprüft")
+        assert status(row.row) == ("idle", "NVIDIA-Bibliotheken von PyPI (1,4 GB), nach dem Laden geprüft")
         assert row.row._control is row.button
         row.button._invoke()
         live_app.root.update()
@@ -230,7 +232,7 @@ class TestHardware:
         assert row.bar_box.winfo_manager() == "pack"
         assert row.bar.level == pytest.approx(0.25)
         assert status(row.row) == ("processing", "25 % · 0,7/2,8 GB")
-        assert not (win.next_button.enabled or win.back_button.enabled or win.skip_button.enabled)
+        assert not (win.next_button.enabled or win.back_button.enabled)
         row.cancel_button._invoke()
         assert win.controller.gpu_task.cancel_event.is_set()
 

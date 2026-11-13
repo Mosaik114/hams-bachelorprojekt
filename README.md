@@ -22,22 +22,23 @@
 <p align="center">
   <img src="docs/images/demo.gif" width="880" alt="Hams in action: the cursor sits in an email draft, Hams records a spoken sentence with filler words, transcribes it and pastes the cleaned-up sentence at the cursor">
   <br>
-  <sub>A real run, recorded in real time (only the idle pauses are trimmed): Whisper turbo on the GPU, cleanup by
-  <code>qwen3.5:9b</code> in Ollama.</sub>
+  <sub>Recorded in real time (only the idle pauses are trimmed). The mail window is a simple test editor; the
+  dictation, the transcription (Whisper turbo on the GPU) and the cleanup (<code>qwen3.5:9b</code> in Ollama) are
+  real.</sub>
+</p>
+
+<p align="center">
+  <b><a href="https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest">Download Hams for Windows</a></b>
+  (installer, no Python needed) · <a href="docs/user-guide.md#linux">Linux</a> ·
+  <a href="docs/user-guide.md">User guide</a>
 </p>
 
 ---
 
-*Hams* (Arabic **همس**, "whisper") started as my Bachelor project at Kiel University (CAU) and is the dictation
-tool I use every day. The thesis question was simple: **can speech recognition plus LLM post-processing run fully
-locally, system-wide, and fast enough for daily use?** It can: after twelve individually measured optimisations,
-the median time from "stop speaking" to "text is in the target app" dropped from **3.09 s to 0.72 s** on real
-dictations.
-
 ## Highlights
 
-- **Two modes, two global hotkeys.** *Dictation* transcribes, cleans up and pastes. *Prompt mode* sends what you
-  said to a local LLM and pastes the answer.
+- **Two modes, two global hotkeys.** *Dictation* transcribes, cleans up and pastes. *Ask AI* (prompt mode) sends
+  what you said to a local LLM and pastes the answer.
 - **Fully local AI pipeline.** [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2, CUDA
   `float16`, Silero VAD, batched inference for long recordings) and [Ollama](https://ollama.com) for the cleanup.
   Audio and text never leave the machine.
@@ -67,6 +68,104 @@ dictations.
   </tr>
 </table>
 
+## Install (Windows)
+
+1. Download `Hams-Setup-<version>.exe` from the [latest release](https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest)
+   and double-click it. No Python, git or admin rights needed: Hams installs for your user only, to
+   `%LOCALAPPDATA%\Programs\Hams`, with a Start menu entry and (optional) autostart.
+2. The installer is not code-signed, so Windows SmartScreen may warn about an unknown publisher. Click
+   **More info → Run anyway**.
+3. Optional, for the LLM cleanup and *Ask AI*: install [Ollama](https://ollama.com/download), then run the setup
+   assistant again (*Settings → General → Setup assistant → Run again*). It finds Ollama and downloads the default
+   model with a progress bar; *Settings → AI* has the same download button. Without Ollama, Hams pastes the raw
+   transcript.
+
+**First start.** A short setup assistant opens and walks you through the rest; you don't need to read any docs.
+It sets the interface and dictation language, checks for an NVIDIA graphics card, downloads a speech model with a
+progress bar (Turbo, 1.6 GB, with a GPU; Small, 486 MB, on the CPU), lets you pick and test the microphone, checks
+whether Ollama is running (cleanup stays off if it isn't, and Hams works fine without it) and shows the shortcuts.
+Every download can be cancelled and retried.
+
+With an NVIDIA GPU, the assistant offers the CUDA libraries Hams needs (cuBLAS, cuDNN and NVRTC from PyPI, a
+one-time download of 1.37 GB, about 2 GB unpacked). The installer does not include them because they are useless
+without an NVIDIA card. The download is checked against pinned SHA-256 hashes and can be resumed.
+
+**Updating:** download the new setup and run it; your settings are kept. Hams tells you when a new version is out
+([details](docs/user-guide.md#updating-hams)). **Self-test:** `Hams.exe` is a windowed program and prints nothing to
+a console, so let it write a report:
+
+```powershell
+Start-Process -Wait "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--self-test --report $env:TEMP\hams-self-test.txt"
+notepad $env:TEMP\hams-self-test.txt
+```
+
+Uninstall from Windows Settings → Apps.
+
+### Linux
+
+Hams runs on Linux too (made for Kubuntu / KDE Plasma on Wayland, apt-based). There is no installer yet; the
+[user guide](docs/user-guide.md#linux) walks through cloning the repository, the one-time system setup
+(`linux/setup-system.sh`), installing with `uv` and autostart, step by step.
+
+<details>
+<summary><b>How the Linux port differs from Windows</b></summary>
+
+| | Windows | Linux |
+|---|---|---|
+| Global hotkeys | `RegisterHotKey` | XDG Desktop Portal `GlobalShortcuts` (KDE asks once) |
+| Paste | `keyboard` library | own virtual keyboard via `/dev/uinput` (Wayland blocks synthetic input otherwise) |
+| Sound | `winsound` | soft synthesised chime via `sounddevice` |
+| Config | `%APPDATA%\Hams\config.toml` | `~/.config/hams/config.toml` (or `$XDG_CONFIG_HOME/hams`) |
+| Autostart | registry `Run` key | `~/.config/autostart` + systemd user service |
+| Bring to front | tray icon, or start Hams again | `linux/show-hams.sh` (bind it to a key or panel button), or start Hams again |
+
+</details>
+
+### From source (developers)
+
+Requirements: Windows 10/11 or Linux, Python 3.10+, an NVIDIA GPU for the default settings (the CPU works too,
+just slower), and optionally [Ollama](https://ollama.com/download).
+
+```powershell
+git clone https://github.com/Mosaik114/hams-bachelorprojekt.git
+cd hams-bachelorprojekt
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[cuda]"     # [cuda] adds cuBLAS + cuDNN without pulling in torch
+ollama pull qwen3.5:9b       # default cleanup and prompt model; any Ollama model works
+hams
+```
+
+On first start, the setup assistant downloads the speech model (Turbo, 1.6 GB, with a GPU). For exactly the versions
+that CI tests, install with hashes: `pip install --require-hashes -r requirements.txt` and then
+`pip install --no-deps -e .`.
+
+| Hotkey | Mode | Pipeline |
+|---|---|---|
+| `Ctrl+Shift+Space` | Dictation | record → Whisper → LLM cleanup → paste |
+| `Ctrl+Shift+Alt+Space` | Ask AI (prompt mode) | record → Whisper → LLM answer → paste |
+
+Press the same hotkey again to stop recording. Autostart: `python hams/setup_autostart.py` (remove with `--remove`). It registers
+`scripts/start_hams.vbs`, which starts Hams without a console window. `scripts/build_launcher.cmd` builds an
+optional `Hams.exe` that opens the settings of the running instance.
+
+## Documentation
+
+- [User guide](docs/user-guide.md): install, first start, daily use, settings, configuration file, glossary,
+  updating, Linux, uninstall, privacy
+- [Hardware](docs/hardware.md): requirements, measured speed per Whisper model on GPU and CPU, recommendations
+- [Troubleshooting](docs/troubleshooting.md): hotkeys, pasting, SmartScreen, GPU, Ollama, microphone, bug reports
+- [Architecture](docs/architecture.md): pipeline, threads, modules, design decisions
+- [Evaluation](docs/evaluation.md): the thesis measurements, methodology and limitations
+
+## Configuration
+
+Almost everything can be changed in the settings window. The rest lives in `config.toml`
+(`%APPDATA%\Hams` on Windows, `~/.config/hams` on Linux); every key and its default is documented in
+[`hams/config.default.toml`](hams/config.default.toml). The [user guide](docs/user-guide.md#the-configuration-file)
+has the reference: hotkeys, model and fallback chain, dictation language, cleanup prompts, update check, and the
+glossary.
+
 ## How it works
 
 ```mermaid
@@ -87,6 +186,14 @@ The UI and the processing run on separate threads. A single-instance lock preven
 Configuration is layered: code defaults, then the shipped [`config.default.toml`](hams/config.default.toml), then
 the user file. More detail: [docs/architecture.md](docs/architecture.md).
 
+## The thesis: is local fast enough?
+
+*Hams* (Arabic **همس**, "whisper") started as my Bachelor project at Kiel University (CAU) and is the dictation
+tool I use every day. The thesis question was simple: **can speech recognition plus LLM post-processing run fully
+locally, system-wide, and fast enough for daily use?** It can: after twelve individually measured optimisations,
+the median time from "stop speaking" to "text is in the target app" dropped from **3.09 s to 0.72 s** on real
+dictations.
+
 ## Measured results
 
 All numbers come from the thesis measurements (RTX 5070, Ryzen 7 9800X3D, Windows 11, Whisper `turbo` on CUDA,
@@ -100,6 +207,7 @@ cleanup with `qwen2.5:7b`, the model used at the time; today's default is `qwen3
 | App import time | 1.803 s | **0.298 s** | −83 % |
 | Memory after import | 505.9 MB | **74.8 MB** | −85 % |
 | Hotkey ready after start | ~3 s | **0.38 s** | |
+| WER without → with LLM cleanup, synthetic speech (after the thesis, `qwen3.5:9b`, n = 126 × 3) | 14.49 % | **13.32 %** | −1.2 pp |
 
 **The interesting part: the bottleneck wasn't the model.** Taking one cleanup call apart showed that about two thirds
 of the wait was a *refused IPv6 connection*. `localhost` resolved to `::1` first, Ollama only listened on IPv4, and
@@ -115,132 +223,6 @@ Other findings from the WER benchmark (`tools/wer_benchmark.py`, 80 synthetic sa
 - Removing an accidental `torch` dependency (CTranslate2 only needs cuBLAS and cuDNN) shrank the environment from
   6.6 GB to 2.3 GB.
 
-## Install (Windows)
-
-1. Download `Hams-Setup-<version>.exe` from the [latest release](https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest)
-   and double-click it. No Python, git or admin rights needed: Hams installs for your user only, to
-   `%LOCALAPPDATA%\Programs\Hams`, with a Start menu entry and (optional) autostart.
-2. The installer is not code-signed, so Windows SmartScreen may warn about an unknown publisher. Click
-   **More info → Run anyway**.
-3. Optional, for the LLM cleanup: install [Ollama](https://ollama.com/download) and run
-   `ollama pull qwen3.5:9b`. Without it, Hams pastes the raw transcript.
-
-**First start.** A short setup assistant opens and walks you through the rest; you don't need to read any docs.
-It sets the interface and dictation language, checks for an NVIDIA graphics card, downloads a speech model with a
-progress bar (Turbo with a GPU, the smaller Small on the CPU), lets you pick and test the microphone, checks whether
-Ollama is running (cleanup stays off if it isn't, and Hams works fine without it) and shows the shortcuts. Every
-download can be cancelled and retried. You can run it again any time from Settings → General or the tray menu.
-
-With an NVIDIA GPU, the assistant offers the CUDA libraries Hams needs (cuBLAS and cuDNN, a one-time download of
-about 1.4 GB, unpacked 2.1 GB) from PyPI. The installer does not include them because most of their size is useless
-without an NVIDIA card. The same download also works from a terminal (wait for it to finish, then restart Hams):
-
-```powershell
-Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--install-gpu-support"
-```
-
-The download is checked against pinned SHA-256 hashes and can be resumed. It goes to `%LOCALAPPDATA%\Hams\cuda`, next to
-the logs (`%LOCALAPPDATA%\Hams\logs`) and saved transcripts. Settings stay in `%APPDATA%\Hams`. Uninstall Hams from
-Windows Settings → Apps. The uninstaller asks whether to delete these folders as well. Whisper models stay in the
-Hugging Face cache (`%USERPROFILE%\.cache\huggingface`).
-
-`Hams.exe --self-test` checks an installation without opening a window. Add `--report <file>` to save the result.
-
-### From source (developers)
-
-Requirements: Windows 10/11, Python 3.10+, an NVIDIA GPU for the default settings (the CPU works too, just slower),
-and [Ollama](https://ollama.com/download).
-
-```powershell
-git clone https://github.com/Mosaik114/hams-bachelorprojekt.git
-cd hams-bachelorprojekt
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -e ".[cuda]"     # [cuda] adds cuBLAS + cuDNN without pulling in torch
-ollama pull qwen3.5:9b       # default cleanup and prompt model; any Ollama model works
-hams
-```
-
-On first start, faster-whisper downloads the `turbo` model (about 1.5 GB). For exactly the versions that CI tests,
-install with hashes: `pip install --require-hashes -r requirements.txt` and then `pip install --no-deps -e .`.
-
-| Hotkey | Mode | Pipeline |
-|---|---|---|
-| `Ctrl+Shift+Space` | Dictation | record → Whisper → LLM cleanup → paste |
-| `Ctrl+Shift+Alt+Space` | Prompt | record → Whisper → LLM answer → paste |
-
-Press the same hotkey again to stop recording. Autostart: `python hams/setup_autostart.py` (remove with `--remove`). It registers
-`scripts/start_hams.vbs`, which starts Hams without a console window. `scripts/build_launcher.cmd` builds an
-optional `Hams.exe` that opens the settings of the running instance.
-
-<details>
-<summary><b>Linux (Kubuntu / KDE Plasma on Wayland)</b></summary>
-
-```bash
-sudo bash linux/setup-system.sh             # once: Tk, audio, clipboard, NVIDIA driver, uinput permission; then reboot
-uv venv --system-site-packages --python /usr/bin/python3 .venv
-uv pip install --python .venv/bin/python -e ".[cuda,dev]"
-.venv/bin/python hams/setup_autostart.py    # start-menu entry and autostart
-```
-
-| | Windows | Linux |
-|---|---|---|
-| Global hotkeys | `RegisterHotKey` | XDG Desktop Portal `GlobalShortcuts` (KDE asks once) |
-| Paste | `keyboard` library | own virtual keyboard via `/dev/uinput` (Wayland blocks synthetic input otherwise) |
-| Sound | `winsound` | soft synthesised chime via `sounddevice` |
-| Config | `%APPDATA%\Hams\config.toml` | `~/.config/hams/config.toml` (or `$XDG_CONFIG_HOME/hams`) |
-| Autostart | registry `Run` key | `~/.config/autostart` + systemd user service |
-| Bring to front | tray icon | `linux/show-hams.sh` (bind it to a key or panel button) |
-
-</details>
-
-## Documentation
-
-- [User guide](docs/user-guide.md): install, first start, daily use, settings, glossary, uninstall, privacy
-- [Hardware](docs/hardware.md): requirements, measured speed per Whisper model on GPU and CPU, recommendations
-- [Troubleshooting](docs/troubleshooting.md): hotkeys, pasting, SmartScreen, GPU, Ollama, microphone, bug reports
-- [Architecture](docs/architecture.md): pipeline, threads, modules, design decisions
-- [Evaluation](docs/evaluation.md): the thesis measurements, methodology and limitations
-
-## Configuration
-
-Everything can be changed in the settings window or in `config.toml`. All defaults are documented in
-[`hams/config.default.toml`](hams/config.default.toml).
-
-| Section | Key | Purpose |
-|---|---|---|
-| `[model]` | `size`, `device_priority`, `compute_priority` | Whisper model (`tiny` … `large-v3`, `turbo`) and fallback chain |
-| `[transcription]` | `language`, `beam_size`, `vad_filter` | dictation language (see below); `beam_size = 1` is greedy and fast |
-| `[ollama]` | `cleanup_enabled`, `keep_alive`, `warmup_on_start` | `cleanup_enabled = false` pastes the raw text, the fastest option |
-| `[hotkeys]` | `transcript`, `prompt` | global shortcuts |
-| `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
-| `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
-| `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
-
-The interface is available in English and German. With `language = "auto"`, Hams uses German when the operating
-system's display language is German (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and
-English otherwise. A new language applies after a restart; the settings window says so and has a *Restart* button.
-
-**Dictation language.** `[transcription] language` is independent of the interface language and can be changed
-under *Transcription → Dictation language*; it applies from the next recording, without a restart. Values: `"de"`,
-`"en"`, `"fr"`, `"es"`, `"it"`, `"nl"`, `"pl"`, `"pt"`, or `"auto"`, where Whisper detects the language of each
-recording before transcribing it. Without an entry, a new configuration follows the interface language (German on a
-German system, English otherwise); existing configurations keep their value. Each language brings its own Whisper
-hint sentence for the glossary words. The instructions to Ollama are German for German dictation and English for every
-other language, naming the language and forbidding translation. With `"auto"`, a detected language outside this list
-is transcribed without glossary hints and cleaned up with neutral English instructions. The WER and latency figures
-in this README and in the thesis were measured on German only; the other languages work but are not benchmarked.
-
-The cleanup prompts are [`hams/prompts/cleanup.txt`](hams/prompts/cleanup.txt) (German) and
-[`hams/prompts/cleanup.en.txt`](hams/prompts/cleanup.en.txt) (all other languages). A custom file set with
-`[ollama] cleanup_prompt_file` is used for every language. On first start, the glossary is copied next to your
-config: [`glossar.default.toml`](hams/glossar.default.toml) for German dictation,
-[`glossar.default.en.toml`](hams/glossar.default.en.toml) otherwise. Both key styles work in either file
-(`woerter`/`ersetzen` and `words`/`replace`).
-
-Upgrading from a version that still used the old working title *Wisper*: on first start Hams copies
-`%APPDATA%\Wisper` (Linux: `~/.config/Wisper`) to the new folder. The old folder is left untouched.
-
 ## Development
 
 ```powershell
@@ -255,7 +237,7 @@ PyInstaller (onedir), and Inno Setup turns it into `build\installer\Hams-Setup-<
 
 ```powershell
 .\packaging\build.ps1 -InstallDependencies -Installer   # needs Inno Setup 6 for -Installer
-build\dist\Hams\Hams.exe --self-test
+Start-Process -Wait build\dist\Hams\Hams.exe -ArgumentList "--self-test --report build\self-test.txt"
 ```
 
 CI builds the installer on every push. It installs the result silently, runs `--self-test`, uninstalls it, and checks
@@ -293,17 +275,19 @@ cyclomatic complexity above 10, and the coverage gate fails the build below 85 %
 
 Hams began as a single-file prototype (≈3,400 lines in `main.py`) for the thesis. It was then split into the
 modules above, ported to Linux/Wayland and hardened for daily use: standby-proof hotkeys, single-instance restart,
-hash-locked dependencies. The commit history from that point on is preserved here, and
-[CHANGELOG.md](CHANGELOG.md) lists the user-visible changes.
+hash-locked dependencies. The commit history from that point on is preserved here; it was imported
+from a private monorepo, which is why the early commit messages are in German. [CHANGELOG.md](CHANGELOG.md) lists
+the user-visible changes.
 
 The working title was *Wisper*; the package, the config folder and all other identifiers are now called
 `hams`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup.
 
 ## Roadmap
 
-- Standalone Windows build (PyInstaller) so no Python installation is needed
-- Measure WER with vs. without LLM cleanup and on real (non-synthetic) speech
+- Evaluate WER and LLM cleanup on real (non-synthetic) speech; on synthetic speech the cleanup is measured in
+  [docs/evaluation.md](docs/evaluation.md#llm-cleanup-quality)
 - Track VRAM per process, and look into the slower Whisper model load after the CUDA preload change
+- A Linux package, so Linux users don't need git and `uv`
 
 ## Acknowledgements and license
 
