@@ -74,12 +74,14 @@ class Theme:
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#7DBE7A",  # Salbeigruen
             "WARNING": "#E3A94B",  # Ocker
-            "ERROR": "#F0806A",  # 6,34:1 — traegt auch als Text
-            "ERROR_SURFACE": "#B0392A",  # gefuellt, ON_FILL 6,06:1
-            "RECORDING": "#F0806A",  # eigene Semantik, gleicher Ton wie ERROR
-            "RECORDING_SURFACE": "#B0392A",
-            "RECORDING_HOVER": "#9C3225",
-            "RECORDING_PRESSED": "#872B20",
+            # Reines Rot (Farbton 0 Grad), kein Lachs: ein Ton nahe 10 Grad
+            # liest sich neben dem Tuerkis wie das fruehere Orange.
+            "ERROR": "#F37C7C",  # 6,33:1, auf CONTROL_SURFACE 4,66:1 — traegt als Text
+            "ERROR_SURFACE": "#B03030",  # gefuellt, ON_FILL 6,34:1
+            "RECORDING": "#F37C7C",  # eigene Semantik, gleicher Ton wie ERROR
+            "RECORDING_SURFACE": "#B03030",
+            "RECORDING_HOVER": "#9C2B2B",  # ON_FILL 7,52:1
+            "RECORDING_PRESSED": "#862525",  # ON_FILL 9,11:1
             "AI": "#C49AD6",  # gedaempftes Heidekraut, 7,09:1
             "AI_SURFACE": "#8A5A9E",  # gefuellt, ON_FILL 5,20:1
             "AI_HOVER": "#7B508D",

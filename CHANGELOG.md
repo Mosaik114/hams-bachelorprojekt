@@ -5,6 +5,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **The error and recording red in the dark theme is now a clear red** instead of a salmon tone that read like the
+  old orange next to the turquoise accent: tint `#F37C7C` (was `#F0806A`; 6.33:1 on the window, 4.66:1 on controls),
+  fill `#B03030` with hover `#9C2B2B` and pressed `#862525` (was `#B0392A`/`#9C3225`/`#872B20`; white text 6.34:1,
+  7.52:1, 9.11:1). The light theme's reds and both warning ochres are unchanged.
+
 ## [1.2.1] – 2026-11-13
 
 ### Changed
