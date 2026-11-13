@@ -4,7 +4,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.10.0.schema.json
 
 PackageIdentifier: Mosaik114.Hams
-PackageVersion: 1.2.1
+PackageVersion: 1.2.2
 InstallerLocale: en-US
 InstallerType: inno
 Scope: user
@@ -24,7 +24,7 @@ AppsAndFeaturesEntries:
     ProductCode: '{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C93}_is1'
 Installers:
   - Architecture: x64
-    InstallerUrl: https://github.com/Mosaik114/hams-bachelorprojekt/releases/download/v1.2.1/Hams-Setup-1.2.1.exe
+    InstallerUrl: https://github.com/Mosaik114/hams-bachelorprojekt/releases/download/v1.2.2/Hams-Setup-1.2.2.exe
     InstallerSha256: '0000000000000000000000000000000000000000000000000000000000000000'
 ManifestType: installer
 ManifestVersion: 1.10.0
