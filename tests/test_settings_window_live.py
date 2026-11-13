@@ -99,6 +99,17 @@ class TestOpening:
         assert hams.streams == []
         assert sub(win.row_mic) == "Kein Mikrofon gefunden"
 
+    def test_the_scan_result_is_shown_without_waiting_for_a_level_tick(self, open_settings, hams, monkeypatch):
+        """Regression (Linux CI): the status came only from the next 60 ms tick, so a fast machine still read
+        "device unavailable" right after opening. The scan result now sets it itself."""
+        from hams.settings_window import SettingsWindow
+
+        monkeypatch.setattr(SettingsWindow, "_tick", lambda self: None)
+        hams.devices = []
+        win = open_settings()
+        assert sub(win.row_mic) == "Kein Mikrofon gefunden"
+        assert dot(win.row_mic) == "error"
+
     def test_the_hardware_row_follows_the_model(self, open_settings, live_app):
         win = open_settings()
         assert win.row_hardware.value_label.cget("text") == "Modell wird geladen …"

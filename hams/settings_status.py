@@ -102,6 +102,10 @@ class StatusSectionMixin:
         self.mic_select.set_value(self._selected_device_value())
         self.mic_select.set_enabled(bool(self._devices))
         self._start_monitor()
+        if self._device_error:
+            # At once, not with the next level tick: until then the row would still say "device unavailable",
+            # and on a fast machine a test (or a glance) sees that instead of the real reason.
+            self.row_mic.set_status("error", self._device_error)
 
     def _selected_device_value(self):
         """Der Config-Wert als Optionswert — Teilstring auf Anzeigename gemappt."""
