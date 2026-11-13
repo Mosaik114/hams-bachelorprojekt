@@ -5,11 +5,15 @@ ist der einzige Punkt, der tatsächlich lädt, und lässt sich ersetzen. Der rea
 Durchlauf mit GPU-Speichermessung lief als Integrationstest.
 """
 
+import sys
 import threading
 import time
+import traceback
+from types import SimpleNamespace
 
 import pytest
 
+from hams import whisper_model
 from hams.whisper_model import ModelManager
 
 
@@ -162,6 +166,9 @@ class TestConcurrency:
         monkeypatch.setattr(ModelManager, "_build_model", fake_build())
         order = []
         monkeypatch.setattr(app.models, "_ui_call", lambda fn: None)  # only the order counts here
+        # Only the lock order counts: a collection in the worker would finalise Tk objects of the whole test run
+        # from a foreign thread, which Tcl on Linux does not allow.
+        monkeypatch.setattr(whisper_model, "gc", SimpleNamespace(collect=lambda: 0))
         app.models.transcribe_lock.acquire()
 
         def worker():
@@ -175,12 +182,9 @@ class TestConcurrency:
         assert order == [], "Wechsel lief trotz laufender Transkription"
         order.append("transcription")
         app.models.transcribe_lock.release()
-        # Keep the Tk thread serving, as the real main loop does: the worker's gc.collect() can finalise Tk
-        # objects, and on Linux Tcl hands that call to this thread. A bare join() would deadlock until timeout.
-        deadline = time.monotonic() + 5
-        while thread.is_alive() and time.monotonic() < deadline:
-            app.root.update()
-            thread.join(timeout=0.01)
+        thread.join(timeout=5)
+        frame = sys._current_frames().get(thread.ident)
+        assert not thread.is_alive(), "worker still blocked at:\n" + "".join(traceback.format_stack(frame))
         assert order == ["transcription", "switch"]
 
     def test_stale_load_does_not_win(self, app, monkeypatch):
