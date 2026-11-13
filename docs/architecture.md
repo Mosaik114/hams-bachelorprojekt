@@ -89,7 +89,7 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 
 - ≈1,600 test functions, ≈3,200 test cases including parametrisation. Many of them drive the real Tk application
   through `tests/live_app.py`, with fakes for the microphone, Whisper and Ollama.
-- Coverage gate of 85 % (Windows CI excludes the Linux-only modules, see `coverage-windows.ini`).
+- Coverage gates with branch coverage: 93 % on Windows (excludes the Linux-only modules, see `coverage-windows.ini`), 88 % on Linux (counts the Windows-only modules).
 - ruff with pycodestyle, pyflakes, bugbear, bandit, import order and **max cyclomatic complexity 10**.
 - Dependencies are locked with hashes (`uv pip compile --generate-hashes`), audited with `pip-audit`, and updated by
   Dependabot. GitHub Actions are pinned to commit SHAs.

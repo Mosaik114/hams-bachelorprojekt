@@ -15,7 +15,7 @@
   <a href="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/secrets.yml"><img alt="Secret scan" src="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/secrets.yml/badge.svg"></a>
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-informational">
-  <img alt="Coverage gate" src="https://img.shields.io/badge/coverage%20gate-85%25-brightgreen">
+  <img alt="Coverage gate" src="https://img.shields.io/badge/coverage%20gate-93%25-brightgreen">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
@@ -57,7 +57,7 @@
   Linux (KDE Plasma on Wayland): XDG Desktop Portal `GlobalShortcuts`, a `uinput` virtual keyboard, a systemd user
   service.
 - **Engineered like a product.** ≈1,600 test functions (≈3,200 test cases including parametrisation, many of them
-  driving live Tk windows), an 85 % coverage gate, ruff with complexity limits, hash-locked dependencies,
+  driving live Tk windows), line+branch coverage gates (93 % Windows, 88 % Linux), ruff with complexity limits, hash-locked dependencies,
   `pip-audit` and a gitleaks history scan in CI.
 - **Private by design.** No account, no telemetry; logs record text *lengths*, never the dictated text. Every network
   connection Hams makes is listed in [SECURITY.md](SECURITY.md#network-connections).

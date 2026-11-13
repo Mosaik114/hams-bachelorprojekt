@@ -40,7 +40,7 @@ ruff check . ; ruff format --check .
 
 Tk tests open real windows: run them under `xvfb-run` on Linux, or on a separate desktop on Windows (details in
 [CONTRIBUTING.md](../CONTRIBUTING.md#tests)). CI rules: no function with a cyclomatic complexity above 10, and the
-coverage gate fails the build below 85 %.
+coverage gate fails the build below 93 % (Windows) or 88 % (Linux), line and branch coverage.
 
 ## Build the Windows installer
 
