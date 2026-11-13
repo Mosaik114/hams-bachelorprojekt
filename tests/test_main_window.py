@@ -12,7 +12,26 @@ from hams import ui_kit as uk
 from hams.app import FloatingTranscriberApp as App
 from hams.ui_kit import ControlStyle, StatusDot
 
-TABLE = App.STATE_TABLE
+
+class _LiveTable:
+    """Reads `App.STATE_TABLE` at access time, in the language the test fixture set.
+
+    A module-level copy would be translated at collection time, before the
+    autouse fixture switches the UI to German — on an English CI runner the
+    texts were then English.
+    """
+
+    def __getitem__(self, state):
+        return App.STATE_TABLE[state]
+
+    def __iter__(self):
+        return iter(App.STATE_KEYS)
+
+    def items(self):
+        return App.STATE_TABLE.items()
+
+
+TABLE = _LiveTable()
 
 
 class TestStateTable:
