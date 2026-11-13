@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, r2-ci]
     # A version tag publishes the GitHub release with the attested installer (job "release")
     tags: ["v*"]
   pull_request:
@@ -189,7 +189,7 @@ jobs:
   # The only way release assets are published: a tag push whose CI is green end to end. Never upload by hand.
   release:
     name: Publish release (notes, attested installer)
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/r2-ci'
     runs-on: ubuntu-26.04
     needs: [lint, locks, test-windows, test-linux, audit, build, installer]
     permissions:
@@ -208,9 +208,13 @@ jobs:
         with:
           subject-path: release-assets/Hams-Setup-*.exe
       - name: Release notes from CHANGELOG.md
-        run: python3 .github/scripts/release_notes.py "$GITHUB_REF_NAME" > release-notes.md
+        run: |
+          python3 .github/scripts/release_notes.py "${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.1.0' }}" > release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+          ls -l release-assets
       # A tag push alone produces the complete release; a release created beforehand only gets the asset
       - name: Create the release or attach to it
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

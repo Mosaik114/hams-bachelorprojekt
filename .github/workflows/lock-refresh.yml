@@ -6,6 +6,8 @@ name: Refresh dependency locks
 on:
   schedule:
     - cron: "23 4 * * 1"   # Mondays
+  push:
+    branches: [r2-ci]
   workflow_dispatch:
     inputs:
       dry_run:
