@@ -1,8 +1,6 @@
 """Einstellungen: Abschnitt Whisper-Modelle."""
 
-import contextlib
 import threading
-import tkinter as tk
 
 from hams import models as whisper_models
 from hams import ui_kit as uk
@@ -203,9 +201,13 @@ class ModelSectionMixin:
         threading.Thread(target=self._delete_worker, args=(model_id,), daemon=True, name="hams-delete").start()
 
     def _delete_worker(self, model_id: str) -> None:
-        erfolg, _frei, meldung = whisper_models.delete_whisper_model(model_id)
-        with contextlib.suppress(tk.TclError, RuntimeError):  # Fenster inzwischen zu
-            self.win.after(0, lambda: self._delete_done(erfolg, meldung))
+        try:
+            erfolg, _frei, meldung = whisper_models.delete_whisper_model(model_id)
+        except Exception:  # noqa: BLE001 - Grenze des Threads
+            logger.exception("Modell löschen fehlgeschlagen: %s", model_id)
+            info = whisper_models.find(model_id)
+            erfolg, meldung = False, t("model.delete.failed", model=info.label if info else model_id)
+        self.app._ui_call(lambda: self._delete_done(erfolg, meldung))
 
     def _delete_done(self, erfolg: bool, meldung: str) -> None:
         if not self.alive():

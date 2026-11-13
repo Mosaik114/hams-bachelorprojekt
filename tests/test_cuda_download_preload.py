@@ -94,3 +94,16 @@ class TestUsableDevices:
         model, device, _info = whisper_model.WhisperModelMixin._build_model(object(), "tiny")
         assert device == "cpu"
         assert tried == ["cpu"]
+
+
+@windows_only
+class TestRegistrationFailures:
+    def test_a_folder_windows_refuses_costs_only_the_gpu(self, downloaded, monkeypatch):
+        import ctypes
+
+        def refused(_folder):
+            raise OSError(87, "The parameter is incorrect")
+
+        monkeypatch.setattr(backend_preload.os, "add_dll_directory", refused, raising=False)
+        monkeypatch.setattr(ctypes, "WinDLL", lambda path: None, raising=False)
+        assert backend_preload.add_cuda_libraries() == ()

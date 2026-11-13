@@ -23,6 +23,7 @@ from hams.settings_window import SettingsWindow
 from hams.setup_window import SetupWindow
 from hams.transcription import TranscriptionMixin
 from hams.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
+from hams.ui_dispatch import UiDispatcher
 from hams.ui_kit import Theme
 from hams.update_notice import UpdateNoticeMixin
 from hams.whisper_model import WhisperModelMixin
@@ -53,8 +54,12 @@ class FloatingTranscriberApp(
     WINDOW_WIDTH = 360  # logisch; Platz fuer beide Kurzbefehle als Tasten
     WINDOW_MIN_HEIGHT = 190  # logisch; die echte Hoehe kommt aus dem Layout
 
+    #: Gives background threads a way onto the Tk thread (see `_ui_call`). Set in `__init__`.
+    _ui_dispatcher: UiDispatcher | None = None
+
     def __init__(self, root: tk.Tk, *, setup: bool = False) -> None:
         self.root = root
+        self._ui_dispatcher = UiDispatcher(root)
         self._init_window()
         self._init_model_state()
         self._init_runtime_state()
@@ -78,7 +83,7 @@ class FloatingTranscriberApp(
         self._setup_tray()
         self._start_update_check()
         if sys.platform != "win32":
-            linux.on_show_request(lambda: self.root.after(0, self._show_window))
+            linux.on_show_request(lambda: self._ui_call(self._show_window))
         self.root.withdraw()
         logger.info("Hams started")
 
@@ -133,7 +138,10 @@ class FloatingTranscriberApp(
         #: Steigt bei jedem Wechselwunsch. Ein spaet zurueckkehrender aelterer
         #: Ladevorgang erkennt daran, dass er nicht mehr gemeint ist.
         self._model_generation = 0
+        #: Das Modell, das gerade geladen wird (erster Start, Wiederholung oder Wechsel), sonst None.
         self._switching_to: str | None = None
+        #: idle, loading, switching, ready oder failed - siehe `WhisperModelMixin`.
+        self._model_phase = "idle"
         #: Der Download gehoert der Anwendung, nicht dem Einstellungsfenster:
         #: er laeuft weiter, wenn das Fenster zwischendurch geschlossen wird.
         #: Letzte Auskunft des Ollama-Dienstes. Sie gehoert der Anwendung, damit
@@ -229,8 +237,18 @@ class FloatingTranscriberApp(
     # ------------------------------------------------------------------ ui helpers
 
     def _ui_call(self, fn) -> None:
-        """Schedule fn on the Tk main thread. Zentral statt verstreute root.after-Calls."""
-        self.root.after(0, fn)
+        """Runs fn on the Tk thread. The one way for background threads to reach the UI.
+
+        Safe from any thread (tray, hotkeys, downloads, model load, update check): it never
+        blocks the caller and drops the call quietly once the app is shutting down.
+        """
+        dispatcher = self._ui_dispatcher
+        if dispatcher is not None:
+            dispatcher.call(fn)
+            return
+        # Ohne __init__ gebaut (Tests mit Attrappen-Root): direkt einreihen.
+        with contextlib.suppress(tk.TclError, RuntimeError):
+            self.root.after(0, fn)
 
     # ------------------------------------------------------------------ hotkeys
 
@@ -309,7 +327,7 @@ class FloatingTranscriberApp(
                 return
             self.settings_win = SettingsWindow(self)
 
-        self.root.after(0, _do)
+        self._ui_call(_do)  # auch aus dem Tray-Thread
 
     def _open_setup(self, icon=None, item=None) -> None:
         """Der Einrichtungsassistent: beim ersten Start, aus den Einstellungen und aus dem Tray."""
@@ -320,7 +338,7 @@ class FloatingTranscriberApp(
                 return
             self.setup_win = SetupWindow(self)
 
-        self.root.after(0, _do)
+        self._ui_call(_do)  # auch aus dem Tray-Thread
 
     def on_setup_closed(self, completed: bool) -> None:
         """Der Assistent ist zu. Hielt der Start das Modell zurueck, wird es jetzt geladen.
@@ -388,10 +406,17 @@ class FloatingTranscriberApp(
         return ""
 
     def _quit_app(self, icon=None, item=None) -> None:
+        """Tray "Quit": pystray calls this on its own thread, the work belongs to the Tk thread."""
         logger.info("Quit requested")
+        self._ui_call(self._quit_on_ui_thread)
+
+    def _quit_on_ui_thread(self) -> None:
+        if self._shutting_down:
+            return
         self._flush_position()
         self._shutting_down = True
-        winsound.Beep(440, 200)
+        with contextlib.suppress(Exception):
+            winsound.Beep(440, 200)
         self._shut_down()
 
     def _shut_down(self) -> None:
@@ -403,6 +428,8 @@ class FloatingTranscriberApp(
         except Exception:
             logger.exception("Tray stop failed")
         self.root.after(0, self.root.destroy)
+        if self._ui_dispatcher is not None:
+            self._ui_dispatcher.close()  # spaete Rueckrufe aus Hintergrundthreads fallen weg
 
     def _release_resources(self) -> None:
         """Stream, Hotkeys und Modell freigeben."""
@@ -418,9 +445,7 @@ class FloatingTranscriberApp(
             self.stream = None
         self.suspend_hotkeys()
         self.downloader.cancel()  # unvollstaendige Dateien bleiben, sie setzen fort
-        if self.model is not None:
-            self.model = None
-            self.model_ready.clear()
+        self._retire_model()  # auch ein noch laufender Ladevorgang wird verworfen
 
     # ------------------------------------------------------------------ Zustände
 
@@ -543,10 +568,9 @@ class FloatingTranscriberApp(
             self.toggle_recording()
 
     def _retry(self) -> None:
+        """Wiederholen: ueber den einen Besitzer des Modells, nie als zweiter, paralleler Ladevorgang."""
         if self.model_error or not self.model_ready.is_set():
-            self.model_error = None
-            self._apply_state("model_loading")
-            self._load_model_async()
+            self.reload_model()
         else:
             self._apply_state("ready")
 

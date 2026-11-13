@@ -184,9 +184,12 @@ class StatusSectionMixin:
 
     def _check_ollama(self) -> None:
         """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
-        state = ollama_api.probe(ollama_api.base_url(CFG.ollama_url))
-        with contextlib.suppress(Exception):  # Fenster ist schon weg
-            self.win.after(0, lambda: self._apply_ollama_state(state))
+        try:
+            state = ollama_api.probe(ollama_api.base_url(CFG.ollama_url))
+        except Exception:  # noqa: BLE001 - Grenze des Threads
+            logger.exception("Ollama check failed")
+            state = ollama_api.OllamaState(False, (), (), t("ollama.bad_response"))
+        self.app._ui_call(lambda: self._apply_ollama_state(state))
 
     def _show_ollama_status(self) -> None:
         """Statuszeile aus dem bekannten Stand — ohne selbst zu fragen.

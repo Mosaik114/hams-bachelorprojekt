@@ -20,6 +20,11 @@ Guarantees of `install`:
   target folder by a rename only when everything is in place. A half-finished
   install is never picked up by `installed_dir`.
 - **cancellable** - the ``cancel`` callback is polled for every chunk.
+- **exclusive** - an OS file lock next to the target (released by Windows or
+  the kernel even if the process dies) keeps a second install - the CLI next
+  to the wizard, or a second Hams - out of the same ``*.part`` files.
+- **contained** - every failure, a full disk or a missing write right
+  included, is raised as `GpuSupportError`; the original error is its cause.
 
 Standard library only: `backend_preload` asks `installed_dir` before
 faster-whisper is imported.
@@ -112,6 +117,10 @@ class GpuSupportError(RuntimeError):
 
 class InstallCancelled(GpuSupportError):
     """The cancel callback asked to stop. Partial downloads are kept for a resume."""
+
+
+class InstallBusy(GpuSupportError):
+    """Another process is installing GPU support right now."""
 
 
 def bundle_id(wheels: Iterable[Wheel] = CUDA_WHEELS) -> str:
@@ -355,10 +364,25 @@ def install(
 
     Raises:
         InstallCancelled: ``cancel()`` returned True. Downloads so far are kept.
-        GpuSupportError: network error or hash mismatch. Nothing was installed.
+        InstallBusy: another process is installing at the same time.
+        GpuSupportError: anything else - network, hash mismatch, a full disk, no
+            write access. Nothing was installed; the original error is ``__cause__``.
     """
     target = target or app_paths.cuda_dir()
-    if installed_dir(target, wheels) is not None:
+    try:
+        if installed_dir(target, wheels) is not None:
+            return target
+        with _install_lock(lock_path(target)):
+            return _install_locked(target, wheels, progress, cancel, opener)
+    except GpuSupportError:
+        raise
+    except (OSError, zipfile.BadZipFile, ValueError) as exc:
+        logger.warning("GPU support install failed: %s", exc, exc_info=True)
+        raise GpuSupportError(f"{type(exc).__name__}: {exc}") from exc
+
+
+def _install_locked(target: Path, wheels, progress, cancel, opener) -> Path:
+    if installed_dir(target, wheels) is not None:  # the other process may just have finished
         return target
     downloads = target.with_name(target.name + ".download")
     downloads.mkdir(parents=True, exist_ok=True)
@@ -385,11 +409,67 @@ def install(
     return target
 
 
+# ---------------------------------------------------------------------- lock
+
+
+def lock_path(target: Path) -> Path:
+    return target.with_name(target.name + ".lock")
+
+
+def _try_lock(handle) -> bool:
+    """Non-blocking exclusive lock on the open file; False if someone else holds it."""
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    return True
+
+
+def _unlock(handle) -> None:
+    with contextlib.suppress(OSError):
+        if sys.platform == "win32":
+            import msvcrt
+
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+@contextlib.contextmanager
+def _install_lock(path: Path):
+    """Holds the install lock for the ``with`` block, or raises `InstallBusy` at once.
+
+    An OS lock and not a marker file: it goes away with the process, so a crashed
+    or killed install never leaves a stale lock behind. The file itself may stay.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as handle:
+        if not _try_lock(handle):
+            raise InstallBusy("GPU support is already being installed by another Hams process")
+        try:
+            yield
+        finally:
+            _unlock(handle)
+
+
 def remove(target: Path | None = None) -> None:
     """Deletes the downloaded libraries (and any leftovers of an unfinished install)."""
     target = target or app_paths.cuda_dir()
     for folder in (target, target.with_name(target.name + ".download"), target.with_name(target.name + ".old")):
         shutil.rmtree(folder, ignore_errors=True)
+    with contextlib.suppress(OSError):  # held by a running install: then it stays
+        lock_path(target).unlink(missing_ok=True)
 
 
 # ----------------------------------------------------------------------- CLI
@@ -423,9 +503,12 @@ def install_cli(stream=None) -> int:
         folder = install(_print_progress(stream))
     except InstallCancelled:  # pragma: no cover - the CLI has no cancel button
         return 130
-    except GpuSupportError as exc:
+    except InstallBusy as exc:
+        print(f"\n{exc}. Wait for it to finish, then run this again.", file=stream)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - the console gets a sentence, the log the traceback
         print(f"\nFailed: {exc}", file=stream)
-        logger.warning("GPU support install failed: %s", exc)
+        logger.warning("GPU support install failed: %s", exc, exc_info=True)
         return 1
     print(f"\nDone: {folder}. Restart Hams to use the GPU.", file=stream)
     return 0

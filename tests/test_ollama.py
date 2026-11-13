@@ -191,6 +191,12 @@ class TestRunningModels:
         fake_urlopen(monkeypatch, {"/api/ps": {"models": []}})
         assert ollama.running_models(BASE) == frozenset()
 
+    @pytest.mark.parametrize("answer", [[1, 2], "text", 42, None, {"models": "x"}, {"models": {"a": 1}}])
+    def test_an_answer_of_another_shape_is_nothing_warm(self, monkeypatch, answer):
+        """Regression: a list instead of an object raised AttributeError outside the try."""
+        fake_urlopen(monkeypatch, {"/api/ps": answer})
+        assert ollama.running_models(BASE) == frozenset()
+
 
 class TestProbe:
     def test_online_with_warm_model(self, monkeypatch):
@@ -205,6 +211,23 @@ class TestProbe:
         state = ollama.probe(BASE)
         assert state.online and state.warm == frozenset()
         assert len(state.models) == 3
+
+    def test_a_strange_ps_answer_keeps_the_service_online(self, monkeypatch):
+        fake_urlopen(monkeypatch, {"/api/tags": TAGS, "/api/ps": ["unexpected"]})
+        state = ollama.probe(BASE)
+        assert state.online and state.warm == frozenset()
+
+    def test_tags_with_a_strange_models_field(self, monkeypatch):
+        fake_urlopen(monkeypatch, {"/api/tags": {"models": 7}})
+        assert ollama.probe(BASE).models == ()
+
+    def test_probe_never_raises(self, monkeypatch):
+        def broken(base, timeout):
+            raise RuntimeError("unexpected")
+
+        monkeypatch.setattr(ollama, "list_models", broken)
+        state = ollama.probe(BASE)
+        assert not state.online and state.error
 
     def test_offline_does_not_ask_for_ps(self, monkeypatch):
         calls = fake_urlopen(monkeypatch, {"/api/tags": TimeoutError("x")})

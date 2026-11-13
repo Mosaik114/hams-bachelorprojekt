@@ -221,7 +221,11 @@ class TrayMixin:
         uk.round_window_corners(self.root)
 
     def _toggle_visibility(self, icon=None, item=None) -> None:
+        """Tray entry and double click - on pystray's thread, so the decision happens on the Tk thread too."""
+        self._ui_call(self._toggle_window)
+
+    def _toggle_window(self) -> None:
         if self._window_visible:
-            self.root.after(0, self._hide_window)
+            self._hide_window()
         else:
-            self.root.after(0, self._show_window)
+            self._show_window()

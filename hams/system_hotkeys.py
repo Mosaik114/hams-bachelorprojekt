@@ -16,6 +16,7 @@ from __future__ import annotations
 import ctypes
 import logging
 import threading
+import time
 from collections.abc import Callable
 from ctypes import wintypes
 
@@ -98,20 +99,71 @@ def parse_combo(combo: str) -> tuple[int, int] | None:
     return mods, vk
 
 
+class _WinApi:
+    """The few Win32 calls of the hotkey thread, with their own prototypes (tests replace the whole object)."""
+
+    def __init__(self) -> None:
+        self.user32 = ctypes.WinDLL("user32", use_last_error=True)
+        self.kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+        self.user32.RegisterHotKey.restype = wintypes.BOOL
+        self.user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+        self.user32.UnregisterHotKey.restype = wintypes.BOOL
+        self.user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+        self.user32.GetMessageW.restype = wintypes.BOOL
+        self.user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+        self.user32.PostThreadMessageW.restype = wintypes.BOOL
+        self.kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+
+    def current_thread_id(self) -> int:
+        return int(self.kernel32.GetCurrentThreadId())
+
+    def register(self, hid: int, mods: int, vk: int) -> bool:
+        return bool(self.user32.RegisterHotKey(None, hid, mods, vk))
+
+    def unregister(self, hid: int) -> bool:
+        return bool(self.user32.UnregisterHotKey(None, hid))
+
+    def next_hotkey(self) -> int | None:
+        """Blocks until the next WM_HOTKEY of this thread; None on WM_QUIT or an error."""
+        msg = wintypes.MSG()
+        while self.user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == WM_HOTKEY:
+                return int(msg.wParam)
+        return None
+
+    def post_quit(self, thread_id: int) -> bool:
+        return bool(self.user32.PostThreadMessageW(thread_id, WM_QUIT, 0, 0))
+
+
 class SystemHotkeys:
     """Eigener Thread mit Nachrichtenschleife; ruft die Handler bei `WM_HOTKEY`.
 
     `RegisterHotKey(NULL, …)` bindet den Befehl an den aufrufenden Thread,
-    deshalb geschieht Anmelden, Warten und Abmelden alles in diesem Thread.
+    deshalb geschieht Anmelden, Warten und Abmelden alles in diesem Thread -
+    `UnregisterHotKey` aus einem anderen Thread waere wirkungslos.
+
+    Die Handler laufen auf diesem Thread und duerfen nicht blockieren (die
+    Anwendung reicht sie nur an `UiDispatcher` weiter). Sonst kaeme `stop`
+    nicht durch, und der alte Thread behielte seine Anmeldungen.
     """
 
-    def __init__(self) -> None:
+    #: So lange wartet `stop` auf das Abmelden.
+    STOP_TIMEOUT = 2.0
+
+    def __init__(self, api=None) -> None:
+        self._api = api
         self._thread: threading.Thread | None = None
         self._thread_id = 0
-        self._handlers: dict[int, Callable[[], None]] = {}
+
+    def _win(self):
+        if self._api is None:
+            self._api = _WinApi()
+        return self._api
 
     def register(self, entries: list[tuple[str, Callable[[], None]]]) -> list[str]:
         """Meldet alle Kombinationen an und gibt die zurueck, die scheiterten."""
+        self.stop()  # nie zwei Threads mit Anmeldungen nebeneinander
         wanted: list[tuple[int, str, int, int, Callable[[], None]]] = []
         failed: list[str] = []
         for i, (combo, handler) in enumerate(entries, start=1):
@@ -123,38 +175,39 @@ class SystemHotkeys:
         if not wanted:
             return failed
         ready = threading.Event()
-        result: dict[str, list[str]] = {"failed": []}
-        self._thread = threading.Thread(
-            target=self._schleife, args=(wanted, ready, result), name="system-hotkeys", daemon=True
+        result: dict = {"failed": [], "thread_id": 0}
+        thread = threading.Thread(
+            target=self._schleife, args=(self._win(), wanted, ready, result), name="system-hotkeys", daemon=True
         )
-        self._thread.start()
-        ready.wait(5)
+        thread.start()
+        if not ready.wait(5):
+            logger.error("Hotkey thread did not start in time")
+        self._thread = thread
+        self._thread_id = result["thread_id"]
         return failed + result["failed"]
 
-    def _schleife(self, wanted: list, ready: threading.Event, result: dict[str, list[str]]) -> None:
+    @staticmethod
+    def _schleife(api, wanted: list, ready: threading.Event, result: dict) -> None:
         """Im eigenen Thread: anmelden, auf WM_HOTKEY warten, beim Ende wieder abmelden."""
-        user32 = ctypes.windll.user32
-        kernel32 = ctypes.windll.kernel32
-        self._thread_id = kernel32.GetCurrentThreadId()
-        registered = []
-        for hid, combo, mods, vk, handler in wanted:
-            if user32.RegisterHotKey(None, hid, mods | MOD_NOREPEAT, vk):
-                self._handlers[hid] = handler
-                registered.append(hid)
-            else:
-                result["failed"].append(combo)
-        ready.set()
-        msg = wintypes.MSG()
+        handlers: dict[int, Callable[[], None]] = {}
         try:
-            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                if msg.message == WM_HOTKEY:
-                    self._ausloesen(int(msg.wParam))
+            result["thread_id"] = api.current_thread_id()
+            for hid, combo, mods, vk, handler in wanted:
+                if api.register(hid, mods | MOD_NOREPEAT, vk):
+                    handlers[hid] = handler
+                else:
+                    result["failed"].append(combo)
         finally:
-            for hid in registered:
-                user32.UnregisterHotKey(None, hid)
+            ready.set()
+        try:
+            while (hid := api.next_hotkey()) is not None:
+                SystemHotkeys._ausloesen(handlers.get(hid))
+        finally:
+            for hid in handlers:
+                api.unregister(hid)
 
-    def _ausloesen(self, hid: int) -> None:
-        handler = self._handlers.get(hid)
+    @staticmethod
+    def _ausloesen(handler) -> None:
         if handler is not None:
             try:
                 handler()
@@ -177,9 +230,17 @@ class SystemHotkeys:
         return True
 
     def stop(self) -> None:
-        if self._thread is not None and self._thread_id:
-            ctypes.windll.user32.PostThreadMessageW(self._thread_id, WM_QUIT, 0, 0)
-            self._thread.join(2)
+        """Beendet den Thread; er meldet seine Kurzbefehle selbst ab. Wartet hoechstens `STOP_TIMEOUT`."""
+        thread, thread_id = self._thread, self._thread_id
         self._thread = None
         self._thread_id = 0
-        self._handlers.clear()
+        if thread is None or not thread.is_alive():
+            return
+        deadline = time.monotonic() + self.STOP_TIMEOUT
+        # Erneut senden, bis er weg ist: die erste Nachricht kann vor seiner Warteschlange ankommen.
+        while thread.is_alive() and time.monotonic() < deadline:
+            if thread_id:
+                self._win().post_quit(thread_id)
+            thread.join(0.1)
+        if thread.is_alive():
+            logger.error("Hotkey thread did not stop; its shortcuts stay registered until Hams exits")

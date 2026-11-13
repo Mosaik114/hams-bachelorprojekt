@@ -319,11 +319,16 @@ def default_services() -> SetupServices:  # pragma: no cover - wiring of the rea
 
 def describe_error(exc: BaseException) -> str:
     """A sentence for a failed GPU or Ollama download; the traceback stays in the log."""
+    from hams import gpu_support
     from hams import models as whisper_models
     from hams import ollama as ollama_api
 
     if isinstance(exc, ollama_api.PullError):
         return str(exc)
+    if isinstance(exc, gpu_support.InstallBusy):
+        return t("download.error.busy")
+    if isinstance(exc, gpu_support.GpuSupportError) and isinstance(exc.__cause__, OSError):
+        exc = exc.__cause__  # a full disk or a missing write right says more than the wrapper
     return whisper_models.describe_download_error(exc)
 
 

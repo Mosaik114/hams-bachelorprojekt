@@ -157,7 +157,7 @@ class RecordingMixin:
 
     def _on_max_duration_reached(self) -> None:
         logger.warning("Max recording duration (%ss) reached — auto-stopping", CFG.max_recording_seconds)
-        self.root.after(0, self._auto_stop_recording)
+        self._ui_call(self._auto_stop_recording)
 
     def _auto_stop_recording(self) -> None:
         if not self.is_recording:

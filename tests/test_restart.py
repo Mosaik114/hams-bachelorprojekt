@@ -48,78 +48,128 @@ class TestRestartCommand:
 windows_only = pytest.mark.skipif(sys.platform != "win32", reason="benanntes Mutex gibt es nur unter Windows")
 
 
+class _FakeMutexApi:
+    """Benannte Mutexe ohne Betriebssystem: kein Test fasst die echten Namen an."""
+
+    def __init__(self, held=(), errors=None):
+        self.held = set(held)
+        #: Name -> Fehlercode, mit dem CreateMutexW scheitert (Handle 0).
+        self.errors = dict(errors or {})
+        self.opened = {}
+        self.closed = []
+        self._next = 100
+
+    def create(self, name):
+        if name in self.errors:
+            return 0, self.errors[name]
+        self._next += 1
+        error = instance_mod.ERROR_ALREADY_EXISTS if name in self.held else 0
+        self.held.add(name)
+        self.opened[self._next] = name
+        return self._next, error
+
+    def close(self, handle):
+        if handle == "kaputt":
+            raise OSError("geht nicht")
+        self.closed.append(handle)
+        return True
+
+
+@pytest.fixture
+def kernel32(monkeypatch):
+    fake = _FakeMutexApi()
+    monkeypatch.setattr(instance_mod, "_kernel32", lambda: fake)
+    monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
+    return fake
+
+
 class TestMutex:
     def test_releasing_nothing_succeeds(self, monkeypatch):
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
         assert instance_mod._release_single_instance_mutex() is True
 
     @windows_only
-    def test_releasing_closes_the_handle_and_forgets_it(self, monkeypatch):
-        geschlossen = []
+    def test_releasing_closes_the_handle_and_forgets_it(self, kernel32, monkeypatch):
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (4711,))
-        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: geschlossen.append(h) or 1)
         assert instance_mod._release_single_instance_mutex() is True
-        assert geschlossen == [4711]
+        assert kernel32.closed == [4711]
         assert instance_mod._MUTEX_HANDLES is None
 
     @windows_only
-    def test_releasing_twice_is_harmless(self, monkeypatch):
+    def test_releasing_twice_is_harmless(self, kernel32, monkeypatch):
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (4711,))
-        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: 1)
         assert instance_mod._release_single_instance_mutex() is True
         assert instance_mod._release_single_instance_mutex() is True
 
     @windows_only
-    def test_a_failure_is_reported_not_swallowed(self, monkeypatch):
+    def test_a_failure_is_reported_not_swallowed(self, kernel32, monkeypatch):
         """Sonst startete der Nachfolger und faende das Schloss noch belegt."""
-
-        def _kaputt(_handle):
-            raise OSError("geht nicht")
-
-        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (4711,))
-        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", _kaputt)
+        monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", ("kaputt",))
         assert instance_mod._release_single_instance_mutex() is False
 
     @windows_only
-    def test_releasing_closes_every_handle(self, monkeypatch):
-        geschlossen = []
+    def test_releasing_closes_every_handle(self, kernel32, monkeypatch):
         monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", (11, 12))
-        monkeypatch.setattr(ctypes.windll.kernel32, "CloseHandle", lambda h: geschlossen.append(h) or 1)
         assert instance_mod._release_single_instance_mutex() is True
-        assert geschlossen == [11, 12]
+        assert kernel32.closed == [11, 12]
 
 
-class _FakeKernel32:
-    """Benannte Mutexe ohne Betriebssystem: kein Test fasst die echten Namen an."""
+class TestMutexErrors:
+    """CreateMutexW liefert NULL: das ist kein gehaltenes Schloss."""
 
-    def __init__(self, held=()):
-        self.held = set(held)
-        self.opened = {}
-        self.closed = []
-        self._last_error = 0
-        self._next = 100
+    def test_access_denied_means_another_session_holds_it(self, kernel32):
+        kernel32.errors[instance_mod.MUTEX_NAME] = instance_mod.ERROR_ACCESS_DENIED
+        assert instance_mod._acquire_windows() is None
+        assert kernel32.closed == []
 
-    def CreateMutexW(self, _security, _owner, name):
-        self._next += 1
-        self._last_error = instance_mod.ERROR_ALREADY_EXISTS if name in self.held else 0
-        self.held.add(name)
-        self.opened[self._next] = name
-        return self._next
+    def test_access_denied_on_the_second_name_gives_the_first_back(self, kernel32):
+        kernel32.errors[instance_mod.LEGACY_MUTEX_NAME] = instance_mod.ERROR_ACCESS_DENIED
+        assert instance_mod._acquire_windows() is None
+        assert sorted(kernel32.closed) == sorted(kernel32.opened)
 
-    def GetLastError(self):
-        return self._last_error
+    def test_any_other_error_starts_without_that_lock(self, kernel32, caplog):
+        kernel32.errors[instance_mod.LEGACY_MUTEX_NAME] = 1450  # ERROR_NO_SYSTEM_RESOURCES
+        handles = instance_mod._acquire_windows()
+        assert handles == tuple(kernel32.opened)
+        assert 0 not in handles, "a NULL handle is never kept"
+        assert "unavailable" in caplog.text
 
-    def CloseHandle(self, handle):
-        self.closed.append(handle)
-        return 1
+    def test_no_lock_at_all_still_starts(self, kernel32, caplog):
+        for name in instance_mod.MUTEX_NAMES:
+            kernel32.errors[name] = 1450
+        assert instance_mod._acquire_windows() == ()
+        assert "without a single-instance lock" in caplog.text
 
+    @windows_only
+    def test_starting_without_any_lock_is_still_a_start(self, kernel32):
+        for name in instance_mod.MUTEX_NAMES:
+            kernel32.errors[name] = 1450
+        assert instance_mod._acquire_single_instance_mutex()  # nicht None: keine zweite Instanz erkannt
+        assert instance_mod._release_single_instance_mutex() is True
+        assert kernel32.closed == []
 
-@pytest.fixture
-def kernel32(monkeypatch):
-    fake = _FakeKernel32()
-    monkeypatch.setattr(instance_mod, "_kernel32", lambda: fake)
-    monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
-    return fake
+    @windows_only
+    def test_the_real_api_has_its_own_prototypes(self):
+        """Eigenes WinDLL: die geteilten ctypes.windll-Zeiger bleiben unberuehrt."""
+        shared = ctypes.windll.kernel32.CreateMutexW
+        before = getattr(shared, "argtypes", None)
+        api = instance_mod._kernel32()
+        assert api.kernel32.CreateMutexW is not shared
+        assert getattr(ctypes.windll.kernel32.CreateMutexW, "argtypes", None) == before
+
+    @windows_only
+    def test_the_real_api_reports_an_existing_mutex(self):
+        """Mit einem eigenen Namen in der eigenen Sitzung - nie den echten Schloessern."""
+        import uuid
+
+        api = instance_mod._kernel32()
+        name = rf"Local\Hams-Test-{uuid.uuid4().hex}"
+        first = instance_mod._create_named_mutex(api, name)
+        try:
+            assert first
+            assert instance_mod._create_named_mutex(api, name) is None
+        finally:
+            api.close(first)
 
 
 class TestLegacyInstanceName:

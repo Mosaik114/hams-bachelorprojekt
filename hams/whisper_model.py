@@ -1,9 +1,7 @@
 """Das Whisper-Modell der laufenden App: laden, wechseln, herunterladen."""
 
-import contextlib
 import gc
 import threading
-import tkinter as tk
 
 from hams import models as whisper_models
 from hams.backend import WhisperModel
@@ -28,15 +26,45 @@ def usable_devices(priority) -> tuple[str, ...]:
 class WhisperModelMixin:
     """Whisper-Modell laden, wechseln und herunterladen."""
 
-    # ------------------------------------------------------------------ model loading
+    # ------------------------------------------------------------------ model lifecycle
+    #
+    # One owner for every load: the first one at start, a retry after an error,
+    # a switch from the settings, the wizard or a finished download. All of them
+    # go through `_request_model`, which hands out a new generation. The workers
+    # load one after the other under `_transcribe_lock` (never two models in
+    # memory, never in the middle of a transcription), and only the newest
+    # generation may commit its result. An older one that finishes late is
+    # discarded and freed instead of overwriting the newer choice.
+    #
+    # Phases (`model_phase`): idle -> loading (no model yet) or switching (one was
+    # loaded before) -> ready or failed. A new request while busy supersedes the
+    # running one instead of being refused or starting a second, parallel load.
 
     def _load_model_async(self) -> None:
-        threading.Thread(target=self._load_model, daemon=True, name="model-load").start()
+        """Loads the configured model (`CFG.model_size`): at start and after the wizard."""
+        self._request_model(CFG.model_size, persist=False)
 
-    # ------------------------------------------------------------------ Modellwechsel
+    def reload_model(self) -> bool:
+        """The "Try again" button: load the configured model again unless a load is under way.
+
+        Returns:
+            False if a load is already running; that one reports its own result.
+        """
+        self._apply_state("model_loading")
+        if self.is_switching_model:
+            return False
+        self.model_error = None
+        self._load_model_async()
+        return True
+
+    @property
+    def model_phase(self) -> str:
+        """idle, loading, switching, ready or failed."""
+        return self._model_phase
 
     @property
     def is_switching_model(self) -> bool:
+        """Whether any load is under way, the first one included."""
         return self._switching_to is not None
 
     def current_model(self) -> WhisperModel | None:
@@ -72,7 +100,8 @@ class WhisperModelMixin:
         """Startet einen Wechsel. Gibt False zurueck, wenn er gerade nicht geht.
 
         `force` laedt auch das schon aktive Modell neu - etwa auf der GPU, nachdem der
-        Einrichtungsassistent die CUDA-Bibliotheken geholt hat.
+        Einrichtungsassistent die CUDA-Bibliotheken geholt hat. Laeuft gerade ein anderer
+        Ladevorgang (auch der erste beim Start), loest dieser Wunsch ihn ab.
         """
         if model_id == self.active_model_size and self.model_ready.is_set() and not force:
             return False
@@ -83,54 +112,87 @@ class WhisperModelMixin:
                 t("hint.no_switch_while_recording"),
             )
             return False
-        if self.is_switching_model:
-            return False
-
-        self._model_generation += 1
-        generation = self._model_generation
-        self._switching_to = model_id
+        if model_id == self._switching_to and not force:
+            return True  # schon unterwegs
+        self._request_model(model_id, persist=True)
         label = whisper_models.find(model_id)
         self._apply_state("model_loading", t("status.model_loading_named", model=label.label if label else model_id))
-        self._start_switch_thread(model_id, generation)
         return True
 
-    def _start_switch_thread(self, model_id: str, generation: int) -> None:
-        """Eigene Methode, damit Tests den Wechsel synchron ausfuehren koennen."""
+    def _request_model(self, model_id: str, *, persist: bool) -> int:
+        """Die einzige Stelle, die einen Ladevorgang beginnt. Gibt dessen Generation zurueck."""
+        with self._model_lock:
+            self._model_generation += 1
+            generation = self._model_generation
+            self._switching_to = model_id
+            self._model_phase = "switching" if self.active_model_size else "loading"
+        logger.info("Model request %d: %s (%s)", generation, model_id, self._model_phase)
+        self._start_switch_thread(model_id, generation, persist)
+        return generation
+
+    def _retire_model(self) -> None:
+        """Beim Beenden: laufende Ladevorgaenge entwerten und das Modell freigeben."""
+        with self._model_lock:
+            self._model_generation += 1
+            self._switching_to = None
+            self.model = None
+            self.model_ready.clear()
+            self._model_phase = "idle"
+
+    def _start_switch_thread(self, model_id: str, generation: int, persist: bool = True) -> None:
+        """Eigene Methode, damit Tests den Ladevorgang synchron ausfuehren koennen."""
         threading.Thread(
-            target=self._switch_worker, args=(model_id, generation), daemon=True, name="model-switch"
+            target=self._switch_worker, args=(model_id, generation, persist), daemon=True, name="model-load"
         ).start()
 
-    def _switch_worker(self, model_id: str, generation: int) -> None:
-        """Wechsel im Hintergrund — wartet auf eine laufende Transkription.
+    def _is_current(self, generation: int) -> bool:
+        return generation == self._model_generation and not getattr(self, "_shutting_down", False)
+
+    def _switch_worker(self, model_id: str, generation: int, persist: bool = True) -> None:
+        """Laedt im Hintergrund - nach einer laufenden Transkription und einem aelteren Ladevorgang.
 
         Reihenfolge bewusst: erst freigeben, dann laden. Andernfalls laegen
         kurzzeitig zwei Modelle im VRAM; CTranslate2 gibt seinen Speicher erst
         nach dem Dereferenzieren frei. Der Preis ist, dass bei einem Fehlschlag
-        kein Modell aktiv waere — deshalb der Rueckfall unten.
+        kein Modell aktiv waere - deshalb der Rueckfall auf das vorige.
         """
+        try:
+            with self._transcribe_lock:
+                outcome = self._load_for(model_id, generation)
+        except Exception as exc:  # Grenze des Threads: nie still sterben
+            logger.exception("Model load crashed")
+            outcome = self._commit(generation, model_id, None, None, f"{type(exc).__name__}: {exc}")
+        if outcome is None:
+            logger.info("Model request %d superseded, result discarded", generation)
+            return
+        loaded_id, ok = outcome
+        self._post(lambda: self._after_switch(loaded_id, ok, persist=persist))
+
+    def _load_for(self, model_id: str, generation: int) -> tuple[str, bool] | None:
+        """Unter `_transcribe_lock`: laden und, falls noch gemeint, uebernehmen. None = ueberholt."""
+        if not self._is_current(generation):
+            return None
         previous = self.active_model_size
-        with self._transcribe_lock:  # laufenden Lauf abwarten
-            if generation != self._model_generation:
-                return  # inzwischen ueberholt
-            with self._model_lock:
-                self.model = None
-                self.model_ready.clear()
-            gc.collect()
+        with self._model_lock:
+            self.model = None
+            self.model_ready.clear()
+        gc.collect()
 
-            model, device, info = self._build_model(model_id)
-            if model is None and previous and previous != model_id:
-                logger.warning("Rueckfall auf %s nach Fehler bei %s", previous, model_id)
-                model, device, info = self._build_model(previous)
-                if model is not None:
-                    model_id = previous
+        model, device, info = self._build_model(model_id)
+        if model is None and previous and previous != model_id and self._is_current(generation):
+            logger.warning("Rueckfall auf %s nach Fehler bei %s", previous, model_id)
+            model, device, info = self._build_model(previous)
+            if model is not None:
+                model_id = previous
+        return self._commit(generation, model_id, model, device, info)
 
-            if generation != self._model_generation:
-                # Ein neuerer Wechsel hat uebernommen — dieses Ergebnis verwerfen.
-                del model
-                gc.collect()
-                return
-
-            with self._model_lock:
+    def _commit(self, generation: int, model_id: str, model, device, info) -> tuple[str, bool] | None:
+        """Uebernimmt das Ergebnis, wenn es noch das neueste ist; sonst wird es verworfen und freigegeben."""
+        with self._model_lock:
+            current = self._is_current(generation)
+            if current:
+                self._switching_to = None
+                self._model_phase = "ready" if model is not None else "failed"
                 if model is not None:
                     self.model = model
                     self._active_device = device
@@ -140,17 +202,26 @@ class WhisperModelMixin:
                     self.model_ready.set()
                 else:
                     self.model_error = info
+        if not current:
+            del model  # das verworfene Modell gibt seinen Speicher frei
+            gc.collect()
+            return None
+        if model is None:
+            logger.error("All model-load attempts failed: %s", info)
+        return model_id, model is not None
 
-        self._switching_to = None
-        self.root.after(0, lambda: self._after_switch(model_id, model is not None))
-
-    def _after_switch(self, model_id: str, ok: bool) -> None:
-        if ok:
+    def _after_switch(self, model_id: str, ok: bool, *, persist: bool = True) -> None:
+        """Auf dem Tk-Thread. Ein inzwischen begonnener neuerer Ladevorgang meldet sich selbst."""
+        if ok and persist:
             CFG.model_size = model_id
             _persist_config_value("model", "size", model_id)
-            self._apply_state("ready")
-        else:
-            self._on_model_error()
+        if not self.is_switching_model:
+            if ok:
+                logger.info("Model ready for UI (%s/%s)", self._active_device, self._active_compute_type)
+                self._apply_state("ready")
+                self._update_tray_tooltip()
+            else:
+                self._on_model_error()
         if self.settings_win is not None and self.settings_win.alive():
             self.settings_win.on_model_changed()
 
@@ -201,10 +272,9 @@ class WhisperModelMixin:
 
     def _post(self, callback) -> None:
         """Reicht einen Rueckruf in den Tk-Thread — auch beim Beenden gefahrlos."""
-        if self._shutting_down:
+        if getattr(self, "_shutting_down", False):
             return
-        with contextlib.suppress(tk.TclError, RuntimeError):  # Fenster ist weg
-            self.root.after(0, callback)
+        self._ui_call(callback)
 
     def _download_views(self) -> list:
         """Die offenen Fenster, die einen Download anzeigen: Einstellungen und Einrichtung."""
@@ -226,26 +296,6 @@ class WhisperModelMixin:
         switching = self.switch_model(model_id) if not error else False
         for view in self._download_views():
             view.on_download_finished(model_id, error, switching)
-
-    def _load_model(self) -> None:
-        model, device, info = self._build_model(CFG.model_size)
-        if model is None:
-            self.model_error = info
-            logger.error("All model-load attempts failed: %s", info)
-            self.root.after(0, self._on_model_error)
-            return
-        with self._model_lock:
-            self.model = model
-            self._active_device = device
-            self._active_compute_type = info
-            self.active_model_size = CFG.model_size
-            self.model_ready.set()
-        self.root.after(0, lambda: self._on_model_loaded(device, info))
-
-    def _on_model_loaded(self, device: str, compute_type: str) -> None:
-        logger.info("Model ready for UI (%s/%s)", device, compute_type)
-        self._apply_state("ready")
-        self._update_tray_tooltip()
 
     def _on_model_error(self) -> None:
         self._apply_state(

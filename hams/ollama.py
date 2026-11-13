@@ -155,7 +155,7 @@ def _get_json(url: str, timeout: float) -> dict:
 def _parse_models(payload: dict) -> tuple[OllamaModel, ...]:
     """Liest `/api/tags`. Unbekannte Felder werden übergangen, nicht geraten."""
     found = []
-    for entry in payload.get("models") or ():
+    for entry in _entries(payload):
         if not isinstance(entry, dict):
             continue
         name = entry.get("name") or entry.get("model") or ""
@@ -172,6 +172,12 @@ def _parse_models(payload: dict) -> tuple[OllamaModel, ...]:
             )
         )
     return tuple(found)
+
+
+def _entries(payload) -> list:
+    """The ``models`` list of an answer; anything of another shape counts as none."""
+    entries = payload.get("models") if isinstance(payload, dict) else None
+    return entries if isinstance(entries, list) else []
 
 
 def _describe_error(exc: BaseException) -> str:
@@ -206,7 +212,7 @@ def running_models(base: str, timeout: float = TIMEOUT) -> frozenset[str]:
         logger.debug("Ollama /api/ps nicht verfügbar", exc_info=True)
         return frozenset()
     names = set()
-    for entry in (payload or {}).get("models") or ():
+    for entry in _entries(payload):
         if isinstance(entry, dict):
             name = entry.get("name") or entry.get("model")
             if name:
@@ -220,10 +226,14 @@ def probe(base: str, timeout: float = TIMEOUT) -> OllamaState:
     Genau ein Ort, an dem Hams den Dienst befragt — die Statusanzeige und die
     beiden Auswahlfelder leben von derselben Antwort.
     """
-    models, error = list_models(base, timeout)
-    if error:
-        return OllamaState(False, (), (), error)
-    return OllamaState(True, models, running_models(base, timeout), "")
+    try:
+        models, error = list_models(base, timeout)
+        if error:
+            return OllamaState(False, (), (), error)
+        return OllamaState(True, models, running_models(base, timeout), "")
+    except Exception:  # noqa: BLE001 - callers run this on worker threads and must always get a state
+        logger.exception("Ollama probe failed")
+        return OllamaState(False, (), (), t("ollama.bad_response"))
 
 
 # --------------------------------------------------------------------- pull
