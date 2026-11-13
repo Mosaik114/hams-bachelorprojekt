@@ -38,7 +38,9 @@ Add the `[cuda]` extra (`pip install -e ".[cuda]"`) to transcribe on an NVIDIA G
 pytest tests --cov=hams
 ```
 
-About 3,200 tests; the coverage gate is 93 % (lines and branches together, `branch = true`). Many tests open real Tk windows, so run them headless:
+About 3,200 tests; coverage counts lines and branches together. The gate is 93 % on Windows
+(`coverage-windows.ini`) and 88 % on Linux (`pyproject.toml`), where the Windows-only modules count but mostly
+cannot run. Many tests open real Tk windows, so run them headless:
 
 - **Linux:** `xvfb-run -a pytest tests` (as in CI).
 - **Windows:** run the suite on a separate, invisible desktop (for example via `CreateDesktop`), or accept that
