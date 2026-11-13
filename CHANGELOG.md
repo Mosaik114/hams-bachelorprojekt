@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.1] – 2026-11-13
+
 ### Changed
 - **The brand colour is now turquoise**: logo, app and window icon, tray icon and the accent in both themes
   (buttons, focus ring, switches, checkmarks). The fill is `#0B7D72` (white text 5.01:1), the tint `#0A786E` in the
