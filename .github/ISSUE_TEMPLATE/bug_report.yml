@@ -24,7 +24,7 @@ body:
     id: version
     attributes:
       label: Hams version
-      description: "Settings → About & help shows the version; for a source install `pip show hams` / the commit for a source install"
+      description: "Settings → About & help shows the version; for a source install, `pip show hams` or the commit"
     validations:
       required: true
   - type: dropdown
