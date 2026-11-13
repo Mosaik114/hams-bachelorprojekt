@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 from source_code import all_source
 
+from hams import app_paths
 from hams import config as config_mod
 
 TEMPLATE = """[audio]
@@ -372,17 +373,20 @@ class TestResourcePaths:
     def test_the_shipped_prompt_exists(self):
         assert (config_mod.APP_DIR / "prompts" / "cleanup.txt").exists()
 
-    def test_transcripts_and_logs_stay_where_they_were(self, monkeypatch):
-        """Ausgeliefert liegt beides beim Paket — anders als die Konfiguration.
+    def test_transcripts_and_logs_live_outside_the_package(self, monkeypatch, tmp_path):
+        """Installiert gehoert der Programmordner dem Installer: ein Update ersetzt ihn.
 
         Fuer das Log wird die Voreinstellung geprueft, nicht `config_mod.LOG_DIR`:
         die Testsuite leitet es ueber `HAMS_LOG_DIR` in ein Temporaer-
         verzeichnis um, damit ein Testlauf nicht in die Aufzeichnung des
-        Nutzers schreibt. Ohne die Umleitung gilt weiter der Ort beim Paket.
+        Nutzers schreibt. Ohne die Umleitung gilt der Datenordner.
         """
-        assert config_mod.OUTPUT_DIR.parent == config_mod.APP_DIR
+        assert config_mod.APP_DIR not in config_mod.OUTPUT_DIR.parents
+        assert app_paths.transcripts_dir() == config_mod.OUTPUT_DIR
         monkeypatch.delenv("HAMS_LOG_DIR", raising=False)
-        assert config_mod._log_dir() == config_mod.APP_DIR / "logs"
+        monkeypatch.setenv("HAMS_DATA_DIR", str(tmp_path / "daten"))
+        assert config_mod._log_dir() == tmp_path / "daten" / "logs"
+        assert config_mod.APP_DIR not in config_mod._log_dir().parents
 
     def test_the_log_can_be_moved_out_of_the_way(self, monkeypatch, tmp_path):
         """Derselbe Ausweg wie bei HAMS_CONFIG, aus demselben Grund."""

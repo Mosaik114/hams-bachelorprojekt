@@ -6,3 +6,4 @@
 *.sh  text eol=lf
 *.png binary
 *.ico binary
+*.iss text eol=crlf

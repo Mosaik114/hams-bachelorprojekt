@@ -7,8 +7,22 @@ import tkinter as tk
 
 from hams import models as whisper_models
 from hams.backend import WhisperModel
+from hams.backend_preload import cuda_libraries_found
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
+
+
+def usable_devices(priority) -> tuple[str, ...]:
+    """The configured devices minus CUDA when cuBLAS is missing.
+
+    ctranslate2 would load the model on the GPU anyway and only fail at the
+    first dictation (``cublas64_12.dll is not found``). The installed app
+    ships without the CUDA libraries until `gpu_support` fetched them.
+    """
+    if "cuda" in priority and not cuda_libraries_found():
+        logger.info("CUDA libraries missing - skipping the GPU, using the next device")
+        return tuple(device for device in priority if device != "cuda")
+    return tuple(priority)
 
 
 class WhisperModelMixin:
@@ -42,7 +56,7 @@ class WhisperModelMixin:
             (Modell, Geraet, Compute-Typ) oder (None, None, Fehlertext).
         """
         errors: list[str] = []
-        for device in CFG.model_device_priority:
+        for device in usable_devices(CFG.model_device_priority):
             for compute_type in CFG.model_compute_priority.get(device, ()):
                 try:
                     logger.info("Loading Whisper model %s on %s/%s", model_id, device, compute_type)

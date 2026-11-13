@@ -36,7 +36,12 @@ VBS_PATH = PROJECT_ROOT / "scripts" / "start_hams.vbs"
 
 def _resolve_launch_command() -> str:
     """Bevorzugt das VBS-Skript (kein Konsolenfenster). Falls nicht vorhanden,
-    nutze pythonw.exe aus .venv, sonst system-pythonw.exe."""
+    nutze pythonw.exe aus .venv, sonst system-pythonw.exe.
+
+    Als installiertes Programm (PyInstaller) ist `sys.executable` die Hams.exe selbst.
+    """
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
     if VBS_PATH.exists():
         return f'wscript.exe //B "{VBS_PATH}"'
 

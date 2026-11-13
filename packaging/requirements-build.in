@@ -1,0 +1,3 @@
+# Build tools for the frozen Windows app (packaging/build.ps1). Lock: see the header of requirements-build.txt.
+pyinstaller
+

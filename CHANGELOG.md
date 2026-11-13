@@ -17,6 +17,9 @@ follow [Semantic Versioning](https://semver.org/).
 - Helper scripts moved and got English names: `scripts/start_hams.vbs`, `scripts/build_launcher.cmd`,
   `scripts/launch_hams.cs`, `linux/setup-system.sh`, `linux/show-hams.sh`, `tools/wer_benchmark.py`,
   `coverage-windows.ini`. Re-run `hams/setup_autostart.py` so autostart points to the new start script.
+- **Logs and transcripts moved out of the package folder** to `%LOCALAPPDATA%\Hams` (Linux: `~/.local/share/hams`),
+  overridable with `HAMS_DATA_DIR`; `HAMS_LOG_DIR` still wins for the log. Existing files in `hams/logs` and
+  `hams/transcripts` are not moved. The `hams` command (now `hams.cli:run`) accepts the new options listed under Added.
 - The documented default Ollama model is `qwen3.5:9b` everywhere; the evaluation states that it measured
   `qwen2.5:7b`.
 - The template `config.default.toml` no longer sets `[transcription] language`, so a new configuration follows the
@@ -38,6 +41,15 @@ follow [Semantic Versioning](https://semver.org/).
   New configurations without the key follow the interface language; existing ones keep their value.
 - English glossary template `glossar.default.en.toml` for new users who don't dictate German (no German spellings
   such as *Pull-Request*); the glossary also accepts the keys `words` and `replace`.
+- **Windows installer** `Hams-Setup-<version>.exe`: per-user install without admin rights or Python, Start menu
+  entry, optional autostart, uninstaller that removes the autostart entry and offers to delete the user data. Built with
+  PyInstaller and Inno Setup (`packaging/`), installed and smoke-tested in CI, attached to releases on `v*` tags.
+- **GPU support on demand** for the installed app: `Hams.exe --install-gpu-support` downloads the pinned cuBLAS/cuDNN
+  wheels from PyPI (SHA-256 checked, resumable), keeps only the DLLs in `%LOCALAPPDATA%\Hams\cuda` and preloads them
+  from there. Source installs keep using the `[cuda]` extra. Without the libraries Hams now goes straight to the CPU
+  instead of failing at the first dictation.
+- `--self-test` (also `python -m hams --self-test`): checks imports, package data, audio backend and Tk without a
+  window or microphone.
 - `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
 
 ## [1.0.0] – 2026-11-12

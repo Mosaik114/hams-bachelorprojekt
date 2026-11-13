@@ -106,5 +106,10 @@ def restart_command() -> list:
     ausdruecklich aufgeloest angegeben und nicht ueber `sys.argv` uebernommen —
     `sys.argv[0]` ist je nach Startweg relativ und zeigt nach einem
     Verzeichniswechsel ins Leere.
+
+    Als installiertes Programm (PyInstaller) ist `sys.executable` die Hams.exe
+    selbst; ein Skript gibt es dann nicht.
     """
+    if getattr(sys, "frozen", False):
+        return [sys.executable]
     return [sys.executable, str(APP_DIR / "main.py")]
