@@ -74,7 +74,11 @@ class ModelSectionMixin:
             return  # der Fortschritt hat Vorrang vor dem Hinweistext
         chosen = CFG.model_size
         active = self.app.active_model_size
-        if chosen not in self._installed_models and whisper_models.find(chosen):
+        failed = getattr(self.app, "model_fallback", None)
+        if failed:
+            info = whisper_models.find(failed)
+            self.row_model.set_description(t("settings.model.load_failed", model=info.label if info else failed))
+        elif chosen not in self._installed_models and whisper_models.find(chosen):
             self.row_model.set_description(t("settings.model.needs_download"))
         elif active is not None and chosen != active:
             self.row_model.set_description(t("settings.model.next_start"))

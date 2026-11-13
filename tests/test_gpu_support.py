@@ -286,6 +286,39 @@ class TestCancelAndResume:
         assert server.requests[-2][1] == "bytes=2048-"
         assert gpu_support.installed_dir(tmp_path / "cuda", pinned) is not None
 
+    @pytest.mark.parametrize("where", ["read", "open"])
+    def test_an_http_error_is_a_gpu_support_error_and_keeps_the_part_file(self, tmp_path, wheels, where):
+        """Regression: http.client.IncompleteRead is no OSError and escaped install()."""
+        import http.client
+
+        pinned, server = wheels
+        downloads = tmp_path / "cuda.download"
+        part = downloads / (pinned[0].filename + ".part")
+
+        def opener(request, timeout=None):
+            if where == "open":
+                raise http.client.BadStatusLine("garbage")
+            response = server(request, timeout)
+            original = response.read
+
+            def read(size=-1):
+                if response.tell() >= 2048:
+                    raise http.client.IncompleteRead(b"", 100)
+                return original(min(size, 2048 - response.tell()))
+
+            response.read = read
+            return response
+
+        if where == "open":
+            downloads.mkdir()
+            part.write_bytes(server.wheels[pinned[0].url][:1000])
+        with pytest.raises(gpu_support.GpuSupportError):
+            install(tmp_path / "cuda", pinned, opener)
+        assert part.exists() and part.stat().st_size > 0, "the partial download stays for the next try"
+        install(tmp_path / "cuda", pinned, server)
+        assert server.requests[-2][1] is not None, "the next try resumes"
+        assert gpu_support.installed_dir(tmp_path / "cuda", pinned) is not None
+
     def test_an_oversized_part_file_is_discarded(self, tmp_path, wheels):
         pinned, server = wheels
         downloads = tmp_path / "cuda.download"

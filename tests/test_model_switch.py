@@ -135,9 +135,23 @@ class TestFailure:
         assert app.active_model_size == "turbo", "Rückfall fehlt"
         assert app.model_ready.is_set(), "App bliebe ohne Modell zurück"
 
-    def test_config_keeps_the_working_model(self, app, monkeypatch):
+    def test_the_fallback_is_not_saved_over_the_choice(self, app, monkeypatch):
         run_switch(app, "kaputt", monkeypatch)
-        assert app.persisted == ["turbo"]
+        assert app.persisted == [], "the fallback must not overwrite the user's choice"
+
+    def test_the_fallback_is_said_out_loud(self, app, monkeypatch):
+        run_switch(app, "kaputt", monkeypatch)
+        # the synchronous test worker reports before switch_model shows "loading"
+        state, detail, hint = next(entry for entry in app.states if entry[0] == "ready")
+        assert detail == "kaputt ließ sich nicht laden"
+        assert hint.startswith("Weiter mit Turbo")
+        assert app.model_fallback == "kaputt"
+
+    def test_a_later_good_switch_clears_the_fallback(self, app, monkeypatch):
+        run_switch(app, "kaputt", monkeypatch)
+        run_switch(app, "tiny", monkeypatch)
+        assert app.model_fallback is None
+        assert [entry for entry in app.states if entry[0] == "ready"][-1] == ("ready", None, None)
 
     def test_error_without_any_previous_model(self, app, monkeypatch):
         app.active_model_size = None

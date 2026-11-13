@@ -98,6 +98,10 @@ class RecordingMixin:
         if self.model_error and not self.model_ready.is_set():
             self._on_model_error()
             return False
+        if getattr(self, "_state", None) == "setup_pending":
+            # Kein Modell und keins unterwegs: die Worte waeren verloren. Der Status sagt, was fehlt.
+            self._apply_state("setup_pending")
+            return False
         return True
 
     def _await_model(self, deadline: float) -> bool:
@@ -252,6 +256,8 @@ class RecordingMixin:
         the transcription thread.
         """
         self.is_recording = False
+        # From here on, an older transcription still running no longer changes the main window.
+        run_id = self._next_pipeline_run()
         self._cancel_max_duration_timer()
         self._stop_elapsed_ticker()
         self._stop_level_ticker()
@@ -297,9 +303,6 @@ class RecordingMixin:
             self._prompt_mode = False
             return
 
-        threading.Thread(
-            target=self._transcribe_audio,
-            args=(audio,),
-            daemon=True,
-            name="transcribe",
-        ).start()
+        # Mode and run id travel with the recording: the next one may start before this one is through.
+        self._enqueue_transcription(audio, self._prompt_mode, run_id)
+        self._prompt_mode = False

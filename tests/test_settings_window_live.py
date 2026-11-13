@@ -139,7 +139,7 @@ class TestLevel:
         assert sub(win.row_mic) == "Gerät nicht verfügbar"
 
     def test_a_recording_takes_the_microphone_and_gives_it_back(self, open_settings, live_app, hams, monkeypatch):
-        monkeypatch.setattr(live_app, "_transcribe_audio", lambda audio: None)
+        monkeypatch.setattr(live_app, "_transcribe_audio", lambda audio, **_job: None)
         win = open_settings()
         monitor = hams.streams[-1]
         live_app.start_recording()

@@ -156,9 +156,16 @@ class SetupWindow(StatusSectionMixin):
             self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}")
             uk.round_window_corners(self.win)
 
-    def close(self) -> None:
-        """Schließt das Fenster. Ein laufender GPU- oder Ollama-Download bricht ab, der des Modells läuft weiter."""
+    def close(self, *, confirmed: bool = False) -> None:
+        """Schließt das Fenster. Ein laufender GPU- oder Ollama-Download bricht ab, der des Modells läuft weiter.
+
+        While the GPU libraries or an Ollama model are downloading, × asks first: the download stops (and
+        resumes next time), which nobody should trigger by accident.
+        """
         if not self._alive:
+            return
+        if not confirmed and self._download_running():
+            self._ask_close()
             return
         self._alive = False
         self.controller.gpu_task.cancel()
@@ -170,6 +177,47 @@ class SetupWindow(StatusSectionMixin):
         with contextlib.suppress(tk.TclError):
             self.win.destroy()
         self.app.on_setup_closed(self.completed)
+
+    def _download_running(self) -> bool:
+        return self.controller.gpu_task.running or self.controller.pull_task.running
+
+    def _ask_close(self) -> None:
+        """Swaps the footer for the question: close anyway (the download resumes later) or keep open."""
+        if self._close_box is not None:
+            return
+        for button in (self.back_button, self.next_button, self.skip_button):
+            button.pack_forget()
+        box = tk.Frame(self.footer, bg=Theme.WINDOW_BG)
+        box.pack(fill="x")
+        tk.Label(
+            box,
+            text=t("setup.close_confirm"),
+            bg=Theme.WINDOW_BG,
+            fg=Theme.TEXT_PRIMARY,
+            font=uk.font("description"),
+            wraplength=self._text_width(),
+            justify="left",
+            anchor="w",
+        ).pack(fill="x", pady=(0, uk.px(uk.Space.MD)))
+        self.close_anyway_button = uk.SecondaryButton(
+            box, t("setup.close_anyway"), lambda: self.close(confirmed=True), bg_under=Theme.WINDOW_BG
+        )
+        self.close_anyway_button.pack(side="left")
+        self.keep_open_button = uk.SecondaryButton(
+            box, t("setup.keep_open"), self._keep_open, bg_under=Theme.WINDOW_BG, role="primary"
+        )
+        self.keep_open_button.pack(side="right")
+        self._close_box = box
+
+    def _keep_open(self) -> None:
+        """Back from the question to the normal footer."""
+        if self._close_box is None:
+            return
+        self._close_box.destroy()
+        self._close_box = None
+        self.back_button.pack(side="left")
+        self.next_button.pack(side="right", padx=(uk.px(uk.Space.MD), 0))
+        self._update_footer()
 
     def _cancel_jobs(self) -> None:
         for name in ("_tick_job", "_status_job"):
@@ -203,6 +251,7 @@ class SetupWindow(StatusSectionMixin):
 
     def _build(self) -> None:
         """Kopf, Seite, Fußzeile. Wird nach einem Sprachwechsel komplett neu gebaut."""
+        self._close_box = None
         self.win.title(t("setup.window_title", product=branding.PRODUCT_NAME))
         self._build_head()
         self.footer = tk.Frame(self.win, bg=Theme.WINDOW_BG)
@@ -284,7 +333,7 @@ class SetupWindow(StatusSectionMixin):
             if (section, key) == ("ollama", "cleanup_enabled"):
                 CFG.ollama_cleanup_enabled = value
         self.completed = True
-        self.close()
+        self.close(confirmed=True)
         self.app._show_window()
 
     def show_page(self) -> None:
@@ -306,6 +355,8 @@ class SetupWindow(StatusSectionMixin):
         self.step_bar.set_fraction((controller.index + 1) / controller.count)
 
     def _update_footer(self) -> None:
+        if self._close_box is not None:
+            return  # the close question holds the footer until it is answered
         controller = self.controller
         self.back_button.set_enabled(controller.can_back())
         self.next_button.config(text=t("setup.finish" if controller.is_last else "setup.next"))

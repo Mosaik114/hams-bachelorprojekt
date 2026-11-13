@@ -410,7 +410,7 @@ class TestRecording:
 
     def test_speech_goes_on_to_transcription(self, live_app, hams, monkeypatch):
         received = []
-        monkeypatch.setattr(live_app, "_transcribe_audio", received.append)
+        monkeypatch.setattr(live_app, "_transcribe_audio", lambda audio, **_job: received.append(audio))
         live_app.toggle_recording()
         hams.streams[-1].feed(np.full(800, 0.2))
         hams.streams[-1].feed(np.full(800, -0.2))

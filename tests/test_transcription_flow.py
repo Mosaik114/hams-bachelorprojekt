@@ -73,9 +73,9 @@ def ready(live_app):
     return live_app
 
 
-def run(app, audio=AUDIO) -> None:
+def run(app, audio=AUDIO, prompt_mode=False) -> None:
     """Die Pipeline auf dem Testthread - sie laeuft sonst im Hintergrund."""
-    app._transcribe_audio(audio)
+    app._transcribe_audio(audio, prompt_mode=prompt_mode)
     ende = time.monotonic() + 2
     while any(t.name == "save-transcript" and t.is_alive() for t in threading.enumerate()):
         assert time.monotonic() < ende, "Transkript wurde nicht gespeichert"
@@ -155,15 +155,13 @@ class TestPipeline:
 
     def test_prompt_mode_pastes_the_answer_as_plain_text(self, ready, hams, ollama):
         CFG.ollama_stream_prompt = False
-        ready._prompt_mode = True
         ollama.answer = "Die Hauptstadt ist **Oslo**."
-        run(ready)
+        run(ready, prompt_mode=True)
         body = ollama.requests[0][0]
         assert body["prompt"] == "Hallo Welt", "der diktierte Prompt bleibt Wort fuer Wort"
         assert body["system"] == PROMPT_PLAIN_SYSTEM
         assert "options" not in body, "KI fragen sampelt mit den Vorgaben des Modells"
         assert hams.clipboard.copies == ["Die Hauptstadt ist Oslo."]
-        assert not ready._prompt_mode
 
     def test_the_cleanup_samples_deterministically(self, ready, ollama):
         CFG.ollama_cleanup_enabled = True
@@ -188,12 +186,10 @@ class TestPipeline:
         assert ready._state == "done"
 
     def test_a_failed_prompt_pastes_nothing(self, ready, hams, ollama):
-        ready._prompt_mode = True
         ollama.error = TimeoutError()
-        run(ready)
+        run(ready, prompt_mode=True)
         assert hams.clipboard.copies == []
         assert status(ready) == "KI-Antwort fehlgeschlagen"
-        assert not ready._prompt_mode
 
     def test_silence_in_the_model_is_reported(self, live_app, hams):
         live_app.model = FakeModel()
@@ -205,10 +201,8 @@ class TestPipeline:
     def test_a_crashing_model_is_reported(self, live_app, hams):
         live_app.model = FakeModel(error=RuntimeError("CUDA out of memory"))
         live_app.model_ready.set()
-        live_app._prompt_mode = True
-        run(live_app)
+        run(live_app, prompt_mode=True)
         assert status(live_app) == "Transkription fehlgeschlagen"
-        assert not live_app._prompt_mode
 
     def test_a_failure_while_pasting_is_reported(self, ready, hams, monkeypatch):
         def broken(text):
@@ -231,10 +225,9 @@ class TestModelNotThereYet:
 
     def test_a_model_that_never_comes_ends_in_an_error(self, live_app, hams):
         live_app.model_error = "CUDA fehlt"
-        live_app._prompt_mode = True
-        run(live_app)
+        run(live_app, prompt_mode=True)
         assert status(live_app) == "Modell nicht verfügbar"
-        assert hams.clipboard.copies == [] and not live_app._prompt_mode
+        assert hams.clipboard.copies == []
 
     def test_a_lost_model_ends_in_an_error(self, live_app, hams):
         live_app.model_ready.set()  # bereit gemeldet, aber schon wieder weg

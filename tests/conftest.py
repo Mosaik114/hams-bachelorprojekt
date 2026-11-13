@@ -41,6 +41,9 @@ atexit.register(shutil.rmtree, _config_dir, True)
 atexit.register(shutil.rmtree, _log_dir, True)
 atexit.register(shutil.rmtree, _data_dir, True)
 
+#: `WhisperModelMixin.model_needs_download` before `no_implicit_model_download` replaces it.
+_REAL_NEEDS_DOWNLOAD = None
+
 
 def fokus_erzwingen(fenster, root, frist: float = 0.5) -> bool:
     """Holt ein Fenster in den Vordergrund und wartet, bis der Fokus da ist.
@@ -107,6 +110,32 @@ def english(ui_language):
 
     i18n.set_language("en")
     return "en"
+
+
+@pytest.fixture(autouse=True)
+def no_implicit_model_download(monkeypatch):
+    """No test starts a real model download: by default every model counts as cached.
+
+    Loading an uncached model goes through the download (see `WhisperModelMixin._load_or_download`), and
+    the real cache differs from machine to machine. Tests of that path use `model_cache_check`.
+    """
+    from hams.whisper_model import WhisperModelMixin
+
+    global _REAL_NEEDS_DOWNLOAD
+    _REAL_NEEDS_DOWNLOAD = WhisperModelMixin.__dict__["model_needs_download"]
+    monkeypatch.setattr(WhisperModelMixin, "model_needs_download", staticmethod(lambda model_id: False))
+
+
+@pytest.fixture
+def model_cache_check(monkeypatch):
+    """The real check against the cache; `installed` is the set of cached models the test pretends."""
+    from hams import models as whisper_models
+    from hams.whisper_model import WhisperModelMixin
+
+    installed: set = set()
+    monkeypatch.setattr(whisper_models, "installed_whisper_models", lambda: set(installed))
+    monkeypatch.setattr(WhisperModelMixin, "model_needs_download", _REAL_NEEDS_DOWNLOAD)
+    return installed
 
 
 @pytest.fixture(autouse=True)

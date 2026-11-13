@@ -26,6 +26,11 @@ def usable_devices(priority) -> tuple[str, ...]:
 class WhisperModelMixin:
     """Whisper-Modell laden, wechseln und herunterladen."""
 
+    #: The model the user asked for that could not be loaded while an older one stayed active, else None.
+    model_fallback: str | None = None
+    #: A catalog model that is being downloaded because it has to be loaded next (start, retry), else None.
+    _load_after_download: str | None = None
+
     # ------------------------------------------------------------------ model lifecycle
     #
     # One owner for every load: the first one at start, a retry after an error,
@@ -41,8 +46,48 @@ class WhisperModelMixin:
     # running one instead of being refused or starting a second, parallel load.
 
     def _load_model_async(self) -> None:
-        """Loads the configured model (`CFG.model_size`): at start and after the wizard."""
-        self._request_model(CFG.model_size, persist=False)
+        """Loads the configured model (`CFG.model_size`): at start, on "Try again" and after the wizard."""
+        self._load_or_download(CFG.model_size)
+
+    @staticmethod
+    def model_needs_download(model_id: str) -> bool:
+        """Whether `model_id` is a catalog model that isn't in the local cache yet."""
+        return whisper_models.find(model_id) is not None and model_id not in whisper_models.installed_whisper_models()
+
+    def _load_or_download(self, model_id: str) -> None:
+        """Loads `model_id`, downloading it first (with progress) if it isn't in the cache.
+
+        faster-whisper would otherwise fetch a missing model by itself, silently and without any progress -
+        up to 3 GB behind a "Loading model ..." that never moves.
+        """
+        if not self.model_needs_download(model_id):
+            self._request_model(model_id, persist=False)
+            return
+        self._load_after_download = model_id
+        if self.downloading_model != model_id:
+            problem = self.start_download(model_id)
+            if problem:
+                self._load_after_download = None
+                self._on_model_download_failed(model_id, problem)
+                return
+        self._show_model_download()
+
+    def _show_model_download(self) -> None:
+        """The main window's status line during a download the app is waiting for: model and percentage."""
+        model_id = self._load_after_download
+        if model_id is None or getattr(self, "_state", None) != "model_loading":
+            return  # eine Aufnahme oder ein Fehler hat Vorrang; der naechste Fortschritt meldet sich wieder
+        info = whisper_models.find(model_id)
+        label = info.label if info else model_id
+        self.status_label.config(text=t("status.model_downloading", model=label, percent=self.download_percent))
+
+    def _on_model_download_failed(self, model_id: str, error: str) -> None:
+        """The download of the model the app waits for failed or was cancelled. "Try again" restarts it."""
+        info = whisper_models.find(model_id)
+        self.model_error = error
+        if error == whisper_models.CANCELLED:
+            error = t("status.model_download_cancelled")
+        self._apply_state("error", t("error.model_download_failed", model=info.label if info else model_id), error)
 
     def reload_model(self) -> bool:
         """The "Try again" button: load the configured model again unless a load is under way.
@@ -166,7 +211,7 @@ class WhisperModelMixin:
             logger.info("Model request %d superseded, result discarded", generation)
             return
         loaded_id, ok = outcome
-        self._post(lambda: self._after_switch(loaded_id, ok, persist=persist))
+        self._post(lambda: self._after_switch(loaded_id, ok, persist=persist, requested=model_id))
 
     def _load_for(self, model_id: str, generation: int) -> tuple[str, bool] | None:
         """Unter `_transcribe_lock`: laden und, falls noch gemeint, uebernehmen. None = ueberholt."""
@@ -210,13 +255,23 @@ class WhisperModelMixin:
             logger.error("All model-load attempts failed: %s", info)
         return model_id, model is not None
 
-    def _after_switch(self, model_id: str, ok: bool, *, persist: bool = True) -> None:
-        """Auf dem Tk-Thread. Ein inzwischen begonnener neuerer Ladevorgang meldet sich selbst."""
-        if ok and persist:
+    def _after_switch(self, model_id: str, ok: bool, *, persist: bool = True, requested: str | None = None) -> None:
+        """Auf dem Tk-Thread. Ein inzwischen begonnener neuerer Ladevorgang meldet sich selbst.
+
+        `requested` is the model that was asked for. If it differs from the loaded `model_id`, the request
+        failed and the previous model stayed: that is said out loud, and the fallback is never saved over
+        the user's choice.
+        """
+        fallback = ok and requested is not None and requested != model_id
+        if ok:
+            self.model_fallback = requested if fallback else None
+        if ok and persist and not fallback:
             CFG.model_size = model_id
             _persist_config_value("model", "size", model_id)
         if not self.is_switching_model:
-            if ok:
+            if fallback:
+                self._on_model_fallback(requested, model_id)
+            elif ok:
                 logger.info("Model ready for UI (%s/%s)", self._active_device, self._active_compute_type)
                 self._apply_state("ready")
                 self._update_tray_tooltip()
@@ -224,6 +279,17 @@ class WhisperModelMixin:
                 self._on_model_error()
         if self.settings_win is not None and self.settings_win.alive():
             self.settings_win.on_model_changed()
+
+    def _on_model_fallback(self, requested: str, active: str) -> None:
+        """The requested model couldn't be loaded; the previous one is still in use."""
+        logger.warning("Model %s could not be loaded, still using %s", requested, active)
+        wanted, current = whisper_models.find(requested), whisper_models.find(active)
+        self._apply_state(
+            "ready",
+            t("status.model_fallback", model=wanted.label if wanted else requested),
+            t("hint.model_fallback", active=current.label if current else active),
+        )
+        self._update_tray_tooltip()
 
     # ------------------------------------------------------------------ Modell-Download
 
@@ -241,6 +307,9 @@ class WhisperModelMixin:
         info = whisper_models.find(model_id)
         if info is None:
             return t("download.unknown_model")
+        if self.downloader.active:
+            # Before touching the numbers: they belong to the download that is running.
+            return t("download.already_running")
         self.download_done = 0
         self.download_total = info.size_bytes
         self.download_percent = 0
@@ -281,6 +350,7 @@ class WhisperModelMixin:
         return [win for win in (self.settings_win, getattr(self, "setup_win", None)) if win is not None and win.alive()]
 
     def _push_download_progress(self) -> None:
+        self._show_model_download()
         for view in self._download_views():
             view.on_download_progress(self.download_done, self.download_total, self.download_percent)
 
@@ -293,7 +363,21 @@ class WhisperModelMixin:
         """
         if not error:
             self.download_percent = 100
-        switching = self.switch_model(model_id) if not error else False
+        awaited = model_id == self._load_after_download
+        if awaited:
+            self._load_after_download = None
+        if error:
+            switching = False
+            if awaited:
+                self._on_model_download_failed(model_id, error)
+        elif awaited:
+            # No model is loaded yet, so there is nothing a recording could lose: load right away.
+            switching = True
+            self._request_model(model_id, persist=False)
+            info = whisper_models.find(model_id)
+            self._apply_state("model_loading", t("status.model_loading_named", model=info.label if info else model_id))
+        else:
+            switching = self.switch_model(model_id)
         for view in self._download_views():
             view.on_download_finished(model_id, error, switching)
 

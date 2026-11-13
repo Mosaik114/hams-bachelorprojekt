@@ -38,6 +38,7 @@ class TestStateTable:
     def test_covers_every_documented_state(self):
         assert set(TABLE) == {
             "model_loading",
+            "setup_pending",
             "ready",
             "recording",
             "recording_prompt",
@@ -79,7 +80,7 @@ class TestSemantics:
 
     def test_only_ready_and_done_offer_the_accent_action(self):
         accent = {s for s, row in TABLE.items() if row[2] == "primary"}
-        assert accent == {"model_loading", "ready", "done", "no_signal"}
+        assert accent == {"model_loading", "setup_pending", "ready", "done", "no_signal"}
 
     def test_processing_states_disable_the_button(self):
         for state in ("transcribing", "cleaning", "generating"):
