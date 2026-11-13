@@ -47,7 +47,7 @@ MESSAGES: dict[str, str] = {
     "hint.see_log": "See the log for details.",
     "hint.try_again": "Please try again.",
     "hint.no_audio": "No audio was received.",
-    "hint.no_words": "The recording didn't contain any recognizable words.",
+    "hint.no_words": "The recording didn't contain any recognisable words.",
     "hint.mic_silent": "“{device}” isn't picking up any sound. Is the microphone muted?",
     "hint.recording_kept": "Your recording is safe and will be transcribed shortly.",
     "hint.no_switch_while_recording": "You can't switch models while recording.",
@@ -84,7 +84,7 @@ MESSAGES: dict[str, str] = {
     "tray.tooltip.ready": "{product} — ready",
     "tray.toggle_window": "Show or hide window",
     "tray.settings": "Settings …",
-    "tray.setup": "Run setup …",
+    "tray.setup": "Setup assistant …",
     "tray.history": "Recent transcripts",
     "tray.history_empty": "No transcripts yet",
     "tray.update": "Update available: {product} {version} …",
@@ -150,7 +150,7 @@ MESSAGES: dict[str, str] = {
     "settings.storage.deleting": "Deleting …",
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automatic · {device}",
-    "settings.hardware.error": "Failed to load",
+    "settings.hardware.error": "Couldn't load · see Troubleshooting",
     "settings.cleanup.title": "Clean up text",
     "settings.cleanup.hint": "Polishes the transcript after every recording",
     "settings.cleanup.active": "Cleans up the transcript automatically",
@@ -270,10 +270,10 @@ MESSAGES: dict[str, str] = {
     "autostart.not_found": "No autostart entry found.",
     "autostart.service_added": "Service {service} installed (starts with your session and after crashes).",
     # --- first-run setup wizard
-    "setup.window_title": "{product} — Setup",
+    "setup.window_title": "{product} — Setup assistant",
     "setup.title": "Set up {product}",
     "setup.step": "Step {current} of {count}",
-    "setup.close_tooltip": "Close setup",
+    "setup.close_tooltip": "Close the setup assistant",
     "setup.back": "Back",
     "setup.next": "Next",
     "setup.skip": "Skip",
@@ -339,8 +339,8 @@ MESSAGES: dict[str, str] = {
     "setup.cleanup.checking": "Checking …",
     "setup.cleanup.offline": "Not running on this computer",
     "setup.cleanup.offline_body": (
-        "Cleanup stays off, and {product} works fine without it. To add it later, install Ollama, then run this setup "
-        "again: Settings → General → Setup assistant → Run again."
+        "Cleanup stays off, and {product} works fine without it. To add it later, install Ollama, then run the setup "
+        "assistant again: Settings → General → Setup assistant → Run again."
     ),
     "setup.cleanup.get": "Get Ollama",
     "setup.cleanup.check_again": "Check again",
@@ -356,11 +356,32 @@ MESSAGES: dict[str, str] = {
     "setup.finish.try": "Try it now: press {combo} and say a sentence.",
     "setup.finish.status": "Status",
     "setup.finish.change": (
-        "You can change the shortcuts in Settings → Shortcuts. You can run this setup again from Settings or the tray "
-        "menu."
-    ),
-    "setup.finish.change_linux": (
-        "The shortcuts are managed in System Settings → Keyboard → Shortcuts. You can run this setup again from "
+        "You can change the shortcuts in Settings → Shortcuts. You can run the setup assistant again from "
         "Settings or the tray menu."
     ),
+    "setup.finish.change_linux": (
+        "The shortcuts are managed in System Settings → Keyboard → Shortcuts. You can run the setup assistant "
+        "again from Settings or the tray menu."
+    ),
+    # ===================================================================
+    # --- About & help (settings group, tray entry); added in 1.2
+    "tray.help": "Help …",
+    "settings.section.about": "About & help",
+    "settings.about.version": "Version",
+    "settings.about.open": "Open",
+    "settings.about.guide.title": "User guide",
+    "settings.about.guide.hint": "Install, daily use and settings, on GitHub",
+    "settings.about.troubleshooting.title": "Troubleshooting",
+    "settings.about.troubleshooting.hint": "Fixes for common problems, on GitHub",
+    "settings.about.logs.title": "Log folder",
+    "settings.about.logs.hint": "Timings and errors; never what you dictated",
+    "settings.about.logs.failed": "Couldn't open the folder · {path}",
+    "settings.about.report.title": "Diagnostic report",
+    "settings.about.report.hint": "Checks the installation and saves a report to attach to a bug report",
+    "settings.about.report.button": "Create",
+    "settings.about.report.running": "Creating the report …",
+    "settings.about.report.done": "Opened · saved to {path}",
+    "settings.about.report.saved": "Saved to {path}",
+    "settings.about.report.done_failures": "{count} check(s) failed · report saved to {path}",
+    "settings.about.report.failed": "Couldn't write the report · see the log folder",
 }

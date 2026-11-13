@@ -6,7 +6,8 @@ Most problems leave a trace in the log. Start there:
 %LOCALAPPDATA%\Hams\logs\hams.log
 ```
 
-(paste that path into the Explorer address bar). The log records timings, settings, device and model names and
+(*Settings → About & help → Log folder → Open*, or paste that path into the Explorer address bar; on Linux
+`~/.local/share/hams/logs/hams.log`). The log records timings, settings, device and model names and
 the *length* of each text, never the dictated text itself. Files rotate at 1 MB; `hams.log.1` to `hams.log.3` are
 older.
 
@@ -19,6 +20,7 @@ older.
 - [Wrong language or translated text](#wrong-language-or-translated-text)
 - [The microphone is silent](#the-microphone-is-silent)
 - [The model download fails](#the-model-download-fails)
+- [Linux](#linux)
 - [Reporting a bug](#reporting-a-bug)
 
 ## The hotkey does nothing
@@ -85,7 +87,7 @@ Hams is not code-signed. Code-signing certificates cost money every year, and th
 - **Smart App Control** (Windows 11, *Windows Security → App & browser control*): when it is *On*, it blocks
   unsigned programs it doesn't know, and there is no "Run anyway" button. The only options are turning Smart App
   Control off (on some Windows versions it cannot be switched on again without resetting Windows, so think about
-  that first) or running Hams from source (see the [README](../README.md#from-source-developers)).
+  that first) or running Hams from source (see [development.md](development.md#run-from-source)).
 - **Antivirus false positives.** Programs packed with PyInstaller are sometimes flagged by heuristics. You can check
   the installer you downloaded against the release page, or build it yourself with `packaging\build.ps1`.
 
@@ -103,16 +105,17 @@ line `Model ready (cuda/float16)` or `Model ready (cpu/int8)` says the same.
    `CUDA libraries missing - skipping the GPU, using the next device`, download them once and restart Hams:
 
    ```powershell
-   Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--install-gpu-support"
+   Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList '--install-gpu-support'
    ```
 
    It prints `No NVIDIA driver found - Hams will keep using the CPU.` when the driver is missing, and `Done: … Restart
    Hams to use the GPU.` on success. An interrupted download resumes on the next attempt.
-4. **Self-test.** Run
+4. **Self-test.** *Settings → About & help → Diagnostic report → Create* runs it and opens the report. Without the
+   settings window, run in PowerShell:
 
    ```powershell
-   Start-Process -Wait "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--self-test --report $env:TEMP\hams-self-test.txt"
-   notepad $env:TEMP\hams-self-test.txt
+   Start-Process -Wait "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList '--self-test','--report',"`"$env:TEMP\hams-report.txt`""
+   notepad "$env:TEMP\hams-report.txt"
    ```
 
    The `backend` line should read `CUDA devices 1, CUDA libraries found`, and the `gpu support` line `NVIDIA driver
@@ -189,19 +192,64 @@ Symptoms: *No microphone signal*, *No speech detected*, or *"…" isn't picking 
 - A cancelled or broken download continues where it stopped when you select the model again. Leftovers show up under
   *Downloaded models* as *incomplete* and can be deleted there.
 
+## Linux
+
+The log is `~/.local/share/hams/logs/hams.log` (or `$XDG_DATA_HOME/hams/logs`), the settings are in
+`~/.config/hams`. Run the self-test from the repository folder:
+
+```bash
+.venv/bin/python -m hams --self-test --report ~/hams-report.txt
+```
+
+**Text is recognised but not pasted.** Wayland doesn't let programs send keystrokes to other windows, so Hams pastes
+through its own virtual keyboard on `/dev/uinput`. Check that you can open it:
+
+```bash
+test -w /dev/uinput && echo "uinput: ok" || echo "uinput: no access"
+```
+
+*no access* means the system setup hasn't run or you haven't rebooted since: run `sudo bash linux/setup-system.sh`
+and reboot. The log then shows `/dev/uinput: Permission denied`. The text is still on the clipboard; paste it with
+`Ctrl+V` yourself.
+
+**Nothing on the clipboard, or `wl-copy` not found.** On Wayland, Hams copies with `wl-copy` from the `wl-clipboard`
+package.
+`command -v wl-copy` must print a path; if it doesn't, run `sudo apt install wl-clipboard` (the system setup installs
+it).
+
+**The hotkey does nothing.** On Linux the hotkeys go through the XDG Desktop Portal (*GlobalShortcuts*), and KDE asks
+once to confirm them.
+
+- *KDE never asked:* Hams needs its application menu entry for that. Run
+  `.venv/bin/python hams/setup_autostart.py`, quit Hams and start it again from the menu.
+- *You declined, or want other keys:* open *System Settings → Keyboard → Shortcuts*, find Hams, and assign or
+  change the two shortcuts there.
+- *Another desktop:* the portal must support *GlobalShortcuts* (KDE Plasma 6 does; other desktops may not).
+
+**No tray icon.** The tray needs `gir1.2-ayatanaappindicator3-0.1` (installed by the system setup). Use
+`linux/show-hams.sh` to bring the window to the front.
+
 ## Reporting a bug
 
-1. Run the self-test and save the report (it contains version numbers and paths, no dictated text):
+1. **Create a diagnostic report:** *Settings → About & help → Diagnostic report → Create*. Hams checks the
+   installation, saves `%LOCALAPPDATA%\Hams\hams-report.txt` (Linux: `~/.local/share/hams/hams-report.txt`) and
+   opens it. The report contains version numbers, paths, device names and the last lines of the log, never dictated
+   text.
+
+   If the settings don't open, run the self-test in PowerShell instead:
 
    ```powershell
-   Start-Process -Wait "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--self-test --report $env:TEMP\hams-self-test.txt"
+   Start-Process -Wait "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList '--self-test','--report',"`"$env:TEMP\hams-report.txt`""
+   notepad "$env:TEMP\hams-report.txt"
    ```
 
-   From source: `python -m hams --self-test --report self-test.txt`.
+   The quotes inside the argument list are needed: `Start-Process` joins the arguments with spaces and does not
+   quote them, so a user name with a space would split the path. From source: `python -m hams --self-test --report
+   hams-report.txt`.
 2. Open a [bug report](https://github.com/Mosaik114/hams-bachelorprojekt/issues/new/choose) and fill in the form:
    what happened, steps to reproduce, Hams version, Windows version, GPU and models.
-3. Attach the self-test report and the relevant lines from `%LOCALAPPDATA%\Hams\logs\hams.log`. Look through them
-   before posting: they contain your Windows user name in file paths and the names of your devices.
+3. Attach the report (and, if it matters, more of `%LOCALAPPDATA%\Hams\logs\hams.log`). Look through it before
+   posting: it contains your user name in file paths and the names of your devices.
 
 Never post dictated text, recordings or transcript files. Security problems go through
 [SECURITY.md](../SECURITY.md), not public issues.

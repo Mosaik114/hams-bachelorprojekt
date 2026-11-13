@@ -65,6 +65,23 @@ The median recording length was 11.95 s in both windows.
 | Total, without cleanup | 0.26 s / 0.68 s | 0.24 s / 0.51 s |
 | Whisper real-time factor (median) | 0.0216 | 0.0193 |
 
+## The optimisations
+
+The changes behind the headline results, as far as this repository documents them. Each was measured on its own;
+the values are the ones from the tables in this document, and **d/e/n** marks comparability as above. The real-use
+response time (3.09 s → 0.72 s) is the combined effect and cannot be split between them.
+
+| Change | Why | Measured effect | |
+|---|---|---|:-:|
+| Address Ollama as `127.0.0.1` instead of `localhost` | `localhost` resolved to `::1` first; Ollama listened on IPv4 only, so every request waited about 2 s for a refused connection ([Where the time went](#where-the-time-went)) | cleanup round trip 2.941 s → 0.839 s | d |
+| Keep `torch` out of the process: hide it while CTranslate2 imports, preload cuBLAS/cuDNN from the NVIDIA wheels ([architecture.md](architecture.md#design-decisions)) | CTranslate2 imports its converters unconditionally, which pulled in `torch` and `transformers` | import 1.803 s → 0.298 s, working set 505.9 MB → 74.8 MB, `site-packages` 6620 MB → 2280 MB | d, d, n |
+| Batched inference (batch 8) above 30 s of audio | sequential decoding dropped words on long recordings | 26–45 % faster and 1.3–2.7 pp lower WER from 47.5 s up; no gain below 30 s ([table](#recognition-quality-wer)) | d |
+| `int8_float16` instead of `float16` (evaluated, **not adopted**) | cheaper precision | same WER (12.90 %), 8 % faster; `float16` kept as a precaution | d |
+| Cleanup at `temperature 0` with a fixed seed, plus an output guard (after the thesis, `qwen3.5:9b`) | the model rephrased, invented digits and once echoed its prompt | WER after cleanup 13.32 % → 12.12 %, flagged outputs 16 → 6 of 378, same latency ([LLM cleanup quality](#llm-cleanup-quality)) | d |
+
+The Ollama status query (4.023 s → 0.016 s) and the time until the hotkey is ready (≈ 3.0 s → 0.38 s) improved in
+the same period; the changes behind them are not broken down in this repository.
+
 ## Where the time went
 
 Breaking a single cleanup call into Ollama's own timings showed that most of the latency was outside the model
@@ -269,5 +286,8 @@ waits.
   on synthetic speech.
 - Ollama, CUDA and CTranslate2 versions were not recorded for the thesis measurements.
 
-Most measurements were run by an AI coding agent (Claude Code) under measurement rules written by the author. The
-thesis discloses this.
+## Who ran the measurements
+
+Most measurements were run by an AI coding agent (Claude Code) under measurement rules written by the author, who
+also chose what to measure and reviewed the results. The thesis discloses this. The same split applies to the code:
+the author owned scope, architecture decisions and review; the agent wrote most of it.

@@ -1,13 +1,18 @@
 # User guide
 
 This guide is for people who want to *use* Hams: on Windows with the installer, or on Linux (see [Linux](#linux)).
-Developers who work on the code should start with the [README](../README.md). If something doesn't work, see [troubleshooting.md](troubleshooting.md); for hardware
-requirements and measured speeds, see [hardware.md](hardware.md).
+Developers who work on the code should start with [development.md](development.md). If something doesn't work, see
+[troubleshooting.md](troubleshooting.md); for hardware requirements and measured speeds, see [hardware.md](hardware.md).
 
 Hams turns speech into text at your cursor. You press a hotkey, speak, press it again, and the text is pasted into
 whatever window has focus. Speech recognition runs on your own computer with
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper). An optional local LLM via [Ollama](https://ollama.com)
 can tidy up the text or answer a spoken question.
+
+> **Use it**
+> 1. Click where the text should go, press **`Ctrl+Shift+Space`**, speak, press it again: the text is pasted there.
+> 2. Press **`Ctrl+Shift+Alt+Space`** instead to *Ask AI*: your spoken question goes to Ollama, the answer is pasted.
+> 3. Everything else is behind the tray icon: settings, setup assistant, help, the last five transcripts.
 
 ## Install
 
@@ -29,31 +34,32 @@ Hams needs no other software for dictation. Ollama is optional (see [Optional: O
 The first start downloads the speech recognition model, so it needs an internet connection once. After that, Hams
 works offline.
 
-On first start, a short setup assistant walks you through these steps. Only the speech model is required; the other
-steps can be left as they are with *Next*. You can run the assistant again later from *Settings → General → Setup
-assistant → Run again*, the tray menu, or with `Hams.exe --setup`.
+On first start, the setup assistant walks you through six pages. Only the speech model is required; everything
+else can be left as it is with *Next*. You can run the assistant again later from *Settings → General → Setup
+assistant → Run again*, the tray menu (*Setup assistant …*), or with `Hams.exe --setup`.
 
-1. **Graphics card.** With an NVIDIA graphics card, Hams offers to download NVIDIA's CUDA libraries (cuBLAS, cuDNN
+1. **Welcome.** The interface language (English or German; *Automatic* follows Windows) and the language you dictate
+   in. See [Dictation languages](#dictation-languages).
+2. **Graphics card.** With an NVIDIA graphics card, Hams offers to download NVIDIA's CUDA libraries (cuBLAS, cuDNN
    and NVRTC from PyPI, a one-time download of 1.37 GB, about 2 GB unpacked; about 3.4 GB must be free while it
-   unpacks). Without them, or without an
-   NVIDIA card, Hams runs on the CPU, which works but is slower. The download is checked against pinned SHA-256
-   hashes, continues where it stopped after an interruption, and lands in `%LOCALAPPDATA%\Hams\cuda`. The same
-   download is available from a terminal:
+   unpacks). Without them, or without an NVIDIA card, Hams runs on the CPU, which works but is slower. The download
+   is checked against pinned SHA-256 hashes, continues where it stopped after an interruption, and lands in
+   `%LOCALAPPDATA%\Hams\cuda`. The same download is available from a terminal:
 
    ```powershell
-   Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--install-gpu-support"
+   Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList '--install-gpu-support'
    ```
 
    Restart Hams afterwards if you used the terminal.
-2. **Speech model.** Hams suggests *Turbo* (1.6 GB) with a GPU and *Small* (486 MB) without one.
-   [hardware.md](hardware.md) has measured speeds for every model.
-3. **Microphone.** Pick a device and say a few words; a level bar shows whether Hams hears you.
-4. **Text cleanup (optional).** If Ollama is running, Hams can download the default cleanup model through it
+3. **Speech model.** Hams suggests *Turbo* (1.6 GB) with a GPU and *Small* (486 MB) without one, and downloads it
+   with a progress bar. [hardware.md](hardware.md) has measured speeds for every model.
+4. **Microphone.** Pick a device and say a few words; a level bar shows whether Hams hears you.
+5. **Text cleanup (optional).** If Ollama is running, Hams can download the default cleanup model through it
    (several GB). If not, cleanup stays off and *Get Ollama* opens the Ollama download page in your browser. After
    installing Ollama, press *Check again*, or run the assistant again later. See [Optional: Ollama](#optional-ollama).
+6. **Ready to dictate.** The two shortcuts, the model status, and an invitation to try it right away.
 
-The interface language follows Windows (English, or German on a German Windows) and the dictation language follows
-the interface language. Change either one in the settings (see [Dictation languages](#dictation-languages)).
+Every download can be cancelled and retried.
 
 While the model loads, the Hams window says *Loading model …*. When it shows *Ready · Turbo* (or the model you
 chose), you can dictate.
@@ -94,7 +100,8 @@ Hams keeps running in the tray. Right-click the tray icon for:
 
 - **Show or hide window**
 - **Settings …**
-- **Run setup …**: the setup assistant from the first start
+- **Setup assistant …**: the setup assistant from the first start
+- **Help …**: opens this user guide in your browser
 - **Recent transcripts**: the last five texts of this session. Clicking one copies it to the clipboard again. This
   list lives in memory only and is empty after a restart.
 - **Quit**
@@ -117,6 +124,7 @@ to your configuration file.
 | AI | text cleanup on/off, cleanup model, Ask AI model, Ollama status; *Download* for a cleanup model that isn't installed yet |
 | Shortcuts | both hotkeys, each with *Change* (see [Changing the hotkeys](#changing-the-hotkeys)); *Restart* button for when hotkeys stop responding |
 | General | sound on start/stop, light or dark appearance, interface language, *Check for updates*, *Edit* for the glossary, *Run again* for the setup assistant |
+| About & help | the installed version, *Open* for this user guide and for [troubleshooting](troubleshooting.md), *Open* for the log folder, *Create* for a diagnostic report (see [Reporting a bug](troubleshooting.md#reporting-a-bug)) |
 
 Model switches and dictation language apply from the next recording. The interface language applies after a
 restart (the settings offer a *Restart* button).
@@ -305,6 +313,10 @@ Ubuntu-based distributions are the easy path. Other desktops and distributions m
 hotkeys need a desktop that supports the XDG Desktop Portal *GlobalShortcuts* (KDE Plasma 6 does). There is no
 installer yet: you run Hams from a copy of the repository.
 
+**Short way.** After step 1 below, `linux/install.sh` does steps 2 to 5: it runs the system setup (with `sudo`),
+installs `uv` if it is missing (it asks first), creates `.venv`, installs Hams and offers the menu entry and
+autostart. `linux/install.sh --help` lists its options. The steps below do the same by hand.
+
 **1. Get the code.**
 
 ```bash
@@ -366,20 +378,20 @@ On Linux the files are in `~/.config/hams` (`config.toml`, `glossary.toml`, `set
 Windows Settings → Apps → Installed apps → **Hams** → Uninstall.
 
 The uninstaller removes the program folder (`%LOCALAPPDATA%\Programs\Hams`), the Start menu and desktop entries,
-and the autostart entry. It then asks whether to delete your data as well:
+and the autostart entry. It then asks two questions, both answered *No* by default:
 
 | Folder | Contents | Deleted |
 |---|---|---|
 | `%APPDATA%\Hams` | `config.toml`, `glossary.toml` (older installs: `glossar.toml`), `setup.json` (setup assistant state) | only if you answer *Yes* |
 | `%LOCALAPPDATA%\Hams` | `logs\`, `transcripts\`, `cuda\` (GPU libraries, about 2 GB) | only if you answer *Yes* |
-| `%USERPROFILE%\.cache\huggingface\hub` | downloaded Whisper models | **never** |
+| `%USERPROFILE%\.cache\huggingface\hub` | the Whisper models Hams downloaded (`models--Systran--faster-whisper-*`, `models--mobiuslabsgmbh--faster-whisper-large-v3-turbo`) | only if you answer *Yes* to the second question, which shows their size; nothing else in that cache is touched |
 
-The Whisper models sit in the shared Hugging Face cache, which other programs may use too. To free that space,
-delete the models in *Settings → Transcription → Downloaded models* **before** uninstalling, or delete the
-`models--Systran--faster-whisper-*` and `models--mobiuslabsgmbh--faster-whisper-large-v3-turbo` folders in that
-cache by hand. Ollama and its models are a separate program; uninstall it separately if you no longer need it.
+The Whisper models sit in the shared Hugging Face cache (or wherever `HF_HUB_CACHE` / `HF_HOME` point), which other
+programs may use too; that is why the question defaults to *No*. You can also delete single models in *Settings →
+Transcription → Downloaded models* before uninstalling. Ollama and its models are a separate program; uninstall it
+separately if you no longer need it.
 
-A silent uninstall (`unins000.exe /SILENT`) keeps all user data.
+A silent uninstall (`unins000.exe /SILENT`) asks nothing and keeps all user data and the models.
 
 If you upgraded from an old version that was still called *Wisper*, a folder `%APPDATA%\Wisper` may also exist.
 Hams copied it once and never touches it again; you can delete it yourself.
@@ -395,6 +407,8 @@ only check-in is an update check that you can turn off (see below).
   the tray menu.
 - Logs: `%LOCALAPPDATA%\Hams\logs\hams.log` (rotated at 1 MB, three old files kept). The log contains timings,
   settings, model names and text *lengths*, never the dictated text.
+- Diagnostic report: `%LOCALAPPDATA%\Hams\hams-report.txt`, only when you create one (*Settings → About & help*).
+  Hams never sends it anywhere.
 - Recordings are not saved to disk. Audio exists in memory only until it is transcribed.
 - The clipboard keeps the last pasted text (see [Dictation](#dictation)).
 
@@ -409,6 +423,7 @@ only check-in is an update check that you can turn off (see below).
 | *Get Ollama* in the setup assistant | opens `https://ollama.com/download` in your web browser | nothing from Hams |
 | Update check: at start, at most once every 24 hours, unless turned off | `api.github.com` (`/repos/Mosaik114/hams-bachelorprojekt/releases/latest`) | a plain HTTPS request without account or identifier (generic user agent `Hams-update-check`); the answer is the latest version number. Nothing is downloaded; offline or on errors nothing is shown |
 | *View* on the update notice | opens the release page on `github.com` in your web browser | nothing from Hams |
+| *User guide*, *Troubleshooting* in *Settings → About & help*, *Help …* in the tray menu | opens the page on `github.com` in your web browser | nothing from Hams |
 | Text cleanup, *Ask AI*, warm-up at start, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
 
 Nothing else; Hams has no crash reporting. `api.github.com` is the one outbound host the update check adds.

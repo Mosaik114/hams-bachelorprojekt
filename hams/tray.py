@@ -11,7 +11,7 @@ import pyperclip
 import pystray
 from PIL import Image, ImageTk
 
-from hams import branding
+from hams import branding, support
 from hams import ui_kit as uk
 from hams.config import logger
 from hams.i18n import t
@@ -157,6 +157,7 @@ class TrayMixin:
             pystray.MenuItem(t("tray.toggle_window"), self._toggle_visibility, default=True),
             pystray.MenuItem(t("tray.settings"), self._open_settings),
             pystray.MenuItem(t("tray.setup"), self._open_setup),
+            pystray.MenuItem(t("tray.help"), support.open_user_guide),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.history"), pystray.Menu(*history_items)),
             pystray.Menu.SEPARATOR,

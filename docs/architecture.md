@@ -59,11 +59,12 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 | Entry and lifecycle | `main.py`, `instance.py`, `activation.py` | Single-instance mutex (Windows) or lock file (Linux); self-restart; `Hams.exe --settings` opens the settings of the running instance through a named event |
 | App shell | `app.py`, `ui_dispatch.py`, `main_window.py`, `tray.py`, `window_position.py` | `FloatingTranscriberApp` is composed of mixins (`MainWindowMixin`, `TrayMixin`, `WhisperModelMixin`, `RecordingMixin`, `TranscriptionMixin`) |
 | Audio | `recording.py` | Level meter in dBFS (−62 … −28 dB mapped to 0 … 1), peak normalisation for quiet input, auto-stop |
-| Speech recognition | `whisper_model.py`, `models.py`, `backend.py`, `backend_preload.py` | Device and precision fallback chain (`cuda: float16 → int8_float16 → int8`, then CPU). CUDA libraries are preloaded from the NVIDIA wheels, so `torch` is never imported. Every load (start, retry, switch, wizard, finished download) goes through one request with a generation number; phases `idle → loading`/`switching → ready`/`failed`. Loads run one after the other under the transcription lock, and only the newest generation may commit, so a late, superseded load is freed instead of replacing the newer choice |
+| Speech recognition | `whisper_model.py`, `models.py`, `backend.py`, `backend_preload.py` | Device and precision fallback chain (`cuda: float16 → int8_float16 → int8`, then CPU). CUDA libraries are preloaded from the NVIDIA wheels, so `torch` is never imported. Every load (start, retry, switch, setup assistant, finished download) goes through one request with a generation number; phases `idle → loading`/`switching → ready`/`failed`. Loads run one after the other under the transcription lock, and only the newest generation may commit, so a late, superseded load is freed instead of replacing the newer choice |
 | Post-processing | `transcription.py`, `cleanup_guard.py`, `ollama.py`, `glossary.py`, `dictation_language.py`, `prompts/cleanup*.txt` | 30 s cleanup timeout with raw-text fallback; cleanup samples at temperature 0, and `cleanup_guard.py` strips a "Here is the corrected text:" line and replaces an answer that leaks the prompt, grows too much, changes digits or drops most words by the raw text; the glossary reloads when the file changes |
 | Hotkeys | `system_hotkeys.py`, `portal_hotkeys.py`, `hotkey_editor.py` | `RegisterHotKey` survives standby, unlike low-level keyboard hooks that Windows silently removes |
 | Linux integration | `linux.py`, `linux/*.sh` | `uinput` virtual keyboard, synthesised chime, `SIGUSR1` to bring the window to front, systemd user service |
-| Settings | `settings_window.py`, `settings_sections.py`, `settings_shortcuts.py`, `settings_status.py`, `settings_models.py` | Live microphone level, Ollama status, model download and delete |
+| Settings | `settings_window.py`, `settings_sections.py`, `settings_shortcuts.py`, `settings_status.py`, `settings_models.py`, `settings_extras.py`, `settings_about.py` | Live microphone level, Ollama status, model download and delete, glossary, *About & help* |
+| Support | `support.py`, `self_test.py`, `cli.py` | `--self-test` and `--report` for the installer and CI; in the app, a diagnostic report (self-test without the Tk check, plus the end of the log) written in a worker thread and opened in the default editor; links to the docs |
 | Update notice | `updates.py`, `update_notice.py` | At most one request a day to the GitHub releases API in a background thread; only a notice with a link, never a download. `[updates] check = false` turns it off |
 | Config | `config.py`, `config_toml.py`, `config_validation.py`, `config.default.toml` | Three layers: code defaults → shipped defaults → user file. Writes keep comments and formatting |
 | Design system | `ui_kit/` | Theme tokens, DPI scaling, buttons, selects, popovers, icons, focus and hover states |
@@ -86,8 +87,8 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 
 ## Quality gates
 
-- About 1,600 pytest tests. Many of them drive the real Tk application through `tests/live_app.py`, with fakes for
-  the microphone, Whisper and Ollama.
+- ≈1,600 test functions, ≈3,200 test cases including parametrisation. Many of them drive the real Tk application
+  through `tests/live_app.py`, with fakes for the microphone, Whisper and Ollama.
 - Coverage gate of 85 % (Windows CI excludes the Linux-only modules, see `coverage-windows.ini`).
 - ruff with pycodestyle, pyflakes, bugbear, bandit, import order and **max cyclomatic complexity 10**.
 - Dependencies are locked with hashes (`uv pip compile --generate-hashes`), audited with `pip-audit`, and updated by

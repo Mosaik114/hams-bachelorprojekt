@@ -5,6 +5,29 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **About & help in the settings:** the installed version, the user guide and troubleshooting pages, the log folder,
+  and *Create* for a diagnostic report. The report runs the self-test in the background, adds the end of the log
+  (never dictated text), saves `%LOCALAPPDATA%\Hams\hams-report.txt` and opens it, so a bug report needs no
+  terminal. The tray menu has *Help …* for the user guide.
+- **Uninstall can remove the speech models:** a second question, *No* by default and never asked in a silent
+  uninstall, deletes only Hams' own Whisper model folders from the Hugging Face cache and shows their size first.
+- `linux/install.sh` runs the Linux install steps of the user guide (system setup, `uv` after asking, `.venv`,
+  Hams without development extras, menu entry and autostart after asking).
+- Docs: a Linux section in troubleshooting, `docs/development.md` (from source, tests, installer build, code
+  layout), the list of documented optimisations in `docs/evaluation.md`, and every network connection in
+  `SECURITY.md`.
+
+### Changed
+- One name for the setup assistant everywhere: tray *Setup assistant …*, window title, settings and docs (German:
+  *Einrichtungsassistent*).
+- A Whisper model that fails to load now says where to look: *Couldn't load · see Troubleshooting*.
+- British spelling in the interface (*recognisable*).
+- README shortened to the essentials, with a *Use it* box for both hotkeys and a *How it was built* section; the
+  developer material moved to `docs/development.md`. The README no longer speaks of "twelve" optimisations, a
+  number the repository does not document.
+- The PowerShell self-test commands quote the report path, so they also work when the user name contains a space.
+
 ## [1.1.0] – 2026-11-13
 
 Hams becomes an app you can install without Python: a Windows installer, a setup assistant on the first start,

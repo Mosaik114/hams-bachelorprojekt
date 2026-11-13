@@ -15,6 +15,7 @@ import contextlib
 
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import Text, t
+from hams.settings_about import AboutSectionMixin
 from hams.settings_extras import ExtrasSectionMixin
 from hams.settings_models import ModelSectionMixin
 from hams.settings_sections import SectionsMixin
@@ -22,7 +23,14 @@ from hams.settings_shortcuts import ShortcutsSectionMixin
 from hams.settings_status import StatusSectionMixin
 
 
-class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, StatusSectionMixin, ExtrasSectionMixin):
+class SettingsWindow(
+    SectionsMixin,
+    ShortcutsSectionMixin,
+    ModelSectionMixin,
+    StatusSectionMixin,
+    ExtrasSectionMixin,
+    AboutSectionMixin,
+):
     """Randloses Einstellungsfenster im Mosaik-Design.
 
     Zeigt Mikrofon-Auswahl mit Live-Pegel, Status-Lampen (Modell/Ollama/Mikro)
@@ -220,6 +228,7 @@ class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, St
         self._build_ai(body)
         self._build_shortcuts(body)
         self._build_general(body)
+        self._build_about(body)
 
         # Die Tabulatorkette folgt der Stapelreihenfolge, und die entspricht der
         # Reihenfolge der Erzeugung. Die Kopfzeile entsteht zuerst, das Kreuz

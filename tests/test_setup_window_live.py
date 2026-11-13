@@ -99,7 +99,7 @@ class TestOpening:
     def test_starts_on_the_welcome_page(self, wizard, hams):
         win = wizard()
         assert win.controller.page == "welcome"
-        assert win.win.title() == "Hams — Einrichtung"
+        assert win.win.title() == "Hams — Einrichtungsassistent"
         assert win.step_label.cget("text") == "Schritt 1 von 6"
         assert not win.back_button.enabled
         assert win.skip_button.winfo_manager() == ""
@@ -578,7 +578,7 @@ class TestDrag:
 class TestAppIntegration:
     def test_tray_offers_the_setup(self, live_app):
         labels = [item.text for item in live_app._build_tray_menu().items]
-        assert "Einrichtung …" in labels
+        assert "Einrichtungsassistent …" in labels
 
     def test_settings_open_the_setup(self, live_app, wizard, monkeypatch):
         opened = []

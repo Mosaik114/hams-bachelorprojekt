@@ -108,7 +108,7 @@ class TestOpening:
         assert win.row_hardware.value_label.cget("text") == "Automatisch · GPU"
         live_app.model_error = "kaputt"
         win._refresh_status()
-        assert win.row_hardware.value_label.cget("text") == "Fehler beim Laden"
+        assert win.row_hardware.value_label.cget("text") == "Nicht geladen · siehe Fehlerbehebung"
 
     def test_it_registers_as_a_microphone_user(self, open_settings, live_app):
         win = open_settings()

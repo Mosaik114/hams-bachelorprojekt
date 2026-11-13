@@ -86,7 +86,7 @@ MESSAGES: dict[str, str] = {
     "tray.tooltip.ready": "{product} — bereit",
     "tray.toggle_window": "Fenster zeigen oder ausblenden",
     "tray.settings": "Einstellungen …",
-    "tray.setup": "Einrichtung …",
+    "tray.setup": "Einrichtungsassistent …",
     "tray.history": "Letzte Transkripte",
     "tray.history_empty": "Noch keine Transkripte",
     "tray.update": "Update verfügbar: {product} {version} …",
@@ -154,7 +154,7 @@ MESSAGES: dict[str, str] = {
     "settings.storage.deleting": "Wird gelöscht …",
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automatisch · {device}",
-    "settings.hardware.error": "Fehler beim Laden",
+    "settings.hardware.error": "Nicht geladen · siehe Fehlerbehebung",
     "settings.cleanup.title": "Text bereinigen",
     "settings.cleanup.hint": "Glättet das Transkript nach jeder Aufnahme",
     "settings.cleanup.active": "Bereinigt das Transkript automatisch",
@@ -274,10 +274,10 @@ MESSAGES: dict[str, str] = {
     "autostart.not_found": "Kein Autostart-Eintrag gefunden.",
     "autostart.service_added": "Dienst {service} eingerichtet (startet mit der Sitzung und nach Abstürzen).",
     # --- first-run setup wizard
-    "setup.window_title": "{product} — Einrichtung",
+    "setup.window_title": "{product} — Einrichtungsassistent",
     "setup.title": "{product} einrichten",
     "setup.step": "Schritt {current} von {count}",
-    "setup.close_tooltip": "Einrichtung schließen",
+    "setup.close_tooltip": "Einrichtungsassistent schließen",
     "setup.back": "Zurück",
     "setup.next": "Weiter",
     "setup.skip": "Überspringen",
@@ -345,7 +345,8 @@ MESSAGES: dict[str, str] = {
     "setup.cleanup.offline": "Läuft nicht auf diesem Rechner",
     "setup.cleanup.offline_body": (
         "Die Bereinigung bleibt aus, und {product} funktioniert ohne sie. Wer sie später möchte, installiert Ollama "
-        "und startet diese Einrichtung noch einmal: Einstellungen → Allgemein → Einrichtungsassistent → Erneut starten."
+        "und startet den Einrichtungsassistenten noch einmal: Einstellungen → Allgemein → Einrichtungsassistent → "
+        "Erneut starten."
     ),
     "setup.cleanup.get": "Ollama holen",
     "setup.cleanup.check_again": "Erneut prüfen",
@@ -361,11 +362,32 @@ MESSAGES: dict[str, str] = {
     "setup.finish.try": "Probier es aus: {combo} drücken und einen Satz sagen.",
     "setup.finish.status": "Status",
     "setup.finish.change": (
-        "Die Kurzbefehle lassen sich unter Einstellungen → Kurzbefehle ändern. Die Einrichtung lässt sich jederzeit "
-        "über die Einstellungen oder das Tray-Menü erneut starten."
+        "Die Kurzbefehle lassen sich unter Einstellungen → Kurzbefehle ändern. Den Einrichtungsassistenten kannst du "
+        "jederzeit über die Einstellungen oder das Tray-Menü erneut starten."
     ),
     "setup.finish.change_linux": (
-        "Die Kurzbefehle verwaltet das System unter Systemeinstellungen → Tastatur → Kurzbefehle. Die Einrichtung "
-        "lässt sich jederzeit über die Einstellungen oder das Tray-Menü erneut starten."
+        "Die Kurzbefehle verwaltet das System unter Systemeinstellungen → Tastatur → Kurzbefehle. Den "
+        "Einrichtungsassistenten kannst du jederzeit über die Einstellungen oder das Tray-Menü erneut starten."
     ),
+    # ===================================================================
+    # --- Info & Hilfe (Einstellungsgruppe, Tray-Eintrag); neu in 1.2
+    "tray.help": "Hilfe …",
+    "settings.section.about": "Info & Hilfe",
+    "settings.about.version": "Version",
+    "settings.about.open": "Öffnen",
+    "settings.about.guide.title": "Anleitung",
+    "settings.about.guide.hint": "Installation, Bedienung und Einstellungen, auf GitHub (englisch)",
+    "settings.about.troubleshooting.title": "Fehlerbehebung",
+    "settings.about.troubleshooting.hint": "Lösungen für häufige Probleme, auf GitHub (englisch)",
+    "settings.about.logs.title": "Log-Ordner",
+    "settings.about.logs.hint": "Zeiten und Fehler; nie, was du diktiert hast",
+    "settings.about.logs.failed": "Ordner ließ sich nicht öffnen · {path}",
+    "settings.about.report.title": "Diagnosebericht",
+    "settings.about.report.hint": "Prüft die Installation und speichert einen Bericht für eine Fehlermeldung",
+    "settings.about.report.button": "Erstellen",
+    "settings.about.report.running": "Bericht wird erstellt …",
+    "settings.about.report.done": "Geöffnet · gespeichert unter {path}",
+    "settings.about.report.saved": "Gespeichert unter {path}",
+    "settings.about.report.done_failures": "{count} Prüfung(en) fehlgeschlagen · Bericht unter {path}",
+    "settings.about.report.failed": "Bericht ließ sich nicht schreiben · siehe Log-Ordner",
 }

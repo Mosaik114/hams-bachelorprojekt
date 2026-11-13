@@ -9,8 +9,8 @@ Tkinter with its own design system (`hams/ui_kit`).
 - **Entry point:** `hams/main.py` → `hams/app.py` (`FloatingTranscriberApp`, composed of the mixins
   `main_window`, `tray`, `whisper_model`, `recording`, `transcription`). Settings: `hams/config.py` (+
   `config_toml.py`), window `settings_window.py` with its groups in `settings_sections.py`.
-- **Tests:** `pytest tests` (about 1,600). Tk tests open real windows. Run them headless: under `xvfb-run` on Linux,
-  or on a separate desktop on Windows.
+- **Tests:** `pytest tests` (≈1,600 test functions, ≈3,200 test cases including parametrisation). Tk tests open
+  real windows. Run them headless: under `xvfb-run` on Linux, or on a separate desktop on Windows.
 - **Lint:** `ruff check . && ruff format --check .` (rules in `ruff.toml`, max complexity 10).
 - **Never restart the running app unasked.** The author dictates with it.
 - Identifiers stay in English; comments may be German. UI strings go into both catalogs `hams/messages_en.py` and
