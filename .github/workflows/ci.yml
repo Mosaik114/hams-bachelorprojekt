@@ -2,8 +2,7 @@ name: CI
 
 on:
   push:
-    # "installer" is the work branch of the Windows installer; drop it once merged
-    branches: [main, installer]
+    branches: [main]
     # A version tag also attaches the installer to its GitHub release (job "release")
     tags: ["v*"]
   pull_request:
