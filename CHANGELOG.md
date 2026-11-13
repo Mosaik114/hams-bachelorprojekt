@@ -5,6 +5,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] – 2026-11-13
+
+Fixes and restructuring from the independent code audit (see the [review log](https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/docs/reviews.md)).
+
 ### Changed
 - **Transcripts are no longer saved to disk by default.** *Settings → General → Save transcripts*
   (`[output] save_transcripts`) switches it on; `[output] keep_days` (default 30, `0` = forever) deletes older files
