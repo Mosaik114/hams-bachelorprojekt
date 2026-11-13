@@ -59,23 +59,26 @@ that nothing is left. On a `v*` tag, CI also attaches the installer to the GitHu
 
 ```
 hams/
-├── main.py              entry point: config, single instance, Tk root
-├── app.py               main window, composed from the mixins below
-├── recording.py         microphone → audio buffer, level meter (dBFS)
-├── transcription.py     Whisper, glossary, Ollama cleanup, paste
+├── main.py              entry point: bootstrap, single instance, Tk root
+├── bootstrap.py         what the start does once: log, user file, settings, theme
+├── app.py               Tk shell (main window + tray) that owns the core objects below
+├── status.py            StatusSink: how the core objects talk to the window
+├── recording.py         Recorder: microphone → audio buffer, level meter (dBFS)
+├── audio_devices.py     input device list and name resolution
+├── transcription.py     Pipeline: Whisper, glossary, Ollama cleanup, paste
 ├── cleanup_guard.py     checks the cleanup answer, falls back to the raw text
-├── whisper_model.py     load, switch and download models with fallback
+├── whisper_model.py     ModelManager: load, switch and download models with fallback
 ├── backend_preload.py   make cuBLAS/cuDNN reachable before faster-whisper loads
 ├── gpu_support.py       on-demand CUDA download for the installed app
 ├── cli.py, self_test.py command line: --self-test, --install-gpu-support
 ├── support.py           help links, log folder, in-app diagnostic report
 ├── glossary.py          hotwords, fixed corrections, live reload
-├── ollama.py            local Ollama status and model list
+├── ollama.py            OllamaClient (every request to Ollama), status and model list
 ├── cursor_dot.py        optional: recording state to an external cursor overlay (off by default)
 ├── system_hotkeys.py    Windows hotkeys     │ portal_hotkeys.py  Linux hotkeys
 ├── linux.py             uinput paste, chime, signals, lock file
 ├── settings_*.py        settings window, sections, live status, model manager, about & help
-├── config*.py           layered TOML config, validation, persistence
+├── config*.py           layered TOML config (no import side effects), validation, persistence
 ├── i18n.py              interface language; strings in messages_en.py / messages_de.py
 ├── dictation_language.py  dictation language: Whisper hints and Ollama instructions per language
 └── ui_kit/              a small design system for tkinter (theme, DPI scaling, controls, icons)

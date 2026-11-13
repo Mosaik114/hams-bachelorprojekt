@@ -48,10 +48,11 @@ cannot run. Many tests open real Tk windows, so run them headless:
   Linux-only modules.
 
 The suite never touches your real configuration: `tests/conftest.py` points `HAMS_CONFIG` and `HAMS_LOG_DIR` at
-temporary folders before `hams.config` is imported. Keep it that way for new tests, and never let a test read or
-write `%APPDATA%\Hams`, `~/.config/hams` or the old `Wisper` folders.
+temporary folders and then calls `hams.bootstrap.load()`. Keep it that way for new tests, and never let a test read
+or write `%APPDATA%\Hams`, `~/.config/hams` or the old `Wisper` folders.
 
-Some tests read source code with `inspect.getsource`; update their search strings when you refactor.
+Test behaviour, not source text: build the core objects (`Pipeline`, `ModelManager`, `Recorder`) with the fakes in
+`tests/live_app.py`, or drive the live app through the `live_app` fixture.
 
 ## Lint
 

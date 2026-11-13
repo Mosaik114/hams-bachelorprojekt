@@ -79,14 +79,29 @@ Merged in `c5f3b73`, released in `7ed6cfa`.
 The installer smoke test still expected the old autostart entry; CI caught it on `main` and `33ffa59` fixed it before
 the release (`0acf5b5`).
 
+## Code audit → Unreleased: structure
+
+After 1.1.2 a code audit (two independent reviewers, consolidated) looked at maintainability rather than behaviour.
+The structural findings and how they were addressed:
+
+| Finding | Verdict | Commit |
+|---|---|---|
+| Tests asserted on source text (`inspect.getsource`, greps over the package) instead of behaviour; the contributor notes even asked to keep those search strings in step | fixed: replaced by behaviour tests or dropped where they only pinned long-removed code; source is read only by project-wide AST rules and for the third-party `keyboard` library | `14c6a6a` |
+| Ollama spoken to in two places: a client in `ollama.py` and hand-built `/api/generate` requests; the evaluation tool patched `urlopen` for the whole process | fixed: one `OllamaClient`; the tool merges its options into its own client | `55f7c33` |
+| `hams.config` did work on import (log file, reading settings, device query, colour scheme) and imported `sounddevice` and the UI kit | fixed: `bootstrap.py` does it explicitly; config only defines | `b5c3979` |
+| The app was one object from six mixins sharing ~40 attributes, with class defaults and `getattr` fallbacks so tests could skip `__init__` | fixed: `Recorder`, `ModelManager`, `Pipeline`, `UpdateNotice` without Tk, behind `StatusSink`/`ModelEvents`; two UI mixins remain | `e3ff5a0` |
+| German identifiers and log messages despite the project's own rule | fixed, and held by `tests/test_english_identifiers.py` | `b16140c` |
+| Linux CI: the settings window showed "device unavailable" until its next level tick | fixed: the scan result sets the status itself | `9a6ff2f` |
+
 ## Not done, and why
 
 These came up across the rounds and were deliberately left open.
 
 | Finding | Verdict | Reason |
 |---|---|---|
-| Rename the remaining German identifiers and comments | deferred | Large churn across most modules for little user value; the config code was renamed in `6620165` |
-| Replace tests that check source text (`inspect.getsource`, `tests/source_code.py`) with behaviour tests | deferred | They still run in CI; replacing them is a refactor of its own |
+| Translate the remaining German comments and docstrings | deferred | Identifiers and log messages are English now (`b16140c`); comments may stay German per the contributor notes, and new or edited ones are written in English |
+| Turn the main window and the tray into composed objects as well | deferred | They are the Tk view itself: a separate object would hold the same widgets and state as the app, with nothing to gain for testing; the logic that needed testing without Tk is in the core objects |
+| Remove the migration code for the pre-release name "Wisper" (user folder, legacy config, instance names) | kept on purpose | The author still runs an installation from the Wisper days; the code copies, never moves, so it is harmless for everyone else. It goes once that installation has moved over |
 | Code-sign the installer | deferred | Certificates cost money every year and need approval; SmartScreen handling is documented in [troubleshooting](troubleshooting.md) |
 | Evaluate WER and cleanup on real speech | deferred | Needs hand-transcribed dictations of my own; on the [roadmap](../README.md#roadmap) |
 | A stricter German cleanup prompt against "execute instead of clean" | rejected | Measured: worse German WER and new failure modes ([evaluation](evaluation.md#llm-cleanup-quality)) |

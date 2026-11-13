@@ -56,7 +56,7 @@
 - **Cross-platform desktop integration.** Windows: `RegisterHotKey`, tray icon, DPI awareness, autostart.
   Linux (KDE Plasma on Wayland): XDG Desktop Portal `GlobalShortcuts`, a `uinput` virtual keyboard, a systemd user
   service.
-- **Engineered like a product.** ≈1,600 test functions (≈3,200 test cases including parametrisation, many of them
+- **Engineered like a product.** ≈1,800 test functions (≈3,350 test cases including parametrisation, many of them
   driving live Tk windows), line+branch coverage gates (93 % Windows, 88 % Linux), ruff with complexity limits, hash-locked dependencies,
   `pip-audit` and a gitleaks history scan in CI.
 - **Private by design.** No account, no telemetry; logs record text *lengths*, never the dictated text. Every network

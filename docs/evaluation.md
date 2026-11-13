@@ -134,8 +134,8 @@ instruction? Reproduce it with `python tools/cleanup_eval.py` (needs the GPU, Wi
 Ollama; about 4 minutes per run).
 
 **Method.** The script goes through Hams' own code paths, not a re-implementation: Whisper runs through
-`TranscriptionMixin._run_transcription` (same options, glossary hotwords and replacements as a real dictation), cleanup
-through `_nachbearbeiten`, which uses the shipped prompt (`hams/prompts/cleanup.txt` / `cleanup.en.txt`), the glossary
+`Pipeline.run_whisper` (same options, glossary hotwords and replacements as a real dictation), cleanup
+through `Pipeline.post_process`, which uses the shipped prompt (`hams/prompts/cleanup.txt` / `cleanup.en.txt`), the glossary
 hint, `think: false`, `plain_text()`, the output guard (current version only) and the glossary replacements. Hams runs against a throw-away config folder with
 the default glossary and a fixed dictation language (`de` or `en`).
 

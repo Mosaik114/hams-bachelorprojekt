@@ -25,6 +25,18 @@ follow [Semantic Versioning](https://semver.org/).
   be saved; before, such a file refused every change from the settings window.
 - Development: ruff targets Python 3.11, matching `requires-python`; the `tomli` fallback for 3.10 is gone, and
   comments that only told the history of the code were rewritten or removed.
+- Development: the application is no longer one object built from six mixins. The Tk shell (main window and tray)
+  owns plain objects without Tk - `Recorder`, `ModelManager`, `Pipeline`, `OllamaClient`, `UpdateNotice` - which
+  report through two small interfaces (`StatusSink`, `ModelEvents`). Behaviour is unchanged. See
+  [architecture](docs/architecture.md#structure).
+- Development: every Ollama request goes through one `OllamaClient`; `tools/cleanup_eval.py --options` no longer
+  patches `urlopen` for the whole process.
+- Development: importing `hams.config` has no side effects any more; `hams/bootstrap.py` sets up the log, the user
+  file, the settings and the colour scheme explicitly. Microphone queries moved to `hams/audio_devices.py`.
+- Development: identifiers and log messages are English throughout, enforced by a test; the log of a support report
+  is now English as well.
+- Development: tests check behaviour instead of source text, and the tests named after the third review moved into
+  their topic files.
 
 ### Removed
 - Unused code that only tests called (`PrimaryButton`, `rounded_image`, `separator`, `focus_chain`, `icon_names`,
@@ -48,6 +60,8 @@ follow [Semantic Versioning](https://semver.org/).
   unavailable* with its name.
 - A single malformed answer from a running Ollama switched the cleanup off for a minute, as if Ollama were offline.
   Only a connection failure does that now; a bad answer pastes that one dictation raw and the next one asks again.
+- The settings showed "Device unavailable" for a moment after opening instead of the real reason (for example *No
+  microphone found*).
 
 ## [1.1.2] – 2026-11-13
 

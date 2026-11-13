@@ -7,14 +7,22 @@ and the text is pasted via the clipboard and Ctrl+V. On Linux, a `uinput` keyboa
 Tkinter with its own design system (`hams/ui_kit`). The kit is frozen: build from its existing controls, add no
 new ones; `hams.ui_kit` exports only what the app uses (tests take internals from `tests/kit.py`).
 
-- **Entry point:** `hams/main.py` → `hams/app.py` (`FloatingTranscriberApp`, composed of the mixins
-  `main_window`, `tray`, `whisper_model`, `recording`, `transcription`). Settings: `hams/config.py` (+
-  `config_toml.py`), window `settings_window.py` with its groups in `settings_sections.py`.
-- **Tests:** `pytest tests` (≈1,600 test functions, ≈3,200 test cases including parametrisation). Tk tests open
-  real windows. Run them headless: under `xvfb-run` on Linux, or on a separate desktop on Windows.
+- **Entry point:** `hams/main.py` → `hams/bootstrap.py` (log, user file, settings, theme) → `hams/app.py`
+  (`FloatingTranscriberApp`: main window and tray, the two remaining mixins). The app owns plain objects without Tk:
+  `Recorder` (`recording.py`), `ModelManager` (`whisper_model.py`), `Pipeline` (`transcription.py`), `OllamaClient`
+  (`ollama.py`, the only place that talks HTTP to Ollama) and `UpdateNotice`. They report through
+  `hams.status.StatusSink` and `whisper_model.ModelEvents`, which the app implements; windows reach them as
+  `app.models`, `app.recorder`, `app.ollama`, `app.updates`. See `docs/architecture.md`.
+- **Settings:** `hams/config.py` (+ `config_toml.py`) only defines things; importing it reads no file and queries no
+  device. `bootstrap.load()`/`start()` fills the one `CFG` object in place. Window `settings_window.py` with its
+  groups in `settings_sections.py`.
+- **Tests:** `pytest tests` (≈1,800 test functions, ≈3,350 test cases including parametrisation). Tk tests open
+  real windows. Run them headless: under `xvfb-run` on Linux, or on a separate desktop on Windows. Build core
+  objects with the fakes in `tests/live_app.py` (`make_pipeline`, `ready_models`, `RecordingSink`, `FakeOllama`);
+  never construct the app with `__new__` or add class defaults to production code for tests.
 - **Lint:** `ruff check . && ruff format --check .` (rules in `ruff.toml`, max complexity 10).
 - **Never restart the running app unasked.** The author dictates with it.
-- Identifiers stay in English; comments may be German. UI strings go into both catalogs `hams/messages_en.py` and
+- Identifiers and log messages are English (enforced by `tests/test_english_identifiers.py`); comments may be German. UI strings go into both catalogs `hams/messages_en.py` and
   `hams/messages_de.py` and are looked up with `hams.i18n.t()`; the tests run with the German UI (`conftest.py`).
 - Tests check behaviour, never source text: build the real objects with the fakes from `tests/live_app.py` and
   observe what they do. The only exceptions are project-wide AST rules (strings through the catalogs, colours through
