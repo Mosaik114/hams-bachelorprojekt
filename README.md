@@ -105,8 +105,8 @@ flowchart LR
   O --> F[Output guard +<br/>glossary fixes]
   O -. timeout or offline: raw text .-> F
   F --> C[Clipboard]
-  C --> T[Target app<br/>simulated Ctrl+V]
-  F --> S[(History + transcript file)]
+  C --> T[Target app<br/>Ctrl+V once the clipboard confirms]
+  F --> S[(History in memory<br/>transcript file if switched on)]
 ```
 
 The UI and the processing run on separate threads; a single-instance lock prevents duplicate hotkey owners. More

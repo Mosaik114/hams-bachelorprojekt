@@ -27,12 +27,12 @@ sequenceDiagram
     TR->>O: cleanup prompt (+ "keep these spellings"), temperature 0
     O-->>TR: cleaned text
     TR->>TR: output guard: leaked prompt, changed digits, too long, words dropped → raw text
-  else timeout / offline / connection dropped / malformed answer
+  else timeout / offline / connection dropped (cleanup pauses 60 s) / malformed answer
     TR->>TR: keep raw text
   end
   TR->>TR: glossary replacements (once, on the final text), plain-text filter
-  TR->>OS: copy + simulated Ctrl+V
-  TR->>TR: history entry + transcript file
+  TR->>OS: copy, then Ctrl+V once the clipboard confirms the text
+  TR->>TR: history entry (+ transcript file if switched on)
 ```
 
 Prompt mode follows the same path, but the recognised text goes to Ollama as a question, and the (streamed) answer
