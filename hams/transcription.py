@@ -11,6 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pyperclip
@@ -126,6 +127,35 @@ def cleanup_options() -> dict:
     fuer dasselbe Diktat jedes Mal denselben Text. Nur die Bereinigung; *KI fragen* bleibt bei den Vorgaben.
     """
     return {"temperature": CFG.ollama_cleanup_temperature, "seed": 0}
+
+
+#: The names `_create_transcript_file` gives: only these files are ever deleted by the retention.
+_TRANSCRIPT_NAME = re.compile(r"\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:_\d+)?\.txt")
+
+
+def prune_transcripts(folder: Path, keep_days: int, now: float | None = None) -> int:
+    """Deletes saved transcripts older than `keep_days` days (0 keeps them). Returns how many went.
+
+    Only files named like Hams names them: anything else in the folder belongs to the user.
+    """
+    if keep_days <= 0:
+        return 0
+    cutoff = (time.time() if now is None else now) - keep_days * 86_400
+    try:
+        candidates = [entry for entry in folder.iterdir() if _TRANSCRIPT_NAME.fullmatch(entry.name)]
+    except OSError:  # no folder yet, or not readable
+        return 0
+    removed = 0
+    for entry in candidates:
+        try:
+            if entry.stat().st_mtime < cutoff:
+                entry.unlink()
+                removed += 1
+        except OSError:
+            logger.warning("Old transcript %s could not be deleted", entry.name, exc_info=True)
+    if removed:
+        logger.info("Deleted %d transcript(s) older than %d days", removed, keep_days)
+    return removed
 
 
 def _clipboard_confirms(text: str, timeout: float) -> bool:
@@ -319,7 +349,7 @@ class TranscriptionMixin:
         return result.text
 
     def _save_transcript_file(self, text: str) -> None:
-        """Save transcript to a timestamped file in the transcripts directory.
+        """Save transcript to a timestamped file in the transcripts directory, then apply the retention.
 
         Two dictations within the same second get their own files: the name is created exclusively and a
         counter is added when it is taken, so nothing is ever overwritten.
@@ -331,6 +361,17 @@ class TranscriptionMixin:
             logger.info("Saved transcript: %s (%d chars)", out_file.name, len(text))
         except OSError:
             logger.exception("Failed to save transcript file")
+        prune_transcripts(OUTPUT_DIR, CFG.transcripts_keep_days)
+
+    def _prune_transcripts_async(self) -> None:
+        """At start: delete transcripts past `[output] keep_days`, also when saving is off now."""
+        if CFG.transcripts_keep_days > 0:
+            threading.Thread(
+                target=prune_transcripts,
+                args=(OUTPUT_DIR, CFG.transcripts_keep_days),
+                daemon=True,
+                name="prune-transcripts",
+            ).start()
 
     @staticmethod
     def _create_transcript_file(stamp: str, text: str, attempts: int = 1000):
@@ -648,15 +689,16 @@ class TranscriptionMixin:
         self._delivery_note = (t("status.done_raw"), hint)
 
     def _abliefern(self, text: str) -> None:
-        """Einfügen zuerst, Datei im Hintergrund speichern → kein Disk-I/O vor dem Paste."""
+        """Paste first; the file (only with `[output] save_transcripts`) is written in the background afterwards."""
         self._add_to_history(text)
         self._copy_and_paste(text)
-        threading.Thread(
-            target=self._save_transcript_file,
-            args=(text,),
-            daemon=True,
-            name="save-transcript",
-        ).start()
+        if CFG.save_transcripts:
+            threading.Thread(
+                target=self._save_transcript_file,
+                args=(text,),
+                daemon=True,
+                name="save-transcript",
+            ).start()
         detail, hint = self._delivery_note or (None, None)
         self._delivery_note = None
         self._pipeline_ui(lambda: self._apply_state("done", detail, hint, calm=True))

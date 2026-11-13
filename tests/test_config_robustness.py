@@ -43,12 +43,15 @@ FIELDS = [
     ("ollama", "keep_alive", "ollama_keep_alive", "keep_alive"),
     ("ollama", "warmup_on_start", "ollama_warmup_on_start", "bool"),
     ("clipboard", "paste_timeout", "clipboard_paste_timeout", "number"),
+    ("output", "save_transcripts", "save_transcripts", "bool"),
+    ("output", "keep_days", "transcripts_keep_days", "days"),
     ("ui", "sound_feedback", "sound_feedback", "bool"),
     ("updates", "check", "update_check", "bool"),
 ]
 
 WRONG_VALUES = {
     "int": ["30s", "30", True, 1.5, [30], {"a": 1}, 0, -5, 10**9],
+    "days": ["30s", "30", True, 1.5, [30], {"a": 1}, -5, 10**9],
     "number": ["0.3", True, [0.3], {"a": 1}, -1.0, 99.0, math.nan, math.inf],
     "text": [42, 1.5, True, ["x"], {"a": 1}],
     "keep_alive": [1.5, True, ["30m"], {"a": 1}],

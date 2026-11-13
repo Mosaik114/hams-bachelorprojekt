@@ -19,6 +19,8 @@ MAX_OLLAMA_TIMEOUT = 3600
 MAX_CLEANUP_TEMPERATURE = 2.0
 #: Upper bound for `clipboard.paste_timeout` (seconds).
 MAX_PASTE_TIMEOUT = 10.0
+#: Upper bound for `output.keep_days`: ten years.
+MAX_KEEP_DAYS = 3650
 
 
 class ConfigValidationError(ValueError):

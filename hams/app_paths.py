@@ -54,7 +54,7 @@ def default_log_dir() -> Path:
 
 
 def transcripts_dir() -> Path:
-    """Where every pasted text is also kept as a file."""
+    """Where pasted texts are kept as files when `[output] save_transcripts` is on."""
     return local_data_dir() / "transcripts"
 
 

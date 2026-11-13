@@ -76,6 +76,7 @@ class FloatingTranscriberApp(
         else:
             self._load_model_async()
         self._warmup_ollama_async()
+        self._prune_transcripts_async()
         self._register_hotkeys()
 
         logger.info("Fensterecken: %s", uk.round_window_corners(self.root))

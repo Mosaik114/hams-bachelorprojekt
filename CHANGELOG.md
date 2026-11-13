@@ -5,6 +5,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Transcripts are no longer saved to disk by default.** *Settings → General → Save transcripts*
+  (`[output] save_transcripts`) switches it on; `[output] keep_days` (default 30, `0` = forever) deletes older files
+  at every start and after each save. The tray history does not need the files and works as before. A settings file
+  from before this option has no `[output]` keys and keeps the old behaviour (save everything, keep it forever)
+  until you change it.
+
 ### Fixed
 - **48 kHz or stereo in `[audio]` turned every dictation into gibberish.** Nothing converted the audio, so Whisper got
   it three times too slow or interleaved, without an error. Hams now always records 16 kHz mono, which is what

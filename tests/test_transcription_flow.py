@@ -89,6 +89,7 @@ def status(app) -> str:
 
 class TestPipeline:
     def test_the_raw_transcript_is_pasted_saved_and_remembered(self, ready, hams):
+        CFG.save_transcripts = True
         run(ready)
         assert hams.clipboard.copies == ["Hallo Welt"]
         assert hams.keyboard.sent == ["ctrl+v"]

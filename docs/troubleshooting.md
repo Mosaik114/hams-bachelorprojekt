@@ -79,7 +79,8 @@ says *Pasted* but nothing appeared:
   whatever was on the clipboard before. Press `Ctrl+V` yourself. If this happens often (clipboard managers and
   remote-desktop sessions can be slow), raise the value, for example to `1.0`.
 
-Every pasted text is also saved in `%LOCALAPPDATA%\Hams\transcripts`, so nothing you dictated is lost.
+The last five texts stay in tray icon → *Recent transcripts* until Hams quits. To also keep them as files, switch on
+*Settings → General → Save transcripts*.
 
 ## Windows blocks the installer or Hams.exe
 

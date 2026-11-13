@@ -224,6 +224,7 @@ class SectionsMixin:
             group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.sound_feedback, command=self._on_sound
         )
         self.row_sound.set_control(self.switch_sound)
+        self._build_transcripts_row(group)
 
         # Zwei Entscheidungen an dieser Zeile:
         #
@@ -271,6 +272,32 @@ class SectionsMixin:
         self._build_update_rows(group)
         self._build_glossary_row(group)
         self._build_setup_row(group)
+
+    def _build_transcripts_row(self, group: uk.GroupSurface) -> None:
+        """Whether each pasted text is also kept as a file (`[output] save_transcripts`), and for how long."""
+        self.row_transcripts = uk.SettingRow(
+            group.body,
+            t("settings.transcripts.title"),
+            variant="description",
+            description=self.transcripts_hint(CFG.transcripts_keep_days),
+            interactive=True,
+            command=lambda: self.switch_transcripts.toggle(),
+        )
+        self.row_transcripts.pack(fill="x")
+        self.switch_transcripts = uk.Switch(
+            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.save_transcripts, command=self._on_transcripts
+        )
+        self.row_transcripts.set_control(self.switch_transcripts)
+
+    @staticmethod
+    def transcripts_hint(keep_days: int) -> str:
+        if keep_days > 0:
+            return t("settings.transcripts.hint_days", days=keep_days)
+        return t("settings.transcripts.hint_forever")
+
+    def _on_transcripts(self, value: bool) -> None:
+        CFG.save_transcripts = value
+        _persist_config_value("output", "save_transcripts", value)
 
     def _build_update_rows(self, group: uk.GroupSurface) -> None:
         """Der Schalter fuer die taegliche Update-Abfrage; darueber, falls eine aussteht, der Hinweis."""

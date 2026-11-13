@@ -83,6 +83,16 @@ cleanup_prompt_file = "prompts/cleanup.txt"
 # Max. Wartezeit (Sekunden), bis die Zwischenablage den neuen Inhalt bestätigt.
 paste_timeout = 0.3
 
+[output]
+# Jeden eingefügten Text zusätzlich als Datei unter %LOCALAPPDATA%\Hams\transcripts
+# (Linux: ~/.local/share/hams/transcripts) speichern. Aus: die letzten fünf Texte
+# stehen trotzdem im Tray-Menü, aber nur bis zum Beenden. Umgestellt wird auch in
+# den Einstellungen unter Allgemein.
+save_transcripts = false
+# Gespeicherte Transkripte nach so vielen Tagen löschen (beim Start und nach jedem
+# Speichern); 0 behält sie für immer.
+keep_days = 30
+
 [ui]
 # Sound-Feedback (Beeps) bei Start/Stop aktivieren.
 sound_feedback = true

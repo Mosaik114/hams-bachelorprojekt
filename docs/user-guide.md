@@ -109,8 +109,11 @@ notification says so. Right-click the tray icon for:
   list lives in memory only and is empty after a restart.
 - **Quit**
 
-Every pasted text is also saved as a plain-text file in `%LOCALAPPDATA%\Hams\transcripts`, named after the date and
-time (`2026-11-13_09-41-07.txt`). Delete these files whenever you like; Hams does not read them back.
+With *Settings → General → Save transcripts* on, every pasted text is also saved as a plain-text file in
+`%LOCALAPPDATA%\Hams\transcripts`, named after the date and time (`2026-11-13_09-41-07.txt`), and deleted after
+30 days (`[output] keep_days`, `0` keeps them forever). It is off in a new installation; an installation from
+before this option keeps saving, without a time limit, until you change it. Delete these files whenever you like;
+Hams does not read them back.
 
 Only one Hams runs at a time. Starting it again from the Start menu brings the window of the running Hams to the
 front (handy when the window is hidden); `Hams.exe --settings` opens its settings instead.
@@ -188,6 +191,7 @@ The most useful keys:
 | `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `warmup_on_start`, `url`, `cleanup_prompt_file`, `cleanup_temperature` | `cleanup_enabled = false` pastes the raw text, the fastest option; `cleanup_temperature` (default `0`, up to `2`) only affects cleanup, not *Ask AI* |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts (dictation and *Ask AI*) |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
+| `[output]` | `save_transcripts`, `keep_days` | keep each pasted text as a file (default off) and for how many days (default 30, `0` forever) |
 | `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
 | `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
 
@@ -406,8 +410,10 @@ only check-in is an update check that you can turn off (see below).
 
 **What is stored locally**
 
-- Transcripts: every pasted text, as a file in `%LOCALAPPDATA%\Hams\transcripts`, and the last five in memory for
-  the tray menu.
+- Transcripts: the last five in memory for the tray menu, gone when Hams quits. As files in
+  `%LOCALAPPDATA%\Hams\transcripts` only with *Settings → General → Save transcripts* (`[output]
+  save_transcripts`; off in a new installation), and deleted after `[output] keep_days` (default 30 days; `0` keeps
+  them). The retention also applies to files saved earlier, at every start.
 - Logs: `%LOCALAPPDATA%\Hams\logs\hams.log` (rotated at 1 MB, three old files kept). The log contains timings,
   settings, model names and text *lengths*, never the dictated text.
 - Diagnostic report: `%LOCALAPPDATA%\Hams\hams-report.txt`, only when you create one (*Settings → About & help*).

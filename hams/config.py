@@ -50,6 +50,7 @@ from hams.config_toml import (  # noqa: F401
 from hams.config_validation import (
     MAX_BEAM_SIZE,
     MAX_CLEANUP_TEMPERATURE,
+    MAX_KEEP_DAYS,
     MAX_OLLAMA_TIMEOUT,
     MAX_PASTE_TIMEOUT,
     MAX_RECORDING_SECONDS,
@@ -186,6 +187,11 @@ class Config:
     cleanup_prompt_template: str = DEFAULT_CLEANUP_PROMPT
 
     clipboard_paste_timeout: float = 0.3
+    #: Every pasted text as a file in `OUTPUT_DIR` (`[output] save_transcripts`). Off in new configurations; a
+    #: file from before the option keeps saving (see `LEGACY_OUTPUT`).
+    save_transcripts: bool = False
+    #: Saved transcripts older than this many days are deleted at start and after each save; 0 keeps them forever.
+    transcripts_keep_days: int = 30
     sound_feedback: bool = True
     #: Darstellungsmodus, "light" oder "dark". Ohne Eintrag in der Nutzerdatei
     #: gilt hell — bewusst nicht das Windows-Systemtheme, der Nutzer waehlt
@@ -530,6 +536,8 @@ def _load_layers() -> Config:
         if data:
             _apply_toml(cfg, data)
             _note_retired_keys(data, path)
+        if path == CONFIG_PATH and data:
+            _keep_legacy_output(cfg, data)
 
     if not cfg.transcription_language:
         cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
@@ -561,6 +569,21 @@ def _note_retired_keys(data: dict, path: Path) -> None:
             differing.append(f"{section}.{key} = {table[key]!r} (fixed: {fixed!r})")
     if differing:
         logger.warning("Config %s: no longer settings, ignored: %s", path.name, "; ".join(differing))
+
+
+#: `[output]` keys a user file from before the transcript option lacks, with the behaviour it had then: every
+#: text was saved and kept forever. New files are copies of the template and carry both keys (saving off).
+LEGACY_OUTPUT = {"save_transcripts": True, "keep_days": 0}
+
+
+def _keep_legacy_output(cfg: Config, data: dict) -> None:
+    """An existing user file without the `[output]` keys keeps saving transcripts as before."""
+    output = data.get("output")
+    present = output if isinstance(output, dict) else {}
+    if "save_transcripts" not in present:
+        cfg.save_transcripts = LEGACY_OUTPUT["save_transcripts"]
+    if "keep_days" not in present:
+        cfg.transcripts_keep_days = LEGACY_OUTPUT["keep_days"]
 
 
 def _warn_config(message: str) -> None:
@@ -714,6 +737,11 @@ def _apply_clipboard(cfg: Config, clipboard: SectionReader) -> None:
     cfg.clipboard_paste_timeout = clipboard.number("paste_timeout", cfg.clipboard_paste_timeout, 0.0, MAX_PASTE_TIMEOUT)
 
 
+def _apply_output(cfg: Config, output: SectionReader) -> None:
+    cfg.save_transcripts = output.boolean("save_transcripts", cfg.save_transcripts)
+    cfg.transcripts_keep_days = output.integer("keep_days", cfg.transcripts_keep_days, 0, MAX_KEEP_DAYS)
+
+
 def _apply_ui(cfg: Config, ui: SectionReader) -> None:
     cfg.sound_feedback = ui.boolean("sound_feedback", cfg.sound_feedback)
     if "window_x" in ui:
@@ -741,6 +769,7 @@ _SECTION_APPLIERS = (
     ("hotkeys", _apply_hotkeys),
     ("ollama", _apply_ollama),
     ("clipboard", _apply_clipboard),
+    ("output", _apply_output),
     ("ui", _apply_ui),
     ("updates", _apply_updates),
 )
