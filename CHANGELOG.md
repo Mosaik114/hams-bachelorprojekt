@@ -15,6 +15,8 @@ follow [Semantic Versioning](https://semver.org/).
   says *Copied, not pasted* and asks you to press `Ctrl+V`.
 - An unplugged microphone that was chosen by name showed "Recording not started" instead of *Microphone
   unavailable* with its name.
+- A single malformed answer from a running Ollama switched the cleanup off for a minute, as if Ollama were offline.
+  Only a connection failure does that now; a bad answer pastes that one dictation raw and the next one asks again.
 
 ## [1.1.2] – 2026-11-13
 

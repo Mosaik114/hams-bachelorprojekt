@@ -153,6 +153,28 @@ class TestPipeline:
         run(ready)
         assert len(ollama.requests) == 2
 
+    @pytest.mark.parametrize(
+        "error",
+        [
+            ValueError("kaputtes JSON"),
+            KeyError("response"),
+            urllib.error.HTTPError("http://127.0.0.1:11434/api/generate", 500, "Server Error", {}, None),
+        ],
+    )
+    def test_a_bad_answer_falls_back_once_without_pausing_the_cleanup(self, ready, hams, ollama, error):
+        """Audit finding H10: only an unreachable Ollama pauses the cleanup for a minute."""
+        CFG.ollama_cleanup_enabled = True
+        ollama.error = error
+        run(ready)
+        assert hams.clipboard.copies == ["Hallo Welt"]
+        assert status(ready) == "Eingefügt · ohne Bereinigung"
+        assert ready.footer_label.cget("text") == "", "kein Hinweis auf ein fehlendes Ollama"
+        ollama.error = None
+        ollama.answer = "Hallo Welt."
+        run(ready)
+        assert len(ollama.requests) == 2, "the next dictation asks again at once"
+        assert hams.clipboard.copies[-1] == "Hallo Welt."
+
     def test_prompt_mode_pastes_the_answer_as_plain_text(self, ready, hams, ollama):
         CFG.ollama_stream_prompt = False
         ollama.answer = "Die Hauptstadt ist **Oslo**."

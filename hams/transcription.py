@@ -7,6 +7,7 @@ import re
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -41,6 +42,9 @@ BATCH_SIZE = 8
 #: (ConnectionResetError, RemoteDisconnected, IncompleteRead), a timeout, broken JSON or an answer of the
 #: wrong shape. Each of them must end in the raw text, never in a lost dictation.
 OLLAMA_ERRORS = (OSError, http.client.HTTPException, ValueError, KeyError, TypeError)
+#: The subset that means "Ollama cannot be reached": only these pause the cleanup for a while. An HTTP error
+#: status is an answer from a reachable server and counts as a bad answer instead.
+OLLAMA_UNREACHABLE = (OSError, http.client.HTTPException)
 
 
 class OllamaAnswerError(ValueError):
@@ -627,9 +631,14 @@ class TranscriptionMixin:
         try:
             return self._cleanup_text(text, language)
         except OLLAMA_ERRORS as exc:
-            logger.warning("Ollama cleanup unavailable, using raw transcript: %s", type(exc).__name__)
-            self._note_cleanup_offline()
-        return text  # nicht erreichbar — Roh-Transkript
+            if isinstance(exc, OLLAMA_UNREACHABLE) and not isinstance(exc, urllib.error.HTTPError):
+                logger.warning("Ollama cleanup unavailable, using raw transcript: %s", type(exc).__name__)
+                self._note_cleanup_offline()
+            else:
+                # Ollama answered, just not usably: this dictation goes out raw, the next one asks again.
+                logger.warning("Ollama cleanup answer unusable, using raw transcript: %s", type(exc).__name__)
+                self._delivery_note = (t("status.done_raw"), None)
+        return text
 
     def _note_cleanup_offline(self) -> None:
         """Ollama fehlt: Rohtext einfuegen, einmal je Sitzung ruhig erklaeren, danach nur noch kurz."""
