@@ -295,3 +295,20 @@ def root():
     yield window
     with contextlib.suppress(tk.TclError):
         window.destroy()
+
+
+@pytest.fixture(autouse=True, scope="module")
+def release_image_caches():
+    """Frees the rendered images after each test module.
+
+    The whole suite runs in one process with one Tk root. The kit keeps rendered surfaces and icons as Tk photo
+    images (`_img_cache`, `_icon_cache`); over 3,400 tests they and the windows around them used to pile up to
+    about 9,500 GDI handles, close to the Windows limit of 10,000 per process, and late tests failed with "failed
+    to create icon". Emptying the caches between modules lets Tk delete the images; a test only pays for
+    rendering them again.
+    """
+    yield
+    from hams.ui_kit.caches import _icon_cache, _img_cache
+
+    _img_cache.clear()
+    _icon_cache.clear()

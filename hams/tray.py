@@ -32,6 +32,10 @@ def _create_tray_icon_image(color: str | None = None) -> Image.Image:
     return branding.tray_image(color or TRAY_PALETTE["ACCENT_TINT"])
 
 
+#: Tk interpreters (`id(root.tk)`) whose default window icon is already set, see `_apply_window_icon`.
+_DEFAULT_ICON_SET: set[int] = set()
+
+
 class TrayMixin:
     """Tray-Symbol, Verlauf und Ein-/Ausblenden des Fensters."""
 
@@ -52,9 +56,13 @@ class TrayMixin:
         native Schicht dafuer.
         """
         icon = branding.icon_path() if sys.platform == "win32" else None
-        if icon is not None:
+        interpreter = id(self.root.tk)
+        if icon is not None and interpreter not in _DEFAULT_ICON_SET:
+            # Once per Tk interpreter: `default=` applies to every later window, and Tk does not free the icons of
+            # an earlier call (measured: about 25 GDI and 9 USER handles per call, against a limit of 10,000).
             try:
                 self.root.iconbitmap(default=str(icon))
+                _DEFAULT_ICON_SET.add(interpreter)
             except tk.TclError:  # pragma: no cover - ICO nicht annehmbar
                 logger.warning("Fenstersymbol %s abgelehnt", icon, exc_info=True)
         image = branding.app_icon_image(64) or _create_tray_icon_image()
