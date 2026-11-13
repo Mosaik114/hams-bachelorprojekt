@@ -152,9 +152,23 @@ under those rules. [docs/evaluation.md](docs/evaluation.md#who-ran-the-measureme
 thesis discloses it for the measurements. The safeguards are the ones a team would use: small reviewed changes, tests
 and CI as the gate, and measured numbers instead of impressions.
 
-The independent reviews mentioned in the changelog were Claude Code agents started with a fresh context and a fixed
-review brief, from three perspectives: an end user, an engineer, and someone hiring. I triaged their findings and
-decided what got fixed; there were three rounds.
+**Decisions I made**, each against an alternative I turned down:
+
+- **`127.0.0.1` instead of a smaller model.** One timed cleanup call lost ~2 s to a refused IPv6 connection; a smaller
+  model would have saved 0.38 s ([evaluation](docs/evaluation.md#where-the-time-went)).
+- **No `torch` at runtime:** preload cuBLAS/cuDNN from the NVIDIA wheels instead of paying 1.6 s per start and 4.3 GB
+  on disk ([architecture](docs/architecture.md#design-decisions)).
+- **`float16` kept over `int8_float16`**, although it had the same WER and was 8 % faster: a precaution
+  ([evaluation](docs/evaluation.md#recognition-quality-wer)).
+- **Cleanup at temperature 0, and a guard that pastes the raw text** instead of repairing a bad answer. A stricter
+  German prompt was measured and rejected ([evaluation](docs/evaluation.md#llm-cleanup-quality)).
+- **`RegisterHotKey`, not a low-level hook** (dropped after standby); a queued `UiDispatcher`, not `root.after` from
+  worker threads, which could deadlock on shutdown ([architecture](docs/architecture.md#threads)).
+- **Weekly lock refresh, not Dependabot, for Python:** Dependabot couldn't re-resolve the hash-locked files
+  ([architecture](docs/architecture.md#quality-gates)).
+
+The independent reviews in the changelog were three rounds of fresh-context Claude Code agents with a fixed brief;
+I triaged every finding. What was fixed, rejected or deferred: [docs/reviews.md](docs/reviews.md).
 
 ## Documentation
 

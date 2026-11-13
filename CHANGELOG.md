@@ -7,7 +7,7 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [1.1.2] – 2026-11-13
 
-Fixes from the third independent review.
+Fixes from the third independent review ([review log](https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/docs/reviews.md#round-3--112)).
 
 ### Fixed
 - **Starting Hams from the Start menu showed nothing**, also after installing or updating: the window stayed hidden
@@ -47,8 +47,8 @@ Fixes from the third independent review.
 
 ## [1.1.1] – 2026-11-13
 
-Fixes from the second independent review, help inside the app, and a release pipeline that publishes only from
-green CI.
+Fixes from the second independent review ([review log](https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/docs/reviews.md#round-2--111)), help inside the app, and a
+release pipeline that publishes only from green CI.
 
 ### Fixed
 - **A dictation started while the previous one was still being cleaned up** could lose its *Ask AI* mode and get
