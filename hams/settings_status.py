@@ -11,6 +11,7 @@ from hams import ui_kit as uk
 from hams.config import CFG, _list_input_devices, _persist_config_value, _resolve_mic_device, logger
 from hams.i18n import t
 from hams.recording import CHANNELS, SAMPLE_RATE, reinitialise_portaudio
+from hams.ui_kit import Theme
 
 #: Thread class for the device scan; the tests run it inline.
 ScanThread = threading.Thread
@@ -42,6 +43,24 @@ class StatusSectionMixin:
             self._device_error = "" if found else t("settings.mic.disconnected", device=selected)
         else:
             self._device_error = ""
+
+    def _build_microphone_rows(self, body, *, level_hairline: bool) -> None:
+        """Microphone select with status and the level meter; the settings and the setup assistant share them.
+
+        Device names are long, so the select sits under its title at full width.
+        """
+        self.row_mic = uk.SettingRow(body, t("settings.mic.title"), variant="status", stacked=True)
+        self.row_mic.pack(fill="x")
+        self.mic_select = uk.Select(
+            body, bg_under=Theme.GROUP_SURFACE, on_change=self._select_device, placeholder=t("settings.mic.none")
+        )
+        self.row_mic.set_control(self.mic_select)
+        self.row_level = uk.SettingRow(body, t("settings.level.title"), hairline=level_hairline)
+        self.row_level.pack(fill="x")
+        self.meter = uk.SignalMeter(body, bg_under=Theme.GROUP_SURFACE)
+        uk.keep_logical_width(self.meter, self.CONTROL_WIDTH)
+        self.row_level.set_control(self.meter)
+        self._refresh_devices()
 
     def _refresh_devices(self) -> None:
         """Re-reads the input devices in the background (audit finding H18) and then fills the select.
@@ -214,11 +233,7 @@ class StatusSectionMixin:
 
     def _check_ollama(self) -> None:
         """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
-        try:
-            state = ollama_api.probe(ollama_api.base_url(CFG.ollama_url))
-        except Exception:  # noqa: BLE001 - Grenze des Threads
-            logger.exception("Ollama check failed")
-            state = ollama_api.OllamaState(False, (), (), t("ollama.bad_response"))
+        state = ollama_api.probe_or_offline(lambda: ollama_api.probe(ollama_api.base_url(CFG.ollama_url)))
         self.app._ui_call(lambda: self._apply_ollama_state(state))
 
     def _show_ollama_status(self) -> None:

@@ -19,12 +19,14 @@ import sys
 import tkinter as tk
 from typing import TYPE_CHECKING
 
-from hams import branding, dictation_language, i18n, setup_wizard
+from hams import branding, i18n, setup_wizard
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
-from hams.config import CFG, CONFIG_PATH, _persist_config_value, logger
+from hams.config import CFG, CONFIG_PATH, logger
 from hams.i18n import t
+from hams.settings_models import catalog_options
+from hams.settings_sections import choose_dictation_language, choose_ui_language, dictation_options, language_options
 from hams.settings_status import StatusSectionMixin
 from hams.setup_wizard import Choices, SetupController, Task, task_view
 from hams.ui_kit import Theme
@@ -425,7 +427,7 @@ class SetupWindow(StatusSectionMixin):
             group,
             t("settings.language.title"),
             t("settings.language.hint"),
-            [uk.Option(value, t(f"language.{value}")) for value in i18n.SETTINGS],
+            language_options(),
             choices.ui_language,
             self._select_ui_language,
         )
@@ -433,7 +435,7 @@ class SetupWindow(StatusSectionMixin):
             group,
             t("settings.dictation.title"),
             t("settings.dictation.hint"),
-            [uk.Option(value, t(f"dictation.{value}")) for value in dictation_language.SETTINGS],
+            dictation_options(),
             choices.dictation_language,
             self._select_dictation_language,
             hairline=False,
@@ -441,12 +443,10 @@ class SetupWindow(StatusSectionMixin):
 
     def _select_ui_language(self, setting) -> None:
         """Gilt im Assistenten sofort: er wird in der neuen Sprache neu aufgebaut."""
-        setting = i18n.normalise_setting(setting)
-        if setting == self.controller.choices.ui_language:
+        setting = choose_ui_language(setting)
+        if setting is None:
             return
         self.controller.choices.ui_language = setting
-        CFG.ui_language = setting
-        _persist_config_value("ui", "language", setting)
         i18n.set_language(setting)
         for sequence in self.SCROLL_KEYS:
             self.win.unbind(sequence)
@@ -459,12 +459,9 @@ class SetupWindow(StatusSectionMixin):
     SCROLL_KEYS = ("<Up>", "<Down>", "<Prior>", "<Next>", "<Home>", "<End>")
 
     def _select_dictation_language(self, setting) -> None:
-        setting = dictation_language.normalise_setting(setting)
-        if setting is None or setting == CFG.transcription_language:
-            return
-        self.controller.choices.dictation_language = setting
-        CFG.transcription_language = setting
-        _persist_config_value("transcription", "language", setting)
+        setting = choose_dictation_language(setting)
+        if setting is not None:
+            self.controller.choices.dictation_language = setting
 
     # ---------------------------------------------------------- page: hardware
 
@@ -530,16 +527,12 @@ class SetupWindow(StatusSectionMixin):
         self._refresh_model()
 
     def _model_options(self) -> list:
-        installed = self.controller.installed
         recommended = setup_wizard.recommended_model(self.controller.hardware)
-        options = []
-        for info in whisper_models.CATALOG:
-            meta = info.meta
-            if info.model_id == recommended:
-                meta = f"{t('setup.model.recommended')} · {meta}"
-            trailing = "" if info.model_id in installed else f"↓ {info.size_label}"
-            options.append(uk.Option(info.model_id, info.label, meta=meta, trailing=trailing))
-        return options
+
+        def meta(info) -> str:
+            return f"{t('setup.model.recommended')} · {info.meta}" if info.model_id == recommended else info.meta
+
+        return catalog_options(self.controller.installed, meta=meta)
 
     def _choose_model(self, model_id) -> None:
         if self.model_task.running or model_id == self.controller.choices.model:
@@ -611,21 +604,10 @@ class SetupWindow(StatusSectionMixin):
         self._heading(body, t("setup.mic.title"))
         self._paragraph(body, t("setup.mic.body", product=branding.PRODUCT_NAME))
         group = self._group(body)
-        self.row_mic = uk.SettingRow(group.body, t("settings.mic.title"), variant="status", stacked=True)
-        self.row_mic.pack(fill="x")
-        self.mic_select = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._select_device, placeholder=t("settings.mic.none")
-        )
-        self.row_mic.set_control(self.mic_select)
-        row_level = uk.SettingRow(group.body, t("settings.level.title"))
-        row_level.pack(fill="x")
-        self.meter = uk.SignalMeter(group.body, bg_under=Theme.GROUP_SURFACE)
-        uk.keep_logical_width(self.meter, self.CONTROL_WIDTH)
-        row_level.set_control(self.meter)
+        self._build_microphone_rows(group.body, level_hairline=True)
         self.row_check = uk.SettingRow(group.body, t("setup.mic.check"), variant="status", hairline=False)
         self.row_check.pack(fill="x")
         self._show_mic_check()
-        self._refresh_devices()
         self._suspended = False
         self._tick()
 
@@ -676,11 +658,7 @@ class SetupWindow(StatusSectionMixin):
 
     def _probe_worker(self) -> None:
         """Thread entry: whatever happens, the page leaves "checking"."""
-        try:
-            state = self.controller.services.probe_ollama()
-        except Exception:  # noqa: BLE001 - boundary of the thread
-            logger.exception("Ollama probe failed")
-            state = ollama_api.OllamaState(False, (), (), t("ollama.bad_response"))
+        state = ollama_api.probe_or_offline(self.controller.services.probe_ollama)
         self.post(lambda: self.controller.set_ollama_state(state))
 
     def _cleanup_layout(self) -> tuple:

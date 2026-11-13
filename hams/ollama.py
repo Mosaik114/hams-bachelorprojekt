@@ -251,6 +251,19 @@ class PullCancelled(PullError):
     """Der Nutzer hat abgebrochen. Ollama behält, was schon da ist, und setzt beim nächsten Mal fort."""
 
 
+def probe_or_offline(probe) -> OllamaState:
+    """`probe()`, or an offline state with a sentence if it fails in any way.
+
+    For the background threads of the settings and the setup assistant, which must leave "checking" whatever
+    happens.
+    """
+    try:
+        return probe()
+    except Exception:  # noqa: BLE001 - boundary of the callers' threads
+        logger.exception("Ollama check failed")
+        return OllamaState(False, (), (), t("ollama.bad_response"))
+
+
 def pull(base: str, name: str, progress, cancel, *, opener=None, timeout: float = PULL_TIMEOUT) -> None:
     """Lädt ein Modell über `/api/pull` und meldet den Fortschritt.
 

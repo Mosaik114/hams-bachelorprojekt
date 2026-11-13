@@ -8,9 +8,38 @@ import tkinter as tk
 
 from hams import branding, dictation_language, i18n, updates
 from hams import ui_kit as uk
-from hams.config import CFG, _persist_config_value
+from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.ui_kit import Theme
+
+
+def choose_ui_language(setting) -> str | None:
+    """Stores a new interface language; returns it, or None if it is the current one. Settings and setup."""
+    setting = i18n.normalise_setting(setting)
+    if setting == CFG.ui_language:
+        return None
+    CFG.ui_language = setting
+    _persist_config_value("ui", "language", setting)
+    return setting
+
+
+def choose_dictation_language(setting) -> str | None:
+    """Stores a new dictation language (valid from the next recording); None if unknown or unchanged."""
+    setting = dictation_language.normalise_setting(setting)
+    if setting is None or setting == CFG.transcription_language:
+        return None
+    CFG.transcription_language = setting
+    _persist_config_value("transcription", "language", setting)
+    logger.info("Dictation language: %s", setting)
+    return setting
+
+
+def language_options() -> list:
+    return [uk.Option(value, t(f"language.{value}")) for value in i18n.SETTINGS]
+
+
+def dictation_options() -> list:
+    return [uk.Option(value, t(f"dictation.{value}")) for value in dictation_language.SETTINGS]
 
 
 class SectionsMixin:
@@ -36,25 +65,7 @@ class SectionsMixin:
     def _build_recording(self, master: tk.Misc) -> None:
         group = self._group(master, t("settings.section.recording"), first=True)
 
-        # Geraetenamen sind lang; das Feld steht deshalb in voller Breite unter
-        # Titel und Status.
-        self.row_mic = uk.SettingRow(group.body, t("settings.mic.title"), variant="status", stacked=True)
-        self.row_mic.pack(fill="x")
-        self.mic_select = uk.Select(
-            group.body,
-            bg_under=Theme.GROUP_SURFACE,
-            on_change=self._select_device,
-            placeholder=t("settings.mic.none"),
-        )
-        self.row_mic.set_control(self.mic_select)
-
-        self.row_level = uk.SettingRow(group.body, t("settings.level.title"), variant="simple", hairline=False)
-        self.row_level.pack(fill="x")
-        self.meter = uk.SignalMeter(group.body, bg_under=Theme.GROUP_SURFACE)
-        uk.keep_logical_width(self.meter, self.CONTROL_WIDTH)
-        self.row_level.set_control(self.meter)
-
-        self._refresh_devices()
+        self._build_microphone_rows(group.body, level_hairline=False)
 
     def _build_transcription(self, master: tk.Misc) -> None:
         group = self._group(master, t("settings.section.transcription"))
@@ -139,7 +150,7 @@ class SectionsMixin:
         self.select_dictation = uk.Select(
             group.body,
             bg_under=Theme.GROUP_SURFACE,
-            options=[uk.Option(value, t(f"dictation.{value}")) for value in dictation_language.SETTINGS],
+            options=dictation_options(),
             value=CFG.transcription_language,
             on_change=self._select_dictation_language,
         )
@@ -263,7 +274,7 @@ class SectionsMixin:
         self.select_language = uk.Select(
             group.body,
             bg_under=Theme.GROUP_SURFACE,
-            options=[uk.Option(value, t(f"language.{value}")) for value in i18n.SETTINGS],
+            options=language_options(),
             value=CFG.ui_language,
             on_change=self._select_language,
         )

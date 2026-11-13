@@ -8,10 +8,25 @@ from hams.config import CFG, logger
 from hams.i18n import t, tn
 
 
+def catalog_options(installed, *, meta=lambda info: info.meta, group=None) -> list:
+    """The Whisper catalog as select options; a model that is not installed shows its download size.
+
+    Shared by the settings and the setup assistant; `meta` and `group` (both per model) are what differs.
+    """
+    return [
+        uk.Option(
+            info.model_id,
+            info.label,
+            meta=meta(info),
+            group=group(info) if group else "",
+            trailing="" if info.model_id in installed else f"↓ {info.size_label}",
+        )
+        for info in whisper_models.CATALOG
+    ]
+
+
 class ModelSectionMixin:
     """Einstellungen: Whisper-Modelle auswaehlen, laden und loeschen."""
-
-    # ---------------------------------------------------------- devices
 
     # ---------------------------------------------------------- Whisper-Modelle
 
@@ -22,18 +37,12 @@ class ModelSectionMixin:
         dabei — er wird nicht stillschweigend auf Turbo zurueckgesetzt.
         """
         installed = self._installed_models
-        options = []
-        for info in whisper_models.CATALOG:
-            is_installed = info.model_id in installed
-            options.append(
-                uk.Option(
-                    info.model_id,
-                    info.label,
-                    meta=info.meta,
-                    group=t("settings.model.group_installed" if is_installed else "settings.model.group_available"),
-                    trailing="" if is_installed else f"↓ {info.size_label}",
-                )
-            )
+
+        def group(info) -> str:
+            installed_now = info.model_id in installed
+            return t("settings.model.group_installed" if installed_now else "settings.model.group_available")
+
+        options = catalog_options(installed, group=group)
         current = CFG.model_size
         if whisper_models.find(current) is None:
             options.insert(

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import sounddevice as sd
 
-from hams import branding, dictation_language, i18n
+from hams import branding
 from hams import ui_kit as uk
 from hams.ui_kit import Theme
 
@@ -18,7 +18,7 @@ from hams.i18n import Text, t
 from hams.settings_about import AboutSectionMixin
 from hams.settings_extras import ExtrasSectionMixin
 from hams.settings_models import ModelSectionMixin
-from hams.settings_sections import SectionsMixin
+from hams.settings_sections import SectionsMixin, choose_dictation_language, choose_ui_language
 from hams.settings_shortcuts import ShortcutsSectionMixin
 from hams.settings_status import StatusSectionMixin
 
@@ -311,22 +311,15 @@ class SettingsWindow(
 
     def _select_language(self, setting) -> None:
         """Speichert die Sprache; sie gilt ab dem naechsten Start (siehe `language_hint`)."""
-        setting = i18n.normalise_setting(setting)
-        if setting == CFG.ui_language:
-            return
-        CFG.ui_language = setting
-        _persist_config_value("ui", "language", setting)
-        self.row_language.set_description(self.language_hint(setting))
+        setting = choose_ui_language(setting)
+        if setting is not None:
+            self.row_language.set_description(self.language_hint(setting))
 
     def _select_dictation_language(self, setting) -> None:
         """Speichert die Diktiersprache; sie gilt ab der naechsten Aufnahme, ohne Neustart."""
-        setting = dictation_language.normalise_setting(setting)
-        if setting is None or setting == CFG.transcription_language:
-            return
-        CFG.transcription_language = setting
-        _persist_config_value("transcription", "language", setting)
-        self.row_dictation.set_description(self.dictation_hint(setting))
-        logger.info("Dictation language: %s", setting)
+        setting = choose_dictation_language(setting)
+        if setting is not None:
+            self.row_dictation.set_description(self.dictation_hint(setting))
 
     def _on_sound(self, value: bool) -> None:
         CFG.sound_feedback = value
