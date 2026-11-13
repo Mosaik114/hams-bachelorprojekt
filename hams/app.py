@@ -71,7 +71,7 @@ class FloatingTranscriberApp(
             # faster-whisper luede das fehlende Modell sonst wortlos herunter. Der
             # Assistent laedt es mit Fortschritt; bis dahin sagt der Status, worauf es wartet.
             self._model_deferred = True
-            self._apply_state("model_loading", t("status.setup_pending"))
+            self._apply_state("setup_pending")
         else:
             self._load_model_async()
         self._warmup_ollama_async()
@@ -343,15 +343,22 @@ class FloatingTranscriberApp(
     def on_setup_closed(self, completed: bool) -> None:
         """Der Assistent ist zu. Hielt der Start das Modell zurueck, wird es jetzt geladen.
 
-        Hat der Assistent schon einen Wechsel oder Download angestossen, kuemmert sich der darum.
+        Hat der Assistent schon einen Wechsel oder Download angestossen, kuemmert sich der darum. Closed
+        early (×) with the speech model still missing, nothing is downloaded behind the user's back: the
+        main window says so and its button opens the assistant again.
         """
         self.setup_win = None
         logger.info("Setup closed (%s)", "completed" if completed else "not completed")
         if not self._model_deferred:
             return
-        self._model_deferred = False
         if self.model_ready.is_set() or self.is_switching_model or self.downloading_model is not None:
+            self._model_deferred = False
             return
+        if not completed and self.model_needs_download(CFG.model_size):
+            logger.info("Setup closed early, the speech model waits for it")
+            self._apply_state("setup_pending")
+            return
+        self._model_deferred = False
         self._apply_state("model_loading")
         self._load_model_async()
 
@@ -455,6 +462,8 @@ class FloatingTranscriberApp(
         # nicht (siehe `start_recording`), nur die Auswertung danach. Die
         # Statuszeile nennt den Zustand, der Knopf die moegliche Aktion.
         "model_loading": ("idle", "status.model_loading", "primary", "button.start_recording", True),
+        # Kein Sprachmodell und der Assistent wurde vorher geschlossen: der Knopf oeffnet ihn wieder.
+        "setup_pending": ("idle", "status.setup_pending", "primary", "button.open_setup", True),
         "ready": ("ready", None, "primary", "button.start_recording", True),
         # Waehrend der Aufnahme ist Stoppen die einzige sinnvolle Handlung —
         # deshalb eine gefuellte Flaeche in der Farbe des Zustands: rot fuer
@@ -508,8 +517,9 @@ class FloatingTranscriberApp(
         elif text is not None:
             label = text
         elif state == "ready":
-            info = whisper_models.find(CFG.model_size)
-            label = t("status.ready", model=info.label if info else CFG.model_size)
+            model_id = self.active_model_size or CFG.model_size  # das geladene, nicht nur das gewaehlte
+            info = whisper_models.find(model_id)
+            label = t("status.ready", model=info.label if info else model_id)
         else:
             label = ""
         self.status_label.config(text=label)
@@ -564,6 +574,8 @@ class FloatingTranscriberApp(
         """Der Button führt aus, was sein Text verspricht."""
         if self._state == "error":
             self._retry()
+        elif self._state == "setup_pending":
+            self._open_setup()
         else:
             self.toggle_recording()
 

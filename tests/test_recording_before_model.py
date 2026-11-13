@@ -129,7 +129,7 @@ class TestDieAnnahmeDahinter:
             )
 
     def test_the_transcription_waits_instead(self):
-        rumpf = self._rumpf("_transcribe_audio")
+        rumpf = self._rumpf("_transcribe_job")
         # Q7: das Warten steht in _auf_modell_warten, aufgerufen vor dem Lock
         assert "_await_model" in self._rumpf("_auf_modell_warten"), (
             "Wenn die Aufnahme nicht mehr wartet, muss die Auswertung es tun"

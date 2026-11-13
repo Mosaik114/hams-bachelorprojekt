@@ -127,3 +127,20 @@ def test_open_in_editor_picks_the_platform_opener(datei: Path, monkeypatch: pyte
         monkeypatch.setattr(glossary.os, "startfile", started.append)
         glossary.open_in_editor(platform="win32")
         assert started == [str(datei)]
+
+
+def test_a_value_is_inserted_literally_not_as_a_regex_template(datei: Path) -> None:
+    r"""Regression: 'C:\Temp' raised re.error on every dictation, '\1' was read as a group reference."""
+    _schreiben(datei, "[replace]\n\"temp ordner\" = 'C:\\Temp'\n\"gruppe\" = '\\1 und \\g<0>'\n", 4)
+    assert glossary.apply_replacements("im temp ordner") == r"im C:\Temp"
+    assert glossary.apply_replacements("eine gruppe") == r"eine \1 und \g<0>"
+
+
+def test_applying_twice_changes_nothing(datei: Path) -> None:
+    """Regression: "hams" = "Hams App" turned an already corrected text into "Hams App App"."""
+    _schreiben(datei, '[replace]\n"hams" = "Hams App"\n"app" = "Hams App"\n', 5)
+    once = glossary.apply_replacements("ich nutze hams")
+    assert once == "ich nutze Hams App"
+    assert glossary.apply_replacements(once) == once
+    assert glossary.apply_replacements("die app und hams") == "die Hams App und Hams App"
+    assert glossary.apply_replacements("Die Hams App") == "Die Hams App"

@@ -36,6 +36,7 @@ import base64
 import contextlib
 import csv
 import hashlib
+import http.client
 import io
 import json
 import logging
@@ -244,11 +245,16 @@ def _download(wheel: Wheel, folder: Path, opener: Opener, progress: _Progress, c
     return final
 
 
+#: A connection that fails or breaks off mid-file: OSError, or http.client's own errors such as
+#: IncompleteRead and RemoteDisconnected's relatives that are not OSErrors.
+NETWORK_ERRORS = (OSError, http.client.HTTPException)
+
+
 def _fetch_into(wheel: Wheel, part: Path, offset: int, opener: Opener, progress: _Progress, cancel) -> int:
     """Appends the rest of the file to ``part``. Returns the new size."""
     try:
         response = _open(opener, wheel.url, offset)
-    except OSError as exc:
+    except NETWORK_ERRORS as exc:
         raise GpuSupportError(f"{wheel.filename}: {exc}") from exc
     with contextlib.closing(response):
         if offset and getattr(response, "status", 200) != 206:
@@ -259,7 +265,7 @@ def _fetch_into(wheel: Wheel, part: Path, offset: int, opener: Opener, progress:
                 _check_cancel(cancel)
                 try:
                     chunk = response.read(CHUNK_SIZE)
-                except OSError as exc:
+                except NETWORK_ERRORS as exc:  # der .part bleibt: der naechste Versuch setzt dort fort
                     raise GpuSupportError(f"{wheel.filename}: {exc}") from exc
                 if not chunk:
                     break
@@ -376,7 +382,7 @@ def install(
             return _install_locked(target, wheels, progress, cancel, opener)
     except GpuSupportError:
         raise
-    except (OSError, zipfile.BadZipFile, ValueError) as exc:
+    except (OSError, http.client.HTTPException, zipfile.BadZipFile, ValueError) as exc:
         logger.warning("GPU support install failed: %s", exc, exc_info=True)
         raise GpuSupportError(f"{type(exc).__name__}: {exc}") from exc
 

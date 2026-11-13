@@ -66,7 +66,7 @@ def wizard(live_app, hams, monkeypatch, tmp_path):
     yield open_
     win = live_app.setup_win
     if win is not None and win.alive():
-        win.close()
+        win.close(confirmed=True)
     live_app.root.update()
 
 
@@ -537,6 +537,8 @@ class TestClosing:
         stream = hams.streams[-1]
         win.controller.gpu_task.begin()
         win.close_button._invoke()
+        assert win.alive(), "a running download asks first"
+        win.close_anyway_button._invoke()
         live_app.root.update()
         assert stream.closed
         assert win not in live_app._mic_consumers
@@ -544,6 +546,29 @@ class TestClosing:
         assert sw.read_marker(hams.marker) is False
         win.close()  # zweimal schliessen schadet nicht
         assert live_app.setup_win is None
+
+    @pytest.mark.parametrize("task", ["gpu_task", "pull_task"])
+    def test_closing_during_a_download_asks_first(self, wizard, live_app, task):
+        win = wizard()
+        getattr(win.controller, task).begin()
+        win.close_button._invoke()
+        live_app.root.update()
+        assert win.alive()
+        assert "setzt beim nächsten Mal dort fort" in " ".join(texts(win.footer))
+        assert win.next_button.winfo_manager() == "", "the question holds the footer"
+        win._after_task_change()  # a progress message must not bring the buttons back
+        assert win.next_button.winfo_manager() == ""
+        win.close()  # × again: still the one question
+        assert win.alive()
+        win.keep_open_button._invoke()
+        live_app.root.update()
+        assert win.next_button.winfo_manager() == "pack" and win.back_button.winfo_manager() == "pack"
+        assert not getattr(win.controller, task).cancel_event.is_set()
+
+    def test_closing_without_a_download_does_not_ask(self, wizard, live_app):
+        win = wizard()
+        win.close_button._invoke()
+        assert not win.alive()
 
     def test_late_messages_after_closing_are_dropped(self, wizard, live_app):
         win = wizard()
@@ -635,8 +660,8 @@ class TestDeferredStart:
 
     def test_first_start_waits_for_the_wizard(self, deferred_app, hams):
         assert hams.loads == 0
-        assert deferred_app.status_label.cget("text") == "Einrichtung abschließen, um ein Sprachmodell zu laden"
-        deferred_app.on_setup_closed(False)
+        assert deferred_app.status_label.cget("text") == "Einrichtung abschließen, um ein Sprachmodell herunterzuladen"
+        deferred_app.on_setup_closed(True)
         assert hams.loads == 1
 
     def test_an_installed_model_loads_right_away(self, root, hams, monkeypatch):
@@ -652,3 +677,61 @@ class TestDeferredStart:
             app._release_resources()
             app._cancel_position_job()
             window.destroy()
+
+
+class TestClosedBeforeTheModel:
+    """Closing the assistant early never downloads the speech model behind the user's back."""
+
+    @pytest.fixture
+    def first_start(self, root, hams, monkeypatch, model_cache_check, tmp_path):
+        from hams.app import FloatingTranscriberApp as App
+
+        monkeypatch.setattr(sw, "TaskThread", InlineThread)
+        monkeypatch.setattr(window_mod, "CONFIG_PATH", tmp_path / "config.toml")
+        CFG.model_size = "turbo"
+        window = tk.Toplevel(root)
+        app = App(window, setup=True)
+        app.requested = []
+        monkeypatch.setattr(app, "_request_model", lambda model_id, **_: app.requested.append(model_id))
+        app.setup_win = SetupWindow(app, fake_services())
+        root.update()
+        yield app
+        if app.setup_win is not None and app.setup_win.alive():
+            app.setup_win.close(confirmed=True)
+        app._shutting_down = True
+        app._release_resources()
+        app._cancel_position_job()
+        window.destroy()
+
+    def test_closing_on_the_first_page_loads_nothing_and_says_what_is_missing(self, first_start, hams):
+        win = first_start.setup_win
+        assert win.controller.page == "welcome"
+        win.close_button._invoke()
+        first_start.root.update()
+        assert hams.loads == 0 and first_start.requested == []
+        assert first_start._state == "setup_pending"
+        assert first_start.status_label.cget("text") == "Einrichtung abschließen, um ein Sprachmodell herunterzuladen"
+        assert first_start.main_button.cget("text") == "Einrichtung öffnen"
+
+    def test_the_button_opens_the_assistant_again(self, first_start, monkeypatch):
+        first_start.setup_win.close()
+        opened = []
+        monkeypatch.setattr(first_start, "_open_setup", lambda *a: opened.append(1))
+        first_start._on_main_action()
+        assert opened == [1]
+
+    def test_a_dictation_is_refused_until_then(self, first_start, hams):
+        first_start.setup_win.close()
+        before = len(hams.streams)
+        first_start.toggle_recording()
+        assert len(hams.streams) == before and not first_start.is_recording
+        assert first_start._state == "setup_pending"
+
+    def test_a_cached_model_still_loads(self, first_start, hams, model_cache_check):
+        model_cache_check.add("turbo")
+        first_start.setup_win.close()
+        assert hams.loads == 1
+
+    def test_finishing_loads_it_through_the_download(self, first_start, hams):
+        first_start.on_setup_closed(True)
+        assert hams.loads == 1, "the load itself downloads first (test_model_download_path.py)"

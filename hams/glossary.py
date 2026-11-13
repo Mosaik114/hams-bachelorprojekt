@@ -148,9 +148,26 @@ def hotwords(language: str | None) -> str | None:
 
 
 def apply_replacements(text: str) -> str:
+    r"""Applies the fixed corrections "wrong = right".
+
+    `right` is inserted literally: a value like `C:\Temp` or `\1` is text, not a regex template. And a
+    match that already sits inside the correct spelling stays as it is, so applying the corrections to a
+    text that has them (`hams` = `Hams App` on "Hams App") changes nothing.
+    """
     for pattern, right in _load()["replacements"]:
-        text = pattern.sub(right, text)
+        text = _replace(pattern, right, text)
     return text
+
+
+def _replace(pattern: re.Pattern, right: str, text: str) -> str:
+    done = [(m.start(), m.end()) for m in re.finditer(re.escape(right), text)] if right else []
+
+    def substitute(match: re.Match) -> str:
+        if any(start <= match.start() and match.end() <= end for start, end in done):
+            return match.group(0)
+        return right
+
+    return pattern.sub(substitute, text)
 
 
 def cleanup_hint(language: str | None) -> str:

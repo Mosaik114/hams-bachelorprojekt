@@ -27,16 +27,23 @@ sequenceDiagram
     TR->>O: cleanup prompt (+ "keep these spellings"), temperature 0
     O-->>TR: cleaned text
     TR->>TR: output guard: leaked prompt, changed digits, too long, words dropped → raw text
-  else timeout / offline
+  else timeout / offline / connection dropped / malformed answer
     TR->>TR: keep raw text
   end
-  TR->>TR: glossary replacements, plain-text filter
+  TR->>TR: glossary replacements (once, on the final text), plain-text filter
   TR->>OS: copy + simulated Ctrl+V
   TR->>TR: history entry + transcript file
 ```
 
 Prompt mode follows the same path, but the recognised text goes to Ollama as a question, and the (streamed) answer
 is pasted instead.
+
+A new recording may start while the previous one is still in this pipeline. Each finished recording becomes a job
+with its own prompt mode and run id; one worker thread handles the jobs in order, so every text is pasted and none
+is lost. Only the newest run updates the main window, and never during a recording. The glossary replacements are
+applied once, to the final text (in prompt mode to the prompt); the cleanup sees the raw text plus the glossary hint.
+A catalog model that isn't cached is always fetched through the app's own download with progress, never by
+faster-whisper's silent implicit download.
 
 ## Threads
 

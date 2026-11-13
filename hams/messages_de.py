@@ -21,8 +21,12 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "Aufnahme starten",
     "button.stop": "Stoppen",
     "button.retry": "Erneut versuchen",
+    "button.open_setup": "Einrichtung öffnen",
     "status.model_loading": "Modell wird geladen …",
     "status.model_loading_named": "{model} wird geladen …",
+    "status.model_downloading": "{model} wird heruntergeladen · {percent} %",
+    "status.model_download_cancelled": "Der Download wurde abgebrochen.",
+    "status.model_fallback": "{model} ließ sich nicht laden",
     "status.ready": "Bereit · {model}",
     "status.recording": "Aufnahme läuft",
     "status.recording_prompt": "KI fragen · Aufnahme",
@@ -32,7 +36,7 @@ MESSAGES: dict[str, str] = {
     "status.done": "Eingefügt",
     "status.done_raw": "Eingefügt · ohne Bereinigung",
     "status.copied_from_history": "Aus Verlauf kopiert",
-    "status.setup_pending": "Einrichtung abschließen, um ein Sprachmodell zu laden",
+    "status.setup_pending": "Einrichtung abschließen, um ein Sprachmodell herunterzuladen",
     "status.no_signal": "Kein Mikrofonsignal",
     "status.no_recording": "Keine Aufnahme erkannt",
     "status.no_speech": "Keine Sprache erkannt",
@@ -45,6 +49,7 @@ MESSAGES: dict[str, str] = {
     "shortcut.prompt": "KI fragen",
     # --- Hinweise und Fehler im Hauptfenster
     "hint.see_log": "Einzelheiten stehen im Log.",
+    "hint.model_fallback": "Weiter mit {active}. Einzelheiten stehen im Log.",
     "hint.try_again": "Versuch es erneut.",
     "hint.no_audio": "Es wurden keine Audiodaten empfangen.",
     "hint.no_words": "Die Aufnahme enthielt keine verständlichen Wörter.",
@@ -70,6 +75,7 @@ MESSAGES: dict[str, str] = {
     "error.clipboard_unavailable": "Zwischenablage nicht verfügbar",
     "error.clipboard_blocked": "Ein anderes Programm blockiert sie gerade. Versuch es erneut.",
     "error.model_load_failed": "Modell konnte nicht geladen werden",
+    "error.model_download_failed": "{model} konnte nicht heruntergeladen werden",
     "error.model_load_failed_detail": (
         "„{model}“ ließ sich weder auf GPU noch auf CPU laden. Einzelheiten stehen im Log."
     ),
@@ -132,6 +138,7 @@ MESSAGES: dict[str, str] = {
     "settings.model.custom_meta": "Aus der Konfigurationsdatei",
     "settings.model.needs_download": "Muss zuerst geladen werden",
     "settings.model.next_start": "Wird beim nächsten Start verwendet",
+    "settings.model.load_failed": "{model} ließ sich nicht laden · das bisherige Modell bleibt aktiv",
     "settings.model.locked_while_recording": "Während einer Aufnahme nicht wechselbar",
     "settings.dictation.title": "Diktiersprache",
     "settings.dictation.hint": "Die Sprache, die du sprichst",
@@ -278,6 +285,12 @@ MESSAGES: dict[str, str] = {
     "setup.title": "{product} einrichten",
     "setup.step": "Schritt {current} von {count}",
     "setup.close_tooltip": "Einrichtung schließen",
+    "setup.close_confirm": (
+        "Ein Download läuft noch. Wenn du jetzt schließt, hält er an und setzt beim nächsten Mal dort fort, "
+        "wo er aufgehört hat."
+    ),
+    "setup.close_anyway": "Trotzdem schließen",
+    "setup.keep_open": "Offen lassen",
     "setup.back": "Zurück",
     "setup.next": "Weiter",
     "setup.skip": "Überspringen",
