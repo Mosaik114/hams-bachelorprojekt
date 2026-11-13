@@ -211,7 +211,10 @@ class TestHardware:
         win = wizard(gpu_present=lambda: True, gpu_libraries_found=lambda: found["libs"], install_gpu=install)
         go_to(win, "hardware")
         row = win.gpu_row
-        assert status(row.row) == ("idle", "NVIDIA-Bibliotheken von PyPI (1,4 GB), nach dem Laden geprüft")
+        assert status(row.row) == (
+            "idle",
+            "Die offiziellen Bibliotheken von NVIDIA (1,4 GB), nach dem Download geprüft",
+        )
         assert row.row._control is row.button
         row.button._invoke()
         live_app.root.update()

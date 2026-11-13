@@ -13,7 +13,7 @@ from PIL import Image, ImageTk
 
 from hams import branding, support
 from hams import ui_kit as uk
-from hams.config import logger
+from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.ui_kit import Theme
 
@@ -215,6 +215,26 @@ class TrayMixin:
         self._window_visible = False
         self._flush_position()
         self.root.withdraw()
+        self._explain_tray_once()
+
+    def _explain_tray_once(self) -> None:
+        """The first time the window goes away, say where Hams is now: the tray icon is easy to miss.
+
+        Once per installation (`[ui] tray_hint_shown`). A tray without notifications (Linux AppIndicator)
+        says nothing and asks again next time.
+        """
+        if CFG.tray_hint_shown:
+            return
+        icon = getattr(self, "tray_icon", None)
+        if icon is None or not getattr(icon, "HAS_NOTIFICATION", False):
+            return
+        try:
+            icon.notify(t("tray.hidden.body"), t("tray.hidden.title", product=branding.PRODUCT_NAME))
+        except Exception:  # noqa: BLE001 - nur ein Hinweis
+            logger.exception("Tray notification failed")
+            return
+        CFG.tray_hint_shown = True
+        _persist_config_value("ui", "tray_hint_shown", True)
 
     def _show_window(self) -> None:
         self._window_visible = True

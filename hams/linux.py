@@ -80,7 +80,8 @@ def service_unit(python: str, main_py: str) -> str:
                 "After=graphical-session.target",
                 "",
                 "[Service]",
-                f'ExecStart="{python}" "{main_py}"',
+                # --background: an der Sitzung startet Hams im Tray, wie unter Windows der Autostart.
+                f'ExecStart="{python}" "{main_py}" --background',
                 # Absturz: sofort wieder da. Beenden über das Tray-Menü: bleibt aus.
                 "Restart=on-failure",
                 f"RestartForceExitStatus={RESTART_EXIT_CODE}",

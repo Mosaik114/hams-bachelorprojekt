@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from hams import settings_about, support, updates
+from hams import ui_kit as uk
 from hams.app import FloatingTranscriberApp as App
 
 
@@ -124,7 +125,8 @@ class TestReport:
 
 class TestReportHint:
     def test_names_the_file(self):
-        assert "C:/x/hams-report.txt" in settings_about.AboutSectionMixin.report_hint("C:/x/hams-report.txt", 0, True)
+        hint = settings_about.AboutSectionMixin.report_hint("C:/x/hams-report.txt", 0, True)
+        assert hint == "Geöffnet · hams-report.txt", "the file name, not a full path that wraps"
 
     def test_says_so_when_checks_failed(self):
         assert "2 Prüfung" in settings_about.AboutSectionMixin.report_hint("r.txt", 2, True)
@@ -199,8 +201,7 @@ class TestAboutGroup:
         live_app._ui_dispatcher.drain()
         live_app.root.update()
         assert opened == [report]
-        assert str(report) in win.row_report._sub_text
-        assert win.row_report._sub_text.startswith("Geöffnet")
+        assert win.row_report._sub_text == "Geöffnet · hams-report.txt"
         assert not win._report_running
 
     def test_a_second_click_while_running_does_nothing(self, settings, monkeypatch):
@@ -243,3 +244,35 @@ class TestAboutGroup:
         win._report_finished(tmp_path / "r.txt", 0)
         win._report_finished(None, 0)
         assert opened == [tmp_path / "r.txt"]
+
+
+class TestReportRowReview3:
+    """Third review: the row named a full path that wrapped over several lines, and "Prüfung(en)"."""
+
+    def test_one_and_several_failed_checks_are_pluralised(self):
+        hint = settings_about.AboutSectionMixin.report_hint
+        assert hint("r.txt", 1, True) == "1 Prüfung fehlgeschlagen · gespeichert als r.txt"
+        assert hint("r.txt", 3, True) == "3 Prüfungen fehlgeschlagen · gespeichert als r.txt"
+
+    def test_open_is_greyed_out_until_a_report_exists_then_opens_it_again(self, settings, monkeypatch, tmp_path):
+        opened = []
+        monkeypatch.setattr(support, "open_path", opened.append)
+        win = settings()
+        assert win.report_open_button.has_state(uk.State.DISABLED)
+        win._open_last_report()  # nothing yet: nothing happens
+        assert opened == []
+        report = tmp_path / "hams-report.txt"
+        win._report_finished(report, 0)
+        assert not win.report_open_button.has_state(uk.State.DISABLED)
+        win.report_open_button._invoke()
+        assert opened == [report, report]
+
+    def test_open_says_saved_when_the_editor_does_not_start(self, settings, monkeypatch, tmp_path):
+        def fail(_path):
+            raise OSError("kein Editor")
+
+        monkeypatch.setattr(support, "open_path", fail)
+        win = settings()
+        win._report_finished(tmp_path / "hams-report.txt", 0)
+        win._open_last_report()
+        assert win.row_report._sub_text == "Gespeichert als hams-report.txt"

@@ -38,13 +38,13 @@ On first start, the setup assistant walks you through six pages. Only the speech
 else can be left as it is with *Next*. You can run the assistant again later from *Settings → General → Setup
 assistant → Run again*, the tray menu (*Setup assistant …*), or with `Hams.exe --setup`.
 
-1. **Welcome.** The interface language (English or German; *Automatic* follows Windows) and the language you dictate
+1. **Welcome.** The interface language (English or German; *System language* follows Windows) and the language you dictate
    in. See [Dictation languages](#dictation-languages).
-2. **Graphics card.** With an NVIDIA graphics card, Hams offers to download NVIDIA's CUDA libraries (cuBLAS, cuDNN
-   and NVRTC from PyPI, a one-time download of 1.37 GB, about 2 GB unpacked; about 3.4 GB must be free while it
-   unpacks). Without them, or without an NVIDIA card, Hams runs on the CPU, which works but is slower. The download
-   is checked against pinned SHA-256 hashes, continues where it stopped after an interruption, and lands in
-   `%LOCALAPPDATA%\Hams\cuda`. The same download is available from a terminal:
+2. **Graphics card.** With an NVIDIA graphics card, Hams offers to download NVIDIA's official CUDA libraries (cuBLAS,
+   cuDNN and NVRTC, published by NVIDIA on PyPI, a one-time download of 1.37 GB, about 2 GB unpacked; about 3.4 GB
+   must be free while it unpacks). Without them, or without an NVIDIA card, Hams runs on the CPU, which works but is
+   slower. The download is checked against pinned SHA-256 hashes, continues where it stopped after an interruption,
+   and lands in `%LOCALAPPDATA%\Hams\cuda`. The same download is available from a terminal:
 
    ```powershell
    Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList '--install-gpu-support'
@@ -95,8 +95,11 @@ you get *AI answer failed — Ollama isn't responding*.
 
 ### Window and tray icon
 
-Hams shows a small floating window and an icon in the notification area (system tray). The window can be hidden;
-Hams keeps running in the tray. Right-click the tray icon for:
+Hams shows a small floating window and an icon in the notification area (system tray; it may be behind the `^`
+arrow). Started from the Start menu, after installing or after an update, Hams shows its window. Started
+automatically when you sign in to Windows, it starts in the tray without a window. Closing or hiding the window
+doesn't quit Hams: it keeps running in the tray and the hotkeys keep working. The first time you hide it, a
+notification says so. Right-click the tray icon for:
 
 - **Show or hide window**
 - **Settings …**
@@ -188,7 +191,7 @@ The most useful keys:
 | `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
 | `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
 
-**Interface language.** With `language = "auto"`, Hams uses German when the operating system's display language is
+**Interface language.** With `language = "auto"` (*System language* in the settings), Hams uses German when the operating system's display language is
 German (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and English otherwise. A new
 language applies after a restart; the settings window says so and has a *Restart* button.
 

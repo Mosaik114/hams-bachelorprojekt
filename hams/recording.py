@@ -121,16 +121,16 @@ class RecordingMixin:
     def toggle_recording(self) -> None:
         """Toggle recording state for transcript mode.
 
-        If not recording, starts recording. If recording, stops and transcribes.
+        If not recording, starts recording. If recording, stops and transcribes: stopping always works,
+        whatever happened to the model in the meantime.
         """
+        if self.is_recording:
+            self.stop_recording_and_transcribe()
+            return
         if not self._may_record():
             return
-
-        if not self.is_recording:
-            self._prompt_mode = False
-            self.start_recording()
-        else:
-            self.stop_recording_and_transcribe()
+        self._prompt_mode = False
+        self.start_recording()
 
     def toggle_recording_generate(self) -> None:
         """Toggle recording state for prompt mode.
@@ -138,14 +138,13 @@ class RecordingMixin:
         Same as toggle_recording but uses the LLM to generate a response
         instead of just cleaning up the transcript.
         """
+        if self.is_recording:
+            self.stop_recording_and_transcribe()
+            return
         if not self._may_record():
             return
-
-        if not self.is_recording:
-            self._prompt_mode = True
-            self.start_recording()
-        else:
-            self.stop_recording_and_transcribe()
+        self._prompt_mode = True
+        self.start_recording()
 
     def _schedule_max_duration_stop(self) -> None:
         self._cancel_max_duration_timer()
@@ -234,7 +233,7 @@ class RecordingMixin:
             logger.info("Recording started (prompt_mode=%s)", self._prompt_mode)
         except sd.PortAudioError:
             logger.exception("PortAudio error on start_recording")
-            self.is_recording = False
+            self._abandon_start()
             self._apply_state(
                 "error",
                 t("error.mic_unavailable"),
@@ -242,12 +241,43 @@ class RecordingMixin:
             )
         except Exception:
             logger.exception("Unexpected error on start_recording")
-            self.is_recording = False
+            self._abandon_start()
             self._apply_state(
                 "error",
                 t("error.recording_not_started"),
                 t("hint.see_log"),
             )
+
+    def _abandon_start(self) -> None:
+        """A start that failed: close a stream that opened but didn't start, give the microphone back."""
+        self.is_recording = False
+        self._cancel_max_duration_timer()
+        stream, self.stream = self.stream, None
+        if stream is not None:
+            try:
+                stream.abort()
+                stream.close()
+            except Exception:  # noqa: BLE001 - der Fehler beim Start ist schon gemeldet
+                logger.exception("Stream cleanup after a failed start failed")
+        self._resume_mic_consumers()
+
+    def _take_model_notice(self):
+        notice = getattr(self, "_pending_model_notice", None)
+        self._pending_model_notice = None
+        return notice
+
+    def _deliver_model_notice(self, notice, *, queued: bool) -> None:
+        """A model message held back during the recording (see `WhisperModelMixin._model_notice`).
+
+        Without a queued dictation it is shown right away. With one, a missing model is reported by that
+        dictation itself; any other message (a fallback) follows once the dictation is through.
+        """
+        if notice is None:
+            return
+        if not queued:
+            notice()
+        elif not (self.model_error and not self.model_ready.is_set()):
+            self._notice_after_pipeline = notice
 
     def stop_recording_and_transcribe(self) -> None:
         """Stop recording and start transcription pipeline.
@@ -261,7 +291,7 @@ class RecordingMixin:
         self._cancel_max_duration_timer()
         self._stop_elapsed_ticker()
         self._stop_level_ticker()
-        self._resume_mic_consumers()
+        notice = self._take_model_notice()
         self._update_tray_tooltip()
         self._beep(220, 120)
         self._apply_state("transcribing")
@@ -276,10 +306,13 @@ class RecordingMixin:
             logger.exception("PortAudio error on stream.stop")
         finally:
             self.stream = None
+            # Erst jetzt: der Pegelmonitor oeffnet dasselbe Geraet, das die Aufnahme eben noch hielt.
+            self._resume_mic_consumers()
 
         if not self.frames:
             self._apply_state("no_signal", t("status.no_recording"), t("hint.no_audio"))
             self._prompt_mode = False
+            self._deliver_model_notice(notice, queued=False)
             return
 
         audio = np.concatenate(self.frames, axis=0).flatten()
@@ -301,8 +334,10 @@ class RecordingMixin:
                 t("hint.mic_silent", device=CFG.mic_device_raw),
             )
             self._prompt_mode = False
+            self._deliver_model_notice(notice, queued=False)
             return
 
         # Mode and run id travel with the recording: the next one may start before this one is through.
         self._enqueue_transcription(audio, self._prompt_mode, run_id)
         self._prompt_mode = False
+        self._deliver_model_notice(notice, queued=True)

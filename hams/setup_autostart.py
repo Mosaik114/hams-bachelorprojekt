@@ -32,6 +32,8 @@ LEGACY_APP_NAME = "Wisper"
 
 # Projekt-Root = eine Ebene ueber dem hams-Package (siehe oben); das VBS liegt in scripts/.
 VBS_PATH = PROJECT_ROOT / "scripts" / "start_hams.vbs"
+#: Only the autostart passes it: Hams then starts in the tray. Started by hand, it shows its window.
+BACKGROUND_FLAG = "--background"
 
 
 def _resolve_launch_command() -> str:
@@ -41,14 +43,14 @@ def _resolve_launch_command() -> str:
     Als installiertes Programm (PyInstaller) ist `sys.executable` die Hams.exe selbst.
     """
     if getattr(sys, "frozen", False):
-        return f'"{sys.executable}"'
+        return f'"{sys.executable}" {BACKGROUND_FLAG}'
     if VBS_PATH.exists():
-        return f'wscript.exe //B "{VBS_PATH}"'
+        return f'wscript.exe //B "{VBS_PATH}" {BACKGROUND_FLAG}'
 
     venv_pythonw = PROJECT_ROOT / ".venv" / "Scripts" / "pythonw.exe"
     main_py = PROJECT_ROOT / "hams" / "main.py"
     pythonw = str(venv_pythonw) if venv_pythonw.exists() else "pythonw.exe"
-    return f'"{pythonw}" "{main_py}"'
+    return f'"{pythonw}" "{main_py}" {BACKGROUND_FLAG}'
 
 
 def _delete_value(key, name: str) -> bool:

@@ -31,14 +31,22 @@ from typing import Any
 import sounddevice as sd
 
 try:
-    import tomllib  # Python 3.11+
+    import tomllib  # noqa: F401 - Python 3.11+; tests import it from here
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
-    import tomli as tomllib  # type: ignore[import-not-found]
+    import tomli as tomllib  # type: ignore[import-not-found]  # noqa: F401
 
 import contextlib
 
 from hams import app_paths, branding, dictation_language, i18n
-from hams.config_toml import _set_toml_value, _toml_scalar, _trailing_comment, verify_toml_value  # noqa: F401
+from hams.config_toml import (  # noqa: F401
+    TomlEncodingError,
+    _set_toml_value,
+    _toml_scalar,
+    _trailing_comment,
+    load_toml_file,
+    read_toml_text,
+    verify_toml_value,
+)
 from hams.config_validation import (
     CHANNELS,
     MAX_BEAM_SIZE,
@@ -177,6 +185,8 @@ class Config:
     #: None heisst: noch nie gemerkt, es gilt der Rueckfall.
     window_x: int | None = None
     window_y: int | None = None
+    #: Ob der einmalige Hinweis "laeuft im Tray weiter" schon kam (schreibt Hams selbst, `[ui] tray_hint_shown`).
+    tray_hint_shown: bool = False
     cleanup_prompt_template: str = DEFAULT_CLEANUP_PROMPT
 
     clipboard_paste_timeout: float = 0.3
@@ -283,10 +293,13 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
     if not CONFIG_PATH.exists():
         ensure_user_config()
     try:
-        with CONFIG_PATH.open("r", encoding="utf-8", newline="") as fh:
-            text = fh.read()
+        text = read_toml_text(CONFIG_PATH)
     except OSError:
         logger.warning("Config schreiben fehlgeschlagen: %s nicht lesbar", CONFIG_PATH)
+        return False
+    except TomlEncodingError as exc:
+        # Nie in eine Datei schreiben, die nicht UTF-8 ist: das Beenden und Verstecken haengt daran.
+        logger.error("Config not saved (%s.%s): %s", section, key, exc)
         return False
     new_text = _set_toml_value(text, section, key, value)
     problem = verify_toml_value(new_text, section, key, value)
@@ -479,9 +492,8 @@ def _read_toml(path: Path) -> dict:
     if not path.exists():
         return {}
     try:
-        with path.open("rb") as handle:
-            return tomllib.load(handle)
-    except (OSError, ValueError) as exc:  # TOMLDecodeError und UnicodeDecodeError sind ValueErrors
+        return load_toml_file(path)
+    except (OSError, ValueError) as exc:  # TOMLDecodeError und TomlEncodingError sind ValueErrors
         print(
             f"[{branding.PRODUCT_NAME}] could not load {path.name} ({exc}) — using defaults.",
             file=sys.stderr,
@@ -691,6 +703,7 @@ def _apply_ui(cfg: Config, ui: SectionReader) -> None:
         cfg.window_x = _clean_coordinate(ui.raw("window_x"))
     if "window_y" in ui:
         cfg.window_y = _clean_coordinate(ui.raw("window_y"))
+    cfg.tray_hint_shown = ui.boolean("tray_hint_shown", cfg.tray_hint_shown)
     # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
     # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
     cfg.appearance = Theme.normalise(ui.raw("appearance", cfg.appearance))

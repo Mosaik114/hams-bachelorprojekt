@@ -263,7 +263,7 @@ class TestStreaming:
         assert live_app.elapsed_label.cget("text") == "6 Zeichen"
 
     def test_without_a_label_nothing_is_shown(self, live_app, ollama):
-        ollama.lines = [json.dumps({"response": "x"}).encode()]
+        ollama.lines = [json.dumps({"response": "x", "done": True}).encode()]
         assert live_app._ollama_generate("Frage", "llama", 30, stream=True) == "x"
         live_app.root.update()
         assert live_app.elapsed_label.cget("text") == ""

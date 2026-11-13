@@ -6,7 +6,7 @@ see the [user guide](user-guide.md). Contribution rules (strings, tests, pull re
 
 ## Run from source
 
-Requirements: Windows 10/11 or Linux, Python 3.10+, an NVIDIA GPU for the default settings (the CPU works too, just
+Requirements: Windows 10/11 or Linux, Python 3.11+, an NVIDIA GPU for the default settings (the CPU works too, just
 slower), and optionally [Ollama](https://ollama.com/download).
 
 ```powershell

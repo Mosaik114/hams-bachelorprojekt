@@ -14,19 +14,19 @@ class TestDispatch:
         calls = []
         monkeypatch.setitem(sys.modules, "hams.main", types.SimpleNamespace(main=lambda **kw: calls.append(kw)))
         assert cli.run([]) == 0
-        assert calls == [{"show_settings": False, "show_setup": False}]
+        assert calls == [{"show_settings": False, "show_setup": False, "background": False}]
 
     def test_settings_and_unknown_options(self, monkeypatch):
         calls = []
         monkeypatch.setitem(sys.modules, "hams.main", types.SimpleNamespace(main=lambda **kw: calls.append(kw)))
         assert cli.run(["--settings", "--unbekannt"]) == 0
-        assert calls == [{"show_settings": True, "show_setup": False}]
+        assert calls == [{"show_settings": True, "show_setup": False, "background": False}]
 
     def test_setup_opens_the_wizard(self, monkeypatch):
         calls = []
         monkeypatch.setitem(sys.modules, "hams.main", types.SimpleNamespace(main=lambda **kw: calls.append(kw)))
         assert cli.run(["--setup"]) == 0
-        assert calls == [{"show_settings": False, "show_setup": True}]
+        assert calls == [{"show_settings": False, "show_setup": True, "background": False}]
 
     def test_argv_defaults_to_the_process_arguments(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["Hams.exe", "--self-test"])

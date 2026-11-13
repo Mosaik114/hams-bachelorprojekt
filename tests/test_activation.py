@@ -8,7 +8,7 @@ import types
 import unittest
 import uuid
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("hams_activation_test", ROOT / "hams" / "activation.py")
@@ -186,7 +186,9 @@ class TestStartupActivation(unittest.TestCase):
 
     def test_cold_start_opens_settings_and_closes_receivers(self):
         self.main.main(show_settings=True)
-        self.root.after_idle.assert_called_once_with(self.app._open_settings)
+        self.assertEqual(
+            self.root.after_idle.call_args_list, [call(self.app._show_window), call(self.app._open_settings)]
+        )
         calls = self.main.SettingsRequests.call_args_list
         self.assertEqual([c.kwargs["name"] for c in calls], [activation.SETTINGS_EVENT, activation.SHOW_EVENT])
         self.assertEqual(calls[0].args, (self.root, self.app._open_settings))
@@ -209,8 +211,12 @@ class TestStartupActivation(unittest.TestCase):
         self.root.mainloop.assert_called_once_with()
 
     def test_normal_autostart_stays_hidden(self):
-        self.main.main()
+        self.main.main(background=True)
         self.root.after_idle.assert_not_called()
+
+    def test_a_start_by_hand_shows_the_window(self):
+        self.main.main()
+        self.root.after_idle.assert_called_once_with(self.app._show_window)
 
     def test_first_start_opens_the_setup_wizard(self):
         self.setup_wizard.needs_setup.return_value = True

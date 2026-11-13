@@ -23,10 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import tomllib
-
 from hams import dictation_language
-from hams.config import APP_DIR, CFG, CONFIG_PATH, logger
+from hams.config import APP_DIR, CFG, CONFIG_PATH, load_toml_file, logger
 
 DEFAULT_PATH = APP_DIR / "glossar.default.toml"
 #: Vorlage fuer jedes andere Diktat als Deutsch.
@@ -120,8 +118,10 @@ def _load() -> dict:
     words, replacements = (), ()
     if mtime is not None:
         try:
-            words, replacements = _parse(tomllib.loads(path.read_text(encoding="utf-8")))
-        except (OSError, tomllib.TOMLDecodeError, AttributeError) as exc:
+            words, replacements = _parse(load_toml_file(path))
+        except (OSError, ValueError, AttributeError) as exc:
+            # ValueError: kaputtes TOML oder keine UTF-8-Datei (`TomlEncodingError`). Das leere Ergebnis
+            # gilt bis zur naechsten Aenderung der Datei, die Warnung steht deshalb nur einmal im Log.
             logger.warning("Glossar %s nicht lesbar, wird ignoriert: %s", path, exc)
     _cache.update(path=path, mtime=mtime, words=words, replacements=replacements)
     logger.info("Glossar geladen: %d Wörter, %d Korrekturen", len(words), len(replacements))

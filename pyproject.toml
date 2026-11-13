@@ -8,7 +8,7 @@ version = "1.1.1"
 description = "Local, privacy-first voice input for Windows and Linux: faster-whisper speech recognition with optional LLM cleanup via Ollama, pasted wherever your cursor is."
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     {name = "Mazgin Abdulwahed Ahmad"}
 ]
@@ -24,7 +24,6 @@ classifiers = [
     "Operating System :: Microsoft :: Windows :: Windows 11",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Multimedia :: Sound/Audio :: Speech",
@@ -38,7 +37,6 @@ dependencies = [
     "keyboard>=0.13.5; sys_platform == 'win32'",
     "pystray>=0.19.5",
     "Pillow>=10.0.0",
-    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]

@@ -103,7 +103,22 @@ def _accept_requests(root: tk.Tk, app: FloatingTranscriberApp) -> list[SettingsR
     return receivers
 
 
-def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
+def _first_windows(root: tk.Tk, app: FloatingTranscriberApp, *, setup: bool, settings: bool, background: bool) -> None:
+    """What the user sees after the start: the assistant, or the main window unless started in the background.
+
+    Only the autostart passes `--background`; a start from the Start menu, after installing or after an update
+    shows the window, so nobody has to look for a tray icon hidden behind the ^ arrow.
+    """
+    if setup:
+        root.after_idle(app._open_setup)
+        return
+    if not background:
+        root.after_idle(app._show_window)
+    if settings:
+        root.after_idle(app._open_settings)
+
+
+def main(*, show_settings: bool = False, show_setup: bool = False, background: bool = False) -> None:
     state = ensure_user_config()
     logger.info("Nutzerkonfiguration %s (%s)", CONFIG_PATH, state)
     if state in (CONFIG_MIGRATED, CONFIG_CREATED):
@@ -128,10 +143,7 @@ def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
         root = tk.Tk()
         app = FloatingTranscriberApp(root, setup=setup)
         receivers = _accept_requests(root, app)
-        if setup:
-            root.after_idle(app._open_setup)
-        elif show_settings:
-            root.after_idle(app._open_settings)
+        _first_windows(root, app, setup=setup, settings=show_settings, background=background)
         root.mainloop()
     finally:
         for receiver in receivers:
@@ -147,4 +159,8 @@ def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    main(show_settings="--settings" in sys.argv[1:], show_setup="--setup" in sys.argv[1:])
+    main(
+        show_settings="--settings" in sys.argv[1:],
+        show_setup="--setup" in sys.argv[1:],
+        background="--background" in sys.argv[1:],
+    )

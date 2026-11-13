@@ -48,8 +48,8 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Dictate",
     "shortcut.prompt": "Ask AI",
     # --- hints and errors in the main window
-    "hint.see_log": "See the log for details.",
-    "hint.model_fallback": "Still using {active}. See the log for details.",
+    "hint.see_log": "Details: Settings → About & help → Diagnostic report.",
+    "hint.model_fallback": "Still using {active}. Details: Settings → About & help → Diagnostic report.",
     "hint.try_again": "Please try again.",
     "hint.no_audio": "No audio was received.",
     "hint.no_words": "The recording didn't contain any recognisable words.",
@@ -72,14 +72,18 @@ MESSAGES: dict[str, str] = {
     "error.recording_not_transcribed": "The recording couldn't be transcribed.",
     "error.ai_failed": "AI answer failed",
     "error.ollama_not_responding": "Ollama isn't responding. Is it running?",
+    "error.ai_no_answer": "The AI gave no usable answer. Your clipboard is unchanged; try again.",
     "error.clipboard_unavailable": "Clipboard unavailable",
     "error.clipboard_blocked": "Another program is blocking it right now. Please try again.",
     "error.model_load_failed": "Couldn't load the model",
     "error.model_download_failed": "Couldn't download {model}",
-    "error.model_load_failed_detail": "“{model}” couldn't be loaded on the GPU or the CPU. See the log for details.",
+    "error.model_load_failed_detail": (
+        "“{model}” couldn't be loaded on the GPU or the CPU. Details: Settings → About & help → Diagnostic report."
+    ),
     # --- restart
     "restart.recording": "A recording is in progress",
     "restart.downloading": "A download is in progress",
+    "restart.transcribing": "A dictation is still being transcribed",
     "restart.unavailable": "Can't restart right now",
     "restart.failed": "Restart failed",
     # --- tray
@@ -97,6 +101,10 @@ MESSAGES: dict[str, str] = {
     "update.notify_title": "{product} {version} is available",
     "update.notify_body": "See what's new from the tray menu or Settings → General.",
     "tray.quit": "Quit",
+    "tray.hidden.title": "{product} keeps running in the tray",
+    "tray.hidden.body": (
+        "Your shortcuts still work. Click the tray icon to show the window again; it may be behind the ^ arrow."
+    ),
     # --- second instance
     "instance.already_running": "{product} is already running.",
     "instance.already_running_tray": "{product} is already running. Look for it in the system tray.",
@@ -321,7 +329,7 @@ MESSAGES: dict[str, str] = {
         "speech model; the next step suggests one."
     ),
     "setup.gpu.row": "GPU support",
-    "setup.gpu.offer": "NVIDIA libraries from PyPI ({size}), verified after download",
+    "setup.gpu.offer": "NVIDIA's official libraries ({size}), checked after download",
     "setup.gpu.done": "Installed · the GPU is used from now on",
     "setup.model.title": "Speech model",
     "setup.model.gpu": "Whisper turns your voice into text. With your graphics card, Turbo is fast and very accurate.",
@@ -392,8 +400,9 @@ MESSAGES: dict[str, str] = {
     "settings.about.report.hint": "Checks the installation and saves a report to attach to a bug report",
     "settings.about.report.button": "Create",
     "settings.about.report.running": "Creating the report …",
-    "settings.about.report.done": "Opened · saved to {path}",
-    "settings.about.report.saved": "Saved to {path}",
-    "settings.about.report.done_failures": "{count} check(s) failed · report saved to {path}",
+    "settings.about.report.done": "Opened · {name}",
+    "settings.about.report.saved": "Saved as {name}",
+    "settings.about.report.done_failures.one": "{count} check failed · saved as {name}",
+    "settings.about.report.done_failures.other": "{count} checks failed · saved as {name}",
     "settings.about.report.failed": "Couldn't write the report · see the log folder",
 }

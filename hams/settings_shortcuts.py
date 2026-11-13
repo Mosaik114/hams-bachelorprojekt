@@ -114,7 +114,8 @@ class ShortcutsSectionMixin:
         # Bindungen des Fensters, etwa Esc zum Schliessen oder Pos1/Ende zum Scrollen.
         parts.box.bind("<KeyPress>", self._on_capture_key)
         parts.box.bind("<KeyRelease>", self._on_capture_release)
-        parts.box.bind("<FocusOut>", lambda _e: self._recorder.reset(), add="+")
+        parts.box.bind("<FocusOut>", self._on_capture_focus_out, add="+")
+        parts.box.bind("<FocusIn>", self._on_capture_focus_in, add="+")
 
     @staticmethod
     def _shortcut_hint(key: str) -> str:
@@ -154,6 +155,17 @@ class ShortcutsSectionMixin:
         else:
             self._try_combo(self._capture, result)
         return "break"
+
+    def _on_capture_focus_out(self, _event=None) -> None:
+        """Leaving the capture (another window, a rejected combination left open): the hotkeys work again."""
+        self._recorder.reset()
+        if self._capture is not None:
+            self.app.reregister_hotkeys()
+
+    def _on_capture_focus_in(self, _event=None) -> None:
+        """Back in an open capture: the old combination must not start a dictation while keys are pressed."""
+        if self._capture is not None:
+            self.app.suspend_hotkeys()
 
     def _on_capture_release(self, event: tk.Event) -> str:
         self._recorder.release(int(event.keycode))

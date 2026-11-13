@@ -98,6 +98,7 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
   through `tests/live_app.py`, with fakes for the microphone, Whisper and Ollama.
 - Coverage gates with branch coverage: 93 % on Windows (excludes the Linux-only modules, see `coverage-windows.ini`), 88 % on Linux (counts the Windows-only modules).
 - ruff with pycodestyle, pyflakes, bugbear, bandit, import order and **max cyclomatic complexity 10**.
-- Dependencies are locked with hashes (`uv pip compile --generate-hashes`), audited with `pip-audit`, and updated by
-  Dependabot. GitHub Actions are pinned to commit SHAs.
+- Dependencies are locked with hashes (`uv pip compile --generate-hashes`), audited with `pip-audit`, and re-locked
+  weekly by `.github/workflows/lock-refresh.yml` (one pull request for all three lock files). Dependabot only updates
+  the GitHub Actions, which are pinned to commit SHAs.
 - gitleaks scans the full git history for secrets.

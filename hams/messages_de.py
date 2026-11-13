@@ -48,8 +48,8 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Diktieren",
     "shortcut.prompt": "KI fragen",
     # --- Hinweise und Fehler im Hauptfenster
-    "hint.see_log": "Einzelheiten stehen im Log.",
-    "hint.model_fallback": "Weiter mit {active}. Einzelheiten stehen im Log.",
+    "hint.see_log": "Einzelheiten: Einstellungen → Info & Hilfe → Diagnosebericht.",
+    "hint.model_fallback": "Weiter mit {active}. Einzelheiten: Einstellungen → Info & Hilfe → Diagnosebericht.",
     "hint.try_again": "Versuch es erneut.",
     "hint.no_audio": "Es wurden keine Audiodaten empfangen.",
     "hint.no_words": "Die Aufnahme enthielt keine verständlichen Wörter.",
@@ -72,16 +72,21 @@ MESSAGES: dict[str, str] = {
     "error.recording_not_transcribed": "Die Aufnahme liess sich nicht auswerten.",
     "error.ai_failed": "KI-Antwort fehlgeschlagen",
     "error.ollama_not_responding": "Ollama antwortet nicht. Läuft der Dienst?",
+    "error.ai_no_answer": (
+        "Die KI hat keine brauchbare Antwort geliefert. Die Zwischenablage ist unverändert; versuch es erneut."
+    ),
     "error.clipboard_unavailable": "Zwischenablage nicht verfügbar",
     "error.clipboard_blocked": "Ein anderes Programm blockiert sie gerade. Versuch es erneut.",
     "error.model_load_failed": "Modell konnte nicht geladen werden",
     "error.model_download_failed": "{model} konnte nicht heruntergeladen werden",
     "error.model_load_failed_detail": (
-        "„{model}“ ließ sich weder auf GPU noch auf CPU laden. Einzelheiten stehen im Log."
+        "„{model}“ ließ sich weder auf GPU noch auf CPU laden. "
+        "Einzelheiten: Einstellungen → Info & Hilfe → Diagnosebericht."
     ),
     # --- Neustart
     "restart.recording": "Läuft gerade eine Aufnahme",
     "restart.downloading": "Ein Download läuft gerade",
+    "restart.transcribing": "Ein Diktat wird noch verarbeitet",
     "restart.unavailable": "Neustart nicht möglich",
     "restart.failed": "Neustart fehlgeschlagen",
     # --- Tray
@@ -99,6 +104,11 @@ MESSAGES: dict[str, str] = {
     "update.notify_title": "{product} {version} ist verfügbar",
     "update.notify_body": "Was neu ist, zeigen das Tray-Menü und Einstellungen → Allgemein.",
     "tray.quit": "Beenden",
+    "tray.hidden.title": "{product} läuft im Tray weiter",
+    "tray.hidden.body": (
+        "Die Kurzbefehle funktionieren weiter. Ein Klick auf das Tray-Symbol zeigt das Fenster wieder; "
+        "es kann hinter dem Pfeil ^ liegen."
+    ),
     # --- Zweite Instanz
     "instance.already_running": "{product} läuft bereits.",
     "instance.already_running_tray": "{product} läuft bereits. Überprüfe das System-Tray.",
@@ -326,7 +336,7 @@ MESSAGES: dict[str, str] = {
         "kleineren Sprachmodell; der nächste Schritt schlägt eines vor."
     ),
     "setup.gpu.row": "GPU-Unterstützung",
-    "setup.gpu.offer": "NVIDIA-Bibliotheken von PyPI ({size}), nach dem Laden geprüft",
+    "setup.gpu.offer": "Die offiziellen Bibliotheken von NVIDIA ({size}), nach dem Download geprüft",
     "setup.gpu.done": "Installiert · ab jetzt rechnet die GPU",
     "setup.model.title": "Sprachmodell",
     "setup.model.gpu": "Whisper macht aus deiner Stimme Text. Mit deiner Grafikkarte ist Turbo schnell und sehr genau.",
@@ -399,8 +409,9 @@ MESSAGES: dict[str, str] = {
     "settings.about.report.hint": "Prüft die Installation und speichert einen Bericht für eine Fehlermeldung",
     "settings.about.report.button": "Erstellen",
     "settings.about.report.running": "Bericht wird erstellt …",
-    "settings.about.report.done": "Geöffnet · gespeichert unter {path}",
-    "settings.about.report.saved": "Gespeichert unter {path}",
-    "settings.about.report.done_failures": "{count} Prüfung(en) fehlgeschlagen · Bericht unter {path}",
+    "settings.about.report.done": "Geöffnet · {name}",
+    "settings.about.report.saved": "Gespeichert als {name}",
+    "settings.about.report.done_failures.one": "{count} Prüfung fehlgeschlagen · gespeichert als {name}",
+    "settings.about.report.done_failures.other": "{count} Prüfungen fehlgeschlagen · gespeichert als {name}",
     "settings.about.report.failed": "Bericht ließ sich nicht schreiben · siehe Log-Ordner",
 }

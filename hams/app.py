@@ -4,6 +4,7 @@ import contextlib
 import subprocess
 import sys
 import threading
+import time
 import tkinter as tk
 
 import numpy as np
@@ -383,6 +384,8 @@ class FloatingTranscriberApp(
             return t("restart.recording")
         if self.downloading_model is not None:
             return t("restart.downloading")
+        if self._pending_dictations():
+            return t("restart.transcribing")
 
         self._flush_position()
         if not _release_single_instance_mutex():
@@ -397,15 +400,21 @@ class FloatingTranscriberApp(
             return ""
 
         befehl = restart_command()
+        if not self._window_visible:
+            befehl.append("--background")  # der Nachfolger zeigt sich so, wie der Vorgaenger gerade war
         if sys.platform == "win32":
             loesen = {"creationflags": (subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)}
         else:
             loesen = {"start_new_session": True}
+        # Vor dem Start des Nachfolgers: er meldet dieselben Kurzbefehle an, solange sie hier noch belegt waeren,
+        # scheitert er daran.
+        self.suspend_hotkeys()
         try:
             subprocess.Popen(befehl, cwd=str(APP_DIR.parent), close_fds=True, **loesen)
         except Exception:
             logger.exception("Neustart fehlgeschlagen: %s", befehl)
             _acquire_single_instance_mutex()  # Zustand zuruecknehmen
+            self._register_hotkeys()
             return t("restart.failed")
 
         logger.info("Neustart angefordert: %s", befehl)
@@ -417,9 +426,30 @@ class FloatingTranscriberApp(
         logger.info("Quit requested")
         self._ui_call(self._quit_on_ui_thread)
 
+    #: So lange wartet Beenden hoechstens auf Diktate, die noch transkribiert und eingefuegt werden (s).
+    QUIT_DRAIN_SECONDS = 5.0
+    QUIT_POLL_MS = 100
+    _quit_deadline: float | None = None
+
+    def _pending_dictations(self) -> int:
+        """Finished recordings that are still being transcribed or wait in the queue for it."""
+        with self._pipeline_lock:
+            return len(self._pipeline_jobs or ()) + (1 if self._pipeline_job_running else 0)
+
     def _quit_on_ui_thread(self) -> None:
         if self._shutting_down:
             return
+        pending = self._pending_dictations()
+        if pending:
+            now = time.monotonic()
+            if self._quit_deadline is None:
+                self._quit_deadline = now + self.QUIT_DRAIN_SECONDS
+                logger.info("Quit waits for %d dictation(s) still being transcribed", pending)
+                self.suspend_hotkeys()  # beim Beenden beginnt kein neues Diktat mehr
+            if now < self._quit_deadline:
+                self.root.after(self.QUIT_POLL_MS, self._quit_on_ui_thread)
+                return
+            logger.warning("Quit: %d dictation(s) not finished in time were dropped", pending)
         self._flush_position()
         self._shutting_down = True
         with contextlib.suppress(Exception):
@@ -564,11 +594,18 @@ class FloatingTranscriberApp(
                 self.root.after_cancel(self._done_job)
             self._done_job = None
 
+    #: A model message held back by a recording until its dictation was pasted (see `_deliver_model_notice`).
+    _notice_after_pipeline = None
+
     def _back_to_ready(self) -> None:
         """Der Erfolgszustand fällt von selbst zurück, statt stehen zu bleiben."""
         self._done_job = None
         if not self.is_recording and self.model_ready.is_set():
-            self._apply_state("ready")
+            notice, self._notice_after_pipeline = self._notice_after_pipeline, None
+            if notice is not None:
+                notice()
+            else:
+                self._apply_state("ready")
 
     def _on_main_action(self) -> None:
         """Der Button führt aus, was sein Text verspricht."""

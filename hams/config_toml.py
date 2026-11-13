@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 try:
@@ -22,6 +23,35 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
     import tomli as tomllib  # type: ignore[import-not-found]
 
 logger = logging.getLogger("hams")
+
+
+class TomlEncodingError(ValueError):
+    """The file is not UTF-8 text, which TOML requires (e.g. saved as ANSI/cp1252 or UTF-16)."""
+
+
+def read_toml_text(path: Path) -> str:
+    """The text of a TOML file the user may have edited: UTF-8, with or without a byte order mark.
+
+    Line endings stay as they are (the config is written back with them). Notepad and other editors
+    save UTF-8 with a BOM, which tomllib rejects; it is dropped here.
+
+    Raises:
+        OSError: the file cannot be read.
+        TomlEncodingError: the bytes are not UTF-8.
+    """
+    data = Path(path).read_bytes()
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError as exc:
+        raise TomlEncodingError(
+            f"{Path(path).name} is not saved as UTF-8 (byte {exc.start}); save it again as UTF-8"
+        ) from exc
+
+
+def load_toml_file(path: Path) -> dict:
+    """`read_toml_text` parsed. Raises OSError or ValueError (TOMLDecodeError, TomlEncodingError)."""
+    return tomllib.loads(read_toml_text(path))
+
 
 #: `[name]` oder `[[name]]`, danach höchstens ein Kommentar.
 _HEADER_RE = re.compile(r"^\s*\[(?P<array>\[)?(?P<name>[^\[\]]+)\](?(array)\])\s*(?:#.*)?$")

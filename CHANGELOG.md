@@ -5,6 +5,44 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+Fixes from the third independent review.
+
+### Fixed
+- **Starting Hams from the Start menu showed nothing**, also after installing or updating: the window stayed hidden
+  and the tray icon is often behind the `^` arrow. Hams now shows its window when started by hand; only the
+  autostart at sign-in starts it in the tray (`--background`). The first time the window is hidden, a notification
+  says that Hams keeps running in the tray.
+- **A glossary saved as ANSI or UTF-16 broke every dictation**, and a UTF-8 file with a byte order mark (Notepad)
+  was ignored. The glossary and the settings file are now read as UTF-8 with or without a byte order mark; a file in
+  another encoding counts as empty glossary with one warning in the log, and dictation goes on.
+- **A settings file in another encoding made *Quit*, *Hide* and *Restart* do nothing.** Saving into it is refused
+  instead, and saving the window position can no longer block quitting.
+- **The stop hotkey was refused** when the model failed to load during a recording. Stopping always works now;
+  messages about the model (error, fallback, failed download) wait until the recording is stopped.
+- **A model download finishing late overrode a model chosen meanwhile** (download A, switch to B, A finished → A
+  was loaded). The later choice now stays, in the app and in the settings file.
+- **Restart and Quit could drop a dictation still being transcribed.** *Restart* now waits with a message until it
+  is done; *Quit* waits a few seconds for it and logs what it had to drop. The restart frees the hotkeys before the
+  new instance registers them.
+- ***Ask AI* pasted nothing** (an empty text) when Ollama returned an empty answer, an error or a cut-off stream.
+  That now counts as a failed AI answer: the clipboard stays untouched and the window says so.
+- After a refused shortcut in *Settings → Shortcuts*, leaving the window kept both hotkeys switched off until the
+  settings were closed. They work again as soon as the capture loses focus.
+- The level meter in the settings and the recording no longer open the microphone at the same time, and a failed
+  recording start gives the microphone back to the level meter and closes a half-opened device.
+- The Ollama model download in the settings no longer touches Tk from its worker thread.
+
+### Changed
+- *Settings → About & help → Diagnostic report* names the report file instead of a long wrapping path and has
+  *Open* next to *Create*; "1 check failed" / "3 checks failed" instead of "check(s)".
+- Error hints point to *Settings → About & help → Diagnostic report* instead of "the log". The GPU step of the setup
+  assistant says "NVIDIA's official libraries" instead of "PyPI".
+- Python 3.11 or newer is required (it was 3.10 on paper, but the locked dependencies need 3.11). CI also runs the
+  Linux tests on Python 3.12.
+- Docs: troubleshooting section *The model doesn't load*; the user guide says when the window shows and names the
+  *System language* option; the README marks the 3.09 s → 0.72 s comparison as limited comparability and explains
+  the independent reviews; `docs/architecture.md` describes the weekly lock refresh instead of Dependabot.
+
 ## [1.1.1] – 2026-11-13
 
 Fixes from the second independent review, help inside the app, and a release pipeline that publishes only from

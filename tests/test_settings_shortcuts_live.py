@@ -203,3 +203,22 @@ class TestApp:
         monkeypatch.setattr(hams.keyboard, "unhook_all_hotkeys", broken)
         live_app.suspend_hotkeys()
         assert "Hotkey unhook failed" in caplog.text
+
+
+class TestLeavingARejectedCapture:
+    """Third review: a refused combination left the capture open, and leaving the window kept the hotkeys off."""
+
+    def test_focus_out_registers_the_shortcuts_again_and_focus_in_frees_them(self, win, hams):
+        win._start_capture("transcript")
+        press(win, SHIFT, ord("A"))  # refused, the capture stays open
+        assert win._capture == "transcript" and hams.hotkeys.entries == []
+        win._on_capture_focus_out()
+        assert combos(hams) == ["ctrl+shift+space", "ctrl+shift+alt+space"], "the user went elsewhere"
+        win._on_capture_focus_in()
+        assert hams.hotkeys.entries == [], "back in the capture: the old combination must not fire"
+
+    def test_focus_changes_outside_a_capture_change_nothing(self, win, hams):
+        before = combos(hams)
+        win._on_capture_focus_out()
+        win._on_capture_focus_in()
+        assert combos(hams) == before

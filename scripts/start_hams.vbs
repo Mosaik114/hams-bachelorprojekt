@@ -1,4 +1,4 @@
-' Starts Hams in the background without a console window.
+' Starts Hams without a console window.
 ' Paths are resolved relative to this script (scripts\ inside the project), so the project can be moved.
 ' Prefers pythonw.exe from .venv, otherwise falls back to the system pythonw.exe.
 
@@ -23,4 +23,11 @@ End If
 ' how Hams was started (autostart, Explorer, console).
 WshShell.CurrentDirectory = projectDir
 
-WshShell.Run """" & pythonExe & """ """ & mainPy & """", 0, False
+' Arguments are passed on: the autostart entry adds --background (start in the tray). Started by hand
+' (double click), Hams shows its window.
+args = ""
+For Each arg In WScript.Arguments
+    args = args & " """ & arg & """"
+Next
+
+WshShell.Run """" & pythonExe & """ """ & mainPy & """" & args, 0, False

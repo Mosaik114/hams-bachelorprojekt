@@ -297,4 +297,7 @@ class MainWindowMixin:
                 self._window_pos = (self.root.winfo_x(), self.root.winfo_y())
         except tk.TclError:  # pragma: no cover
             pass
-        self._save_position()
+        try:
+            self._save_position()
+        except Exception:  # noqa: BLE001 - Verstecken, Beenden und Neustart duerfen nie daran scheitern
+            logger.exception("Window position not saved")

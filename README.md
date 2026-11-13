@@ -13,7 +13,7 @@
 <p align="center">
   <a href="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/secrets.yml"><img alt="Secret scan" src="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/secrets.yml/badge.svg"></a>
-  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white">
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-informational">
   <img alt="Coverage gate" src="https://img.shields.io/badge/coverage%20gate-93%25-brightgreen">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green"></a>
@@ -126,7 +126,7 @@ The speed and memory rows come from the thesis measurements (RTX 5070, Ryzen 7 9
 
 | Metric | Before | After | Change |
 |---|---:|---:|---:|
-| Response time, real dictations (median, n = 172 → 678) | 3.09 s | **0.72 s** | −77 % |
+| Response time, real dictations (median, n = 172 → 678)¹ | 3.09 s | **0.72 s** | −77 % |
 | Ollama cleanup call (n = 5, directly comparable) | 2.941 s | **0.839 s** | −71 % |
 | Ollama status check | 4.023 s | **0.016 s** | −99.6 % |
 | App import time | 1.803 s | **0.298 s** | −83 % |
@@ -134,6 +134,10 @@ The speed and memory rows come from the thesis measurements (RTX 5070, Ryzen 7 9
 | Hotkey ready after start | ~3 s | **0.38 s** | |
 | WER without → with LLM cleanup (n = 126 × 3; v1.0.0 reached 13.32 %, before temperature 0 and the output guard) | 14.49 % | **12.12 %** | −2.4 pp |
 | Cleanup outputs flagged for a changed meaning (invented digits, leaked prompt …), v1.0.0 → current | 16 / 378 | **6 / 378** | −63 % |
+
+¹ Limited comparability: logged real use before and after, not a controlled run (other dictations, lengths and
+models). [docs/evaluation.md](docs/evaluation.md#headline-results) rates each row *d* (directly comparable), *e*
+(limited) or *n* (not directly comparable); this one is *e*.
 
 **The bottleneck wasn't the model.** Taking one cleanup call apart showed that about two thirds of the wait was a
 *refused IPv6 connection*: `localhost` resolved to `::1` first, Ollama only listened on IPv4, and Windows spent about
@@ -147,6 +151,10 @@ decisions, the measurement rules and the review; the agent wrote most of the cod
 under those rules. [docs/evaluation.md](docs/evaluation.md#who-ran-the-measurements) records this split, and the
 thesis discloses it for the measurements. The safeguards are the ones a team would use: small reviewed changes, tests
 and CI as the gate, and measured numbers instead of impressions.
+
+The independent reviews mentioned in the changelog were Claude Code agents started with a fresh context and a fixed
+review brief, from three perspectives: an end user, an engineer, and someone hiring. I triaged their findings and
+decided what got fixed; there were three rounds.
 
 ## Documentation
 

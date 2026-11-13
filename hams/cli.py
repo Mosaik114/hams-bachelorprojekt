@@ -5,6 +5,7 @@ support; none of them opens a window:
 
 ``--settings``              start (or ask the running instance) with the settings open
 ``--setup``                 start with the first-run setup wizard, even if it was completed
+``--background``            start in the tray without showing the window (used by the autostart entry)
 ``--self-test``             check that the build is complete, exit 0 if it is
 ``--install-gpu-support``   download cuBLAS/cuDNN for NVIDIA GPUs (installed app)
 ``--report FILE``           also write the output of the two above to FILE
@@ -27,6 +28,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="Hams", add_help=False)
     parser.add_argument("--settings", action="store_true")
     parser.add_argument("--setup", action="store_true")
+    parser.add_argument("--background", action="store_true")
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--install-gpu-support", action="store_true")
     parser.add_argument("--report", type=Path)
@@ -99,5 +101,5 @@ def run(argv: list[str] | None = None) -> int:
             return gpu_support.install_cli(stream)
     from hams.main import main
 
-    main(show_settings=args.settings, show_setup=args.setup)
+    main(show_settings=args.settings, show_setup=args.setup, background=args.background)
     return 0

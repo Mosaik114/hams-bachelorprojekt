@@ -42,6 +42,11 @@ BATCH_SIZE = 8
 #: wrong shape. Each of them must end in the raw text, never in a lost dictation.
 OLLAMA_ERRORS = (OSError, http.client.HTTPException, ValueError, KeyError, TypeError)
 
+
+class OllamaAnswerError(ValueError):
+    """Ollama answered, but not with a usable text: an `error` field, a cut-off stream or an empty answer."""
+
+
 #: The run id of the pipeline job this thread is working on (see `TranscriptionMixin._pipeline_ui`).
 _pipeline_run = threading.local()
 
@@ -176,6 +181,8 @@ class TranscriptionMixin:
         with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
             if not stream:
                 result = json.loads(resp.read())
+                if isinstance(result, dict) and result.get("error"):
+                    raise OllamaAnswerError("Ollama reported an error")
                 answer = result.get("response") if isinstance(result, dict) else None
                 if not isinstance(answer, str):
                     raise ValueError("Ollama answered without a text response")
@@ -187,6 +194,7 @@ class TranscriptionMixin:
         """Die gestreamte Antwort Zeile für Zeile; zeigt dabei höchstens viermal pro Sekunde die Zeichenzahl."""
         chunks: list[str] = []
         last_update = 0.0
+        finished = False
         for raw_line in resp:
             line = raw_line.strip()
             if not line:
@@ -198,16 +206,22 @@ class TranscriptionMixin:
                 continue
             if not isinstance(obj, dict):
                 continue
+            if obj.get("error"):
+                # Nur die Art loggen: die Meldung kann Teile des Prompts enthalten.
+                raise OllamaAnswerError("Ollama reported an error in the stream")
             piece = obj.get("response")
             if isinstance(piece, str):
                 chunks.append(piece)
             if obj.get("done"):
+                finished = True
                 break
             now = time.monotonic()
             if show_progress and now - last_update > 0.25:
                 last_update = now
                 total_len = sum(len(c) for c in chunks)
                 self._pipeline_ui(lambda n=total_len: self.elapsed_label.config(text=tn("status.characters", n)))
+        if not finished:
+            raise OllamaAnswerError("Ollama's answer stream ended before it was done")
         return "".join(chunks).strip()
 
     def _generate_from_prompt(self, text: str, language: str = "") -> str:
@@ -232,7 +246,10 @@ class TranscriptionMixin:
             progress_label=CFG.ollama_model_prompt or "prompt",
             system=dictation_language.plain_system(_prompt_language(language)),
         )
-        return plain_text(answer)
+        answer = plain_text(answer)
+        if not answer.strip():
+            raise OllamaAnswerError("Ollama gave an empty answer")
+        return answer
 
     def _cleanup_text(self, text: str, language: str = "") -> str:
         """Clean up transcript text using LLM.
@@ -429,6 +446,8 @@ class TranscriptionMixin:
     #: Class defaults: tests also build the app without __init__.
     _pipeline_latest = 0
     _pipeline_busy = False
+    #: True while the worker transcribes a job it has taken from the queue.
+    _pipeline_job_running = False
     _pipeline_jobs: collections.deque | None = None
     _pipeline_lock = threading.Lock()
 
@@ -455,8 +474,10 @@ class TranscriptionMixin:
             with self._pipeline_lock:
                 if not self._pipeline_jobs:
                     self._pipeline_busy = False
+                    self._pipeline_job_running = False
                     return
                 audio, prompt_mode, run_id = self._pipeline_jobs.popleft()
+                self._pipeline_job_running = True
             try:
                 self._transcribe_audio(audio, prompt_mode=prompt_mode, run_id=run_id)
             except Exception:  # noqa: BLE001 - Grenze des Threads: der naechste Auftrag muss trotzdem laufen
@@ -573,15 +594,10 @@ class TranscriptionMixin:
         self._pipeline_ui(lambda: self._apply_state("generating"))
         try:
             return self._generate_from_prompt(text, language)
-        except OLLAMA_ERRORS:
+        except OLLAMA_ERRORS as exc:
             logger.exception("Ollama prompt-generation failed")
-            self._pipeline_ui(
-                lambda: self._apply_state(
-                    "error",
-                    t("error.ai_failed"),
-                    t("error.ollama_not_responding"),
-                ),
-            )
+            hint = t("error.ai_no_answer") if isinstance(exc, OllamaAnswerError) else t("error.ollama_not_responding")
+            self._pipeline_ui(lambda: self._apply_state("error", t("error.ai_failed"), hint))
             return None
 
     def _cleaned_or_raw(self, text: str, language: str) -> str:

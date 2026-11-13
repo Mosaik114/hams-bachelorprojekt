@@ -242,6 +242,9 @@ def app(monkeypatch):
     instanz.root = _Root()
     instanz.tray_icon = _Tray()
     instanz.freigegeben = 0
+    instanz._window_visible = True
+    #: Kurzbefehle und Start des Nachfolgers in ihrer Reihenfolge.
+    instanz.ablauf = []
 
     def _flush():
         instanz.gemerkt = True
@@ -252,6 +255,8 @@ def app(monkeypatch):
     instanz.gemerkt = False
     monkeypatch.setattr(App, "_flush_position", lambda self: _flush())
     monkeypatch.setattr(App, "_release_resources", lambda self: _release())
+    monkeypatch.setattr(App, "suspend_hotkeys", lambda self: self.ablauf.append("hotkeys frei"))
+    monkeypatch.setattr(App, "_register_hotkeys", lambda self: self.ablauf.append("hotkeys an"))
     monkeypatch.setattr(App, "downloading_model", property(lambda self: None))
     monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
     return instanz
@@ -357,6 +362,25 @@ class TestRestartApp:
         assert app._shutting_down is False
         assert app.tray_icon.gestoppt == 0
         assert wieder == [1], "das Schloss muss zurueckgenommen werden"
+        assert app.ablauf == ["hotkeys frei", "hotkeys an"], "die Kurzbefehle gelten wieder"
+
+    def test_the_hotkeys_are_freed_before_the_successor_starts(self, app, monkeypatch):
+        """Third review: the successor registers the same shortcuts and failed while they were still held."""
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: app.ablauf.append("start"))
+        app.restart_app()
+        assert app.ablauf[:2] == ["hotkeys frei", "start"]
+
+    def test_a_dictation_still_in_the_pipeline_blocks_the_restart(self, app, popen):
+        """Third review: restarting dropped a finished recording that was still being transcribed."""
+        app._pipeline_job_running = True
+        assert app.restart_app() == "Ein Diktat wird noch verarbeitet"
+        assert popen.aufrufe == []
+        assert app._shutting_down is False
+
+    def test_a_hidden_app_restarts_in_the_background(self, app, popen):
+        app._window_visible = False
+        app.restart_app()
+        assert popen.aufrufe[0][0] == [*instance_mod.restart_command(), "--background"]
 
 
 # ------------------------------------------------------------ Einstellungszeile

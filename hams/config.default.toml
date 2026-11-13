@@ -95,8 +95,9 @@ appearance = "light"
 # "auto" folgt der Systemsprache: Deutsch auf einem deutschen System, sonst
 # Englisch. Eine Änderung gilt nach einem Neustart von Hams.
 language = "auto"
-# Die zuletzt gemerkte Fensterposition (window_x, window_y) schreibt Hams
-# selbst in die Nutzerkonfiguration — hier hat sie nichts zu suchen.
+# Die zuletzt gemerkte Fensterposition (window_x, window_y) und ob der
+# Hinweis „läuft im Tray weiter“ schon kam (tray_hint_shown) schreibt Hams
+# selbst in die Nutzerkonfiguration — hier haben sie nichts zu suchen.
 
 [updates]
 # Einmal am Tag beim Start fragt Hams bei GitHub (api.github.com) nach, ob es

@@ -55,7 +55,7 @@ class TestNames:
         assert "wisper" not in text.lower()
 
     def test_the_command_prefers_the_start_script(self):
-        assert autostart._resolve_launch_command() == f'wscript.exe //B "{autostart.VBS_PATH}"'
+        assert autostart._resolve_launch_command() == f'wscript.exe //B "{autostart.VBS_PATH}" --background'
 
     def test_without_the_start_script_python_runs_main_directly(self, monkeypatch, tmp_path):
         monkeypatch.setattr(autostart, "VBS_PATH", tmp_path / "fehlt.vbs")

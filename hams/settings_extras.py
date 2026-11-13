@@ -6,9 +6,7 @@ Beides ohne Terminal: der Download nutzt dieselbe Aufgabe wie der Einrichtungsas
 
 from __future__ import annotations
 
-import contextlib
 import threading
-import tkinter as tk
 
 from hams import glossary, setup_wizard
 from hams import ollama as ollama_api
@@ -97,8 +95,8 @@ class ExtrasSectionMixin:
                 threading.Thread(target=self._check_ollama, daemon=True, name="ollama-check").start()
             self._refresh_pull_row()
 
-        with contextlib.suppress(RuntimeError, tk.TclError):
-            self.win.after(0, run)
+        # Nie `self.win.after` aus diesem Thread: Tk ist nicht threadsicher. Der Dispatcher der App reicht es weiter.
+        self.app._ui_call(run)
 
     def _cancel_model_pull(self) -> None:
         if getattr(self, "pull_task", None) is not None and self.pull_task.running:

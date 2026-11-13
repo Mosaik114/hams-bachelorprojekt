@@ -20,6 +20,7 @@ older.
 - [Wrong language or translated text](#wrong-language-or-translated-text)
 - [The microphone is silent](#the-microphone-is-silent)
 - [The model download fails](#the-model-download-fails)
+- [The model doesn't load](#the-model-doesnt-load)
 - [Linux](#linux)
 - [Reporting a bug](#reporting-a-bug)
 
@@ -191,6 +192,26 @@ Symptoms: *No microphone signal*, *No speech detected*, or *"…" isn't picking 
   drive. Free up space or choose a smaller model.
 - A cancelled or broken download continues where it stopped when you select the model again. Leftovers show up under
   *Downloaded models* as *incomplete* and can be deleted there.
+
+## The model doesn't load
+
+The main window says *Couldn't load the model* with *"…" couldn't be loaded on the GPU or the CPU*, or, after
+choosing another model, *Couldn't load …* with *Still using …* (Hams keeps the previous model). A dictation recorded
+meanwhile ends with *Model unavailable — The recording couldn't be transcribed.*
+
+- **A corrupt or incomplete download.** Open *Settings → Transcription → Downloaded models*, delete the model there
+  (*Delete …*; an unfinished one shows *incomplete*), then select it again under *Whisper model* to download it
+  afresh. *Try again* in the main window loads it once more.
+- **Not enough graphics memory (VRAM).** Large models need several GB on the GPU, more while a game or another AI
+  tool is running. Close those, or choose a smaller model; [hardware.md](hardware.md) lists the sizes. Hams then
+  tries the CPU by itself, which is slower but works.
+- **Not enough disk space.** Downloads stop with *Not enough disk space — needs …, … free* or *The disk is full*.
+  Free up space on the system drive and select the model again.
+- **Antivirus software.** A scanner that locks or quarantines model files while they are written leaves a broken
+  download. Allow `%USERPROFILE%\.cache\huggingface\hub`, delete the model as above and download it again.
+
+For the exact cause, create a diagnostic report (*Settings → About & help → Diagnostic report → Create*); it
+contains the end of the log with the error from the GPU or CPU load.
 
 ## Linux
 

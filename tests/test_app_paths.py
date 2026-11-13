@@ -52,7 +52,7 @@ class TestFrozen:
     def test_autostart_starts_the_exe_when_frozen(self, monkeypatch):
         monkeypatch.setattr(sys, "frozen", True, raising=False)
         monkeypatch.setattr(sys, "executable", r"C:\Programme\Hams\Hams.exe")
-        assert setup_autostart._resolve_launch_command() == r'"C:\Programme\Hams\Hams.exe"'
+        assert setup_autostart._resolve_launch_command() == r'"C:\Programme\Hams\Hams.exe" --background'
 
     def test_restart_starts_the_exe_without_a_script_when_frozen(self, monkeypatch):
         monkeypatch.setattr(sys, "frozen", True, raising=False)

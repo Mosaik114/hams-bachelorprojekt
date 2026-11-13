@@ -30,6 +30,12 @@ class WhisperModelMixin:
     model_fallback: str | None = None
     #: A catalog model that is being downloaded because it has to be loaded next (start, retry), else None.
     _load_after_download: str | None = None
+    #: Rises with every model request (set in the app's __init__; the class value serves tests without it).
+    _model_generation = 0
+    #: `_model_generation` when the running download started: a newer model request since then wins over it.
+    _download_generation = 0
+    #: A model notice (error, fallback, failed download) that came in during a recording, shown after it.
+    _pending_model_notice = None
 
     # ------------------------------------------------------------------ model lifecycle
     #
@@ -87,7 +93,19 @@ class WhisperModelMixin:
         self.model_error = error
         if error == whisper_models.CANCELLED:
             error = t("status.model_download_cancelled")
-        self._apply_state("error", t("error.model_download_failed", model=info.label if info else model_id), error)
+        title = t("error.model_download_failed", model=info.label if info else model_id)
+        self._model_notice(lambda: self._apply_state("error", title, error))
+
+    def _model_notice(self, show) -> None:
+        """Shows a model message now, or after the recording that is running: never over the recording.
+
+        Stopping must keep working whatever the model does meanwhile, and the main window keeps saying
+        *Recording* until then (see `RecordingMixin._deliver_model_notice`).
+        """
+        if getattr(self, "is_recording", False):
+            self._pending_model_notice = show
+            return
+        show()
 
     def reload_model(self) -> bool:
         """The "Try again" button: load the configured model again unless a load is under way.
@@ -171,6 +189,10 @@ class WhisperModelMixin:
             generation = self._model_generation
             self._switching_to = model_id
             self._model_phase = "switching" if self.active_model_size else "loading"
+        if self._load_after_download not in (None, model_id):
+            # A download that a start or retry waited for no longer decides which model is loaded.
+            logger.info("Model request %s supersedes the awaited download of %s", model_id, self._load_after_download)
+            self._load_after_download = None
         logger.info("Model request %d: %s (%s)", generation, model_id, self._model_phase)
         self._start_switch_thread(model_id, generation, persist)
         return generation
@@ -270,13 +292,15 @@ class WhisperModelMixin:
             _persist_config_value("model", "size", model_id)
         if not self.is_switching_model:
             if fallback:
-                self._on_model_fallback(requested, model_id)
+                self._model_notice(lambda: self._on_model_fallback(requested, model_id))
             elif ok:
                 logger.info("Model ready for UI (%s/%s)", self._active_device, self._active_compute_type)
-                self._apply_state("ready")
+                self._pending_model_notice = None  # an older error notice no longer applies
+                if not getattr(self, "is_recording", False):
+                    self._apply_state("ready")
                 self._update_tray_tooltip()
             else:
-                self._on_model_error()
+                self._model_notice(self._on_model_error)
         if self.settings_win is not None and self.settings_win.alive():
             self.settings_win.on_model_changed()
 
@@ -313,6 +337,7 @@ class WhisperModelMixin:
         self.download_done = 0
         self.download_total = info.size_bytes
         self.download_percent = 0
+        self._download_generation = self._model_generation
         problem = self.downloader.start(info, self._on_download_progress, self._on_download_finished)
         if problem:
             logger.info("Download von %s nicht gestartet: %s", model_id, problem)
@@ -371,11 +396,18 @@ class WhisperModelMixin:
             if awaited:
                 self._on_model_download_failed(model_id, error)
         elif awaited:
-            # No model is loaded yet, so there is nothing a recording could lose: load right away.
+            # No model is loaded yet, so there is nothing a recording could lose: load right away. A recording
+            # that is running waits for it; the main window keeps showing the recording.
             switching = True
             self._request_model(model_id, persist=False)
             info = whisper_models.find(model_id)
-            self._apply_state("model_loading", t("status.model_loading_named", model=info.label if info else model_id))
+            if not getattr(self, "is_recording", False):
+                label = info.label if info else model_id
+                self._apply_state("model_loading", t("status.model_loading_named", model=label))
+        elif self._model_generation != self._download_generation:
+            # Another model was chosen while this one came down: that later choice stays.
+            logger.info("Download of %s finished after a newer model request, not switching", model_id)
+            switching = False
         else:
             switching = self.switch_model(model_id)
         for view in self._download_views():

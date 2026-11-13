@@ -82,14 +82,24 @@ jobs:
         run: pytest tests -q --cov=hams --cov-report=term --cov-config=coverage-windows.ini
 
   test-linux:
-    name: Tests (Linux, xvfb)
+    # The lock files are compiled for 3.11 (--universal); 3.12 installs the same pins. Python 3.10 is not
+    # supported (requires-python >= 3.11): several locked packages need 3.11.
+    name: ${{ matrix.name }}
     runs-on: ubuntu-26.04
     needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python: "3.11"
+            name: Tests (Linux, xvfb)
+          - python: "3.12"
+            name: Tests (Linux, xvfb, Python 3.12)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python }}
       # Tk needs an X server (xvfb); sounddevice needs PortAudio and, through it, a running sound server.
       # The runner has no sound card, so PulseAudio runs with a null sink.
       - name: System packages

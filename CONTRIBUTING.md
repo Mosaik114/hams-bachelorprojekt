@@ -12,7 +12,7 @@ Thanks for taking an interest. Bug reports, ideas and pull requests are welcome.
 
 ## Development setup
 
-Python 3.10 or newer. With [uv](https://docs.astral.sh/uv/) (recommended):
+Python 3.11 or newer. With [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
 uv venv .venv --python 3.11
