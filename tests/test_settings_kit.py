@@ -195,6 +195,32 @@ class TestGroupSurface:
         corner = uk.Radius.GROUP - uk.Space.GROUP_INSET
         assert (corner**2 * 2) ** 0.5 < uk.Radius.GROUP - 1
 
+    def test_the_plate_is_drawn_once_after_the_rows_settle(self, window, root, monkeypatch):
+        """While rows are added the group passes many heights; only the final one is rendered."""
+        group = GroupSurface(window, bg_under=BG)
+        group.pack(fill="x")
+        rendered = []
+        original = GroupSurface._render
+        monkeypatch.setattr(GroupSurface, "_render", lambda self, w, h: rendered.append((w, h)) or original(self, w, h))
+        for index in range(6):
+            SettingRow(group.body, f"Zeile {index}").pack(fill="x")
+        for _ in range(3):
+            root.update()
+        assert len(rendered) == 1
+        assert rendered[0] == (group.winfo_width(), group.winfo_height())
+        assert group.find_withtag("plate")
+
+    def test_a_pending_plate_is_dropped_with_the_group(self, window, root):
+        group = GroupSurface(window, bg_under=BG)
+        group.pack(fill="x")
+        root.update()
+        SettingRow(group.body, "Zeile").pack(fill="x")
+        root.update_idletasks()
+        group._schedule_render()
+        group.destroy()
+        root.update()
+        assert group._render_job is None
+
     def test_plate_has_rounded_corners(self):
         plate = uk.render_surface(300, 120, uk.px(uk.Radius.GROUP), Theme.GROUP_SURFACE, squircle=True)
         assert plate.getpixel((0, 0))[3] < 60

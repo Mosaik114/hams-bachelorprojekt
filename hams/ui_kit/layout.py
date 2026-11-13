@@ -237,6 +237,7 @@ class GroupSurface(tk.Canvas):
         super().__init__(master, bg=bg_under, bd=0, highlightthickness=0, takefocus=0, height=px(Radius.GROUP * 2))
         self._bg_under = bg_under
         self._last_size = (0, 0)
+        self._render_job: str | None = None
         self.body = tk.Frame(self, bg=Theme.GROUP_SURFACE)
         self._window = self.create_window((0, 0), window=self.body, anchor="nw")
         self.bind("<Configure>", self._on_configure, add="+")
@@ -263,7 +264,22 @@ class GroupSurface(tk.Canvas):
         inset = self.inset
         self.coords(self._window, inset, inset)
         self.itemconfigure(self._window, width=max(1, event.width - 2 * inset))
-        self._render(event.width, event.height)
+        self._schedule_render()
+
+    def _schedule_render(self) -> None:
+        """Draws the plate once the layout has settled, not for every size it passes through.
+
+        While a window is being built, a group grows row by row and reports a new height each time (measured: 44
+        renders for the six groups of the settings window). Only the last size is ever seen.
+        """
+        if self._render_job is None:
+            self._render_job = self.after_idle(self._render_settled)
+
+    def _render_settled(self) -> None:
+        self._render_job = None
+        width, height = self._last_size
+        if width > 1:
+            self._render(width, height)
 
     def _render(self, width: int, height: int) -> None:
         self.delete("plate")
@@ -309,3 +325,7 @@ class GroupSurface(tk.Canvas):
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:
             Scale.unregister(self._on_scale_change)
+            if self._render_job is not None:
+                with contextlib.suppress(tk.TclError):
+                    self.after_cancel(self._render_job)
+                self._render_job = None

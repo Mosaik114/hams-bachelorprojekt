@@ -212,3 +212,66 @@ class TestCache:
             uk.surface(width, 20, 6, FILL)
             uk.surface(11, 20, 6, FILL)  # bleibt in Benutzung
         assert any(key[0] == 11 for key in uk._img_cache)
+
+
+class TestStretchedTemplate:
+    """Large surfaces are stretched from a small template; the result must not differ by a single pixel."""
+
+    STYLES = [
+        pytest.param({"squircle": True, "border": "#E5E5E5", "border_w": 1}, id="group"),
+        pytest.param({"border": "#333333", "border_w": 2}, id="border"),
+        pytest.param(
+            {"ring": "#0A786E", "ring_width": 2, "ring_gap": 1, "border": "#DDDDDD", "border_w": 1}, id="ring"
+        ),
+        pytest.param({"edge": "#FFFFFF"}, id="edge"),
+        pytest.param({"gradient": 0.04, "dither": False, "squircle": True}, id="gradient"),
+    ]
+    # Includes both sides of the line where Pillow changes the order of its passes (height = 2 x width)
+    SIZES = [(404, 520), (301, 97), (120, 32), (37, 74), (37, 75), (48, 97), (49, 97), (600, 13), (13, 600)]
+
+    @pytest.mark.parametrize("style", STYLES)
+    @pytest.mark.parametrize("radius", [0, 6, 10, 15])
+    @pytest.mark.parametrize(("width", "height"), SIZES)
+    def test_identical_to_the_full_render(self, style, radius, width, height):
+        full = uk._render_full(width, height, radius, FILL, **style)
+        assert uk.render_surface(width, height, radius, FILL, **style).tobytes() == full.tobytes()
+
+    def test_the_expensive_render_only_sees_the_template(self, monkeypatch):
+        sizes = []
+        original = uk._render_full
+
+        def spy(width, height, *args, **kwargs):
+            sizes.append((width, height))
+            return original(width, height, *args, **kwargs)
+
+        monkeypatch.setattr("hams.ui_kit.surfaces._render_full", spy)
+        image = uk.render_surface(400, 520, 10, FILL, squircle=True, border="#E5E5E5", border_w=1)
+        core = 10 + uk.SLICE_MARGIN
+        assert image.size == (400, 520)
+        assert sizes == [(2 * core + 1, 2 * core + 1)]
+
+    def test_a_gradient_is_only_stretched_sideways(self, monkeypatch):
+        sizes = []
+        original = uk._render_full
+        monkeypatch.setattr(
+            "hams.ui_kit.surfaces._render_full",
+            lambda width, height, *a, **k: sizes.append((width, height)) or original(width, height, *a, **k),
+        )
+        uk.render_surface(300, 40, 8, FILL, gradient=0.03)
+        assert sizes == [(2 * (8 + uk.SLICE_MARGIN) + 1, 40)]
+
+    def test_a_shadow_keeps_the_full_render(self, monkeypatch):
+        sizes = []
+        original = uk._render_full
+        monkeypatch.setattr(
+            "hams.ui_kit.surfaces._render_full",
+            lambda width, height, *a, **k: sizes.append((width, height)) or original(width, height, *a, **k),
+        )
+        uk.render_surface(120, 60, 8, FILL, shadow=(2.0, 1.0, 0.2))
+        assert sizes == [(120, 60)]
+
+    def test_dither_still_applies_to_a_stretched_gradient(self):
+        plain = uk.render_surface(300, 40, 8, FILL, gradient=0.05, dither=False)
+        noisy = uk.render_surface(300, 40, 8, FILL, gradient=0.05, dither=True)
+        assert plain.size == noisy.size
+        assert plain.tobytes() != noisy.tobytes()

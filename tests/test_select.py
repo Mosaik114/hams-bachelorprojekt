@@ -143,6 +143,29 @@ class TestEllipsize:
         assert result.endswith("…") and len(result) < 37
 
 
+class TestPilFont:
+    """The PIL font for text drawn into images is looked up once per family and size."""
+
+    def test_a_second_lookup_does_not_search_again(self, monkeypatch):
+        from PIL import ImageFont
+
+        calls = []
+        original = ImageFont.truetype
+        monkeypatch.setattr(ImageFont, "truetype", lambda name, size: calls.append(name) or original(name, size))
+        uk._pil_font_for.cache_clear()
+        first = uk._pil_font(uk.font("row_title"))
+        searched = len(calls)
+        second = uk._pil_font(uk.font("row_title"))
+        assert second is first
+        assert searched >= 1 and len(calls) == searched
+        uk._pil_font_for.cache_clear()
+
+    def test_the_same_font_as_without_cache(self):
+        family, size = uk.font("row_title").cget("family"), abs(int(uk.font("row_title").cget("size")))
+        uk._pil_font_for.cache_clear()
+        assert uk._pil_font(uk.font("row_title")).getname() == uk._pil_font_for.__wrapped__(family, size).getname()
+
+
 class TestPopover:
     def test_opens_and_closes(self, select, root):
         select.open_popover()

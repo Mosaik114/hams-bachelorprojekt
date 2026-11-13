@@ -57,16 +57,18 @@ from hams.ui_kit.setting_row import SettingRow  # noqa: F401
 from hams.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin, return_focus_to  # noqa: F401
 from hams.ui_kit.surfaces import (  # noqa: F401
     CACHE_LIMIT,
+    SLICE_MARGIN,
     SQUIRCLE_EXPONENT,
     SUPERSAMPLE,
     _hex_to_rgb,
+    _render_full,
     _shape_mask,
     _squircle_points,
     _vertical_ramp,
     render_surface,
     surface,
 )
-from hams.ui_kit.text import _ellipsize, _fit_text, _line_height, _pil_font, _text_width  # noqa: F401
+from hams.ui_kit.text import _ellipsize, _fit_text, _line_height, _pil_font, _pil_font_for, _text_width  # noqa: F401
 from hams.ui_kit.theme import (  # noqa: F401
     TINTED_OPTIONS,
     Height,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import sys
 import tkinter as tk
 
@@ -43,6 +44,17 @@ def _pil_font(tk_font):
         size = abs(int(tk_font.cget("size")))
     except AttributeError:
         family, size = "Segoe UI", px(12)
+    return _pil_font_for(family, size)
+
+
+@functools.lru_cache(maxsize=64)
+def _pil_font_for(family: str, size: int):
+    """The PIL font for one family and size, looked up once.
+
+    `ImageFont.truetype` with a name instead of a path walks the whole Windows font folder for every name it
+    cannot find; uncached that cost about 90 ms per opening of the settings window and 300 ms per switch of the
+    colour scheme. The result for the same family and size never changes while the app runs.
+    """
     candidates = [family, "Segoe UI Variable Text", "Segoe UI", "arial.ttf"]
     if sys.platform != "win32":
         from hams.linux import font_file
