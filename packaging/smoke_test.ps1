@@ -8,7 +8,7 @@
     Logs go to build\smoke\.
 
 .EXAMPLE
-    .\packaging\smoke_test.ps1 -Setup build\installer\Hams-Setup-1.0.0.exe
+    .\packaging\smoke_test.ps1 -Setup build\installer\Hams-Setup-1.1.0.exe
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory = $true)][string]$Setup)

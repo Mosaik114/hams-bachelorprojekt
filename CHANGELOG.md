@@ -5,120 +5,62 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-- **Cleanup no longer pastes its own prompt or invented digits.** An output guard checks every cleanup answer and
-  pastes the raw transcript instead when the answer repeats the instructions or the glossary hint, grows far beyond
-  the input, changes the digits (a phone number once gained two digits), or keeps less than half of the dictated
-  words (a dictated "Answer only yes or no: …" came back as "No"). A leading "Here is the corrected text:" is
-  stripped. The log records only the reason and lengths. Found by the new cleanup evaluation
-  (`tools/cleanup_eval.py`, docs/evaluation.md).
+## [1.1.0] – 2026-11-13
 
-### Changed
-- **Cleanup samples at temperature 0** (with a fixed seed) instead of the model's defaults (temperature 1 for
-  `qwen3.5:9b`): the same dictation now gives the same text, with less rephrasing ("schick" → "schicken Sie").
-  Configurable as `[ollama] cleanup_temperature` (0–2); *Ask AI* is unchanged. Measured together with the output
-  guard on synthetic speech: WER after cleanup 13.32 → 12.12 %, outputs flagged for a changed meaning 16 → 6 of
-  378, trap inputs passed in every run 20 → 26 of 27, same latency.
-- **Starting Hams again brings the running window to the front** instead of a message box that says to look in the
-  system tray. The second start asks the running instance through a named event (Windows) or `SIGUSR1` (Linux); the
-  old message only appears when the running instance doesn't answer (for example an older version).
-- **The prompt mode is called *Ask AI*** in the main window, settings, setup assistant and tray (German *KI fragen*),
-  so the label says what it does; the settings hint reads "Speak a question or task; the AI's answer is pasted".
-  Config keys (`[hotkeys] prompt`, `model_prompt_generate`) are unchanged.
-- **No terminal needed for Ollama.** The setup assistant's offline hint now says to install Ollama and run the setup
-  again (*Settings → General → Setup assistant → Run again*); the model list no longer points to `ollama pull`.
-- Setup assistant wording: the hardware and microphone pages only show *Next* (*Skip* did the same there); rows no
-  longer repeat their button (*After installing* / *Check again*, *Status* / *Download*); the GPU offer reads
-  "NVIDIA libraries from PyPI (1.4 GB)"; the cleanup page says "pastes the recognised text as it is".
-- **New installs keep the glossary in `glossary.toml`.** An existing `glossar.toml` is still used.
-- `linux/setup-system.sh` speaks English, has `--help`, refuses to run without `apt`, and installs the NVIDIA driver
-  only with `--with-nvidia-driver` (it used to by default). `--remove` replaces `--entfernen` (still accepted);
-  `NO_NVIDIA` / `OHNE_NVIDIA` still switch the driver off.
-- Docs: the README starts with the download link, then highlights, screenshots and install; the thesis measurements
-  follow further down, and the configuration reference moved to the user guide. The user guide has new sections
-  *Updating Hams* and *Linux* (step by step, without the developer extras). Sizes come from one source everywhere:
-  Turbo 1.6 GB, Small 486 MB, GPU libraries 1.37 GB download / about 2 GB unpacked, minimum disk with *Small*.
-- **Ollama is optional, and its absence is calm.** The assistant switches cleanup off when Ollama isn't running.
-  With cleanup on and Ollama offline, the raw transcript (with glossary replacements) is pasted as before, but the
-  status now really says *Pasted · without cleanup*, a single neutral hint appears once per session instead of
-  nothing, and Hams stops asking Ollama for a minute, so dictations don't wait on a missing service. The settings
-  show a missing Ollama as *Optional* instead of an error while cleanup is off.
-- **Renamed from the working title *Wisper* to Hams everywhere.** The Python package is now `hams` (`python -m hams.main`,
-  `hams/setup_autostart.py`); the `wisper` command alias is gone, use `hams`.
-- **User data moved** to `%APPDATA%\Hams` (Windows) and `~/.config/hams` (Linux). On first start, an existing
-  `Wisper` folder is copied there once; the old folder is never moved or deleted.
-- The single-instance lock is now named after Hams. Hams also holds the old `Wisper` lock, so an older installation
-  and Hams never run at the same time.
-- The Windows autostart entry is now called `Hams`; setting it up replaces an old `Wisper` entry, `--remove` deletes
-  both. The log file is now `hams.log`; the test overrides are `HAMS_CONFIG` and `HAMS_LOG_DIR`.
-- Helper scripts moved and got English names: `scripts/start_hams.vbs`, `scripts/build_launcher.cmd`,
-  `scripts/launch_hams.cs`, `linux/setup-system.sh`, `linux/show-hams.sh`, `tools/wer_benchmark.py`,
-  `coverage-windows.ini`. Re-run `hams/setup_autostart.py` so autostart points to the new start script.
-- **Logs and transcripts moved out of the package folder** to `%LOCALAPPDATA%\Hams` (Linux: `~/.local/share/hams`),
-  overridable with `HAMS_DATA_DIR`; `HAMS_LOG_DIR` still wins for the log. Existing files in `hams/logs` and
-  `hams/transcripts` are not moved. The `hams` command (now `hams.cli:run`) accepts the new options listed under Added.
-- The documented default Ollama model is `qwen3.5:9b` everywhere; the evaluation states that it measured
-  `qwen2.5:7b`.
-- The template `config.default.toml` no longer sets `[transcription] language`, so a new configuration follows the
-  interface language. `tools/wer_benchmark.py` always measures with `"de"` (its corpus is German).
-- The German prompt texts moved to `hams/dictation_language.py`; `config.DEFAULT_CLEANUP_PROMPT`,
-  `glossary.HOTWORD_FRAME` and `transcription.PROMPT_PLAIN_SYSTEM` still name the German versions.
+Hams becomes an app you can install without Python: a Windows installer, a setup assistant on the first start,
+an English interface, several dictation languages and a measured, safer LLM cleanup.
 
 ### Added
-- **Download a missing Ollama model in *Settings → AI*.** When Ollama runs but the selected cleanup model isn't
-  installed, a row offers *Download* with a progress bar and cancel, the same download as in the setup assistant.
-- **Edit the glossary from the settings.** *Settings → General → Glossary → Edit* opens the file in the default
-  editor (`os.startfile` on Windows, `xdg-open` on Linux) and creates it from the template first. Changes apply from
-  the next dictation, as before.
-- **Change the hotkeys in the settings.** *Settings → Shortcuts* has *Change* next to each hotkey: press the new
-  combination (Esc cancels), and Hams checks it (needs Ctrl, Alt or Win unless it is an F key; no combinations
-  Windows reserves or that break copy and paste; not the other Hams hotkey; not one another program registered,
-  probed with `RegisterHotKey`), saves it to `[hotkeys]` and registers both hotkeys again right away, without a
-  restart. *Default* restores the original combination. On Linux the row points to KDE's system settings, which
-  manage the portal shortcuts. The setup assistant's last page now points to the settings instead of `config.toml`.
-- **Update notice.** At start, at most once every 24 hours, Hams asks `api.github.com` for the latest release in
-  the background (5 s timeout). If it is newer than the running version, a tray notification says so once, and a
-  calm notice stays in the tray menu and under *Settings → General* with a link to the release page until it is
-  dismissed for that version. Nothing is downloaded; offline or on errors nothing is shown. Turn it off under
-  *Settings → General → Check for updates* or with `[updates] check = false`; the state lives in
-  `update-check.json` in the data folder. The user guide's privacy section lists the new host.
-- **winget manifests** for `Mosaik114.Hams` in `packaging/winget/manifest/` (schema 1.10, Inno Setup, per-user)
-  and `packaging/winget/update-manifest.ps1`, which fills in version, URL and SHA-256 from a built installer.
-  Submitting to winget-pkgs is a manual step after a release, described in `CONTRIBUTING.md`.
-- **First-run setup assistant.** Opens on the first start (and from *Settings → General → Setup assistant*, the
-  tray menu or `--setup`): interface and dictation language; graphics card check with the optional CUDA download
-  (size shown, progress, cancel, resume); Whisper model download with progress, preselecting Turbo on a ready NVIDIA
-  GPU and Small on the CPU; microphone choice with live level and a sound check; Ollama check with an optional pull
-  of the cleanup model; the shortcuts. Errors are sentences with a *Try again* button, never tracebacks. A marker
-  file `setup.json` next to the configuration remembers a completed setup; installations that existed before are
-  treated as set up. On the first start the model is not loaded silently any more; the assistant downloads it.
-- **English interface.** Every visible text (main window, settings, tray menu, notifications, error messages,
-  keycaps) now comes from a message catalog in English and German. The new option `[ui] language` picks it:
-  `"auto"` (default) follows the operating system's display language, German on a German system and English
-  otherwise; `"en"` and `"de"` force a language. It can be changed under *General → Language* in the settings and
-  applies after a restart. It is independent of the dictation language (`[transcription] language`).
-- **Dictation language.** `[transcription] language` accepts `"de"`, `"en"`, `"fr"`, `"es"`, `"it"`, `"nl"`, `"pl"`,
-  `"pt"` and `"auto"` (Whisper detects the language of each recording first). It can be changed under
-  *Transcription → Dictation language* and applies from the next recording, without a restart. Each language gets
-  its own Whisper hint sentence for the glossary; the Ollama instructions (cleanup, glossary note, prompt mode) are
-  English for every language except German and name the language. German dictation is unchanged word for word.
-  New configurations without the key follow the interface language; existing ones keep their value.
-- English glossary template `glossar.default.en.toml` for new users who don't dictate German (no German spellings
-  such as *Pull-Request*); the glossary also accepts the keys `words` and `replace`.
-- **Windows installer** `Hams-Setup-<version>.exe`: per-user install without admin rights or Python, Start menu
-  entry, optional autostart, uninstaller that removes the autostart entry and offers to delete the user data. Built with
-  PyInstaller and Inno Setup (`packaging/`), installed and smoke-tested in CI, attached to releases on `v*` tags.
-- **GPU support on demand** for the installed app: `Hams.exe --install-gpu-support` downloads the pinned cuBLAS/cuDNN
-  wheels from PyPI (SHA-256 checked, resumable), keeps only the DLLs in `%LOCALAPPDATA%\Hams\cuda` and preloads them
-  from there. Source installs keep using the `[cuda]` extra. Without the libraries Hams now goes straight to the CPU
-  instead of failing at the first dictation.
-- `--self-test` (also `python -m hams --self-test`): checks imports, package data, audio backend and Tk without a
-  window or microphone.
-- `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
+- **Windows installer** `Hams-Setup-<version>.exe`: per-user, no admin rights, no Python. Start menu entry, optional
+  autostart, an uninstaller that asks before deleting user data. Built with PyInstaller and Inno Setup
+  (`packaging/`), installed, self-tested and uninstalled in CI, attached to `v*` releases. Not code-signed yet.
+- **GPU support on demand:** the installed app downloads the pinned cuBLAS/cuDNN/NVRTC wheels from PyPI (1.37 GB,
+  SHA-256 checked, resumable, one install at a time) and keeps only the DLLs in `%LOCALAPPDATA%\Hams\cuda`.
+  Without them Hams runs on the CPU from the start.
+- **Setup assistant** on the first start (again from Settings, the tray or `--setup`): languages, graphics card and
+  GPU download, speech model download (Turbo on a ready GPU, Small on the CPU), microphone check, optional Ollama
+  model, shortcuts. Errors are sentences with *Try again*.
+- **English interface** with `[ui] language` (`auto` follows the system); all texts come from message catalogs.
+- **Dictation languages:** German, English, French, Spanish, Italian, Dutch, Polish, Portuguese and automatic
+  detection, each with its own Whisper and cleanup instructions. German is unchanged word for word.
+- **Settings:** change the hotkeys by pressing them (reserved, taken and conflicting combinations are refused),
+  edit the glossary, download a missing Ollama model, turn the update notice on or off.
+- **Update notice:** at most once a day Hams asks `api.github.com` for the latest release and shows a dismissible
+  hint. It never downloads anything; `[updates] check = false` turns it off.
+- **Cleanup evaluation** `tools/cleanup_eval.py` and its results in `docs/evaluation.md`: WER before and after
+  cleanup, content preservation and trap inputs, measured on the real product code paths.
+- User guide, hardware page with measured GPU and CPU timings, troubleshooting, `--self-test --report`, winget
+  manifest templates, `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
+
+### Changed
+- **LLM cleanup runs at temperature 0 and its answer is checked before pasting.** Answers that repeat the
+  instructions, change digits, grow far beyond the dictation or drop most dictated words fall back to the raw
+  transcript. Measured on synthetic speech: WER after cleanup 13.32 → 12.12 %, outputs flagged for a changed meaning
+  16 → 6 of 378, trap inputs passed 20 → 26 of 27, same latency. `[ollama] cleanup_temperature` sets it.
+- **Ollama is optional and its absence is calm:** cleanup is switched off when Ollama isn't there, a missing
+  service gives one neutral hint, and dictation never waits on it.
+- Starting Hams again brings the running window to the front. The prompt mode is called *Ask AI*.
+- **Renamed from the working title *Wisper*:** package `hams`, user data in `%APPDATA%\Hams` and
+  `%LOCALAPPDATA%\Hams` (Linux `~/.config/hams`, `~/.local/share/hams`). An old `Wisper` folder is copied once and
+  never deleted; old and new versions never run at the same time. Logs and transcripts left the package folder.
+- Helper scripts moved to `scripts/` with English names; `linux/setup-system.sh` speaks English and installs the
+  NVIDIA driver only with `--with-nvidia-driver`. README ordered for users; the configuration reference moved to the
+  user guide. Dependencies updated (ctranslate2 4.8.5 among them, checked on the GPU).
 
 ### Fixed
-- The packaged app was missing the English glossary template (`glossar.default.en.toml`), so users who don't
-  dictate German got no glossary file. The PyInstaller spec now includes it and `--self-test` checks for it.
+- Loading the model at start while switching models (Retry, the setup assistant, Settings) could leave the wrong
+  model loaded with the UI showing another one. All loads now go through one request path with a generation number.
+- A config value of the wrong type (for example `timeout_cleanup = "30s"`) stopped Hams from starting, and
+  `check = "false"` counted as true. Every value is now read with a type and range check and falls back to the
+  default with a warning.
+- A section header with a comment (`[hotkeys] # mine`) made saving append a duplicate table, after which all
+  settings were reset. Saves are now checked with a TOML parser before writing; an unreadable file is kept, backed up
+  and reported, never overwritten.
+- Worker threads (hotkeys, tray, downloads, Ollama checks) no longer call Tk directly; a queue on the Tk thread
+  takes their callbacks, which also removes a 2-second freeze when hotkeys were re-registered.
+- GPU install errors (full disk, no write access) are reported as sentences instead of tracebacks; an Ollama answer
+  of the wrong shape no longer leaves the assistant on "checking".
+- The packaged app now includes the English glossary template.
 
 ## [1.0.0] – 2026-11-12
 
