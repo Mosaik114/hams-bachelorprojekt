@@ -5,6 +5,25 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] – 2026-11-13
+
+Fixes from the second independent review, help inside the app, and a release pipeline that publishes only from
+green CI.
+
+### Fixed
+- **A dictation started while the previous one was still being cleaned up** could lose its *Ask AI* mode and get
+  its status overwritten. Recordings now queue: each keeps its own mode and both texts are pasted in order.
+- **Ollama dropping the connection mid-answer** (crash, restart, out of memory) lost the dictation. Every Ollama
+  error now pastes the raw text; *Ask AI* says the AI failed.
+- **A glossary value with a backslash** (`C:\Temp`) broke every dictation, and a value containing its own key was
+  applied twice ("Hams App App"). Values are inserted literally and replacements run once, on the final text.
+- **A model that failed to load fell back silently** to the previous one and saved that over the user's choice.
+  Hams now says *Couldn't load X · still using Y* and keeps the choice.
+- **Closing the setup assistant early** started a silent 1.6 GB download. A missing model is now only downloaded
+  with visible progress, or the main window offers to finish the setup; closing during a download asks first.
+- Two dictations in the same second no longer overwrite each other's transcript file; an interrupted GPU download
+  (`IncompleteRead`) resumes instead of failing with a traceback.
+
 ### Added
 - **About & help in the settings:** the installed version, the user guide and troubleshooting pages, the log folder,
   and *Create* for a diagnostic report. The report runs the self-test in the background, adds the end of the log
@@ -27,6 +46,11 @@ follow [Semantic Versioning](https://semver.org/).
   developer material moved to `docs/development.md`. The README no longer speaks of "twelve" optimisations, a
   number the repository does not document.
 - The PowerShell self-test commands quote the report path, so they also work when the user name contains a space.
+- **Releases come only from green CI:** the release job waits for every check, creates the release with the notes
+  from this changelog, attaches the installer and adds a build provenance attestation (`gh attestation verify`).
+- Python dependencies are re-locked weekly by a workflow (`.github/scripts/lock.sh`) instead of Dependabot, which
+  could not update the hash-locked files; CI checks that the lock files match `pyproject.toml`. CI runners are
+  pinned, and coverage gates now count branches (93 % Windows, 88 % Linux).
 
 ## [1.1.0] – 2026-11-13
 
