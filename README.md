@@ -62,6 +62,7 @@
 <table>
   <tr>
     <td align="center"><img src="docs/images/settings.png" width="200" alt="Settings window"><br><sub>Settings</sub></td>
+    <td align="center"><img src="docs/images/settings-shortcuts.png" width="200" alt="Settings: changing the Ask AI shortcut, waiting for the new key combination"><br><sub>Changing a shortcut</sub></td>
     <td align="center"><img src="docs/images/wizard-welcome.png" width="200" alt="Setup wizard: welcome"><br><sub>First-run wizard</sub></td>
     <td align="center"><img src="docs/images/wizard-hardware.png" width="200" alt="Setup wizard: graphics card check"><br><sub>Graphics card check</sub></td>
     <td align="center"><img src="docs/images/wizard-finish.png" width="200" alt="Setup wizard: ready to dictate"><br><sub>Ready to dictate</sub></td>
