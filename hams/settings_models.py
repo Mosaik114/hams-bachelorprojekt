@@ -82,8 +82,8 @@ class ModelSectionMixin:
         if not self.alive() or self._downloading:
             return  # der Fortschritt hat Vorrang vor dem Hinweistext
         chosen = CFG.model_size
-        active = self.app.active_model_size
-        failed = getattr(self.app, "model_fallback", None)
+        active = self.app.models.active_model_size
+        failed = self.app.models.fallback
         if failed:
             info = whisper_models.find(failed)
             self.row_model.set_description(t("settings.model.load_failed", model=info.label if info else failed))
@@ -138,7 +138,7 @@ class ModelSectionMixin:
         * **Reste abgebrochener Downloads** darf man immer wegraeumen. Sie
           belegen Platz und lassen sich ohnehin nicht laden.
         """
-        aktiv = self.app.active_model_size
+        aktiv = self.app.models.active_model_size
         eingestellt = CFG.model_size
         erlaubt = []
         for eintrag in whisper_models.cached_whisper_models():
@@ -220,7 +220,7 @@ class ModelSectionMixin:
             logger.exception("Modell löschen fehlgeschlagen: %s", model_id)
             info = whisper_models.find(model_id)
             erfolg, meldung = False, t("model.delete.failed", model=info.label if info else model_id)
-        self.app._ui_call(lambda: self._delete_done(erfolg, meldung))
+        self.app.ui_call(lambda: self._delete_done(erfolg, meldung))
 
     def _delete_done(self, erfolg: bool, meldung: str) -> None:
         if not self.alive():
@@ -261,7 +261,7 @@ class ModelSectionMixin:
         if info is None:
             return
         self.model_select.set_value(CFG.model_size)
-        problem = self.app.start_download(model_id)
+        problem = self.app.models.start_download(model_id)
         if problem:
             self.row_model.set_description(problem)
             return
@@ -273,16 +273,18 @@ class ModelSectionMixin:
     def _cancel_download(self) -> None:
         self.row_model.set_description(t("settings.download.cancelling"))
         self.cancel_button.set_enabled(False)
-        self.app.cancel_download()
+        self.app.models.cancel_download()
 
     def _attach_download(self) -> None:
         """Zeigt einen laufenden Download, der aelter ist als dieses Fenster."""
-        running = self.app.downloading_model
+        running = self.app.models.downloading
         if running is None:
             return
         self._downloading = running
         self.row_model.set_control(self.cancel_button)
-        self.on_download_progress(self.app.download_done, self.app.download_total, self.app.download_percent)
+        self.on_download_progress(
+            self.app.models.download_done, self.app.models.download_total, self.app.models.download_percent
+        )
 
     def on_download_progress(self, done: int, total: int, percent: int) -> None:
         if not self.alive() or not self._downloading:

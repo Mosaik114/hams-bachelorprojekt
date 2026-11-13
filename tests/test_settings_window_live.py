@@ -113,17 +113,17 @@ class TestOpening:
     def test_the_hardware_row_follows_the_model(self, open_settings, live_app):
         win = open_settings()
         assert win.row_hardware.value_label.cget("text") == "Modell wird geladen …"
-        live_app._active_device = "cuda"
-        live_app.model_ready.set()
+        live_app.models.active_device = "cuda"
+        live_app.models.model_ready.set()
         win._refresh_status()
         assert win.row_hardware.value_label.cget("text") == "Automatisch · GPU"
-        live_app.model_error = "kaputt"
+        live_app.models.model_error = "kaputt"
         win._refresh_status()
         assert win.row_hardware.value_label.cget("text") == "Nicht geladen · siehe Fehlerbehebung"
 
     def test_it_registers_as_a_microphone_user(self, open_settings, live_app):
         win = open_settings()
-        assert win in live_app._mic_consumers
+        assert win in live_app.recorder.consumers
 
     def test_the_title_names_the_product(self, open_settings):
         assert open_settings().win.title() == "Hams — Einstellungen"
@@ -160,7 +160,7 @@ class TestLevel:
         assert sub(win.row_mic) == "Gerät nicht verfügbar"
 
     def test_a_recording_takes_the_microphone_and_gives_it_back(self, open_settings, live_app, hams, monkeypatch):
-        monkeypatch.setattr(live_app, "_transcribe_audio", lambda audio, **_job: None)
+        monkeypatch.setattr(live_app.pipeline, "transcribe", lambda audio, **_job: None)
         win = open_settings()
         monitor = hams.streams[-1]
         live_app.start_recording()
@@ -279,7 +279,7 @@ class TestWhisperModel:
     def test_a_missing_model_is_downloaded_not_saved(self, open_settings, live_app, hams, monkeypatch):
         win = open_settings()
         started = []
-        monkeypatch.setattr(live_app, "start_download", lambda m: started.append(m) or "")
+        monkeypatch.setattr(live_app.models, "start_download", lambda m: started.append(m) or "")
         win._select_model("tiny")
         assert started == ["tiny"]
         assert win.row_model._control is win.cancel_button
@@ -290,7 +290,7 @@ class TestWhisperModel:
 
     def test_a_refused_download_says_why(self, open_settings, live_app, monkeypatch):
         win = open_settings()
-        monkeypatch.setattr(live_app, "start_download", lambda m: "Kein Speicherplatz")
+        monkeypatch.setattr(live_app.models, "start_download", lambda m: "Kein Speicherplatz")
         win._select_model("tiny")
         assert sub(win.row_model) == "Kein Speicherplatz"
         assert win.row_model._control is win.model_select
@@ -305,7 +305,7 @@ class TestWhisperModel:
     )
     def test_the_end_of_a_download(self, open_settings, live_app, monkeypatch, error, switching, text, enabled):
         win = open_settings()
-        monkeypatch.setattr(live_app, "start_download", lambda m: "")
+        monkeypatch.setattr(live_app.models, "start_download", lambda m: "")
         win._select_model("tiny")
         win.on_download_finished("tiny", error, switching)
         assert win.row_model._control is win.model_select
@@ -315,14 +315,14 @@ class TestWhisperModel:
     def test_cancelling_asks_the_app(self, open_settings, live_app, monkeypatch):
         win = open_settings()
         cancelled = []
-        monkeypatch.setattr(live_app, "cancel_download", lambda: cancelled.append(1))
+        monkeypatch.setattr(live_app.models, "cancel_download", lambda: cancelled.append(1))
         win._cancel_download()
         assert cancelled == [1]
         assert sub(win.row_model) == "Wird abgebrochen …"
 
     def test_a_running_download_is_shown_when_the_window_opens(self, open_settings, live_app):
-        live_app.downloader = SimpleNamespace(active=True, model_id="tiny", cancel=lambda: None)
-        live_app.download_done, live_app.download_total = 0, 0
+        live_app.models.downloader = SimpleNamespace(active=True, model_id="tiny", cancel=lambda: None)
+        live_app.models.download_done, live_app.models.download_total = 0, 0
         win = open_settings()
         assert win.row_model._control is win.cancel_button
         assert sub(win.row_model).startswith("Tiny · ")
@@ -373,7 +373,7 @@ class TestWindow:
         win.close()
         live_app.root.update()
         assert monitor.closed
-        assert win not in live_app._mic_consumers
+        assert win not in live_app.recorder.consumers
         assert live_app.settings_win is None
         assert not window.winfo_exists()
         assert not win.alive()

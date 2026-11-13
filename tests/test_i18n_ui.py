@@ -103,7 +103,7 @@ class TestEnglish:
         assert not german_texts(texts)
 
     def test_main_window_has_no_german(self, english, live_app):
-        live_app._apply_state("ready")
+        live_app.apply_state("ready")
         texts = visible_texts(live_app.root)
         assert "Start recording" in texts and "Dictate" in texts
         assert {"Ctrl", "Shift", "Space"} <= set(texts)
@@ -113,7 +113,7 @@ class TestEnglish:
         "state", ["model_loading", "recording", "recording_prompt", "transcribing", "done", "error"]
     )
     def test_every_state_is_english(self, english, live_app, state):
-        live_app._apply_state(state)
+        live_app.apply_state(state)
         assert not german_texts([live_app.status_label.cget("text"), live_app.main_button.cget("text")])
 
     def test_tray_menu_and_tooltip(self, english, live_app):

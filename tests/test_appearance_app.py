@@ -15,7 +15,6 @@ Bildschirm *wirken*. Das steht im Bericht unter der Sichtprüfung.
 import os
 import subprocess
 import sys
-import tkinter as tk
 
 import pytest
 from appearance_support import (  # noqa: F401 – Fixtures, pytest findet sie über den Namen
@@ -145,32 +144,17 @@ class TestApplicationWiring:
         )
         assert result.stdout.strip() == Theme.DARK
 
-    def test_set_appearance_paints_both_windows(self, monkeypatch, root):
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        app.root = tk.Toplevel(root)
-        app.root.configure(bg=Theme.WINDOW_BG)
-        app.settings_win = None
-        try:
-            Theme.apply(Theme.LIGHT)
-            FloatingTranscriberApp.set_appearance(app, Theme.DARK)
-            assert Theme.mode == Theme.DARK
-            assert config_mod.CFG.appearance == Theme.DARK
-            assert app.root.cget("bg") == Theme.palette(Theme.DARK)["WINDOW_BG"]
-        finally:
-            app.root.destroy()
-            root.update()
+    def test_set_appearance_paints_both_windows(self, live_app):
+        Theme.apply(Theme.LIGHT)
+        live_app.set_appearance(Theme.DARK)
+        assert Theme.mode == Theme.DARK
+        assert config_mod.CFG.appearance == Theme.DARK
+        assert live_app.root.cget("bg") == Theme.palette(Theme.DARK)["WINDOW_BG"]
 
-    def test_set_appearance_ignores_an_unknown_value(self, root):
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        app.root = tk.Toplevel(root)
-        app.settings_win = None
-        try:
-            Theme.apply(Theme.DARK)
-            FloatingTranscriberApp.set_appearance(app, "regenbogen")
-            assert Theme.mode == Theme.LIGHT  # normalisiert auf hell
-        finally:
-            app.root.destroy()
-            root.update()
+    def test_set_appearance_ignores_an_unknown_value(self, live_app):
+        Theme.apply(Theme.DARK)
+        live_app.set_appearance("regenbogen")
+        assert Theme.mode == Theme.LIGHT  # normalised to light
 
     def test_the_settings_window_offers_the_two_labels(self):
         assert SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}

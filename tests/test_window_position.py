@@ -218,22 +218,20 @@ class TestApplication:
             return self.y
 
     @pytest.fixture
-    def app(self, monkeypatch):
-        from hams.app import FloatingTranscriberApp as App
+    def app(self, live_app, monkeypatch):
+        """The live app on a root whose timers and position the test controls."""
         from hams.config import CFG
 
-        instance = App.__new__(App)
-        instance.root = self._FakeRoot()
-        instance._window_pos = (100, 200)
-        instance._position_job = None
-        instance.written = []
+        monkeypatch.setattr(live_app, "root", self._FakeRoot())
+        live_app._window_pos = (100, 200)
+        live_app.written = []
         monkeypatch.setattr(
             "hams.main_window._persist_config_value",
-            lambda section, key, value: instance.written.append((section, key, value)) or True,
+            lambda section, key, value: live_app.written.append((section, key, value)) or True,
         )
         monkeypatch.setattr(CFG, "window_x", None)
         monkeypatch.setattr(CFG, "window_y", None)
-        return instance
+        return live_app
 
     def test_dragging_does_not_write_at_once(self, app):
         """Sonst entstünde beim Ziehen Schreiblast im Hundertfachen."""

@@ -7,11 +7,11 @@ Durchlauf mit Tiny lief als Integrationstest ausserhalb dieser Suite.
 
 import threading
 import time
+from types import SimpleNamespace
 
 import pytest
 
 from hams import hub_progress, models
-from hams.app import FloatingTranscriberApp as App
 from hams.config import CFG
 from hams.settings_window import SettingsWindow as SW
 
@@ -334,77 +334,64 @@ class TestFormatProgress:
 # ------------------------------------------------------------ Anwendungsseite
 
 
-class _FakeRoot:
-    def after(self, _delay, callback=None, *args):
-        if callback is not None:
-            callback(*args)
-        return "job"
-
-
 @pytest.fixture
-def app(monkeypatch):
-    instance = App.__new__(App)
-    instance.root = _FakeRoot()
-    instance.downloader = models.ModelDownloader()
-    instance.download_done = 0
-    instance.download_total = 0
-    instance.download_percent = 0
-    instance.settings_win = None
-    instance._shutting_down = False
-    instance.switched = []
-    monkeypatch.setattr(App, "switch_model", lambda self, model_id: self.switched.append(model_id) or True)
-    return instance
+def app(live_app, monkeypatch):
+    """The live app; download results come back at once, switches are only recorded."""
+    live_app.models._ui_call = lambda fn: fn()
+    live_app.switched = []
+    monkeypatch.setattr(live_app, "switch_model", lambda model_id: live_app.switched.append(model_id) or True)
+    return live_app
 
 
 class TestAppDownload:
     def test_unknown_model_is_refused(self, app):
-        assert app.start_download("gibt-es-nicht") == "Unbekanntes Modell"
+        assert app.models.start_download("gibt-es-nicht") == "Unbekanntes Modell"
 
     def test_start_forwards_the_reason(self, app, monkeypatch):
         monkeypatch.setattr(models, "free_space_bytes", lambda: 1024)
-        assert "Speicherplatz" in app.start_download("large-v3")
+        assert "Speicherplatz" in app.models.start_download("large-v3")
 
     def test_percent_never_falls_back(self, app):
         """Der Hub meldet neue Dateien nach — ohne Sperre liefe der Wert zurueck."""
-        app._on_download_progress(500, 1000)
-        assert app.download_percent == 50
-        app._on_download_progress(600, 4000)  # neue Datei angemeldet
-        assert app.download_percent == 50
+        app.models._on_download_progress(500, 1000)
+        assert app.models.download_percent == 50
+        app.models._on_download_progress(600, 4000)  # neue Datei angemeldet
+        assert app.models.download_percent == 50
 
     def test_percent_stops_at_99_before_the_end(self, app):
-        app._on_download_progress(1000, 1000)
-        assert app.download_percent == 99
+        app.models._on_download_progress(1000, 1000)
+        assert app.models.download_percent == 99
 
     def test_success_activates_the_model(self, app):
-        app._after_download("tiny", "")
+        app.models._on_download_finished("tiny", "")
         assert app.switched == ["tiny"]
-        assert app.download_percent == 100
+        assert app.models.download_percent == 100
 
     def test_failure_does_not_activate(self, app):
-        app._after_download("tiny", "Keine Verbindung zum Modell-Server")
+        app.models._on_download_finished("tiny", "Keine Verbindung zum Modell-Server")
         assert app.switched == []
 
     def test_cancel_does_not_activate(self, app):
-        app._after_download("tiny", models.CANCELLED)
+        app.models._on_download_finished("tiny", models.CANCELLED)
         assert app.switched == []
 
     def test_shutdown_swallows_late_callbacks(self, app):
         """Der Download-Thread lebt laenger als das Fenster."""
-        app._shutting_down = True
+        app.models.close()
         calls = []
-        app._post(lambda: calls.append(1))
+        app.models._post(lambda: calls.append(1))
         assert calls == []
 
     def test_downloading_model_reflects_the_service(self, app, monkeypatch):
-        assert app.downloading_model is None
+        assert app.models.downloading is None
         release = threading.Event()
         monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
         fake_hub(monkeypatch, lambda _b: release.wait(timeout=5))
-        app.start_download("tiny")
-        assert app.downloading_model == "tiny"
+        app.models.start_download("tiny")
+        assert app.models.downloading == "tiny"
         release.set()
-        app.downloader._thread.join(timeout=5)
-        assert app.downloading_model is None
+        app.models.downloader._thread.join(timeout=5)
+        assert app.models.downloading is None
 
     def test_dead_settings_window_is_not_touched(self, app):
         class _Dead:
@@ -415,7 +402,7 @@ class TestAppDownload:
                 raise AssertionError("Zugriff auf ein geschlossenes Fenster")
 
         app.settings_win = _Dead()
-        app._after_download("tiny", "")
+        app.download_finished("tiny", "")
 
 
 # --------------------------------------------------------- Einstellungsfenster
@@ -476,12 +463,13 @@ class _StubWindow:
             def set_enabled(self, value):
                 window.cancel_enabled = value
 
-        class _App:
+        class _Models:
             active_model_size = "turbo"
-            downloading_model = running
+            downloading = running
             download_done = 4_000_000
             download_total = 10_000_000
             download_percent = 40
+            fallback = None
 
             def __init__(self):
                 self.started = []
@@ -494,7 +482,7 @@ class _StubWindow:
             def cancel_download(self):
                 self.cancelled.append(1)
 
-        self.app = _App()
+        self.app = SimpleNamespace(models=_Models())
         self.model_select = _Select()
         self.cancel_button = _Button()
 
@@ -511,7 +499,7 @@ class TestSettingsDownload:
     def test_choosing_an_uninstalled_model_starts_the_download(self, config):
         window = _StubWindow()
         window._begin_download("tiny")
-        assert window.app.started == ["tiny"]
+        assert window.app.models.started == ["tiny"]
         assert window._downloading == "tiny"
 
     def test_the_selection_stays_on_the_working_model(self, config):
@@ -561,7 +549,7 @@ class TestSettingsDownload:
         window = _StubWindow()
         window._begin_download("tiny")
         window._cancel_download()
-        assert window.app.cancelled == [1]
+        assert window.app.models.cancelled == [1]
         assert "abgebrochen" in window.row_model.description.lower()
         assert window.cancel_enabled is False
 
@@ -647,19 +635,18 @@ class _Downloader:
 
 class TestALateDownloadNeverOverridesANewerChoice:
     @pytest.fixture
-    def app(self, live_app, model_cache_check, monkeypatch):
-        from hams.whisper_model import WhisperModelMixin
+    def app(self, live_app, model_cache_check, monkeypatch, hams):
 
-        live_app.downloader = _Downloader()
+        live_app.models.downloader = _Downloader()
         live_app.loaded = []
 
         def run_now(model_id, generation, persist=True):
             live_app.loaded.append(model_id)
-            live_app._switch_worker(model_id, generation, persist)
+            live_app.models._switch_worker(model_id, generation, persist)
 
-        monkeypatch.setattr(live_app, "_start_switch_thread", run_now)
-        monkeypatch.setattr(live_app, "_build_model", lambda model_id: (object(), "cpu", "int8"))
-        monkeypatch.setattr(live_app, "_load_model_async", lambda: WhisperModelMixin._load_model_async(live_app))
+        monkeypatch.setattr(live_app.models, "_start_switch_thread", run_now)
+        monkeypatch.setattr(live_app.models, "_build_model", lambda model_id: (object(), "cpu", "int8"))
+        monkeypatch.setattr(live_app, "_load_model_async", lambda: hams.load_model(live_app))
         CFG.model_size = "small"
         return live_app
 
@@ -669,31 +656,31 @@ class TestALateDownloadNeverOverridesANewerChoice:
 
     def test_download_a_switch_to_b_a_finishes_b_stays(self, app, hams):
         app._load_model_async()  # "small" isn't cached: it is downloaded first
-        assert app._load_after_download == "small"
+        assert app.models.load_after_download == "small"
         assert app.switch_model("base")
         self.settle(app)
-        assert app._load_after_download is None
-        assert (app.active_model_size, CFG.model_size) == ("base", "base")
-        app.downloader.active = False
-        app._on_download_finished("small", "")
+        assert app.models.load_after_download is None
+        assert (app.models.active_model_size, CFG.model_size) == ("base", "base")
+        app.models.downloader.active = False
+        app.models._on_download_finished("small", "")
         self.settle(app)
         assert app.loaded == ["base"], "the finished download of small loads nothing"
-        assert (app.active_model_size, CFG.model_size) == ("base", "base")
+        assert (app.models.active_model_size, CFG.model_size) == ("base", "base")
         assert ("model", "size", "small") not in hams.saved
 
     def test_a_download_from_the_settings_still_switches_when_nothing_else_was_chosen(self, app):
-        app.start_download("base")
-        app.downloader.active = False
-        app._on_download_finished("base", "")
+        app.models.start_download("base")
+        app.models.downloader.active = False
+        app.models._on_download_finished("base", "")
         self.settle(app)
         assert app.loaded == ["base"]
-        assert app.active_model_size == "base"
+        assert app.models.active_model_size == "base"
 
     def test_the_awaited_download_does_not_draw_over_a_recording(self, app):
         app._load_model_async()
         app.toggle_recording()
-        app.downloader.active = False
-        app._on_download_finished("small", "")
+        app.models.downloader.active = False
+        app.models._on_download_finished("small", "")
         self.settle(app)
         assert app.loaded == ["small"], "the recording waits for this model: load it"
         assert app._state == "recording"

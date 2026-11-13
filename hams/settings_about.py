@@ -120,9 +120,9 @@ class AboutSectionMixin:
             path, failures = support.write_report()
         except Exception as exc:  # noqa: BLE001 - jeder Fehler endet als Meldung in der Zeile
             logger.warning("Diagnostic report failed: %s", type(exc).__name__)
-            self.app._ui_call(lambda: self._report_finished(None, 0))
+            self.app.ui_call(lambda: self._report_finished(None, 0))
             return
-        self.app._ui_call(lambda: self._report_finished(path, failures))
+        self.app.ui_call(lambda: self._report_finished(path, failures))
 
     def _report_finished(self, path, failures: int) -> None:
         """Auf dem Tk-Thread: Zeile aktualisieren und den Bericht öffnen."""

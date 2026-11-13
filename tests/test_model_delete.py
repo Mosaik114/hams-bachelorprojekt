@@ -5,6 +5,8 @@ Hugging-Face-Cache anfasst, waere kein Test mehr, sondern ein Eingriff in die
 Installation des Nutzers — und beim zweiten Lauf haette er nichts mehr zu tun.
 """
 
+from types import SimpleNamespace
+
 import kit as uk
 import pytest
 
@@ -227,13 +229,13 @@ class TestDelete:
 
 
 class _App:
-    def __init__(self, aktiv=None):
-        self.active_model_size = aktiv
+    def __init__(self, active=None):
+        self.models = SimpleNamespace(active_model_size=active)
 
 
-def _fenster(aktiv=None):
+def _fenster(active=None):
     fenster = SettingsWindow.__new__(SettingsWindow)
-    fenster.app = _App(aktiv)
+    fenster.app = _App(active)
     return fenster
 
 
@@ -244,28 +246,28 @@ class TestDeletableRules:
 
     def test_the_loaded_model_stays(self, cache):
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
-        erlaubt = {e.model_id for e in _fenster(aktiv="turbo").deletable_models()}
+        erlaubt = {e.model_id for e in _fenster(active="turbo").deletable_models()}
         assert erlaubt == {"tiny"}
 
     def test_the_configured_model_stays_while_it_is_complete(self, cache):
         """Sonst laedt faster-whisper es beim naechsten Start wortlos nach."""
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
-        erlaubt = {e.model_id for e in _fenster(aktiv=None).deletable_models()}
+        erlaubt = {e.model_id for e in _fenster(active=None).deletable_models()}
         assert erlaubt == {"tiny"}
 
     def test_an_incomplete_leftover_of_the_configured_model_may_go(self, cache):
         """Es ist ohnehin nicht ladbar — die Regel schuetzt hier nichts."""
         cache([_Repo(TURBO, 400_000, [_Revision("z", REST)])])
-        erlaubt = {e.model_id for e in _fenster(aktiv=None).deletable_models()}
+        erlaubt = {e.model_id for e in _fenster(active=None).deletable_models()}
         assert erlaubt == {"turbo"}
 
     def test_nothing_is_deletable_when_only_the_active_model_is_there(self, cache):
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)])])
-        assert _fenster(aktiv="turbo").deletable_models() == []
+        assert _fenster(active="turbo").deletable_models() == []
 
     def test_an_empty_cache_offers_nothing(self, cache):
         cache([])
-        assert _fenster(aktiv="turbo").deletable_models() == []
+        assert _fenster(active="turbo").deletable_models() == []
 
 
 class TestStorageText:

@@ -7,7 +7,6 @@ import kit as uk
 import pytest
 
 from hams import settings_about, support, updates
-from hams.app import FloatingTranscriberApp as App
 
 
 class InlineThread:
@@ -136,13 +135,10 @@ class TestReportHint:
 
 
 class TestTray:
-    def test_the_menu_has_a_help_entry_that_opens_the_user_guide(self, monkeypatch):
-        app = App.__new__(App)
-        app._history = []
-        app._history_lock = __import__("threading").Lock()
+    def test_the_menu_has_a_help_entry_that_opens_the_user_guide(self, live_app, monkeypatch):
         opened = []
         monkeypatch.setattr(support.webbrowser, "open", opened.append)
-        menu = app._build_tray_menu()
+        menu = live_app._build_tray_menu()
         help_item = next(item for item in menu.items if item.text == "Hilfe …")
         help_item(None)
         assert opened == [support.USER_GUIDE_URL]

@@ -1,85 +1,83 @@
-"""Der Update-Hinweis der Anwendung: Pruefung im Hintergrund, Tray-Meldung, Menueeintrag.
+"""The app's update notice: the check in the background, the tray message, the menu entry.
 
-Die Logik (wann fragen, was vergleichen, was merken) steht in `updates.py`. Hier geht es nur
-darum, wie der Hinweis erscheint: einmal je Version als Tray-Meldung, bis zum Ausblenden als
-Eintrag im Tray-Menue und als Zeile unter Einstellungen → Allgemein. Ein Klick oeffnet die
-Release-Seite im Browser; heruntergeladen wird nie etwas.
+The logic (when to ask, what to compare, what to remember) is in `updates.py`. This is only how the notice appears:
+once per version as a tray message, until dismissed as an entry in the tray menu and as a row under Settings →
+General. A click opens the release page in the browser; nothing is ever downloaded.
 """
 
 from __future__ import annotations
 
 import threading
 import webbrowser
+from collections.abc import Callable
 
 from hams import branding, updates
 from hams.config import CFG, logger
 from hams.i18n import t
 
 
-class UpdateNoticeMixin:
-    """Braucht `_ui_call`, `_refresh_tray`, `tray_icon` und `settings_win` der Anwendung."""
+class UpdateNotice:
+    """The newer release Hams points to, if any.
 
-    #: Die Version, auf die gerade hingewiesen wird, oder None.
-    available_update: updates.Release | None = None
+    `ui_call` brings a result onto the Tk thread; `on_found(release, first)` shows it there (`first`: the first time
+    for this version, worth a tray message); `on_change()` rebuilds the tray menu after a dismissal.
+    """
 
-    def _start_update_check(self) -> None:
+    def __init__(
+        self,
+        ui_call: Callable[[Callable[[], object]], None],
+        on_found: Callable[[updates.Release, bool], None],
+        on_change: Callable[[], None],
+    ) -> None:
+        self._ui_call = ui_call
+        self._on_found = on_found
+        self._on_change = on_change
+        self._checker: updates.UpdateChecker | None = None
+        #: The version the notice points to, or None.
+        self.available: updates.Release | None = None
+
+    def start(self) -> None:
+        """Asks GitHub in the background (once a day at most, see `updates.UpdateChecker`), unless switched off."""
         if not CFG.update_check:
             logger.info("Update check is off")
             return
-        self._update_checker = updates.UpdateChecker()
-        threading.Thread(target=self._update_worker, name="update-check", daemon=True).start()
+        self._checker = updates.UpdateChecker()
+        threading.Thread(target=self._worker, name="update-check", daemon=True).start()
 
-    def _update_worker(self) -> None:
-        """Im Hintergrund: `run` faengt Netzfehler selbst ab, alles andere landet nur im Log."""
+    def _worker(self) -> None:
+        """In the background: `run` handles network errors itself, anything else only goes to the log."""
         try:
-            release = self._update_checker.run()
-        except Exception:
+            release = self._checker.run()
+        except Exception:  # noqa: BLE001 - boundary of the thread
             logger.exception("Update check failed")
             return
         if release is not None:
-            self._ui_call(lambda: self._on_update_found(release))
+            self._ui_call(lambda: self._found(release))
 
-    def _on_update_found(self, release: updates.Release) -> None:
-        self.available_update = release
-        self._refresh_tray()
-        if self._update_checker.first_notice(release.version):
-            self._notify_update(release)
-        settings = getattr(self, "settings_win", None)
-        if settings is not None and settings.alive():
-            settings.show_update(release)
-
-    def _notify_update(self, release: updates.Release) -> None:
-        """Eine ruhige Systemmeldung; kann das Tray keine (Linux/AppIndicator), bleiben Menue und Einstellungen."""
-        icon = getattr(self, "tray_icon", None)
-        if icon is None or not getattr(icon, "HAS_NOTIFICATION", False):
-            return
-        try:
-            icon.notify(
-                t("update.notify_body"),
-                t("update.notify_title", product=branding.PRODUCT_NAME, version=release.version),
-            )
-        except Exception:
-            logger.exception("Update notification failed")
+    def _found(self, release: updates.Release) -> None:
+        self.available = release
+        self._on_found(release, self._checker.first_notice(release.version))
 
     def open_release_page(self, icon=None, item=None) -> None:
-        release = self.available_update
+        """Tray entry and settings row: the release page in the browser (pystray passes icon and item)."""
+        release = self.available
         url = release.url if release is not None else updates.RELEASES_PAGE
         try:
             webbrowser.open(updates.release_url(url))
-        except Exception:
+        except Exception:  # noqa: BLE001 - only a browser that did not open
             logger.exception("Could not open the release page")
 
-    def dismiss_update(self) -> None:
-        """Blendet den Hinweis fuer diese Version aus; eine spaetere Version meldet sich wieder."""
-        release, self.available_update = self.available_update, None
-        if release is not None:
-            self._update_checker.dismiss(release.version)
+    def dismiss(self) -> None:
+        """Hides the notice for this version; a later version shows up again."""
+        release, self.available = self.available, None
+        if release is not None and self._checker is not None:
+            self._checker.dismiss(release.version)
             logger.info("Update notice dismissed: %s", release.version)
-        self._refresh_tray()
+        self._on_change()
 
-    def update_menu_items(self, menu_item) -> list:
-        """Der Tray-Eintrag, solange ein Hinweis aussteht (`menu_item` ist `pystray.MenuItem`)."""
-        release = self.available_update
+    def menu_items(self, menu_item) -> list:
+        """The tray entry while a notice is pending (`menu_item` is `pystray.MenuItem`)."""
+        release = self.available
         if release is None:
             return []
         label = t("tray.update", product=branding.PRODUCT_NAME, version=release.version)

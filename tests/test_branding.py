@@ -141,7 +141,7 @@ UI_CALLS = {
     "IconButton",
     "SectionHeader",
     "Option",
-    "_apply_state",
+    "apply_state",
     "set_description",
     "set_status",
     "set_value",

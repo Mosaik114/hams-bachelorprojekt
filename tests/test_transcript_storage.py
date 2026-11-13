@@ -66,7 +66,7 @@ def _wait_for_save() -> None:
 class TestDelivery:
     def test_nothing_is_written_when_saving_is_off(self, live_app, hams):
         CFG.save_transcripts = False
-        live_app._abliefern("geheim")
+        live_app.pipeline._deliver("geheim")
         _wait_for_save()
         assert hams.clipboard.copies == ["geheim"]
         assert live_app._history[0][2] == "geheim", "the tray history does not need the file"
@@ -74,7 +74,7 @@ class TestDelivery:
 
     def test_a_file_is_written_when_saving_is_on(self, live_app, hams):
         CFG.save_transcripts = True
-        live_app._abliefern("behalten")
+        live_app.pipeline._deliver("behalten")
         _wait_for_save()
         files = list(transcription_mod.OUTPUT_DIR.glob("*.txt"))
         assert [f.read_text(encoding="utf-8") for f in files] == ["behalten"]
@@ -118,7 +118,7 @@ class TestRetention:
         now = time.time()
         old = _transcript(transcription_mod.OUTPUT_DIR, "2026-01-01_10-00-00.txt", 31, now)
         CFG.transcripts_keep_days = 30
-        live_app._save_transcript_file("neu")
+        transcription_mod.save_transcript_file("neu")
         assert not old.exists()
         assert len(list(transcription_mod.OUTPUT_DIR.glob("*.txt"))) == 1
 
@@ -127,7 +127,7 @@ class TestRetention:
         old = _transcript(transcription_mod.OUTPUT_DIR, "2026-01-01_10-00-00.txt", 31, now)
         CFG.save_transcripts = False
         CFG.transcripts_keep_days = 30
-        live_app._prune_transcripts_async()
+        transcription_mod.prune_transcripts_async()
         end = time.monotonic() + 2
         while old.exists():
             assert time.monotonic() < end, "start did not prune"

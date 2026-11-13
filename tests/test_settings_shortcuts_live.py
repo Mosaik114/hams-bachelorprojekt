@@ -181,7 +181,7 @@ class TestApp:
         assert live_app._state != "error"
 
     def test_other_errors_are_left_alone(self, live_app):
-        live_app._apply_state("error", "Mikrofon fehlt")
+        live_app.apply_state("error", "Mikrofon fehlt")
         live_app.reregister_hotkeys()
         assert live_app._state == "error"
 

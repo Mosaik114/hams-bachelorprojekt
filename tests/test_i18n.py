@@ -254,7 +254,7 @@ _UI_POSITIONS = {
     "set_description": (0,),
     "set_status": (1,),
     "set_value": (0,),
-    "_apply_state": (1, 2),
+    "apply_state": (1, 2),
     "SettingRow": (1,),
     "SecondaryButton": (1,),
     "SectionHeader": (1,),

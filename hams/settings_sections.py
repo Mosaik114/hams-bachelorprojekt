@@ -327,8 +327,8 @@ class SectionsMixin:
             group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.update_check, command=self._on_updates
         )
         self.row_updates.set_control(self.switch_updates)
-        if self.app.available_update is not None:
-            self.show_update(self.app.available_update)
+        if self.app.updates.available is not None:
+            self.show_update(self.app.updates.available)
 
     def _on_updates(self, value: bool) -> None:
         """Gilt ab dem naechsten Start: dann fragt Hams wieder (oder nicht mehr)."""
@@ -350,7 +350,7 @@ class SectionsMixin:
         view = uk.SecondaryButton(
             box,
             t("settings.update.open"),
-            self.app.open_release_page,
+            self.app.updates.open_release_page,
             bg_under=Theme.GROUP_SURFACE,
             height=uk.Height.STANDARD,
         )
@@ -371,7 +371,7 @@ class SectionsMixin:
         return t("settings.update.hint", product=branding.PRODUCT_NAME, version=version, current=updates.app_version())
 
     def _dismiss_update(self) -> None:
-        self.app.dismiss_update()
+        self.app.updates.dismiss()
         if self.row_update is not None:
             self.row_update.destroy()
             self.row_update = None

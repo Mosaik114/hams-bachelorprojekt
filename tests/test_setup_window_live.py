@@ -49,8 +49,8 @@ def wizard(live_app, hams, monkeypatch, tmp_path):
     monkeypatch.setattr(sw, "TaskThread", InlineThread)
     monkeypatch.setattr(window_mod, "CONFIG_PATH", tmp_path / "config.toml")
     switched = []
-    monkeypatch.setattr(live_app, "_start_switch_thread", lambda model_id, *_: switched.append(model_id))
-    live_app.downloader = FakeDownloader()
+    monkeypatch.setattr(live_app.models, "_start_switch_thread", lambda model_id, *_: switched.append(model_id))
+    live_app.models.downloader = FakeDownloader()
     hams.switched = switched
     hams.marker = tmp_path / sw.MARKER_NAME
     CFG.model_size = "turbo"
@@ -292,17 +292,17 @@ class TestModel:
         assert status(win.model_row.row) == ("idle", "486 MB · noch nicht geladen")
         win._start_model_download()
         live_app.root.update()
-        assert live_app.downloading_model == "small"
+        assert live_app.models.downloading == "small"
         assert win.next_button.enabled, "der Download laeuft in der Anwendung weiter"
-        live_app._on_download_progress(243_106_186, 486_212_372)
+        live_app.models._on_download_progress(243_106_186, 486_212_372)
         live_app.root.update()
         assert status(win.model_row.row) == ("processing", "50 % · 243/486 MB")
         assert not win.model_select.enabled
         win._choose_model("tiny")  # waehrend des Downloads gesperrt
         assert win.controller.choices.model == "small"
-        live_app.downloader.active = False
+        live_app.models.downloader.active = False
         win.controller.services.state.installed = {"small"}
-        live_app._on_download_finished("small", "")
+        live_app.models._on_download_finished("small", "")
         live_app.root.update()
         assert status(win.model_row.row) == ("ready", "Geladen und bereit")
         assert hams.switched == ["small"], "die Anwendung laedt das fertige Modell"
@@ -314,8 +314,8 @@ class TestModel:
         win = wizard()
         go_to(win, "model")
         win._start_model_download()
-        live_app.downloader.active = False
-        live_app._on_download_finished("small", "Die Festplatte ist voll")
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("small", "Die Festplatte ist voll")
         live_app.root.update()
         assert status(win.model_row.row) == ("error", "Die Festplatte ist voll")
         assert win.model_row.button.cget("text") == "Erneut versuchen"
@@ -326,15 +326,15 @@ class TestModel:
         go_to(win, "model")
         win._start_model_download()
         win.model_row.cancel_button._invoke()
-        assert live_app.downloader.cancelled
-        live_app.downloader.active = False
-        live_app._on_download_finished("small", whisper_models.CANCELLED)
+        assert live_app.models.downloader.cancelled
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("small", whisper_models.CANCELLED)
         live_app.root.update()
         assert win.model_task.state == sw.CANCELLED
 
     def test_refused_start_is_shown(self, wizard, live_app):
         win = wizard()
-        live_app.downloader = FakeDownloader(problem="Nicht genug Speicherplatz")
+        live_app.models.downloader = FakeDownloader(problem="Nicht genug Speicherplatz")
         go_to(win, "model")
         win._start_model_download()
         assert status(win.model_row.row) == ("error", "Nicht genug Speicherplatz")
@@ -359,9 +359,9 @@ class TestModel:
     def test_gpu_installed_during_setup_reloads_a_cpu_model(self, wizard, live_app, hams):
         win = wizard(gpu_present=lambda: True, gpu_libraries_found=lambda: True)
         win.controller.services.state.installed = {"turbo"}
-        live_app.active_model_size = "turbo"
-        live_app._active_device = "cpu"
-        live_app.model_ready.set()
+        live_app.models.active_model_size = "turbo"
+        live_app.models.active_device = "cpu"
+        live_app.models.model_ready.set()
         go_to(win, "model")
         win.go_next()
         assert hams.switched == ["turbo"]
@@ -369,16 +369,16 @@ class TestModel:
     def test_nothing_reloads_when_the_model_is_active(self, wizard, live_app, hams):
         win = wizard(gpu_present=lambda: True, gpu_libraries_found=lambda: True)
         win.controller.services.state.installed = {"turbo"}
-        live_app.active_model_size = "turbo"
-        live_app._active_device = "cuda"
-        live_app.model_ready.set()
+        live_app.models.active_model_size = "turbo"
+        live_app.models.active_device = "cuda"
+        live_app.models.model_ready.set()
         go_to(win, "model")
         win.go_next()
         assert hams.switched == []
 
     def test_a_running_download_is_shown_when_the_wizard_opens(self, wizard, live_app):
-        live_app.downloader = SimpleNamespace(active=True, model_id="medium", cancel=lambda: None)
-        live_app.download_done, live_app.download_total = 10, 100
+        live_app.models.downloader = SimpleNamespace(active=True, model_id="medium", cancel=lambda: None)
+        live_app.models.download_done, live_app.models.download_total = 10, 100
         win = wizard()
         go_to(win, "model")
         assert win.controller.choices.model == "medium"
@@ -411,14 +411,14 @@ class TestMicrophone:
         win = wizard()
         go_to(win, "microphone")
         first = hams.streams[-1]
-        live_app._suspend_mic_consumers()
+        live_app.recorder.suspend_consumers()
         assert first.closed
-        live_app._resume_mic_consumers()
+        live_app.recorder.resume_consumers()
         assert hams.streams[-1] is not first and hams.streams[-1].running
         go_to(win, "cleanup")
         count = len(hams.streams)
-        live_app._suspend_mic_consumers()
-        live_app._resume_mic_consumers()
+        live_app.recorder.suspend_consumers()
+        live_app.recorder.resume_consumers()
         assert len(hams.streams) == count, "ausserhalb der Mikrofonseite bleibt es zu"
 
 
@@ -544,7 +544,7 @@ class TestClosing:
         win.close_anyway_button._invoke()
         live_app.root.update()
         assert stream.closed
-        assert win not in live_app._mic_consumers
+        assert win not in live_app.recorder.consumers
         assert win.controller.gpu_task.cancel_event.is_set()
         assert sw.read_marker(hams.marker) is False
         win.close()  # zweimal schliessen schadet nicht
@@ -641,7 +641,7 @@ class TestAppIntegration:
 
     def test_a_running_download_takes_care_of_the_model(self, live_app, hams):
         live_app._model_deferred = True
-        live_app.downloader = SimpleNamespace(active=True, model_id="small", cancel=lambda: None)
+        live_app.models.downloader = SimpleNamespace(active=True, model_id="small", cancel=lambda: None)
         before = hams.loads
         live_app.on_setup_closed(True)
         assert hams.loads == before
@@ -695,7 +695,7 @@ class TestClosedBeforeTheModel:
         window = tk.Toplevel(root)
         app = App(window, setup=True)
         app.requested = []
-        monkeypatch.setattr(app, "_request_model", lambda model_id, **_: app.requested.append(model_id))
+        monkeypatch.setattr(app.models, "request", lambda model_id, **_: app.requested.append(model_id))
         app.setup_win = SetupWindow(app, fake_services())
         root.update()
         yield app

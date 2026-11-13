@@ -77,10 +77,11 @@ class StatusSectionMixin:
 
     def _audio_busy(self) -> bool:
         """Whether a stream is open that a re-initialisation of PortAudio would cut off."""
-        app = self.app
-        if app.is_recording or getattr(app, "stream", None) is not None:
+        recorder = self.app.recorder
+        if recorder.busy():
             return True
-        return any(getattr(consumer, "_mon_stream", None) is not None for consumer in app._mic_consumers)
+        # Every consumer is a window with this mixin's level meter (settings, setup assistant).
+        return any(consumer._mon_stream is not None for consumer in recorder.consumers)
 
     def _scan_devices(self) -> None:
         """Thread entry: re-initialise, list, hand the result to the Tk thread."""
@@ -90,7 +91,7 @@ class StatusSectionMixin:
         except Exception:  # noqa: BLE001 - boundary of the thread
             logger.exception("Microphone scan failed")
             devices = []
-        self.app._ui_call(lambda: self._show_devices(devices))
+        self.app.ui_call(lambda: self._show_devices(devices))
 
     def _show_devices(self, devices: list) -> None:
         """On the Tk thread: the scanned list into the select, then the level meter again."""
@@ -188,7 +189,7 @@ class StatusSectionMixin:
         if not self.alive():
             return
         if self.app.is_recording:
-            rms = self.app._rms_level
+            rms = self.app.recorder.level
         else:
             if self._mon_stream is None and not self._suspended:
                 self._start_monitor()
@@ -215,10 +216,10 @@ class StatusSectionMixin:
         if not self.alive():
             return
         app = self.app
-        if app.model_error:
+        if app.models.model_error:
             self.row_hardware.set_value(t("settings.hardware.error"))
-        elif app.model_ready.is_set():
-            device = app._active_device or "?"
+        elif app.models.model_ready.is_set():
+            device = app.models.active_device or "?"
             label = "GPU" if device == "cuda" else device.upper()
             self.row_hardware.set_value(t("settings.hardware.auto", device=label))
         else:
@@ -239,7 +240,7 @@ class StatusSectionMixin:
     def _check_ollama(self) -> None:
         """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
         state = ollama_api.probe_or_offline(self.app.ollama.probe)
-        self.app._ui_call(lambda: self._apply_ollama_state(state))
+        self.app.ui_call(lambda: self._apply_ollama_state(state))
 
     def _show_ollama_status(self) -> None:
         """Statuszeile aus dem bekannten Stand — ohne selbst zu fragen.

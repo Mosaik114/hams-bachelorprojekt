@@ -91,7 +91,7 @@ class TestUsableDevices:
 
         monkeypatch.setattr(whisper_model, "WhisperModel", FakeModel)
         monkeypatch.setattr(whisper_model, "cuda_libraries_found", lambda: False)
-        model, device, _info = whisper_model.WhisperModelMixin._build_model(object(), "tiny")
+        model, device, _info = whisper_model.ModelManager._build_model(object(), "tiny")
         assert device == "cpu"
         assert tried == ["cpu"]
 

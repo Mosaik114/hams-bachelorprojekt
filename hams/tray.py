@@ -71,7 +71,7 @@ class TrayMixin:
 
     def _tray_tooltip(self) -> str:
         product = branding.PRODUCT_NAME
-        if not self.model_ready.is_set():
+        if not self.models.model_ready.is_set():
             return t("tray.tooltip.loading", product=product)
         if self.is_recording:
             return t("tray.tooltip.prompt" if self._prompt_mode else "tray.tooltip.recording", product=product)
@@ -82,7 +82,7 @@ class TrayMixin:
         return t("tray.tooltip.ready", product=product)
 
     def _update_tray_tooltip(self) -> None:
-        if hasattr(self, "tray_icon"):
+        if self.tray_icon is not None:
             self.tray_icon.title = self._tray_tooltip()
 
     def _history_action(self, index: int):
@@ -122,7 +122,7 @@ class TrayMixin:
         if not history_items:
             history_items.append(pystray.MenuItem(t("tray.history_empty"), None, enabled=False))
 
-        update_items = getattr(self, "update_menu_items", lambda _item: [])(pystray.MenuItem)
+        update_items = self.updates.menu_items(pystray.MenuItem)
         if update_items:
             update_items.append(pystray.Menu.SEPARATOR)
         return pystray.Menu(
@@ -143,7 +143,7 @@ class TrayMixin:
         Der Aufbau steht mit im Schutzbereich: ein Fehler darin meldet sich im
         Log, statt den ganzen Tk-Rückruf mitzureissen.
         """
-        if not hasattr(self, "tray_icon"):
+        if self.tray_icon is None:
             return
         try:
             self.tray_icon.menu = self._build_tray_menu()
@@ -159,11 +159,11 @@ class TrayMixin:
             _stamp, _preview, full = self._history[index]
         try:
             pyperclip.copy(full)
-            self._ui_call(lambda: self._apply_state("done", t("status.copied_from_history")))
+            self.ui_call(lambda: self.apply_state("done", t("status.copied_from_history")))
         except pyperclip.PyperclipException:
             logger.exception("Clipboard copy from history failed")
-            self._ui_call(
-                lambda: self._apply_state(
+            self.ui_call(
+                lambda: self.apply_state(
                     "error",
                     t("error.clipboard_unavailable"),
                     t("error.clipboard_blocked"),
@@ -177,11 +177,11 @@ class TrayMixin:
         with self._history_lock:
             self._history.insert(0, (stamp, preview, text))
             del self._history[5:]
-        self._ui_call(self._refresh_tray)
+        self.ui_call(self._refresh_tray)
 
     def _set_tray_icon(self, color: str) -> None:
-        # Der erste Zustand wird gesetzt, bevor das Tray existiert.
-        if hasattr(self, "tray_icon"):
+        # The first state is shown before the tray exists.
+        if self.tray_icon is not None:
             self.tray_icon.icon = _create_tray_icon_image(color)
 
     def _hide_window(self) -> None:
@@ -198,8 +198,8 @@ class TrayMixin:
         """
         if CFG.tray_hint_shown:
             return
-        icon = getattr(self, "tray_icon", None)
-        if icon is None or not getattr(icon, "HAS_NOTIFICATION", False):
+        icon = self.tray_icon
+        if icon is None or not getattr(icon, "HAS_NOTIFICATION", False):  # pystray backends differ
             return
         try:
             icon.notify(t("tray.hidden.body"), t("tray.hidden.title", product=branding.PRODUCT_NAME))
@@ -216,7 +216,7 @@ class TrayMixin:
 
     def _toggle_visibility(self, icon=None, item=None) -> None:
         """Tray entry and double click - on pystray's thread, so the decision happens on the Tk thread too."""
-        self._ui_call(self._toggle_window)
+        self.ui_call(self._toggle_window)
 
     def _toggle_window(self) -> None:
         if self._window_visible:

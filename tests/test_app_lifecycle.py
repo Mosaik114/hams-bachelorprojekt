@@ -108,47 +108,47 @@ class TestHotkeys:
 class TestStates:
     def test_ready_names_the_model(self, live_app):
         CFG.model_size = "large-v3-turbo"
-        live_app._apply_state("ready")
+        live_app.apply_state("ready")
         assert live_app.status_label.cget("text").startswith("Bereit · ")
 
     def test_a_hint_replaces_the_shortcuts_and_goes_again(self, live_app):
         before = live_app.footer.cget("height")
-        live_app._apply_state("error", "Kaputt", "Einzelheiten stehen im Log.")
+        live_app.apply_state("error", "Kaputt", "Einzelheiten stehen im Log.")
         assert live_app.footer_label.cget("text") == "Einzelheiten stehen im Log."
-        live_app._apply_state("ready")
+        live_app.apply_state("ready")
         assert live_app.shortcut_box.winfo_manager() == "pack"
         assert not live_app.footer_label.winfo_manager()
         assert live_app.footer.cget("height") == before, "das Fenster darf nicht springen"
 
     def test_recording_shows_the_stop_symbol(self, live_app):
-        live_app._apply_state("recording")
+        live_app.apply_state("recording")
         assert button_text(live_app) == "Stoppen"
         assert live_app.main_button._icon_name == "stop"
-        live_app._apply_state("ready")
+        live_app.apply_state("ready")
         assert live_app.main_button._icon_name is None
 
     def test_the_cursor_dot_follows_every_state(self, live_app, hams):
-        live_app._apply_state("recording_prompt")
+        live_app.apply_state("recording_prompt")
         assert hams.dots[-1] == ("recording_prompt", None)
 
     def test_done_falls_back_to_ready_by_itself(self, live_app):
-        live_app.model_ready.set()
-        live_app._apply_state("done")
+        live_app.models.model_ready.set()
+        live_app.apply_state("done")
         assert live_app._done_job is not None
         live_app._back_to_ready()
         assert live_app._state == "ready"
 
     def test_done_does_not_interrupt_a_new_recording(self, live_app):
-        live_app.model_ready.set()
-        live_app.is_recording = True
-        live_app._apply_state("done")
+        live_app.models.model_ready.set()
+        live_app.recorder.is_recording = True
+        live_app.apply_state("done")
         live_app._back_to_ready()
         assert live_app._state == "done"
-        live_app.is_recording = False
+        live_app.recorder.is_recording = False
 
     def test_a_new_state_cancels_the_pending_fallback(self, live_app):
-        live_app._apply_state("done")
-        live_app._apply_state("transcribing")
+        live_app.apply_state("done")
+        live_app.apply_state("transcribing")
         assert live_app._done_job is None
 
     @pytest.mark.parametrize(
@@ -165,22 +165,22 @@ class TestStates:
         from hams.tray import TRAY_PALETTE
 
         assert live_app._tray_colour(state) == TRAY_PALETTE[key]
-        live_app._apply_state(state)
+        live_app.apply_state(state)
         assert live_app.tray_icon.icon is not None
 
 
 class TestMainAction:
     def test_retry_reloads_a_failed_model(self, live_app, hams):
-        live_app.model_error = "CUDA fehlt"
-        live_app._apply_state("error")
+        live_app.models.model_error = "CUDA fehlt"
+        live_app.apply_state("error")
         live_app._on_main_action()
-        assert live_app.model_error is None
+        assert live_app.models.model_error is None
         assert live_app._state == "model_loading"
         assert hams.loads == 2
 
     def test_retry_with_a_loaded_model_just_returns_to_ready(self, live_app, hams):
-        live_app.model_ready.set()
-        live_app._apply_state("error")
+        live_app.models.model_ready.set()
+        live_app.apply_state("error")
         live_app._on_main_action()
         assert live_app._state == "ready"
         assert hams.loads == 1
@@ -211,15 +211,15 @@ class TestMicConsumers:
                 log.append("an")
 
         good = Good()
-        live_app.register_mic_consumer(Broken())
-        live_app.register_mic_consumer(good)
-        live_app.register_mic_consumer(good)  # doppelt zaehlt nicht
-        live_app._suspend_mic_consumers()
-        live_app._resume_mic_consumers()
+        live_app.recorder.register_consumer(Broken())
+        live_app.recorder.register_consumer(good)
+        live_app.recorder.register_consumer(good)  # doppelt zaehlt nicht
+        live_app.recorder.suspend_consumers()
+        live_app.recorder.resume_consumers()
         assert log == ["aus", "an"]
-        live_app.unregister_mic_consumer(good)
-        live_app.unregister_mic_consumer(good)  # zweimal abmelden ist harmlos
-        assert good not in live_app._mic_consumers
+        live_app.recorder.unregister_consumer(good)
+        live_app.recorder.unregister_consumer(good)  # zweimal abmelden ist harmlos
+        assert good not in live_app.recorder.consumers
 
 
 class TestDpiChange:
@@ -285,13 +285,13 @@ class TestShutdown:
     def test_releasing_frees_every_resource(self, live_app, hams):
         stream = FakeStream(callback=None)
         stream.running = True
-        live_app.stream = stream
-        live_app.model = object()
-        live_app.model_ready.set()
+        live_app.recorder.stream = stream
+        live_app.models.model = object()
+        live_app.models.model_ready.set()
         live_app._release_resources()
-        assert stream.closed and live_app.stream is None
+        assert stream.closed and live_app.recorder.stream is None
         assert hams.hotkeys.stopped and hams.keyboard.unhooked
-        assert live_app.model is None and not live_app.model_ready.is_set()
+        assert live_app.models.model is None and not live_app.models.model_ready.is_set()
 
     def test_quitting_stops_the_tray_and_closes_the_window(self, live_app, hams):
         window = live_app.root
@@ -348,19 +348,19 @@ def wait_for_thread(name: str, timeout: float = 2.0) -> None:
 
 class TestRecording:
     def test_start_opens_the_microphone_and_shows_it(self, live_app, hams):
-        live_app.model_ready.set()
+        live_app.models.model_ready.set()
         live_app.toggle_recording()
         try:
             stream = hams.streams[-1]
             assert stream.running and stream.kwargs["device"] == 7
             assert live_app.is_recording and live_app._state == "recording"
             assert CFG.mic_device == 7, "das Geraet wird je Aufnahme neu aufgeloest"
-            assert live_app._max_duration_timer is not None
+            assert live_app.recorder._limit_timer is not None
             assert live_app.elapsed_label.cget("text") == "0:00"
             assert live_app.tray_icon.title.endswith("Aufnahme")
         finally:
             live_app._release_resources()
-            live_app.is_recording = False
+            live_app.recorder.is_recording = False
 
     def test_prompt_mode_has_its_own_state(self, live_app):
         live_app.toggle_recording_generate()
@@ -369,7 +369,7 @@ class TestRecording:
             assert live_app._prompt_mode
         finally:
             live_app._release_resources()
-            live_app.is_recording = False
+            live_app.recorder.is_recording = False
 
     def test_the_level_meter_and_cursor_dot_follow_the_signal(self, live_app, hams):
         live_app.toggle_recording()
@@ -378,17 +378,17 @@ class TestRecording:
             live_app._level_tick()
             level = hams.dots[-1][1]
             assert hams.dots[-1][0] == "recording" and 0.4 < level <= 1.0
-            assert live_app.frames and live_app.frames[-1].shape == (160, 1)
+            assert live_app.recorder.frames and live_app.recorder.frames[-1].shape == (160, 1)
         finally:
             live_app._release_resources()
-            live_app.is_recording = False
+            live_app.recorder.is_recording = False
 
     def test_a_consumer_lets_go_of_the_microphone_first(self, live_app):
         order = []
         consumer = SimpleNamespace(
             suspend_microphone=lambda: order.append("frei"), resume_microphone=lambda: order.append("zurueck")
         )
-        live_app.register_mic_consumer(consumer)
+        live_app.recorder.register_consumer(consumer)
         live_app.start_recording()
         assert order == ["frei"]
         live_app.stop_recording_and_transcribe()
@@ -396,11 +396,11 @@ class TestRecording:
 
     def test_stopping_without_audio_says_so(self, live_app):
         live_app.toggle_recording()
-        live_app.frames.clear()
+        live_app.recorder.frames.clear()
         live_app.toggle_recording()
         assert live_app._state == "no_signal"
         assert live_app.status_label.cget("text") == "Keine Aufnahme erkannt"
-        assert live_app.stream is None and not live_app._prompt_mode
+        assert live_app.recorder.stream is None and not live_app._prompt_mode
 
     def test_silence_is_reported_as_a_muted_microphone(self, live_app, hams):
         live_app.toggle_recording_generate()
@@ -412,7 +412,7 @@ class TestRecording:
 
     def test_speech_goes_on_to_transcription(self, live_app, hams, monkeypatch):
         received = []
-        monkeypatch.setattr(live_app, "_transcribe_audio", lambda audio, **_job: received.append(audio))
+        monkeypatch.setattr(live_app.pipeline, "transcribe", lambda audio, **_job: received.append(audio))
         live_app.toggle_recording()
         hams.streams[-1].feed(np.full(800, 0.2))
         hams.streams[-1].feed(np.full(800, -0.2))
@@ -447,7 +447,7 @@ class TestRecording:
         assert live_app.status_label.cget("text") == "Aufnahme nicht gestartet"
 
     def test_a_failed_model_refuses_before_opening_the_microphone(self, live_app, hams):
-        live_app.model_error = "CUDA fehlt"
+        live_app.models.model_error = "CUDA fehlt"
         live_app.toggle_recording()
         live_app.toggle_recording_generate()
         assert hams.streams == []
@@ -464,23 +464,23 @@ class TestRecording:
 
 class TestAwaitModel:
     def test_a_ready_model_is_there_at_once(self, live_app):
-        live_app.model_ready.set()
-        assert live_app._await_model(time.monotonic() + 5)
+        live_app.models.model_ready.set()
+        assert live_app.models.wait_until_ready(time.monotonic() + 5)
 
     def test_a_failed_load_ends_the_wait(self, live_app):
-        live_app.model_error = "kaputt"
+        live_app.models.model_error = "kaputt"
         start = time.monotonic()
-        assert not live_app._await_model(start + 5)
+        assert not live_app.models.wait_until_ready(start + 5)
         assert time.monotonic() - start < 1
 
     def test_a_switch_is_waited_out_despite_an_old_error(self, live_app):
-        live_app.model_error = "alter Fehler"
-        live_app._switching_to = "small"
-        threading.Timer(0.3, live_app.model_ready.set).start()
-        assert live_app._await_model(time.monotonic() + 5)
+        live_app.models.model_error = "alter Fehler"
+        live_app.models._switching_to = "small"
+        threading.Timer(0.3, live_app.models.model_ready.set).start()
+        assert live_app.models.wait_until_ready(time.monotonic() + 5)
 
     def test_the_deadline_is_respected(self, live_app):
-        assert not live_app._await_model(time.monotonic() + 0.3)
+        assert not live_app.models.wait_until_ready(time.monotonic() + 0.3)
 
 
 class TestNormalize:
@@ -512,18 +512,18 @@ class TestDisplayLevel:
 
 class TestQuitWaitsForQueuedDictations:
     def test_quit_waits_while_a_dictation_is_transcribed(self, live_app, hams):
-        live_app._pipeline_job_running = True
+        live_app.pipeline.job_running = True
         live_app._quit_on_ui_thread()
         assert not live_app._shutting_down
         assert hams.hotkeys.entries == [], "no new dictation starts while quitting"
-        live_app._pipeline_job_running = False
+        live_app.pipeline.job_running = False
         live_app._quit_on_ui_thread()  # the next poll
         assert live_app._shutting_down
 
     def test_after_the_grace_period_the_rest_is_dropped_and_logged(self, live_app, caplog, monkeypatch):
         monkeypatch.setattr(live_app, "QUIT_DRAIN_SECONDS", 0.0)
-        live_app._pipeline_job_running = True
-        live_app._pipeline_jobs = __import__("collections").deque([("audio", False, 1)])
+        live_app.pipeline.job_running = True
+        live_app.pipeline._jobs = __import__("collections").deque([("audio", False, 1)])
         with caplog.at_level(logging.WARNING, logger="hams"):
             live_app._quit_on_ui_thread()
         assert live_app._shutting_down
@@ -550,7 +550,7 @@ class TestTheMicrophoneIsSharedCleanly:
     @pytest.fixture
     def consumer(self, live_app):
         consumer = _Consumer()
-        live_app.register_mic_consumer(consumer)
+        live_app.recorder.register_consumer(consumer)
         return consumer
 
     def test_the_level_monitor_comes_back_after_the_recording_released_the_device(self, live_app, consumer):
@@ -573,5 +573,5 @@ class TestTheMicrophoneIsSharedCleanly:
         monkeypatch.setattr(FakeStream, "start", refuse)
         live_app.toggle_recording()
         assert FakeStream.opened[-1].closed
-        assert live_app.stream is None and live_app.is_recording is False
+        assert live_app.recorder.stream is None and live_app.is_recording is False
         assert consumer.events == ["suspend", ("resume", True)]

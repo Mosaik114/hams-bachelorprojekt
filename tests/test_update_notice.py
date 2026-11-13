@@ -10,6 +10,8 @@ from hams import update_notice, updates
 from hams.config import CFG
 from hams.updates import Release
 
+#: The real start of the check; the `hams` fixture replaces it on the class to stay offline.
+REAL_START = update_notice.UpdateNotice.start
 PAGE = updates.RELEASES_PAGE + "/tag/v9.0.0"
 RELEASE = Release("9.0.0", PAGE)
 
@@ -68,7 +70,7 @@ def checker(live_app, monkeypatch):
 
 
 def start(app):
-    update_notice.UpdateNoticeMixin._start_update_check(app)  # das Original; `hams` legt die App-Methode still
+    REAL_START(app.updates)
     app.root.update()
 
 
@@ -81,12 +83,12 @@ class TestCheck:
         CFG.update_check = False
         start(live_app)
         assert InlineThread.started == []
-        assert live_app.available_update is None
+        assert live_app.updates.available is None
 
     def test_a_newer_release_is_announced_once(self, live_app, checker):
         CFG.update_check = True
         start(live_app)
-        assert live_app.available_update == RELEASE
+        assert live_app.updates.available == RELEASE
         assert live_app.tray_icon.notes == [("Hams 9.0.0 ist verfügbar", live_app.tray_icon.notes[0][1])]
         start(live_app)
         assert len(live_app.tray_icon.notes) == 1, "the tray says it once per version"
@@ -96,7 +98,7 @@ class TestCheck:
         CFG.update_check = True
         checker.result = None
         start(live_app)
-        assert live_app.available_update is None
+        assert live_app.updates.available is None
         assert live_app.tray_icon.notes == []
         assert not menu_texts(live_app)[0].startswith("Update")
 
@@ -104,21 +106,21 @@ class TestCheck:
         CFG.update_check = True
         checker.error = RuntimeError("kaputt")
         start(live_app)
-        assert live_app.available_update is None
+        assert live_app.updates.available is None
         assert "Update check failed" in caplog.text
 
     def test_a_tray_without_notifications_keeps_quiet(self, live_app, checker, monkeypatch):
         CFG.update_check = True
         monkeypatch.setattr(live_app, "tray_icon", SimpleNamespace(menu=None, update_menu=lambda: None))
         start(live_app)
-        assert live_app.available_update == RELEASE
+        assert live_app.updates.available == RELEASE
 
     def test_a_failing_notification_is_logged(self, live_app, checker, caplog):
         def broken(*_args):
             raise OSError("kein Tray")
 
         live_app.tray_icon.notify = broken
-        live_app._update_checker = checker
+        live_app.updates._checker = checker
         live_app._notify_update(RELEASE)
         assert "Update notification failed" in caplog.text
 
@@ -127,10 +129,10 @@ class TestActions:
     def test_view_opens_the_release_page_in_the_browser(self, live_app, monkeypatch):
         opened = []
         monkeypatch.setattr(update_notice.webbrowser, "open", opened.append)
-        live_app.available_update = RELEASE
-        live_app.open_release_page()
-        live_app.available_update = None
-        live_app.open_release_page()
+        live_app.updates.available = RELEASE
+        live_app.updates.open_release_page()
+        live_app.updates.available = None
+        live_app.updates.open_release_page()
         assert opened == [PAGE, updates.RELEASES_PAGE]
 
     def test_a_browser_failure_is_logged(self, live_app, monkeypatch, caplog):
@@ -138,16 +140,16 @@ class TestActions:
             raise OSError("kein Browser")
 
         monkeypatch.setattr(update_notice.webbrowser, "open", broken)
-        live_app.open_release_page()
+        live_app.updates.open_release_page()
         assert "Could not open the release page" in caplog.text
 
     def test_dismiss_hides_it_for_this_version(self, live_app, checker):
-        live_app._update_checker = checker
-        live_app.available_update = RELEASE
-        live_app.dismiss_update()
+        live_app.updates._checker = checker
+        live_app.updates.available = RELEASE
+        live_app.updates.dismiss()
         assert checker.dismissed == ["9.0.0"]
-        assert live_app.available_update is None
-        live_app.dismiss_update()  # nichts mehr offen: harmlos
+        assert live_app.updates.available is None
+        live_app.updates.dismiss()  # nichts mehr offen: harmlos
         assert checker.dismissed == ["9.0.0"]
 
 
@@ -163,8 +165,8 @@ class TestSettings:
         assert open_settings().row_update is None
 
     def test_a_pending_update_shows_a_row_and_can_be_dismissed(self, open_settings, live_app, checker):  # noqa: F811
-        live_app.available_update = RELEASE
-        live_app._update_checker = checker
+        live_app.updates.available = RELEASE
+        live_app.updates._checker = checker
         win = open_settings()
         current = updates.app_version()
         assert win.row_update.sub_text == f"Hams 9.0.0 ist erschienen · installiert ist {current}"

@@ -164,3 +164,73 @@ class LastRequest:
 
     def __contains__(self, key) -> bool:
         return key in self.ollama.requests[-1]
+
+
+class RecordingSink:
+    """A `StatusSink` without a window: runs UI calls at once and records every state and answer length."""
+
+    def __init__(self) -> None:
+        self.is_recording = False
+        self.states: list = []
+        self.lengths: list = []
+
+    def ui_call(self, fn) -> None:
+        fn()
+
+    def apply_state(self, state, detail=None, hint=None, *, calm=False) -> None:
+        self.states.append((state, detail, hint))
+
+    def show_answer_length(self, characters) -> None:
+        self.lengths.append(characters)
+
+
+class RecordingEvents:
+    """`ModelEvents` that only record what the model manager reported."""
+
+    def __init__(self) -> None:
+        self.loaded: list = []
+        self.progress = 0
+        self.finished: list = []
+
+    def model_loaded(self, model_id, ok, requested) -> None:
+        self.loaded.append((model_id, ok, requested))
+
+    def download_progress(self) -> None:
+        self.progress += 1
+
+    def download_finished(self, model_id, error) -> None:
+        self.finished.append((model_id, error))
+
+
+def ready_models(model=None):
+    """A real `ModelManager` with `model` loaded (an object with `transcribe`), callbacks run at once."""
+    from hams.whisper_model import ModelManager
+
+    models = ModelManager(lambda fn: fn(), RecordingEvents())
+    if model is not None:
+        models.model = model
+        models.active_model_size = "turbo"
+        models.model_ready.set()
+    return models
+
+
+def make_pipeline(model=None, *, ollama=None, sink=None):
+    """A real `Pipeline` with fakes around it.
+
+    Returns the pipeline; `pipeline.sink.states` holds the states, `pipeline.pasted` what was pasted and
+    `pipeline.delivered` what went to the history. Pasting is recorded instead of touching the clipboard.
+    """
+    from hams.transcription import Pipeline
+
+    delivered: list = []
+    pipeline = Pipeline(
+        ready_models(object() if model is None else model),
+        sink or RecordingSink(),
+        ollama or FakeOllama(),
+        on_delivered=delivered.append,
+    )
+    pipeline.delivered = delivered
+    pipeline.states = pipeline.sink.states
+    pipeline.pasted = []
+    pipeline.copy_and_paste = pipeline.pasted.append
+    return pipeline

@@ -6,9 +6,9 @@ Cleanup is the one step in Hams that may *rewrite* what the user said. Faster
 transcription is measured in `wer_benchmark.py`; this script measures the
 cleanup itself, through the product's own code paths:
 
-- Whisper runs through `TranscriptionMixin._run_transcription` (same options,
+- Whisper runs through `Pipeline.run_whisper` (same options,
   glossary hotwords and replacements as a real dictation).
-- Cleanup runs through `TranscriptionMixin._nachbearbeiten` — the production
+- Cleanup runs through `Pipeline.post_process` — the production
   prompt (`hams/prompts/cleanup*.txt`), glossary hint, model, timeout,
   `think: false`, `plain_text()` and the glossary replacements afterwards.
 
@@ -234,10 +234,18 @@ def isolate_hams(workdir: Path) -> None:
     os.environ["HAMS_DATA_DIR"] = str(workdir / "data")
 
 
-class _NoRoot:
-    """Stands in for the Tk root: the pipeline only posts status updates to it."""
+class _NoWindow:
+    """The pipeline's `StatusSink` without a window: status updates go nowhere."""
 
-    def after(self, *_args, **_kwargs) -> None:
+    is_recording = False
+
+    def ui_call(self, fn) -> None:
+        return None
+
+    def apply_state(self, *_args, **_kwargs) -> None:
+        return None
+
+    def show_answer_length(self, characters: int) -> None:
         return None
 
 
@@ -248,16 +256,13 @@ WHAT_IF_OPTIONS: dict | None = None
 def make_pipeline():
     from hams import ollama as ollama_api
     from hams.config import CFG
-    from hams.transcription import TranscriptionMixin
+    from hams.transcription import Pipeline
 
-    class Pipeline(TranscriptionMixin):
-        root = _NoRoot()
-
-    pipeline = Pipeline()
-    pipeline.ollama = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
+    client = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
     if WHAT_IF_OPTIONS:
-        add_ollama_options(pipeline.ollama, WHAT_IF_OPTIONS)
-    return pipeline
+        add_ollama_options(client, WHAT_IF_OPTIONS)
+    # No model manager: Whisper gets its model passed in (`run_whisper`), and nothing is ever delivered.
+    return Pipeline(None, _NoWindow(), client, on_delivered=lambda text: None)
 
 
 def use_language(language: str, workdir: Path) -> None:
@@ -305,7 +310,7 @@ def clean(pipeline, text: str, language: str) -> tuple[str, float, bool, str | N
     pipeline._delivery_note = None
     GUARD_REASONS.clear()
     start = time.perf_counter()
-    result = pipeline._nachbearbeiten(text, False, language)
+    result = pipeline.post_process(text, False, language)
     seconds = time.perf_counter() - start
     guard = GUARD_REASONS[-1] if GUARD_REASONS else None
     return result or "", seconds, pipeline._delivery_note is not None, guard
@@ -394,7 +399,7 @@ def transcribe_all(samples: list[Sample], workdir: Path) -> dict:
     for sample in samples:
         use_language(sample.language, workdir)
         start = time.perf_counter()
-        result = pipeline._run_transcription(model, sample.audio)
+        result = pipeline.run_whisper(model, sample.audio)
         sample.whisper_s = time.perf_counter() - start
         sample.raw = result[0] if result else ""
     del model

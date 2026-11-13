@@ -469,7 +469,7 @@ UI_CALLS = {
     "set_description",
     "set_status",
     "set_value",
-    "_apply_state",
+    "apply_state",
     "download_text",
 }
 

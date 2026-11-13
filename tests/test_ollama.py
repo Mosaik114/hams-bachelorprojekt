@@ -377,6 +377,7 @@ class _Select:
 @pytest.fixture
 def window(monkeypatch):
     win = SW.__new__(SW)
+    win.pull_row = win.pull_task = None  # the Ollama section of a window that never built it
     win._alive = True
     win.win = type("W", (), {"winfo_exists": lambda self: True})()
     win.app = type("A", (), {"ollama_state": state_with(), "ollama_checked": True})()

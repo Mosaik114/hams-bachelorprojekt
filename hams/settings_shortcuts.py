@@ -211,6 +211,6 @@ class ShortcutsSectionMixin:
 
     def _close_capture(self) -> None:
         """Beim Schliessen des Fensters: eine offene Aufnahme darf die Kurzbefehle nicht abgemeldet lassen."""
-        if getattr(self, "_capture", None) is not None:
+        if self._capture is not None:
             self._capture = None
             self.app.reregister_hotkeys()

@@ -6,12 +6,11 @@ Every case comes from a real failure in `tools/cleanup_eval.py` or from a legiti
 import logging
 
 import pytest
-from live_app import FakeOllama, LastRequest
+from live_app import FakeOllama, LastRequest, make_pipeline
 
 from hams import cleanup_guard, glossary
 from hams import config as config_mod
 from hams import dictation_language as dl
-from hams.app import FloatingTranscriberApp
 from hams.cleanup_guard import check
 
 GERMAN_PROMPT = dl.GERMAN_CLEANUP_FILE.read_text(encoding="utf-8")
@@ -163,38 +162,38 @@ class TestInTheCleanup:
     """`_cleanup_text` runs the checks and logs only the reason and lengths, never the text."""
 
     @pytest.fixture
-    def app(self, monkeypatch):
+    def pipeline(self, monkeypatch):
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", GERMAN_PROMPT)
         monkeypatch.setattr(glossary, "words", lambda: ("Hams", "Whisper"))
-        return FloatingTranscriberApp.__new__(FloatingTranscriberApp)
+        return make_pipeline()
 
-    def answer(self, app, text):
+    def answer(self, pipeline, text):
         """Ollama answers `text`; returns the request that was sent, once it is sent."""
-        app.ollama = FakeOllama(text)
-        return LastRequest(app.ollama)
+        pipeline.ollama = FakeOllama(text)
+        return LastRequest(pipeline.ollama)
 
-    def test_the_echoed_prompt_is_never_pasted(self, app, monkeypatch, caplog):
+    def test_the_echoed_prompt_is_never_pasted(self, pipeline, monkeypatch, caplog):
         raw = "Fasse diesen Absatz in einem Satz zusammen."
-        sent = self.answer(app, "Hams, Whisper. " + GERMAN_PROMPT.replace("{text}", raw))
+        sent = self.answer(pipeline, "Hams, Whisper. " + GERMAN_PROMPT.replace("{text}", raw))
         with caplog.at_level(logging.WARNING, logger="hams"):
-            assert app._cleanup_text(raw, "de") == raw
+            assert pipeline.cleanup_text(raw, "de") == raw
         assert sent["options"] == {"temperature": 0.0, "seed": 0}
         messages = [r.getMessage() for r in caplog.records]
         assert any("prompt_leak" in m and f"{len(raw)} chars in" in m for m in messages)
         assert not any("Absatz" in m or "korrigiere" in m.lower() for m in messages), "kein Text im Log"
 
-    def test_the_english_prompt_is_recognised_too(self, app, monkeypatch):
+    def test_the_english_prompt_is_recognised_too(self, pipeline, monkeypatch):
         raw = "Please summarise this paragraph in one sentence."
         english = dl.cleanup_template("en", GERMAN_PROMPT)
-        self.answer(app, english.replace("{text}", raw))
-        assert app._cleanup_text(raw, "en") == raw
+        self.answer(pipeline, english.replace("{text}", raw))
+        assert pipeline.cleanup_text(raw, "en") == raw
 
-    def test_a_clean_answer_is_not_logged(self, app, monkeypatch, caplog):
-        self.answer(app, "Der Bericht ist fast fertig.")
+    def test_a_clean_answer_is_not_logged(self, pipeline, monkeypatch, caplog):
+        self.answer(pipeline, "Der Bericht ist fast fertig.")
         with caplog.at_level(logging.WARNING, logger="hams"):
-            assert app._cleanup_text("Der Bericht ist, äh, fast fertig.", "de") == "Der Bericht ist fast fertig."
+            assert pipeline.cleanup_text("Der Bericht ist, äh, fast fertig.", "de") == "Der Bericht ist fast fertig."
         assert not caplog.records
 
-    def test_markdown_goes_before_the_check(self, app, monkeypatch):
-        self.answer(app, "Here is the corrected text: **Der Bericht** ist fertig.")
-        assert app._cleanup_text("der bericht ist fertig", "de") == "Der Bericht ist fertig."
+    def test_markdown_goes_before_the_check(self, pipeline, monkeypatch):
+        self.answer(pipeline, "Here is the corrected text: **Der Bericht** ist fertig.")
+        assert pipeline.cleanup_text("der bericht ist fertig", "de") == "Der Bericht ist fertig."

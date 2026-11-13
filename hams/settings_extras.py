@@ -58,7 +58,7 @@ class ExtrasSectionMixin:
 
     def _refresh_pull_row(self) -> None:
         """Zeigt oder versteckt die Zeile unter dem Cleanup-Modell."""
-        row = getattr(self, "pull_row", None)
+        row = self.pull_row
         if row is None or not self.alive():
             return
         if not self.pull_task.running:
@@ -95,10 +95,10 @@ class ExtrasSectionMixin:
             self._refresh_pull_row()
 
         # Nie `self.win.after` aus diesem Thread: Tk ist nicht threadsicher. Der Dispatcher der App reicht es weiter.
-        self.app._ui_call(run)
+        self.app.ui_call(run)
 
     def _cancel_model_pull(self) -> None:
-        if getattr(self, "pull_task", None) is not None and self.pull_task.running:
+        if self.pull_task is not None and self.pull_task.running:
             self.pull_task.cancel()
 
     # ---------------------------------------------------------- Glossar

@@ -10,13 +10,10 @@ und lässt nur 0, 1 oder 2 zu — Vorgabewerte zählen mit, also drei, also
 mehr bauen.
 """
 
-import threading
-
 import pystray
 import pytest
 
 from hams import config
-from hams.app import FloatingTranscriberApp as App
 from hams.config import CFG
 
 
@@ -31,22 +28,16 @@ class _FakeIcon:
 
 
 @pytest.fixture
-def app(monkeypatch):
-    """Anwendung ohne Fenster, Modell und echtes Tray."""
-    instance = App.__new__(App)
-    instance._history = []
-    instance._history_lock = threading.Lock()
-    instance.tray_icon = _FakeIcon()
-    instance.is_recording = False
-    instance._prompt_mode = False
-    instance.model_ready = threading.Event()
-    instance.model_ready.set()
-    instance.copied = []
-    monkeypatch.setattr(App, "_copy_history_entry", lambda self, index: self.copied.append(index))
-    monkeypatch.setattr(App, "_toggle_visibility", lambda self, icon=None, item=None: None)
-    monkeypatch.setattr(App, "_open_settings", lambda self, icon=None, item=None: None)
-    monkeypatch.setattr(App, "_quit_app", lambda self, icon=None, item=None: None)
-    return instance
+def app(live_app, monkeypatch):
+    """The live app with a recording tray icon; menu actions are recorded, not run."""
+    live_app.tray_icon = _FakeIcon()
+    live_app.models.model_ready.set()
+    live_app.copied = []
+    monkeypatch.setattr(live_app, "_copy_history_entry", lambda index: live_app.copied.append(index))
+    monkeypatch.setattr(live_app, "_toggle_visibility", lambda icon=None, item=None: None)
+    monkeypatch.setattr(live_app, "_open_settings", lambda icon=None, item=None: None)
+    monkeypatch.setattr(live_app, "_quit_app", lambda icon=None, item=None: None)
+    return live_app
 
 
 def entries(menu) -> list:
@@ -165,7 +156,7 @@ class TestRefresh:
         assert len(entries(history_submenu(app.tray_icon.menu))) == 10
 
     def test_history_grows_during_the_session(self, app, monkeypatch):
-        monkeypatch.setattr(App, "_ui_call", lambda self, fn: fn())
+        monkeypatch.setattr(app, "ui_call", lambda fn: fn())
         for index in range(7):
             app._add_to_history(f"Transkript Nummer {index}")
         assert len(app._history) == 5, "der Verlauf haelt fuenf Eintraege"
@@ -175,11 +166,11 @@ class TestRefresh:
 
     def test_a_failing_build_does_not_escape(self, app, monkeypatch):
         """Ein Fehler gehoert ins Log, nicht in den Tk-Rueckruf."""
-        monkeypatch.setattr(App, "_build_tray_menu", lambda self: (_ for _ in ()).throw(RuntimeError("kaputt")))
+        monkeypatch.setattr(app, "_build_tray_menu", lambda: (_ for _ in ()).throw(RuntimeError("kaputt")))
         app._refresh_tray()  # darf nicht fliegen
 
     def test_without_a_tray_nothing_happens(self, app):
-        del app.tray_icon
+        app.tray_icon = None
         app._refresh_tray()
 
     def test_the_tooltip_names_the_last_entry(self, app):

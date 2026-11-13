@@ -7,13 +7,12 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from live_app import FakeOllama, LastRequest
+from live_app import FakeOllama, LastRequest, make_pipeline
 
 from hams import config as config_mod
 from hams import dictation_language as dl
 from hams import glossary
 from hams import transcription as transcription_mod
-from hams.app import FloatingTranscriberApp
 from hams.config import CFG, Config, _apply_toml, _load_config
 
 AUDIO = np.full(16000, 0.2, dtype=np.float32)
@@ -295,11 +294,8 @@ class FakeModel:
 
 
 @pytest.fixture
-def app():
-    a = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-    a.root = SimpleNamespace(after=lambda *args, **kwargs: None)
-    a._prompt_mode = False
-    return a
+def pipeline():
+    return make_pipeline()
 
 
 @pytest.fixture
@@ -309,57 +305,57 @@ def words(monkeypatch):
 
 
 class TestTranscription:
-    def test_german_passes_german_and_the_german_frame(self, app, words):
+    def test_german_passes_german_and_the_german_frame(self, pipeline, words):
         model = FakeModel(detected="en")
-        assert app._run_transcription(model, AUDIO) == ("Hello world", "de")
+        assert pipeline.run_whisper(model, AUDIO) == ("Hello world", "de")
         assert model.calls[0]["language"] == "de"
         assert model.calls[0]["hotwords"] == OLD_HOTWORD_FRAME.format("Hams")
         assert model.detections == 0, "a fixed language is never detected"
 
-    def test_english(self, app, words, monkeypatch):
+    def test_english(self, pipeline, words, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "en")
         model = FakeModel()
-        assert app._run_transcription(model, AUDIO) == ("Hello world", "en")
+        assert pipeline.run_whisper(model, AUDIO) == ("Hello world", "en")
         assert model.calls[0]["language"] == "en"
         assert model.calls[0]["hotwords"].startswith("An English text.")
 
-    def test_auto_detects_first_and_uses_the_matching_frame(self, app, words, monkeypatch):
+    def test_auto_detects_first_and_uses_the_matching_frame(self, pipeline, words, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
         model = FakeModel(detected="fr")
-        assert app._run_transcription(model, AUDIO) == ("Hello world", "fr")
+        assert pipeline.run_whisper(model, AUDIO) == ("Hello world", "fr")
         assert model.calls[0]["language"] == "fr"
         assert model.calls[0]["hotwords"].startswith("Un texte en français.")
 
-    def test_auto_with_an_unsupported_language_gets_no_frame(self, app, words, monkeypatch):
+    def test_auto_with_an_unsupported_language_gets_no_frame(self, pipeline, words, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
         model = FakeModel(detected="ja")
-        assert app._run_transcription(model, AUDIO) == ("Hello world", "ja")
+        assert pipeline.run_whisper(model, AUDIO) == ("Hello world", "ja")
         assert model.calls[0]["hotwords"] is None
 
-    def test_auto_without_detection_lets_whisper_decide(self, app, words, monkeypatch):
+    def test_auto_without_detection_lets_whisper_decide(self, pipeline, words, monkeypatch):
         """A model without `detect_language`: transcribe detects, `info.language` names the result."""
         monkeypatch.setattr(CFG, "transcription_language", "auto")
         model = FakeModel(info_language="en")
-        assert app._run_transcription(model, AUDIO) == ("Hello world", "en")
+        assert pipeline.run_whisper(model, AUDIO) == ("Hello world", "en")
         assert model.calls[0]["language"] is None
         assert model.calls[0]["hotwords"] is None
 
-    def test_a_failed_detection_falls_back_to_transcribe(self, app, words, monkeypatch):
+    def test_a_failed_detection_falls_back_to_transcribe(self, pipeline, words, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
         model = FakeModel(detect_error=ValueError("no speech"), info_language="es")
-        assert app._run_transcription(model, AUDIO) == ("Hello world", "es")
+        assert pipeline.run_whisper(model, AUDIO) == ("Hello world", "es")
         assert model.calls[0]["language"] is None
 
-    def test_no_info_means_unknown(self, app, words, monkeypatch):
+    def test_no_info_means_unknown(self, pipeline, words, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
 
         class Bare:
             def transcribe(self, audio, **options):
                 return [SimpleNamespace(text="x")], None
 
-        assert app._run_transcription(Bare(), AUDIO) == ("x", "")
+        assert pipeline.run_whisper(Bare(), AUDIO) == ("x", "")
 
-    def test_batched_runs_get_the_detected_language_too(self, app, words, monkeypatch):
+    def test_batched_runs_get_the_detected_language_too(self, pipeline, words, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
         model = FakeModel(detected="en")
         seen = []
@@ -374,53 +370,53 @@ class TestTranscription:
 
         monkeypatch.setattr(transcription_mod, "BatchedInferencePipeline", Pipeline)
         long_audio = np.full(16000 * 40, 0.2, dtype=np.float32)
-        assert app._run_transcription(model, long_audio) == ("long", "en")
+        assert pipeline.run_whisper(model, long_audio) == ("long", "en")
         assert seen[0]["language"] == "en"
 
 
 class TestOllamaInstructions:
     @pytest.fixture
-    def sent(self, monkeypatch, app):
-        app.ollama = FakeOllama()
-        seen = LastRequest(app.ollama)
+    def sent(self, monkeypatch, pipeline):
+        pipeline.ollama = FakeOllama()
+        seen = LastRequest(pipeline.ollama)
         monkeypatch.setattr(glossary, "words", lambda: ("Hams",))
         monkeypatch.setattr(CFG, "cleanup_prompt_template", dl.GERMAN_CLEANUP_FILE.read_text(encoding="utf-8"))
         return seen
 
-    def test_german_cleanup_is_unchanged(self, app, sent):
-        app._cleanup_text("hallo", "de")
+    def test_german_cleanup_is_unchanged(self, pipeline, sent):
+        pipeline.cleanup_text("hallo", "de")
         german = dl.GERMAN_CLEANUP_FILE.read_text(encoding="utf-8")
         assert sent["prompt"] == OLD_GLOSSARY_HINT + "Hams.\n\n" + german.replace("{text}", "hallo")
 
-    def test_detected_english_gets_the_english_cleanup(self, app, sent, monkeypatch):
+    def test_detected_english_gets_the_english_cleanup(self, pipeline, sent, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
-        app._cleanup_text("hello", "en")
+        pipeline.cleanup_text("hello", "en")
         assert sent["prompt"].startswith("These words are spelled correctly")
         assert "transcribed text in English" in sent["prompt"]
         assert sent["prompt"].endswith("Text: hello\n")
 
-    def test_without_a_language_the_setting_decides(self, app, sent, monkeypatch):
+    def test_without_a_language_the_setting_decides(self, pipeline, sent, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "fr")
-        app._cleanup_text("bonjour")
+        pipeline.cleanup_text("bonjour")
         assert "transcribed text in French" in sent["prompt"]
 
-    def test_auto_without_a_result_is_neutral(self, app, sent, monkeypatch):
+    def test_auto_without_a_result_is_neutral(self, pipeline, sent, monkeypatch):
         monkeypatch.setattr(CFG, "transcription_language", "auto")
-        app._cleanup_text("text")
+        pipeline.cleanup_text("text")
         assert "its original language" in sent["prompt"]
 
-    def test_prompt_mode_system_follows_the_language(self, app, sent):
-        app._generate_from_prompt("question", "en")
+    def test_prompt_mode_system_follows_the_language(self, pipeline, sent):
+        pipeline.generate_from_prompt("question", "en")
         assert sent["system"] == dl.plain_system("en")
-        app._generate_from_prompt("Frage", "de")
+        pipeline.generate_from_prompt("Frage", "de")
         assert sent["system"] == OLD_PLAIN_SYSTEM
 
-    def test_postprocessing_passes_the_language_on(self, app, monkeypatch):
+    def test_postprocessing_passes_the_language_on(self, pipeline, monkeypatch):
         seen = []
         monkeypatch.setattr(CFG, "ollama_cleanup_enabled", True)
-        monkeypatch.setattr(FloatingTranscriberApp, "_cleanup_text", lambda self, text, language: seen.append(language))
-        monkeypatch.setattr(FloatingTranscriberApp, "_generate_from_prompt", lambda self, t, language: language)
+        monkeypatch.setattr(pipeline, "cleanup_text", lambda text, language: seen.append(language))
+        monkeypatch.setattr(pipeline, "generate_from_prompt", lambda t, language: language)
         monkeypatch.setattr(glossary, "apply_replacements", lambda text: text)
-        app._nachbearbeiten("text", False, "fr")
+        pipeline.post_process("text", False, "fr")
         assert seen == ["fr"]
-        assert app._nachbearbeiten("text", True, "es") == "es"
+        assert pipeline.post_process("text", True, "es") == "es"

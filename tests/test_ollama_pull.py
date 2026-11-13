@@ -104,7 +104,7 @@ class TestTheOllamaPullReportsThroughTheDispatcher:
         live_app.root.update()
         win = live_app.settings_win
         queued = []
-        monkeypatch.setattr(live_app, "_ui_call", queued.append)
+        monkeypatch.setattr(live_app, "ui_call", queued.append)
         touched = []
         win.win.after = lambda *args: touched.append(args)
         try:

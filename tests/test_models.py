@@ -170,12 +170,14 @@ class _StubWindow:
 
         class _App:
             active_model_size = active
-            downloading_model = None
+            downloading = None
             download_done = 0
             download_total = 0
             download_percent = 0
+            fallback = None
 
             def __init__(self):
+                self.models = self  # the window reaches the model manager through `app.models`
                 self.switched = switched
                 self.started = started
                 self.cancelled = cancelled
@@ -187,11 +189,11 @@ class _StubWindow:
             def start_download(self, model_id):
                 started.append(model_id)
                 if not problem:
-                    self.downloading_model = model_id
+                    self.downloading = model_id
                 return problem
 
             def cancel_download(self):
-                cancelled.append(self.downloading_model)
+                cancelled.append(self.downloading)
 
         self.app = _App()
         self.description = SW.MODEL_HINT

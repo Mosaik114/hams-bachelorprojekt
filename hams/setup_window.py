@@ -6,7 +6,7 @@ wird beim Betreten neu aufgebaut; ihr Zustand lebt im Controller, nicht in Widge
 
 Hintergrundarbeit (GPU-Download, Ollama-Abfrage und -Download) meldet sich über
 `win.after` auf dem Tk-Thread zurück. Der Download des Whisper-Modells gehört der
-Anwendung (`WhisperModelMixin.start_download`), genau wie aus den Einstellungen; das
+Anwendung (`ModelManager.start_download`), genau wie aus den Einstellungen; das
 Fenster zeigt ihn nur an.
 
 Mikrofonauswahl und Live-Pegel kommen unverändert aus `StatusSectionMixin`.
@@ -101,6 +101,13 @@ class SetupWindow(StatusSectionMixin):
         self._status_job: str | None = None
         self._alive = True
         self._drag = (0, 0)
+        #: Rows of the pages, built when their page is shown.
+        self.gpu_row = None
+        self.model_row = None
+        self.cleanup_box = None
+        self._cleanup_shown = None
+        self.pull_row = None
+        self.status_row = None
 
         self.win = tk.Toplevel(app.root)
         uk.frame_window(self.win)
@@ -111,7 +118,7 @@ class SetupWindow(StatusSectionMixin):
         self._attach_download()
         self._build()
         uk.Scale.register(self._on_scale_change)
-        app.register_mic_consumer(self)
+        app.recorder.register_consumer(self)
         self.win.update_idletasks()
         uk.round_window_corners(self.win)
         self.focus()
@@ -128,13 +135,13 @@ class SetupWindow(StatusSectionMixin):
 
     def _attach_download(self) -> None:
         """Zeigt einen Modell-Download, der schon läuft (etwa aus den Einstellungen)."""
-        running = self.app.downloading_model
+        running = self.app.models.downloading
         if running is None:
             return
         self.controller.choices.model = running
         self.controller.model_suggested = True
         self.model_task.begin()
-        self.model_task.advance(self.app.download_done, self.app.download_total)
+        self.model_task.advance(self.app.models.download_done, self.app.models.download_total)
 
     # ---------------------------------------------------------- lifecycle
 
@@ -175,7 +182,7 @@ class SetupWindow(StatusSectionMixin):
         uk.Scale.unregister(self._on_scale_change)
         self._cancel_jobs()
         self._stop_monitor()
-        self.app.unregister_mic_consumer(self)
+        self.app.recorder.unregister_consumer(self)
         with contextlib.suppress(tk.TclError):
             self.win.destroy()
         self.app.on_setup_closed(self.completed)
@@ -237,7 +244,7 @@ class SetupWindow(StatusSectionMixin):
                 callback()
                 self._after_task_change()
 
-        self.app._ui_call(run)  # wartet nie auf den Tk-Thread; nach dem Schliessen faellt es weg
+        self.app.ui_call(run)  # wartet nie auf den Tk-Thread; nach dem Schliessen faellt es weg
 
     # ---------------------------------------------------------- drag
 
@@ -481,7 +488,7 @@ class SetupWindow(StatusSectionMixin):
             self._refresh_hardware()
 
     def _refresh_hardware(self) -> None:
-        if getattr(self, "gpu_row", None) is None:
+        if self.gpu_row is None:
             return
         size = whisper_models.format_bytes(self.controller.services.gpu_download_bytes)
         hardware = self.controller.hardware
@@ -522,7 +529,7 @@ class SetupWindow(StatusSectionMixin):
         )
         row.set_control(self.model_select)
         self.model_row = TaskRow(
-            group.body, t("setup.model.row"), start=self._start_model_download, cancel=self.app.cancel_download
+            group.body, t("setup.model.row"), start=self._start_model_download, cancel=self.app.models.cancel_download
         )
         self._refresh_model()
 
@@ -547,7 +554,7 @@ class SetupWindow(StatusSectionMixin):
         return self.model_task.running or self.controller.model_installed()
 
     def _refresh_model(self) -> None:
-        if getattr(self, "model_row", None) is None or not self.model_row.row.winfo_exists():
+        if self.model_row is None or not self.model_row.row.winfo_exists():
             return
         info = whisper_models.find(self.controller.choices.model)
         size = info.size_label if info else ""
@@ -558,7 +565,7 @@ class SetupWindow(StatusSectionMixin):
         self.model_select.set_enabled(not self.model_task.running)
 
     def _start_model_download(self) -> None:
-        problem = self.app.start_download(self.controller.choices.model)
+        problem = self.app.models.start_download(self.controller.choices.model)
         if problem:
             self.model_task.fail(problem)
         else:
@@ -594,8 +601,8 @@ class SetupWindow(StatusSectionMixin):
         model = self.controller.choices.model
         if self.model_task.running or not self.controller.model_installed():
             return
-        to_gpu = self.controller.hardware == setup_wizard.GPU_READY and app._active_device == "cpu"
-        if model != app.active_model_size or not app.model_ready.is_set() or to_gpu:
+        to_gpu = self.controller.hardware == setup_wizard.GPU_READY and app.models.active_device == "cpu"
+        if model != app.models.active_model_size or not app.models.model_ready.is_set() or to_gpu:
             app.switch_model(model, force=to_gpu)
 
     # ---------------------------------------------------------- page: microphone
@@ -666,11 +673,11 @@ class SetupWindow(StatusSectionMixin):
         return (controller.ollama is None, controller.ollama_online, controller.cleanup_model_installed())
 
     def _refresh_cleanup(self) -> None:
-        box = getattr(self, "cleanup_box", None)
+        box = self.cleanup_box
         if box is None or not box.winfo_exists():
             return
         layout = self._cleanup_layout()
-        if layout == getattr(self, "_cleanup_shown", None) and getattr(self, "pull_row", None) is not None:
+        if layout == self._cleanup_shown and self.pull_row is not None:
             self._show_pull()
             return
         self._cleanup_shown = layout
@@ -772,7 +779,7 @@ class SetupWindow(StatusSectionMixin):
     def _poll_status(self) -> None:
         """Zeigt die Statuszeile des Hauptfensters, damit der erste Versuch hier sichtbar wird."""
         self._status_job = None
-        row = getattr(self, "status_row", None)
+        row = self.status_row
         if not self.alive() or row is None or not row.winfo_exists() or self.controller.page != "finish":
             return
         row.set_value(self.app.status_label.cget("text"))

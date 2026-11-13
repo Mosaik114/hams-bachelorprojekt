@@ -11,7 +11,7 @@ import types
 import pytest
 
 from hams import audio_devices
-from hams.app import FloatingTranscriberApp as App
+from hams.recording import Recorder
 from hams.settings_window import SettingsWindow as SW
 
 #: Platzhalter für „ein Mikrofon-Strom ist offen“
@@ -42,18 +42,16 @@ def config(monkeypatch):
 
 class TestMicConsumerApi:
     def test_registration_is_idempotent(self):
-        app = App.__new__(App)
-        app._mic_consumers = []
+        recorder = Recorder()
         consumer = object()
-        App.register_mic_consumer(app, consumer)
-        App.register_mic_consumer(app, consumer)
-        assert app._mic_consumers == [consumer]
+        recorder.register_consumer(consumer)
+        recorder.register_consumer(consumer)
+        assert recorder.consumers == [consumer]
 
     def test_unregister_is_safe_when_absent(self):
-        app = App.__new__(App)
-        app._mic_consumers = []
-        App.unregister_mic_consumer(app, object())  # darf nicht werfen
-        assert app._mic_consumers == []
+        recorder = Recorder()
+        recorder.unregister_consumer(object())  # must not raise
+        assert recorder.consumers == []
 
     def test_suspend_reaches_every_consumer(self):
         calls = []
@@ -65,10 +63,10 @@ class TestMicConsumerApi:
             def resume_microphone(self):
                 calls.append("resume")
 
-        app = App.__new__(App)
-        app._mic_consumers = [_Consumer(), _Consumer()]
-        App._suspend_mic_consumers(app)
-        App._resume_mic_consumers(app)
+        recorder = Recorder()
+        recorder.consumers = [_Consumer(), _Consumer()]
+        recorder.suspend_consumers()
+        recorder.resume_consumers()
         assert calls == ["suspend", "suspend", "resume", "resume"]
 
     def test_a_broken_consumer_does_not_stop_the_others(self):
@@ -82,9 +80,9 @@ class TestMicConsumerApi:
             def suspend_microphone(self):
                 calls.append("ok")
 
-        app = App.__new__(App)
-        app._mic_consumers = [_Broken(), _Good()]
-        App._suspend_mic_consumers(app)  # darf nicht durchschlagen
+        recorder = Recorder()
+        recorder.consumers = [_Broken(), _Good()]
+        recorder.suspend_consumers()  # darf nicht durchschlagen
         assert calls == ["ok"]
 
 
@@ -234,6 +232,7 @@ class TestCleanupDependency:
     def _run(self, cleanup_on, ollama_online, monkeypatch):
         monkeypatch.setattr("hams.config.CFG.ollama_cleanup_enabled", cleanup_on)
         window = SW.__new__(SW)
+        window.pull_row = window.pull_task = None
         window._alive = True
         window.win = type("W", (), {"winfo_exists": lambda self: True})()
         window._ollama_online = ollama_online

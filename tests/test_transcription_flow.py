@@ -20,8 +20,11 @@ import pytest
 from hams import dictation_language, glossary
 from hams import transcription as transcription_mod
 from hams.config import CFG
+from hams.transcription import Pipeline
 
 AUDIO = np.full(16000, 0.2, dtype=np.float32)
+#: The real warm-up start; the `hams` fixture replaces it on the class.
+REAL_WARM_UP_ASYNC = Pipeline.warm_up_ollama_async
 
 
 class FakeModel:
@@ -66,15 +69,15 @@ def ollama(monkeypatch):
 @pytest.fixture
 def ready(live_app):
     """Die Anwendung mit geladenem Modell und abgeschalteter Bereinigung."""
-    live_app.model = FakeModel("Hallo", "Welt")
-    live_app.model_ready.set()
+    live_app.models.model = FakeModel("Hallo", "Welt")
+    live_app.models.model_ready.set()
     CFG.ollama_cleanup_enabled = False
     return live_app
 
 
 def run(app, audio=AUDIO, prompt_mode=False) -> None:
     """Die Pipeline auf dem Testthread - sie laeuft sonst im Hintergrund."""
-    app._transcribe_audio(audio, prompt_mode=prompt_mode)
+    app.pipeline.transcribe(audio, prompt_mode=prompt_mode)
     ende = time.monotonic() + 2
     while any(t.name == "save-transcript" and t.is_alive() for t in threading.enumerate()):
         assert time.monotonic() < ende, "Transkript wurde nicht gespeichert"
@@ -148,7 +151,7 @@ class TestPipeline:
     def test_without_ollama_the_raw_text_is_still_pasted(self, ready, hams, ollama):
         CFG.ollama_cleanup_enabled = True
         ollama.error = urllib.error.URLError("verbindung abgelehnt")
-        ready._apply_state = record_states(ready)
+        ready.apply_state = record_states(ready)
         run(ready)
         assert hams.clipboard.copies == ["Hallo Welt"]
         assert ("done", "Eingefügt · ohne Bereinigung") in ready.seen
@@ -170,7 +173,7 @@ class TestPipeline:
         assert hams.clipboard.copies == ["Hallo Welt", "Hallo Welt"]
         assert status(ready) == "Eingefügt · ohne Bereinigung"
         assert ready.footer_label.cget("text") == "", "der Hinweis kommt nur einmal"
-        ready._cleanup_retry_at = 0.0  # eine Minute spaeter
+        ready.pipeline._cleanup_retry_at = 0.0  # eine Minute spaeter
         run(ready)
         assert len(ollama.requests) == 2
 
@@ -234,15 +237,15 @@ class TestPipeline:
         assert status(ready) == "KI-Antwort fehlgeschlagen"
 
     def test_silence_in_the_model_is_reported(self, live_app, hams):
-        live_app.model = FakeModel()
-        live_app.model_ready.set()
+        live_app.models.model = FakeModel()
+        live_app.models.model_ready.set()
         run(live_app)
         assert status(live_app) == "Keine Sprache erkannt"
         assert hams.clipboard.copies == []
 
     def test_a_crashing_model_is_reported(self, live_app, hams):
-        live_app.model = FakeModel(error=RuntimeError("CUDA out of memory"))
-        live_app.model_ready.set()
+        live_app.models.model = FakeModel(error=RuntimeError("CUDA out of memory"))
+        live_app.models.model_ready.set()
         run(live_app, prompt_mode=True)
         assert status(live_app) == "Transkription fehlgeschlagen"
 
@@ -250,36 +253,36 @@ class TestPipeline:
         def broken(text):
             raise RuntimeError("Zwischenablage gesperrt")
 
-        monkeypatch.setattr(ready, "_copy_and_paste", broken)
+        monkeypatch.setattr(ready.pipeline, "copy_and_paste", broken)
         run(ready)
         assert status(ready) == "Transkription fehlgeschlagen"
 
 
 class TestModelNotThereYet:
     def test_it_waits_and_says_so(self, live_app, hams):
-        live_app.model = FakeModel("Spaet", "aber", "da")
-        live_app._apply_state = record_states(live_app)
-        threading.Timer(0.2, live_app.model_ready.set).start()
+        live_app.models.model = FakeModel("Spaet", "aber", "da")
+        live_app.apply_state = record_states(live_app)
+        threading.Timer(0.2, live_app.models.model_ready.set).start()
         CFG.ollama_cleanup_enabled = False
         run(live_app)
         assert live_app.seen[0] == ("transcribing", "Modell wird noch geladen …")
         assert hams.clipboard.copies == ["Spaet aber da"]
 
     def test_a_model_that_never_comes_ends_in_an_error(self, live_app, hams):
-        live_app.model_error = "CUDA fehlt"
+        live_app.models.model_error = "CUDA fehlt"
         run(live_app, prompt_mode=True)
         assert status(live_app) == "Modell nicht verfügbar"
         assert hams.clipboard.copies == []
 
     def test_a_lost_model_ends_in_an_error(self, live_app, hams):
-        live_app.model_ready.set()  # bereit gemeldet, aber schon wieder weg
+        live_app.models.model_ready.set()  # bereit gemeldet, aber schon wieder weg
         run(live_app)
         assert status(live_app) == "Kein Modell geladen"
 
 
 def record_states(app):
     """Haelt jeden Zustandswechsel fest und fuehrt ihn trotzdem aus."""
-    original = app._apply_state
+    original = app.apply_state
     app.seen = []
 
     def apply(state, detail=None, hint=None, **options):
@@ -299,7 +302,7 @@ class TestStreaming:
             json.dumps({"response": "", "done": True}).encode(),
             json.dumps({"response": "zu spaet"}).encode(),
         ]
-        answer = live_app._generate_from_prompt("Frage")
+        answer = live_app.pipeline.generate_from_prompt("Frage")
         live_app.root.update()
         assert answer == "Hallo Welt"
         assert live_app.elapsed_label.cget("text") == "6 Zeichen"
@@ -315,35 +318,35 @@ class TestStreaming:
 
 class TestPaste:
     def test_it_waits_for_the_clipboard_despite_line_endings(self, live_app, hams):
-        live_app._copy_and_paste("eins\r\nzwei")
+        live_app.pipeline.copy_and_paste("eins\r\nzwei")
         assert hams.clipboard.copies == ["eins\r\nzwei"]
         assert hams.keyboard.sent == ["ctrl+v"]
 
     def test_an_unreadable_clipboard_is_not_pasted(self, live_app, hams):
         """Unconfirmed, Ctrl+V could paste what was there before - a password, say (audit finding H2)."""
         hams.clipboard.broken = True
-        assert live_app._copy_and_paste("Text") is False
+        assert live_app.pipeline.copy_and_paste("Text") is False
         assert hams.keyboard.sent == []
-        assert live_app._delivery_note == ("Kopiert, nicht eingefügt", live_app._delivery_note[1])
-        assert "Strg+V" in live_app._delivery_note[1]
+        assert live_app.pipeline._delivery_note == ("Kopiert, nicht eingefügt", live_app.pipeline._delivery_note[1])
+        assert "Strg+V" in live_app.pipeline._delivery_note[1]
 
     def test_a_slow_clipboard_is_given_the_configured_time_then_not_pasted(self, live_app, hams, monkeypatch):
         monkeypatch.setattr(hams.clipboard, "paste", lambda: "noch alt")
         CFG.clipboard_paste_timeout = 0.05
         start = time.monotonic()
-        assert live_app._copy_and_paste("neu") is False
+        assert live_app.pipeline.copy_and_paste("neu") is False
         assert time.monotonic() - start < 1
         assert hams.keyboard.sent == []
 
     def test_a_zero_timeout_still_asks_the_clipboard_once(self, live_app, hams):
         CFG.clipboard_paste_timeout = 0.0
-        assert live_app._copy_and_paste("sofort") is True
+        assert live_app.pipeline.copy_and_paste("sofort") is True
         assert hams.keyboard.sent == ["ctrl+v"]
 
     def test_the_main_window_asks_for_ctrl_v(self, live_app, hams, monkeypatch):
         monkeypatch.setattr(hams.clipboard, "paste", lambda: "noch alt")
         CFG.clipboard_paste_timeout = 0.0
-        live_app._abliefern("neu")
+        live_app.pipeline._deliver("neu")
         live_app.root.update()
         assert hams.keyboard.sent == []
         assert live_app.status_label.cget("text") == "Kopiert, nicht eingefügt"
@@ -355,31 +358,29 @@ class TestSaveAndWarmup:
         blocker = tmp_path / "datei"
         blocker.write_text("x")
         monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", blocker / "unter")
-        live_app._save_transcript_file("Text")
+        transcription_mod.save_transcript_file("Text")
 
     def test_warmup_loads_the_cleanup_model_without_a_prompt(self, live_app, ollama):
         CFG.ollama_cleanup_enabled = True
-        live_app._warmup_ollama()
+        live_app.pipeline.warm_up_ollama()
         body, timeout = ollama.requests[0]
         assert body["model"] == CFG.ollama_model_cleanup and body["prompt"] == ""
         assert timeout == 60
 
     def test_warmup_is_skipped_without_cleanup(self, live_app, ollama):
         CFG.ollama_cleanup_enabled = False
-        live_app._warmup_ollama()
+        live_app.pipeline.warm_up_ollama()
         assert ollama.requests == []
 
     def test_an_unreachable_ollama_is_only_logged(self, live_app, ollama):
         CFG.ollama_cleanup_enabled = True
         ollama.error = urllib.error.URLError("aus")
-        live_app._warmup_ollama()
+        live_app.pipeline.warm_up_ollama()
 
     def test_the_warmup_runs_in_its_own_thread(self, live_app, monkeypatch):
-        from hams.transcription import TranscriptionMixin
-
         started = []
-        monkeypatch.setattr(live_app, "_warmup_ollama", lambda: started.append(1))
-        TranscriptionMixin._warmup_ollama_async(live_app)
+        monkeypatch.setattr(live_app.pipeline, "warm_up_ollama", lambda: started.append(1))
+        REAL_WARM_UP_ASYNC(live_app.pipeline)
         ende = time.monotonic() + 2
         while not started and time.monotonic() < ende:
             time.sleep(0.01)

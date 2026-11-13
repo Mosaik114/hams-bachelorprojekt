@@ -234,32 +234,23 @@ class _Root:
 
 
 @pytest.fixture
-def app(monkeypatch):
-    """Die Anwendung ohne Tk, Audio und Tray — nur die Felder des Neustarts."""
-    instanz = App.__new__(App)
-    instanz.is_recording = False
-    instanz._shutting_down = False
-    instanz.root = _Root()
-    instanz.tray_icon = _Tray()
-    instanz.freigegeben = 0
-    instanz._window_visible = True
-    #: Kurzbefehle und Start des Nachfolgers in ihrer Reihenfolge.
-    instanz.ablauf = []
-
-    def _flush():
-        instanz.gemerkt = True
-
-    def _release():
-        instanz.freigegeben += 1
-
-    instanz.gemerkt = False
-    monkeypatch.setattr(App, "_flush_position", lambda self: _flush())
-    monkeypatch.setattr(App, "_release_resources", lambda self: _release())
-    monkeypatch.setattr(App, "suspend_hotkeys", lambda self: self.ablauf.append("hotkeys frei"))
-    monkeypatch.setattr(App, "_register_hotkeys", lambda self: self.ablauf.append("hotkeys an"))
-    monkeypatch.setattr(App, "downloading_model", property(lambda self: None))
+def app(live_app, monkeypatch):
+    """The live app; only the restart's own steps are real, the rest is recorded."""
+    monkeypatch.setattr(live_app, "root", _Root())
+    live_app.tray_icon = _Tray()
+    live_app.freigegeben = 0
+    live_app._window_visible = True
+    #: Shortcuts and the successor's start, in their order.
+    live_app.ablauf = []
+    live_app.gemerkt = False
+    monkeypatch.setattr(live_app, "_flush_position", lambda: setattr(live_app, "gemerkt", True))
+    monkeypatch.setattr(
+        live_app, "_release_resources", lambda: setattr(live_app, "freigegeben", live_app.freigegeben + 1)
+    )
+    monkeypatch.setattr(live_app, "suspend_hotkeys", lambda: live_app.ablauf.append("hotkeys frei"))
+    monkeypatch.setattr(live_app, "_register_hotkeys", lambda: live_app.ablauf.append("hotkeys an"))
     monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
-    return instanz
+    return live_app
 
 
 @pytest.fixture
@@ -337,13 +328,13 @@ class TestRestartApp:
         assert reihenfolge == ["frei", "start"]
 
     def test_a_recording_blocks_the_restart(self, app, popen):
-        app.is_recording = True
+        app.recorder.is_recording = True
         assert app.restart_app() == "Läuft gerade eine Aufnahme"
         assert popen.aufrufe == []
         assert app._shutting_down is False
 
     def test_a_download_blocks_the_restart(self, app, popen, monkeypatch):
-        monkeypatch.setattr(App, "downloading_model", property(lambda self: "turbo"))
+        monkeypatch.setattr(type(app.models), "downloading", property(lambda self: "turbo"))
         assert app.restart_app() == "Ein Download läuft gerade"
         assert popen.aufrufe == []
 
@@ -372,7 +363,7 @@ class TestRestartApp:
 
     def test_a_dictation_still_in_the_pipeline_blocks_the_restart(self, app, popen):
         """Third review: restarting dropped a finished recording that was still being transcribed."""
-        app._pipeline_job_running = True
+        app.pipeline.job_running = True
         assert app.restart_app() == "Ein Diktat wird noch verarbeitet"
         assert popen.aufrufe == []
         assert app._shutting_down is False

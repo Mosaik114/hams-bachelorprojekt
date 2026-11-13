@@ -1,17 +1,13 @@
-"""Aufnahme vom Mikrofon bis zur fertigen Tonspur."""
+"""Recording from the microphone to the finished audio: the `Recorder` and the level helpers."""
 
-import contextlib
 import threading
 import time
-import tkinter as tk
 
 import numpy as np
 import sounddevice as sd
 
-from hams import cursor_dot
 from hams.audio_devices import resolve_mic_device
 from hams.config import CFG, logger
-from hams.i18n import t
 
 #: Whisper takes 16 kHz mono. Recording in exactly that format means nothing has to be converted: other rates
 #: or a second channel used to reach Whisper unconverted and came out as gibberish.
@@ -49,11 +45,6 @@ def reinitialise_portaudio(busy) -> bool:
 # Erkennung genutzt, damit beide dieselbe Grenze verwenden.
 SILENCE_PEAK_THRESHOLD = 0.005
 
-#: Wie lange eine fertige Aufnahme auf das Modell wartet, bevor sie aufgibt.
-#: Warm ist es nach ~2 s da, kalt nach ~20 s; die Schranke ist grosszuegig
-#: bemessen, aber vorhanden, damit kein Thread unbegrenzt haengt.
-MODEL_WAIT_SECONDS = 120.0
-
 #: Pegelanzeige in Dezibel statt linear: Sprache aus einem halben Meter Abstand liegt
 #: bei etwa -50 dBFS (RMS 0,003) und war linear kaum sichtbar. Gemessen am MV7+
 #: (29.09.2026): Grundrauschen bis -64 dBFS, Sprache nah am Mikro bis etwa -30 dBFS.
@@ -85,251 +76,126 @@ def _normalize_audio(audio: np.ndarray, target_peak: float = 0.35) -> np.ndarray
     return (audio * (target_peak / peak)).astype(np.float32)
 
 
-class RecordingMixin:
-    """Aufnahme: Start, Stopp, Pegel, Laufzeit und Hoechstdauer."""
+class MicrophoneUnavailable(RuntimeError):
+    """The configured microphone cannot be opened: unplugged, renamed, or held by another program."""
 
-    # ------------------------------------------------------------------ Aufnahmezeit
 
-    def _start_elapsed_ticker(self) -> None:
-        self._tick_elapsed()
+class Recorder:
+    """The microphone: one input stream, the recorded blocks and the current level. No Tk, no model.
 
-    def _tick_elapsed(self) -> None:
-        if not self.is_recording:
-            return
-        seconds = int(time.monotonic() - self._recording_start)
-        self.elapsed_label.config(text=f"{seconds // 60:d}:{seconds % 60:02d}")
-        self._elapsed_job = self.root.after(500, self._tick_elapsed)
+    Recording never needs the Whisper model: it opens the microphone and collects blocks, so it may start while the
+    model is still loading (the transcription waits for it instead, see `ModelManager.wait_until_ready`).
 
-    def _stop_elapsed_ticker(self) -> None:
-        if getattr(self, "_elapsed_job", None) is not None:
-            with contextlib.suppress(ValueError, tk.TclError):
-                self.root.after_cancel(self._elapsed_job)
-            self._elapsed_job = None
+    Other users of the microphone (the level meters of the settings and the setup assistant) register as consumers:
+    they are suspended before the recording opens the device and resumed once it has closed it again, so the device
+    is never open twice.
+    """
+
+    def __init__(self) -> None:
+        self.stream = None
+        self.frames: list[np.ndarray] = []
+        self.is_recording = False
+        #: Mean square of the newest block; written by PortAudio's thread (a single float, no lock needed).
+        self.level = 0.0
+        self.started_at = 0.0
+        self.consumers: list = []
+        self._limit_timer: threading.Timer | None = None
+
+    # ------------------------------------------------------------------ microphone consumers
+
+    def register_consumer(self, consumer) -> None:
+        """`consumer` has `suspend_microphone()` and `resume_microphone()`."""
+        if consumer not in self.consumers:
+            self.consumers.append(consumer)
+
+    def unregister_consumer(self, consumer) -> None:
+        if consumer in self.consumers:
+            self.consumers.remove(consumer)
+
+    def suspend_consumers(self) -> None:
+        for consumer in list(self.consumers):
+            try:
+                consumer.suspend_microphone()
+            except Exception:  # noqa: BLE001 - one broken consumer must not stop the recording
+                logger.exception("Microphone consumer could not be suspended")
+
+    def resume_consumers(self) -> None:
+        for consumer in list(self.consumers):
+            try:
+                consumer.resume_microphone()
+            except Exception:  # noqa: BLE001 - one broken consumer must not stop the others
+                logger.exception("Microphone consumer could not be resumed")
+
+    def busy(self) -> bool:
+        """Whether the recording holds the microphone."""
+        return self.is_recording or self.stream is not None
 
     # ------------------------------------------------------------------ recording
 
-    def _may_record(self) -> bool:
-        """Darf jetzt aufgenommen werden?
+    @property
+    def elapsed(self) -> float:
+        """Seconds since the recording started (0 without one)."""
+        return time.monotonic() - self.started_at if self.started_at else 0.0
 
-        Nicht erst, wenn das Modell geladen ist: `start_recording` fasst das
-        Modell nirgends an — es oeffnet das Mikrofon und sammelt Puffer.
-        Gebraucht wird es erst danach, in `_transcribe_audio`.
+    def start(self, *, max_seconds: float, on_limit) -> None:
+        """Opens the configured microphone and starts recording.
 
-        Gemessen: bis das Modell steht, vergehen warm rund 2,2 s und kalt
-        deutlich mehr. Die mittlere Aufnahmedauer betraegt 11,95 s. Wer gleich
-        nach dem Anmelden diktiert, hat also laengst zu Ende gesprochen, bevor
-        das Modell ueberhaupt gebraucht wird — es gibt keinen Grund, ihn
-        vorher abzuweisen.
+        The device is resolved again for every recording: indexes move when a microphone is plugged in or out, and
+        the app would otherwise record silently from the wrong one. `on_limit` runs on a timer thread once
+        `max_seconds` have passed.
 
-        Abgewiesen wird nur, was auch spaeter nicht gutgehen kann: ein Modell,
-        das sich gar nicht laden liess. Dann waeren die gesprochenen Worte
-        verloren, und das ist schlimmer als ein Hinweis vorab.
-        """
-        if self.model_error and not self.model_ready.is_set():
-            self._on_model_error()
-            return False
-        if getattr(self, "_state", None) == "setup_pending":
-            # Kein Modell und keins unterwegs: die Worte waeren verloren. Der Status sagt, was fehlt.
-            self._apply_state("setup_pending")
-            return False
-        return True
-
-    def _await_model(self, deadline: float) -> bool:
-        """Wartet auf ein einsatzbereites Modell. False heisst: kommt keines.
-
-        Kein blosses `Event.wait()`: waehrend eines Modellwechsels ist das
-        Ereignis kurzzeitig zurueckgesetzt und kann mit einem Fehler enden.
-        Deshalb in kleinen Schritten warten und dazwischen nachsehen.
-        """
-        while time.monotonic() < deadline:
-            if self.model_ready.wait(timeout=0.2):
-                return True
-            if self.model_error and not self.is_switching_model:
-                return False
-        return self.model_ready.is_set()
-
-    def toggle_recording(self) -> None:
-        """Toggle recording state for transcript mode.
-
-        If not recording, starts recording. If recording, stops and transcribes: stopping always works,
-        whatever happened to the model in the meantime.
-        """
-        if self.is_recording:
-            self.stop_recording_and_transcribe()
-            return
-        if not self._may_record():
-            return
-        self._prompt_mode = False
-        self.start_recording()
-
-    def toggle_recording_generate(self) -> None:
-        """Toggle recording state for prompt mode.
-
-        Same as toggle_recording but uses the LLM to generate a response
-        instead of just cleaning up the transcript.
-        """
-        if self.is_recording:
-            self.stop_recording_and_transcribe()
-            return
-        if not self._may_record():
-            return
-        self._prompt_mode = True
-        self.start_recording()
-
-    def _schedule_max_duration_stop(self) -> None:
-        self._cancel_max_duration_timer()
-        self._max_duration_timer = threading.Timer(CFG.max_recording_seconds, self._on_max_duration_reached)
-        self._max_duration_timer.daemon = True
-        self._max_duration_timer.name = "max-duration"
-        self._max_duration_timer.start()
-
-    def _cancel_max_duration_timer(self) -> None:
-        if self._max_duration_timer is not None:
-            self._max_duration_timer.cancel()
-            self._max_duration_timer = None
-
-    def _on_max_duration_reached(self) -> None:
-        logger.warning("Max recording duration (%ss) reached — auto-stopping", CFG.max_recording_seconds)
-        self._ui_call(self._auto_stop_recording)
-
-    def _auto_stop_recording(self) -> None:
-        if not self.is_recording:
-            return
-        self.stop_recording_and_transcribe()
-
-    def _start_level_ticker(self) -> None:
-        """Der Pegel bleibt sichtbar — nur der Takt startet und stoppt."""
-        self._rms_level = 0.0
-        self._level_tick()
-
-    def _stop_level_ticker(self) -> None:
-        if self._level_tick_job is not None:
-            with contextlib.suppress(ValueError, tk.TclError):
-                self.root.after_cancel(self._level_tick_job)
-            self._level_tick_job = None
-        self.level_meter.set_level(0.0)
-
-    def _level_tick(self) -> None:
-        if not self.is_recording:
-            return
-        level = _display_level(self._rms_level)
-        self.level_meter.set_level(level)
-        cursor_dot.notify(self._state, level)
-        self._level_tick_job = self.root.after(50, self._level_tick)
-
-    def start_recording(self) -> None:
-        """Start audio recording.
-
-        Initializes the audio stream and begins capturing audio from the microphone.
-        Recording will automatically stop after max_recording_seconds.
+        Raises:
+            MicrophoneUnavailable: the microphone cannot be opened (PortAudio refused it, or sounddevice found no
+                device with the configured name).
+            Exception: anything else; in every case the stream is closed and the consumers are resumed.
         """
         self.frames.clear()
-
-        def callback(indata: np.ndarray, _frames: int, _time, status) -> None:
-            if status:
-                logger.warning("Audio stream status: %s", status)
-            self.frames.append(indata.copy())
-            # RMS für Level-Meter; kein Lock nötig (einzelner Float-Write).
-            self._rms_level = float(np.mean(indata.astype(np.float32) ** 2))
-
-        # Mitbenutzer des Mikrofons freigeben, damit das Gerät nicht doppelt
-        # geöffnet wird.
-        self._suspend_mic_consumers()
-
-        # Gerät pro Aufnahme neu auflösen: Indizes verschieben sich beim
-        # Aus-/Einstecken, sonst nimmt die App stumm vom falschen Gerät auf.
+        self.suspend_consumers()
         device = resolve_mic_device(CFG.mic_device_raw)
         if device != CFG.mic_device:
             logger.info("Mic device re-resolved: %r -> %r", CFG.mic_device, device)
             CFG.mic_device = device
-
         try:
             with PORTAUDIO_LOCK:  # not while the device list is being re-read
                 self.stream = sd.InputStream(
-                    samplerate=SAMPLE_RATE,
-                    channels=CHANNELS,
-                    device=device,
-                    dtype="float32",
-                    callback=callback,
+                    samplerate=SAMPLE_RATE, channels=CHANNELS, device=device, dtype="float32", callback=self._on_block
                 )
                 self.stream.start()
                 self.is_recording = True
-            self._recording_start = time.monotonic()
-            self._schedule_max_duration_stop()
-            self._apply_state("recording_prompt" if self._prompt_mode else "recording")
-            self._beep(880, 80)
-            self._start_elapsed_ticker()
-            self._start_level_ticker()
-            self._update_tray_tooltip()
-            logger.info("Recording started (prompt_mode=%s)", self._prompt_mode)
-        except (sd.PortAudioError, ValueError):
-            # ValueError: sounddevice found no device with the configured name (unplugged, renamed).
-            logger.exception("Microphone could not be opened")
+        except (sd.PortAudioError, ValueError) as exc:
             self._abandon_start()
-            self._apply_state(
-                "error",
-                t("error.mic_unavailable"),
-                t("error.mic_not_responding", device=CFG.mic_device_raw),
-            )
+            raise MicrophoneUnavailable(str(exc)) from exc
         except Exception:
-            logger.exception("Unexpected error on start_recording")
             self._abandon_start()
-            self._apply_state(
-                "error",
-                t("error.recording_not_started"),
-                t("hint.see_log"),
-            )
+            raise
+        self.level = 0.0
+        self.started_at = time.monotonic()
+        self._start_limit_timer(max_seconds, on_limit)
+
+    def _on_block(self, indata: np.ndarray, _frames: int, _time, status) -> None:
+        """PortAudio's callback, on its own thread."""
+        if status:
+            logger.warning("Audio stream status: %s", status)
+        self.frames.append(indata.copy())
+        self.level = float(np.mean(indata.astype(np.float32) ** 2))
 
     def _abandon_start(self) -> None:
         """A start that failed: close a stream that opened but didn't start, give the microphone back."""
         self.is_recording = False
-        self._cancel_max_duration_timer()
+        self._cancel_limit_timer()
         stream, self.stream = self.stream, None
         if stream is not None:
             try:
                 stream.abort()
                 stream.close()
-            except Exception:  # noqa: BLE001 - der Fehler beim Start ist schon gemeldet
+            except Exception:  # noqa: BLE001 - the error of the start is reported already
                 logger.exception("Stream cleanup after a failed start failed")
-        self._resume_mic_consumers()
+        self.resume_consumers()
 
-    def _take_model_notice(self):
-        notice = getattr(self, "_pending_model_notice", None)
-        self._pending_model_notice = None
-        return notice
-
-    def _deliver_model_notice(self, notice, *, queued: bool) -> None:
-        """A model message held back during the recording (see `WhisperModelMixin._model_notice`).
-
-        Without a queued dictation it is shown right away. With one, a missing model is reported by that
-        dictation itself; any other message (a fallback) follows once the dictation is through.
-        """
-        if notice is None:
-            return
-        if not queued:
-            notice()
-        elif not (self.model_error and not self.model_ready.is_set()):
-            self._notice_after_pipeline = notice
-
-    def stop_recording_and_transcribe(self) -> None:
-        """Stop recording and start transcription pipeline.
-
-        Stops the audio stream, concatenates recorded frames, and starts
-        the transcription thread.
-        """
+    def stop(self) -> np.ndarray | None:
+        """Ends the recording and gives the microphone back. Returns the mono audio, None if nothing came in."""
         self.is_recording = False
-        # From here on, an older transcription still running no longer changes the main window.
-        run_id = self._next_pipeline_run()
-        self._cancel_max_duration_timer()
-        self._stop_elapsed_ticker()
-        self._stop_level_ticker()
-        notice = self._take_model_notice()
-        self._update_tray_tooltip()
-        self._beep(220, 120)
-        self._apply_state("transcribing")
-        duration = time.monotonic() - self._recording_start if self._recording_start else 0
-        logger.info("Recording stopped after %.1fs", duration)
-
+        self._cancel_limit_timer()
         try:
             if self.stream is not None:
                 self.stream.stop()
@@ -338,38 +204,35 @@ class RecordingMixin:
             logger.exception("PortAudio error on stream.stop")
         finally:
             self.stream = None
-            # Erst jetzt: der Pegelmonitor oeffnet dasselbe Geraet, das die Aufnahme eben noch hielt.
-            self._resume_mic_consumers()
-
+            # Only now: the level meter opens the device the recording held until a moment ago.
+            self.resume_consumers()
+        self.level = 0.0
         if not self.frames:
-            self._apply_state("no_signal", t("status.no_recording"), t("hint.no_audio"))
-            self._prompt_mode = False
-            self._deliver_model_notice(notice, queued=False)
-            return
-
+            return None
         audio = np.concatenate(self.frames, axis=0).flatten()
         self.frames.clear()
+        return audio
 
-        # Pegel protokollieren — macht "Mikro stumm" im Log sofort sichtbar.
-        peak = float(np.max(np.abs(audio))) if audio.size else 0.0
-        logger.info("Recording captured: %.1fs, peak=%.4f", duration, peak)
+    def close(self) -> None:
+        """At shutdown: abort a running stream without waiting for its buffers."""
+        self._cancel_limit_timer()
+        self.is_recording = False
+        stream, self.stream = self.stream, None
+        if stream is not None:
+            try:
+                stream.abort()
+                stream.close()
+            except Exception:  # noqa: BLE001 - shutting down anyway
+                logger.exception("Stream cleanup failed")
 
-        # Kein-Signal-Erkennung: klare Meldung statt stiller "Keine Sprache"-Leere.
-        if peak < SILENCE_PEAK_THRESHOLD:
-            logger.warning(
-                "No microphone signal (peak=%.4f) — Mikro stumm oder falsches Gerät?",
-                peak,
-            )
-            self._apply_state(
-                "no_signal",
-                None,
-                t("hint.mic_silent", device=CFG.mic_device_raw),
-            )
-            self._prompt_mode = False
-            self._deliver_model_notice(notice, queued=False)
-            return
+    def _start_limit_timer(self, seconds: float, on_limit) -> None:
+        self._cancel_limit_timer()
+        self._limit_timer = threading.Timer(seconds, on_limit)
+        self._limit_timer.daemon = True
+        self._limit_timer.name = "max-duration"
+        self._limit_timer.start()
 
-        # Mode and run id travel with the recording: the next one may start before this one is through.
-        self._enqueue_transcription(audio, self._prompt_mode, run_id)
-        self._prompt_mode = False
-        self._deliver_model_notice(notice, queued=True)
+    def _cancel_limit_timer(self) -> None:
+        if self._limit_timer is not None:
+            self._limit_timer.cancel()
+            self._limit_timer = None

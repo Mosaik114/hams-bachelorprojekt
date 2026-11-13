@@ -46,7 +46,7 @@ from hams import bootstrap  # noqa: E402
 
 bootstrap.load()
 
-#: `WhisperModelMixin.model_needs_download` before `no_implicit_model_download` replaces it.
+#: `ModelManager.needs_download` before `no_implicit_model_download` replaces it.
 _REAL_NEEDS_DOWNLOAD = None
 
 
@@ -121,25 +121,25 @@ def english(ui_language):
 def no_implicit_model_download(monkeypatch):
     """No test starts a real model download: by default every model counts as cached.
 
-    Loading an uncached model goes through the download (see `WhisperModelMixin._load_or_download`), and
+    Loading an uncached model goes through the download (see `ModelManager.load_or_download`), and
     the real cache differs from machine to machine. Tests of that path use `model_cache_check`.
     """
-    from hams.whisper_model import WhisperModelMixin
+    from hams.whisper_model import ModelManager
 
     global _REAL_NEEDS_DOWNLOAD
-    _REAL_NEEDS_DOWNLOAD = WhisperModelMixin.__dict__["model_needs_download"]
-    monkeypatch.setattr(WhisperModelMixin, "model_needs_download", staticmethod(lambda model_id: False))
+    _REAL_NEEDS_DOWNLOAD = ModelManager.__dict__["needs_download"]
+    monkeypatch.setattr(ModelManager, "needs_download", staticmethod(lambda model_id: False))
 
 
 @pytest.fixture
 def model_cache_check(monkeypatch):
     """The real check against the cache; `installed` is the set of cached models the test pretends."""
     from hams import models as whisper_models
-    from hams.whisper_model import WhisperModelMixin
+    from hams.whisper_model import ModelManager
 
     installed: set = set()
     monkeypatch.setattr(whisper_models, "installed_whisper_models", lambda: set(installed))
-    monkeypatch.setattr(WhisperModelMixin, "model_needs_download", _REAL_NEEDS_DOWNLOAD)
+    monkeypatch.setattr(ModelManager, "needs_download", _REAL_NEEDS_DOWNLOAD)
     return installed
 
 
@@ -187,7 +187,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     from setup_fakes import InlineThread
 
     from hams import app as app_mod
-    from hams import cursor_dot
+    from hams import cursor_dot, update_notice
     from hams import ollama as ollama_api
     from hams import recording as recording_mod
     from hams import settings_status as status_mod
@@ -240,10 +240,12 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(status_mod, "list_input_devices", lambda: list(fakes.devices))
     monkeypatch.setattr(ollama_api.OllamaClient, "probe", lambda client, timeout=None: fakes.probe)
     patch_everywhere("_persist_config_value", lambda *args: fakes.saved.append(args) or True)
+    #: The real start of a model load, for the tests of that path (`hams.load_model(app)`).
+    fakes.load_model = App._load_model_async
     monkeypatch.setattr(App, "_load_model_async", load)
-    monkeypatch.setattr(App, "_warmup_ollama_async", lambda self: None)
-    # Nie ins Netz: die Update-Abfrage pruefen test_updates.py und test_update_notice.py mit Attrappen.
-    monkeypatch.setattr(App, "_start_update_check", lambda self: None)
+    monkeypatch.setattr(transcription_mod.Pipeline, "warm_up_ollama_async", lambda self: None)
+    # Never online: test_updates.py and test_update_notice.py check the update query with fakes.
+    monkeypatch.setattr(update_notice.UpdateNotice, "start", lambda self: None)
     monkeypatch.setattr(App, "_setup_tray", lambda self: setattr(self, "tray_icon", FakeTray()))
     CFG.sound_feedback = True
     yield fakes

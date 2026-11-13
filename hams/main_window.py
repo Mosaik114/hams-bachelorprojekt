@@ -1,7 +1,7 @@
-"""Das Hauptfenster von Hams: Aufbau der fünf Zonen, Darstellung (hell/dunkel) und Fensterlage.
+"""The main window of Hams: its five zones, light and dark, and its position.
 
-FloatingTranscriberApp erbt es als Mixin. Die Zustände (was die Zonen gerade
-zeigen) bleiben in app.py, _apply_state ist ihre einzige Stelle.
+FloatingTranscriberApp inherits it as a mixin. The states (what the zones show) stay in app.py; `apply_state` is
+their one place.
 """
 
 import contextlib
@@ -42,7 +42,7 @@ class MainWindowMixin:
     def _retint_windows(self) -> int:
         """Faerbt alle offenen Hams-Fenster neu ein. Gibt die Widgetzahl zurueck."""
         painted = uk.apply_theme_tree(self.root)
-        for win in (self.settings_win, getattr(self, "setup_win", None)):
+        for win in (self.settings_win, self.setup_win):
             if win is not None and win.alive():
                 painted += win.retint()
         return painted
@@ -226,9 +226,7 @@ class MainWindowMixin:
         height = uk.px(max(logical, self.WINDOW_MIN_HEIGHT))
         self._window_size = (width, height)
         self.root.geometry(f"{width}x{height}")
-        footer_widget = getattr(self, "footer", None)
-        if footer_widget is not None:
-            footer_widget.configure(height=uk.px(self.FOOTER_HEIGHT))
+        self.footer.configure(height=uk.px(self.FOOTER_HEIGHT))
 
     def _line_height(self, role: str) -> int:
         """Zeilenhöhe einer Schriftrolle in *logischen* Pixeln."""

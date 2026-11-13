@@ -95,11 +95,15 @@ class SettingsWindow(
         self._tick_job: str | None = None
         self._alive = True
         self._drag = (0, 0)
+        #: Built with the Ollama section (settings_extras); the shortcut being recorded (settings_shortcuts).
+        self.pull_task = None
+        self.pull_row = None
+        self._capture = None
 
         self._build()
         self._attach_download()
         uk.Scale.register(self._on_scale_change)
-        app.register_mic_consumer(self)
+        app.recorder.register_consumer(self)
         self.win.update_idletasks()
         self.win.focus_force()
         uk.round_window_corners(self.win)
@@ -166,7 +170,7 @@ class SettingsWindow(
                 self.win.after_cancel(self._storage_note_job)
             self._storage_note_job = None
         self._stop_monitor()
-        self.app.unregister_mic_consumer(self)
+        self.app.recorder.unregister_consumer(self)
         with contextlib.suppress(Exception):
             self.win.destroy()
         self.app.settings_win = None

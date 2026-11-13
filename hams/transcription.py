@@ -1,10 +1,11 @@
-"""Aus der Tonspur wird Text: Whisper, Bereinigung mit Ollama, Einfuegen."""
+"""From the audio to the pasted text (`Pipeline`): Whisper, cleanup with Ollama, pasting, transcript files."""
 
 import collections
 import re
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -20,8 +21,10 @@ from hams import cleanup_guard, dictation_language, glossary
 from hams import ollama as ollama_api
 from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
-from hams.i18n import t, tn
-from hams.recording import MODEL_WAIT_SECONDS, SAMPLE_RATE, _normalize_audio
+from hams.i18n import t
+from hams.recording import SAMPLE_RATE, _normalize_audio
+from hams.status import StatusSink
+from hams.whisper_model import MODEL_WAIT_SECONDS
 
 #: Ab dieser Aufnahmelaenge wird die gebatchte Auswertung benutzt.
 #: Gemessen (turbo/float16, RTX 5070, gegen bekannten Referenztext):
@@ -45,7 +48,7 @@ WHISPER_OPTIONS = {
     "without_timestamps": True,
 }
 
-#: The run id of the pipeline job this thread is working on (see `TranscriptionMixin._pipeline_ui`).
+#: The run id of the pipeline job this thread is working on (see `Pipeline._ui`).
 _pipeline_run = threading.local()
 
 
@@ -163,33 +166,305 @@ def _clipboard_confirms(text: str, timeout: float) -> bool:
         time.sleep(0.01)
 
 
-class TranscriptionMixin:
-    """Transkription, Bereinigung mit Ollama und Einfuegen des Textes."""
+class Pipeline:
+    """From a finished recording to the pasted text: Whisper, cleanup with Ollama and its guard, delivery. No Tk.
 
-    #: Nach einem Ausfall von Ollama fragt die Bereinigung so lange nicht erneut. Jedes Diktat
-    #: wuerde sonst erst auf einen Dienst warten, der nicht da ist.
+    A recording may start while the previous one is still being transcribed or cleaned up (the hotkeys stay live).
+    Every finished recording becomes a job with its own prompt mode and run id; one worker thread works through the
+    jobs in order, so each text is pasted, in the order it was spoken, and none is lost. Only the newest run may
+    change the main window, and only while nothing is being recorded: an older job finishing late must not
+    overwrite the recording or the state of a newer one.
+
+    It reports through `sink` (`hams.status.StatusSink`) and hands every delivered text to `on_delivered` (the tray
+    history) before it is pasted.
+    """
+
+    #: After Ollama could not be reached, the cleanup does not ask again for this long: every dictation would first
+    #: wait for a service that isn't there.
     CLEANUP_RETRY_SECONDS = 60.0
-    #: Klassenwerte als Vorgabe: Tests bauen die Anwendung auch ohne __init__.
-    _cleanup_retry_at = 0.0
-    _cleanup_offline_noted = False
-    #: (Statustext, Hinweis) fuer die naechste Ablieferung, oder None.
-    _delivery_note: tuple | None = None
 
-    # ------------------------------------------------------------------ transcription
+    def __init__(self, models, sink: StatusSink, ollama, *, on_delivered: Callable[[str], None]) -> None:
+        self.models = models
+        self.sink = sink
+        self.ollama = ollama
+        self._on_delivered = on_delivered
+        self._jobs: collections.deque = collections.deque()
+        self._lock = threading.Lock()
+        self._busy = False
+        #: True while the worker transcribes a job it has taken from the queue.
+        self.job_running = False
+        #: The newest run id: only that run may change the main window.
+        self.latest_run = 0
+        self._cleanup_retry_at = 0.0
+        self._cleanup_offline_noted = False
+        #: (status text, hint) for the next delivery, or None.
+        self._delivery_note: tuple | None = None
 
-    def _generate_from_prompt(self, text: str, language: str = "") -> str:
-        """Die KI-Antwort zum diktierten Prompt — ebenfalls als Klartext.
+    # ------------------------------------------------------------------ queue
 
-        Auch diese Antwort wird unverändert eingefügt; ein `**Oslo**` im
-        Textfeld ist dort genauso unerwünscht wie im korrigierten Transkript.
-        Zwei Ebenen wie beim Cleanup: eine Systemanweisung an Ollama und
-        dieselbe Normalisierung danach. Der diktierte Prompt selbst bleibt
-        unangetastet.
+    def next_run(self) -> int:
+        """A new run id; from now on older runs no longer touch the main window. On the Tk thread."""
+        self.latest_run += 1
+        return self.latest_run
 
-        Absätze und Zeilenumbrüche bleiben erhalten — im Prompt-Modus tragen
-        sie Bedeutung, anders als eine Hervorhebung.
+    def pending(self) -> int:
+        """Finished recordings that are still being transcribed or wait in the queue for it."""
+        with self._lock:
+            return len(self._jobs) + (1 if self.job_running else 0)
 
-        `language` ist die diktierte Sprache (leer: die eingestellte); sie waehlt die Systemanweisung.
+    def enqueue(self, audio: np.ndarray, prompt_mode: bool, run_id: int) -> None:
+        """Queues a finished recording. Starts the worker unless one is already working through the queue."""
+        with self._lock:
+            self._jobs.append((audio, prompt_mode, run_id))
+            if self._busy:
+                logger.info("Transcription queued behind the running one (run %d)", run_id)
+                return
+            self._busy = True
+        threading.Thread(target=self._drain, daemon=True, name="transcribe").start()
+
+    def _drain(self) -> None:
+        """The worker: one job after the other, in the order they were recorded; ends when the queue is empty."""
+        while True:
+            with self._lock:
+                if not self._jobs:
+                    self._busy = False
+                    self.job_running = False
+                    return
+                audio, prompt_mode, run_id = self._jobs.popleft()
+                self.job_running = True
+            try:
+                self.transcribe(audio, prompt_mode=prompt_mode, run_id=run_id)
+            except Exception:  # noqa: BLE001 - boundary of the thread: the next job must run anyway
+                logger.exception("Transcription job crashed")
+
+    def _ui(self, fn) -> None:
+        """A main-window update from the pipeline: applied only for the current run and not while recording."""
+        run_id = getattr(_pipeline_run, "run_id", None)
+
+        def guarded() -> None:
+            if self.sink.is_recording:
+                return
+            if run_id is not None and run_id != self.latest_run:
+                return
+            fn()
+
+        self.sink.ui_call(guarded)
+
+    def _state(self, state: str, detail: str | None = None, hint: str | None = None, **options) -> None:
+        self._ui(lambda: self.sink.apply_state(state, detail, hint, **options))
+
+    # ------------------------------------------------------------------ one job
+
+    def transcribe(self, audio: np.ndarray, prompt_mode: bool = False, run_id: int | None = None) -> None:
+        """One job: Whisper, then the AI answer or the cleanup, then the delivery.
+
+        `prompt_mode` belongs to this recording; it is passed in, never read from shared state, because the next
+        recording may already have started. `run_id` decides whether this run may still change the main window
+        (default: the newest run).
+        """
+        _pipeline_run.run_id = self.latest_run if run_id is None else run_id
+        try:
+            self._job(audio, prompt_mode)
+        finally:
+            _pipeline_run.run_id = None
+
+    def _job(self, audio: np.ndarray, prompt_mode: bool) -> None:
+        if not self.models.model_ready.is_set() and not self._wait_for_model():
+            return
+        # Take one stable reference and finish the run with it; the lock holds a model switch back meanwhile.
+        with self.models.transcribe_lock:
+            model = self.models.current_model()
+            if model is None:
+                self._state("error", t("error.no_model"), t("hint.try_again"))
+                return
+            result = self.run_whisper(model, audio)
+        if result is None:
+            return
+        text, language = result
+        try:
+            if not text:
+                logger.info("Transcription returned empty text")
+                self._state("no_signal", t("status.no_speech"), t("hint.no_words"))
+                return
+            logger.info("Transcribed %d chars (prompt_mode=%s)", len(text), prompt_mode)
+            text = self.post_process(text, prompt_mode, language)
+            if text is not None:
+                self._deliver(text)
+        except Exception:  # noqa: BLE001 - reported, the next job runs
+            logger.exception("Transcription pipeline failed")
+            self._state("error", t("error.transcription_failed"), t("hint.see_log"))
+
+    def _wait_for_model(self) -> bool:
+        """The recording was allowed to start without a model; here it is needed.
+
+        Usually it has long been there - the user spoke while it loaded. Only a dictation right after logging on
+        really waits here, and then the status line says what for. False: no model (the error is reported).
+        """
+        logger.info("Recording waits for the model")
+        self._state("transcribing", t("status.model_still_loading"), t("hint.recording_kept"))
+        if not self.models.wait_until_ready(time.monotonic() + MODEL_WAIT_SECONDS):
+            logger.error("No model available for a finished recording")
+            self._state("error", t("error.model_unavailable"), t("error.recording_not_transcribed"))
+            return False
+        self._state("transcribing")
+        return True
+
+    def run_whisper(self, model, audio: np.ndarray) -> tuple[str, str] | None:
+        """Runs Whisper with a *fixed* model reference.
+
+        Separate, so the caller holds the transcription lock only around this part: cleanup and pasting don't need
+        it and would hold a model switch back for nothing. Returns the text and the dictated language ("" =
+        unknown), None after an error (reported).
+        """
+        try:
+            normalised = _normalize_audio(audio)
+            language = self._dictation_language(model, normalised)
+            options = {
+                "language": language,
+                "vad_filter": CFG.transcription_vad_filter,
+                **WHISPER_OPTIONS,
+                # Glossary: names and terms are recognised correctly more often
+                "hotwords": glossary.hotwords(language),
+            }
+            if audio.size / SAMPLE_RATE >= BATCHED_MIN_SECONDS:
+                # The batched pipeline transcribes the speech chunks independently; faster-whisper ignores
+                # `condition_on_previous_text` there. The sequential path has it off as well (WHISPER_OPTIONS),
+                # so both paths treat every chunk without the text before it.
+                segments, info = BatchedInferencePipeline(model=model).transcribe(
+                    normalised, batch_size=BATCH_SIZE, **options
+                )
+            else:
+                segments, info = model.transcribe(normalised, **options)
+            # Raw text: the glossary replacements come once, on the final text (see `post_process`).
+            text = " ".join(segment.text.strip() for segment in segments).strip()
+            return text, language or str(getattr(info, "language", "") or "")
+        except Exception:  # noqa: BLE001 - reported, the next job runs
+            logger.exception("Whisper transcription failed")
+            self._state("error", t("error.transcription_failed"), t("hint.see_log"))
+            return None
+
+    @staticmethod
+    def _dictation_language(model, audio: np.ndarray) -> str | None:
+        """The language of this recording: the configured one or, with "auto", the detected one.
+
+        With "auto" Whisper detects the language *before* transcribing, so the instructions and hints already fit
+        it. If the model cannot (or finds nothing, say in a recording without speech), `transcribe` detects it
+        itself - then without the glossary hint.
+        """
+        language = dictation_language.whisper_language(CFG.transcription_language)
+        if language is not None:
+            return language
+        detect = getattr(model, "detect_language", None)
+        if detect is None:
+            return None
+        try:
+            detected, probability, _ = detect(audio=audio, vad_filter=CFG.transcription_vad_filter)
+        except Exception as exc:  # noqa: BLE001 - Whisper decides while transcribing
+            logger.info("Language detection found nothing (%s), Whisper decides while transcribing", type(exc).__name__)
+            return None
+        logger.info("Detected language: %s (p=%.2f)", detected, probability)
+        return detected
+
+    # ------------------------------------------------------------------ after Whisper
+
+    def post_process(self, text: str, prompt_mode: bool, language: str = "") -> str | None:
+        """Prompt mode: the AI's answer instead of the dictation; else (if on) the cleanup. None = given up (reported).
+
+        `language` is the dictated language; it picks the instructions for Ollama.
+
+        The glossary replacements apply exactly once, to the dictated text that ends up final: the pasted
+        transcript (cleaned or raw) or, in prompt mode, the prompt sent to the AI. The cleanup itself gets the raw
+        text plus the glossary hint, so a replacement is never applied twice.
+        """
+        if prompt_mode:
+            return self._answer_prompt(glossary.apply_replacements(text), language)
+        return glossary.apply_replacements(self.cleaned_or_raw(text, language))
+
+    def _answer_prompt(self, text: str, language: str) -> str | None:
+        """The AI's answer to the dictated prompt; None after a clear "AI failed" message."""
+        self._state("generating")
+        try:
+            return self.generate_from_prompt(text, language)
+        except ollama_api.OLLAMA_ERRORS as exc:
+            logger.exception("Ollama prompt-generation failed")
+            unusable = isinstance(exc, ollama_api.OllamaAnswerError)
+            hint = t("error.ai_no_answer") if unusable else t("error.ollama_not_responding")
+            self._state("error", t("error.ai_failed"), hint)
+            return None
+
+    def cleaned_or_raw(self, text: str, language: str) -> str:
+        """The cleaned-up transcript, or the raw one if cleanup is off or Ollama fails in any way."""
+        if not CFG.ollama_cleanup_enabled:
+            return text
+        if time.monotonic() < self._cleanup_retry_at:
+            self._delivery_note = (t("status.done_raw"), None)  # just failed: don't wait again
+            return text
+        self._state("cleaning")
+        try:
+            return self.cleanup_text(text, language)
+        except ollama_api.OLLAMA_ERRORS as exc:
+            if ollama_api.is_unreachable(exc):
+                logger.warning("Ollama cleanup unavailable, using raw transcript: %s", type(exc).__name__)
+                self._note_cleanup_offline()
+            else:
+                # Ollama answered, just not usably: this dictation goes out raw, the next one asks again.
+                logger.warning("Ollama cleanup answer unusable, using raw transcript: %s", type(exc).__name__)
+                self._delivery_note = (t("status.done_raw"), None)
+        return text
+
+    def _note_cleanup_offline(self) -> None:
+        """Ollama is missing: paste the raw text, explain it calmly once per session, then only briefly."""
+        hint = None if self._cleanup_offline_noted else t("hint.cleanup_offline")
+        self._cleanup_offline_noted = True
+        self._cleanup_retry_at = time.monotonic() + self.CLEANUP_RETRY_SECONDS
+        self._delivery_note = (t("status.done_raw"), hint)
+
+    def cleanup_text(self, text: str, language: str = "") -> str:
+        """The transcript cleaned up by the LLM: stutters, repetitions and slips removed, spelling and grammar fixed.
+
+        The answer goes through `plain_text()` before it goes anywhere: the prompt forbids Markdown, but a model
+        does not always comply, and whatever slips through lands as a visible `**` in the user's text field. Then
+        `cleanup_guard.check` looks at it: an echoed prompt, changed digits, a much longer answer or one that loses
+        most words is replaced by the raw text.
+
+        `language` is the dictated language ("" = the configured one); it picks the instruction and glossary hint.
+        """
+        language = _prompt_language(language)
+        template = dictation_language.cleanup_template(language, CFG.cleanup_prompt_template)
+        prompt = template.replace("{text}", text) if "{text}" in template else f"{template}\n\nText: {text}"
+        instructions = template
+        if hint := glossary.cleanup_hint(language):
+            prompt = f"{hint}\n\n{prompt}"
+            instructions = f"{hint}\n\n{template}"
+        answer = plain_text(
+            self.ollama.generate(
+                prompt,
+                CFG.ollama_model_cleanup,
+                timeout=CFG.ollama_timeout_cleanup,
+                keep_alive=CFG.ollama_keep_alive,
+                options=cleanup_options(),
+            )
+        )
+        result = cleanup_guard.check(text, answer, instructions)
+        if result.reason:
+            # Never the text, only the reason and the lengths.
+            logger.warning(
+                "Cleanup answer adjusted (%s): %d chars in, %d chars out, %d chars pasted",
+                result.reason,
+                len(text),
+                len(answer),
+                len(result.text),
+            )
+        return result.text
+
+    def generate_from_prompt(self, text: str, language: str = "") -> str:
+        """The AI's answer to the dictated prompt, as plain text too.
+
+        It is pasted as it is, and a `**Oslo**` is as unwanted in a text field as in a cleaned transcript. Two
+        layers as in the cleanup: a system instruction to Ollama and the same normalisation afterwards. The
+        dictated prompt itself is untouched; paragraphs and line breaks stay, they carry meaning here.
+
+        `language` is the dictated language ("" = the configured one); it picks the system instruction.
         """
         answer = self.ollama.generate(
             text,
@@ -205,106 +480,21 @@ class TranscriptionMixin:
         return answer
 
     def _show_answer_length(self, characters: int) -> None:
-        self._pipeline_ui(lambda: self.elapsed_label.config(text=tn("status.characters", characters)))
+        self._ui(lambda: self.sink.show_answer_length(characters))
 
-    def _cleanup_text(self, text: str, language: str = "") -> str:
-        """Clean up transcript text using LLM.
+    # ------------------------------------------------------------------ delivery
 
-        Removes stuttering, repetitions, and slips of the tongue.
-        Corrects spelling and grammar while preserving original phrasing.
+    def _deliver(self, text: str) -> None:
+        """History, then paste; the file (only with `[output] save_transcripts`) is written in the background."""
+        self._on_delivered(text)
+        self.copy_and_paste(text)
+        if CFG.save_transcripts:
+            threading.Thread(target=save_transcript_file, args=(text,), daemon=True, name="save-transcript").start()
+        detail, hint = self._delivery_note or (None, None)
+        self._delivery_note = None
+        self._state("done", detail, hint, calm=True)
 
-        Die Antwort geht durch `plain_text()`, bevor sie irgendwohin fliesst.
-        Der Prompt verbietet Markdown, aber ein Modell haelt sich nicht immer
-        daran — und was hier durchrutscht, landet als sichtbares `**` im
-        Eingabefeld des Nutzers.
-
-        Danach prueft `cleanup_guard.check` die Antwort: ein wiederholter Prompt, veraenderte Ziffern, eine
-        viel laengere Antwort oder eine, die die meisten Woerter verliert, wird durch den Rohtext ersetzt.
-
-        `language` ist die diktierte Sprache (leer: die eingestellte); sie waehlt Anweisung und Glossar-Satz.
-        """
-        language = _prompt_language(language)
-        template = dictation_language.cleanup_template(language, CFG.cleanup_prompt_template)
-        prompt = template.replace("{text}", text) if "{text}" in template else f"{template}\n\nText: {text}"
-        instructions = template
-        if hinweis := glossary.cleanup_hint(language):
-            prompt = f"{hinweis}\n\n{prompt}"
-            instructions = f"{hinweis}\n\n{template}"
-        answer = plain_text(
-            self.ollama.generate(
-                prompt,
-                CFG.ollama_model_cleanup,
-                timeout=CFG.ollama_timeout_cleanup,
-                keep_alive=CFG.ollama_keep_alive,
-                options=cleanup_options(),
-            )
-        )
-        result = cleanup_guard.check(text, answer, instructions)
-        if result.reason:
-            # Nie den Text loggen, nur Grund und Laengen.
-            logger.warning(
-                "Cleanup answer adjusted (%s): %d chars in, %d chars out, %d chars pasted",
-                result.reason,
-                len(text),
-                len(answer),
-                len(result.text),
-            )
-        return result.text
-
-    def _save_transcript_file(self, text: str) -> None:
-        """Save transcript to a timestamped file in the transcripts directory, then apply the retention.
-
-        Two dictations within the same second get their own files: the name is created exclusively and a
-        counter is added when it is taken, so nothing is ever overwritten.
-        """
-        try:
-            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-            stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            out_file = self._create_transcript_file(stamp, text)
-            logger.info("Saved transcript: %s (%d chars)", out_file.name, len(text))
-        except OSError:
-            logger.exception("Failed to save transcript file")
-        prune_transcripts(OUTPUT_DIR, CFG.transcripts_keep_days)
-
-    def _prune_transcripts_async(self) -> None:
-        """At start: delete transcripts past `[output] keep_days`, also when saving is off now."""
-        if CFG.transcripts_keep_days > 0:
-            threading.Thread(
-                target=prune_transcripts,
-                args=(OUTPUT_DIR, CFG.transcripts_keep_days),
-                daemon=True,
-                name="prune-transcripts",
-            ).start()
-
-    @staticmethod
-    def _create_transcript_file(stamp: str, text: str, attempts: int = 1000):
-        """Writes `text` to `<stamp>.txt`, or `<stamp>_2.txt` and so on if that name exists."""
-        for number in range(1, attempts + 1):
-            out_file = OUTPUT_DIR / (f"{stamp}.txt" if number == 1 else f"{stamp}_{number}.txt")
-            try:
-                with out_file.open("x", encoding="utf-8") as handle:
-                    handle.write(text)
-            except FileExistsError:
-                continue
-            return out_file
-        raise FileExistsError(f"no free transcript name for {stamp}")
-
-    def _warmup_ollama_async(self) -> None:
-        threading.Thread(target=self._warmup_ollama, daemon=True, name="ollama-warmup").start()
-
-    def _warmup_ollama(self) -> None:
-        """Lädt das Cleanup-Modell proaktiv in den VRAM, damit der erste
-        echte Request nicht mit einem Kaltstart von 10–30s büßt."""
-        if not CFG.ollama_cleanup_enabled:
-            return
-        model = CFG.ollama_model_cleanup
-        try:
-            self.ollama.warm_up(model, CFG.ollama_keep_alive)
-            logger.info("Ollama warmed up: %s", model)
-        except Exception as exc:  # noqa: BLE001 - Grenze des Threads: Vorwaermen ist nur ein Versuch
-            logger.warning("Ollama warmup failed for %s: %s", model, exc)
-
-    def _copy_and_paste(self, text: str) -> bool:
+    def copy_and_paste(self, text: str) -> bool:
         """Copies the text and sends Ctrl+V - but only once the clipboard confirms it holds that text.
 
         Without the confirmation Ctrl+V would paste whatever was on the clipboard before (a password, say), so
@@ -319,270 +509,58 @@ class TranscriptionMixin:
         self._delivery_note = (t("status.copied_only"), t("hint.press_ctrl_v"))
         return False
 
-    def _run_transcription(self, model, audio: np.ndarray) -> tuple[str, str] | None:
-        """Fuehrt Whisper mit einer *festen* Modellreferenz aus.
+    # ------------------------------------------------------------------ Ollama warm-up
 
-        Bewusst getrennt, damit der Aufrufer den Transkriptionslock nur um
-        diesen Teil legen muss — Cleanup und Einfuegen brauchen ihn nicht und
-        wuerden einen Modellwechsel unnoetig lange blockieren.
+    def warm_up_ollama_async(self) -> None:
+        threading.Thread(target=self.warm_up_ollama, daemon=True, name="ollama-warmup").start()
 
-        Gibt Text und diktierte Sprache zurueck ("" = unbekannt), None nach
-        einem Fehler (gemeldet).
-        """
-        try:
-            normalised = _normalize_audio(audio)
-            language = self._dictation_language(model, normalised)
-            optionen = {
-                "language": language,
-                "vad_filter": CFG.transcription_vad_filter,
-                **WHISPER_OPTIONS,
-                # Glossar: Namen und Begriffe öfter richtig erkennen
-                "hotwords": glossary.hotwords(language),
-            }
-            dauer = audio.size / SAMPLE_RATE
-            if dauer >= BATCHED_MIN_SECONDS:
-                # The batched pipeline transcribes the speech chunks independently; faster-whisper ignores
-                # `condition_on_previous_text` there. The sequential path has it off as well (WHISPER_OPTIONS),
-                # so both paths treat every chunk without the text before it.
-                segments, info = BatchedInferencePipeline(model=model).transcribe(
-                    normalised, batch_size=BATCH_SIZE, **optionen
-                )
-            else:
-                segments, info = model.transcribe(normalised, **optionen)
-            # Raw text: the glossary replacements come once, on the final text (see `_nachbearbeiten`).
-            text = " ".join(segment.text.strip() for segment in segments).strip()
-            return text, language or str(getattr(info, "language", "") or "")
-        except Exception:
-            logger.exception("Whisper transcription failed")
-            self._pipeline_ui(lambda: self._apply_state("error", t("error.transcription_failed"), t("hint.see_log")))
-            return None
-
-    @staticmethod
-    def _dictation_language(model, audio: np.ndarray) -> str | None:
-        """Die Sprache fuer diese Aufnahme: die eingestellte oder, bei "auto", die erkannte.
-
-        Bei "auto" erkennt Whisper die Sprache *vor* der Transkription, damit Rahmensatz und Hinweise
-        schon zur Sprache passen. Kann das Modell das nicht (oder findet es nichts, etwa in einer
-        Aufnahme ohne Sprache), erkennt `transcribe` sie selbst — dann ohne Glossar-Hinweis.
-        """
-        language = dictation_language.whisper_language(CFG.transcription_language)
-        if language is not None:
-            return language
-        detect = getattr(model, "detect_language", None)
-        if detect is None:
-            return None
-        try:
-            detected, probability, _ = detect(audio=audio, vad_filter=CFG.transcription_vad_filter)
-        except Exception as exc:
-            logger.info("Language detection found nothing (%s), Whisper decides while transcribing", type(exc).__name__)
-            return None
-        logger.info("Detected language: %s (p=%.2f)", detected, probability)
-        return detected
-
-    # ------------------------------------------------------------------ pipeline queue
-    #
-    # A recording may start while the previous one is still being transcribed or cleaned up (the hotkeys
-    # stay live). Every finished recording becomes a job with its own prompt mode and run id; one worker
-    # thread works through the jobs in order, so each text is pasted, in the order it was spoken, and none
-    # is lost. Only the newest run may change the main window, and only while nothing is being recorded:
-    # an older job finishing late must not overwrite the recording or the state of a newer one.
-
-    #: Class defaults: tests also build the app without __init__.
-    _pipeline_latest = 0
-    _pipeline_busy = False
-    #: True while the worker transcribes a job it has taken from the queue.
-    _pipeline_job_running = False
-    _pipeline_jobs: collections.deque | None = None
-    _pipeline_lock = threading.Lock()
-
-    def _next_pipeline_run(self) -> int:
-        """A new run id; from now on older runs no longer touch the main window. On the Tk thread."""
-        self._pipeline_latest += 1
-        return self._pipeline_latest
-
-    def _enqueue_transcription(self, audio: np.ndarray, prompt_mode: bool, run_id: int) -> None:
-        """Queues a finished recording. Starts the worker unless one is already working through the queue."""
-        with self._pipeline_lock:
-            if self._pipeline_jobs is None:
-                self._pipeline_jobs = collections.deque()
-            self._pipeline_jobs.append((audio, prompt_mode, run_id))
-            if self._pipeline_busy:
-                logger.info("Transcription queued behind the running one (run %d)", run_id)
-                return
-            self._pipeline_busy = True
-        threading.Thread(target=self._drain_pipeline, daemon=True, name="transcribe").start()
-
-    def _drain_pipeline(self) -> None:
-        """The worker: one job after the other, in the order they were recorded; ends when the queue is empty."""
-        while True:
-            with self._pipeline_lock:
-                if not self._pipeline_jobs:
-                    self._pipeline_busy = False
-                    self._pipeline_job_running = False
-                    return
-                audio, prompt_mode, run_id = self._pipeline_jobs.popleft()
-                self._pipeline_job_running = True
-            try:
-                self._transcribe_audio(audio, prompt_mode=prompt_mode, run_id=run_id)
-            except Exception:  # noqa: BLE001 - Grenze des Threads: der naechste Auftrag muss trotzdem laufen
-                logger.exception("Transcription job crashed")
-
-    def _pipeline_ui(self, fn) -> None:
-        """A main-window update from the pipeline: applied only for the current run and not while recording."""
-        run_id = getattr(_pipeline_run, "run_id", None)
-
-        def guarded() -> None:
-            if getattr(self, "is_recording", False):
-                return
-            if run_id is not None and run_id != self._pipeline_latest:
-                return
-            fn()
-
-        self._ui_call(guarded)
-
-    def _transcribe_audio(self, audio: np.ndarray, prompt_mode: bool = False, run_id: int | None = None) -> None:
-        """Transcription pipeline thread target.
-
-        Runs Whisper transcription, optionally cleans up via LLM,
-        saves to file, copies to clipboard, and pastes at cursor.
-
-        `prompt_mode` belongs to this recording; it is passed in, never read from shared state, because the
-        next recording may already have started. `run_id` decides whether this run may still change the
-        main window (default: the newest run).
-        """
-        _pipeline_run.run_id = self._pipeline_latest if run_id is None else run_id
-        try:
-            self._transcribe_job(audio, prompt_mode)
-        finally:
-            _pipeline_run.run_id = None
-
-    def _transcribe_job(self, audio: np.ndarray, prompt_mode: bool) -> None:
-        if not self.model_ready.is_set() and not self._auf_modell_warten():
-            return
-        # Genau einmal eine stabile Referenz holen und den Lauf damit zu Ende
-        # bringen; der Lock haelt einen Modellwechsel so lange zurueck.
-        with self._transcribe_lock:
-            model = self.current_model()
-            if model is None:
-                self._pipeline_ui(lambda: self._apply_state("error", t("error.no_model"), t("hint.try_again")))
-                return
-            result = self._run_transcription(model, audio)
-        if result is None:
-            return
-        text, language = result
-        try:
-            if not text:
-                logger.info("Transcription returned empty text")
-                self._pipeline_ui(
-                    lambda: self._apply_state(
-                        "no_signal",
-                        t("status.no_speech"),
-                        t("hint.no_words"),
-                    ),
-                )
-                return
-            logger.info("Transcribed %d chars (prompt_mode=%s)", len(text), prompt_mode)
-            text = self._nachbearbeiten(text, prompt_mode, language)
-            if text is not None:
-                self._abliefern(text)
-        except Exception:
-            logger.exception("Transcription pipeline failed")
-            self._pipeline_ui(
-                lambda: self._apply_state(
-                    "error",
-                    t("error.transcription_failed"),
-                    t("hint.see_log"),
-                ),
-            )
-
-    def _auf_modell_warten(self) -> bool:
-        """Die Aufnahme durfte ohne Modell beginnen; hier wird es faellig. In aller Regel steht es laengst — der
-        Nutzer hat waehrend des Ladens gesprochen. Nur der erste Griff kurz nach dem Anmelden wartet hier wirklich,
-        und dann sagt die Statuszeile auch, worauf. False = kein Modell (Fehler ist schon gemeldet)."""
-        logger.info("Aufnahme wartet auf das Modell")
-        self._pipeline_ui(
-            lambda: self._apply_state(
-                "transcribing",
-                t("status.model_still_loading"),
-                t("hint.recording_kept"),
-            ),
-        )
-        if not self._await_model(time.monotonic() + MODEL_WAIT_SECONDS):
-            logger.error("Kein Modell fuer eine fertige Aufnahme verfuegbar")
-            self._pipeline_ui(
-                lambda: self._apply_state(
-                    "error",
-                    t("error.model_unavailable"),
-                    t("error.recording_not_transcribed"),
-                ),
-            )
-            return False
-        self._pipeline_ui(lambda: self._apply_state("transcribing"))
-        return True
-
-    def _nachbearbeiten(self, text: str, was_prompt_mode: bool, language: str = "") -> str | None:
-        """Prompt-Modus: KI-Antwort statt Diktat; sonst (falls an) Bereinigung. None = abgebrochen (gemeldet).
-
-        `language` ist die diktierte Sprache; sie waehlt die Anweisungen an Ollama.
-
-        The glossary replacements apply exactly once, to the dictated text that ends up final: the pasted
-        transcript (cleaned or raw) or, in prompt mode, the prompt sent to the AI. The cleanup itself gets
-        the raw text plus the glossary hint, so a replacement is never applied twice.
-        """
-        if was_prompt_mode:
-            return self._answer_prompt(glossary.apply_replacements(text), language)
-        return glossary.apply_replacements(self._cleaned_or_raw(text, language))
-
-    def _answer_prompt(self, text: str, language: str) -> str | None:
-        """The AI's answer to the dictated prompt; None after a clear "AI failed" message."""
-        self._pipeline_ui(lambda: self._apply_state("generating"))
-        try:
-            return self._generate_from_prompt(text, language)
-        except ollama_api.OLLAMA_ERRORS as exc:
-            logger.exception("Ollama prompt-generation failed")
-            unusable = isinstance(exc, ollama_api.OllamaAnswerError)
-            hint = t("error.ai_no_answer") if unusable else t("error.ollama_not_responding")
-            self._pipeline_ui(lambda: self._apply_state("error", t("error.ai_failed"), hint))
-            return None
-
-    def _cleaned_or_raw(self, text: str, language: str) -> str:
-        """The cleaned-up transcript, or the raw one if cleanup is off or Ollama fails in any way."""
+    def warm_up_ollama(self) -> None:
+        """Loads the cleanup model into VRAM ahead, so the first real request doesn't pay a 10-30 s cold start."""
         if not CFG.ollama_cleanup_enabled:
-            return text
-        if time.monotonic() < self._cleanup_retry_at:
-            self._delivery_note = (t("status.done_raw"), None)  # gerade erst ausgefallen: nicht erneut warten
-            return text
-        self._pipeline_ui(lambda: self._apply_state("cleaning"))
+            return
+        model = CFG.ollama_model_cleanup
         try:
-            return self._cleanup_text(text, language)
-        except ollama_api.OLLAMA_ERRORS as exc:
-            if ollama_api.is_unreachable(exc):
-                logger.warning("Ollama cleanup unavailable, using raw transcript: %s", type(exc).__name__)
-                self._note_cleanup_offline()
-            else:
-                # Ollama answered, just not usably: this dictation goes out raw, the next one asks again.
-                logger.warning("Ollama cleanup answer unusable, using raw transcript: %s", type(exc).__name__)
-                self._delivery_note = (t("status.done_raw"), None)
-        return text
+            self.ollama.warm_up(model, CFG.ollama_keep_alive)
+            logger.info("Ollama warmed up: %s", model)
+        except Exception as exc:  # noqa: BLE001 - boundary of the thread: warming up is only an attempt
+            logger.warning("Ollama warmup failed for %s: %s", model, exc)
 
-    def _note_cleanup_offline(self) -> None:
-        """Ollama fehlt: Rohtext einfuegen, einmal je Sitzung ruhig erklaeren, danach nur noch kurz."""
-        hint = None if self._cleanup_offline_noted else t("hint.cleanup_offline")
-        self._cleanup_offline_noted = True
-        self._cleanup_retry_at = time.monotonic() + self.CLEANUP_RETRY_SECONDS
-        self._delivery_note = (t("status.done_raw"), hint)
 
-    def _abliefern(self, text: str) -> None:
-        """Paste first; the file (only with `[output] save_transcripts`) is written in the background afterwards."""
-        self._add_to_history(text)
-        self._copy_and_paste(text)
-        if CFG.save_transcripts:
-            threading.Thread(
-                target=self._save_transcript_file,
-                args=(text,),
-                daemon=True,
-                name="save-transcript",
-            ).start()
-        detail, hint = self._delivery_note or (None, None)
-        self._delivery_note = None
-        self._pipeline_ui(lambda: self._apply_state("done", detail, hint, calm=True))
+def save_transcript_file(text: str) -> None:
+    """Saves the transcript to a timestamped file in the transcripts folder, then applies the retention.
+
+    Two dictations within the same second get their own files: the name is created exclusively and a counter is
+    added when it is taken, so nothing is ever overwritten.
+    """
+    try:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        out_file = create_transcript_file(stamp, text)
+        logger.info("Saved transcript: %s (%d chars)", out_file.name, len(text))
+    except OSError:
+        logger.exception("Failed to save transcript file")
+    prune_transcripts(OUTPUT_DIR, CFG.transcripts_keep_days)
+
+
+def create_transcript_file(stamp: str, text: str, attempts: int = 1000) -> Path:
+    """Writes `text` to `<stamp>.txt`, or `<stamp>_2.txt` and so on if that name exists."""
+    for number in range(1, attempts + 1):
+        out_file = OUTPUT_DIR / (f"{stamp}.txt" if number == 1 else f"{stamp}_{number}.txt")
+        try:
+            with out_file.open("x", encoding="utf-8") as handle:
+                handle.write(text)
+        except FileExistsError:
+            continue
+        return out_file
+    raise FileExistsError(f"no free transcript name for {stamp}")
+
+
+def prune_transcripts_async() -> None:
+    """At start: delete transcripts past `[output] keep_days`, also when saving is off now."""
+    if CFG.transcripts_keep_days > 0:
+        threading.Thread(
+            target=prune_transcripts,
+            args=(OUTPUT_DIR, CFG.transcripts_keep_days),
+            daemon=True,
+            name="prune-transcripts",
+        ).start()

@@ -20,9 +20,9 @@ Messung kippt.
 
 import numpy as np
 import pytest
+from live_app import make_pipeline
 
 from hams import transcription as transcription_mod
-from hams.app import FloatingTranscriberApp
 from hams.recording import SAMPLE_RATE
 
 
@@ -47,11 +47,8 @@ class GebatchteAufzeichnung:
 
 
 @pytest.fixture
-def app(monkeypatch):
-    a = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-    a.root = type("R", (), {"after": staticmethod(lambda *args, **kw: None)})()
-    a._prompt_mode = False
-    return a
+def pipeline():
+    return make_pipeline()
 
 
 @pytest.fixture
@@ -68,13 +65,13 @@ def _audio(sekunden: float) -> np.ndarray:
 
 class TestWelcherWegGenommenWird:
     @pytest.mark.parametrize("sekunden", [1, 5, 12, 24, 29.9])
-    def test_short_recordings_stay_sequential(self, app, modell, sekunden):
-        app._run_transcription(modell, _audio(sekunden))
+    def test_short_recordings_stay_sequential(self, pipeline, modell, sekunden):
+        pipeline.run_whisper(modell, _audio(sekunden))
         assert [weg for weg, _ in modell.aufrufe] == ["sequentiell"]
 
     @pytest.mark.parametrize("sekunden", [30, 45, 90, 300])
-    def test_long_recordings_are_batched(self, app, modell, sekunden):
-        app._run_transcription(modell, _audio(sekunden))
+    def test_long_recordings_are_batched(self, pipeline, modell, sekunden):
+        pipeline.run_whisper(modell, _audio(sekunden))
         assert [weg for weg, _ in modell.aufrufe] == ["gebatcht"]
 
     def test_the_threshold_is_where_the_measurement_turns(self):
@@ -85,9 +82,9 @@ class TestWelcherWegGenommenWird:
 class TestBeideWegeBekommenDasselbe:
     """Ein anderer Weg darf keine anderen Einstellungen bedeuten."""
 
-    def test_the_options_are_identical(self, app, modell):
-        app._run_transcription(modell, _audio(5))
-        app._run_transcription(modell, _audio(60))
+    def test_the_options_are_identical(self, pipeline, modell):
+        pipeline.run_whisper(modell, _audio(5))
+        pipeline.run_whisper(modell, _audio(60))
         (_, kurz), (_, lang) = modell.aufrufe
         lang = dict(lang)
         assert lang.pop("batch_size") == transcription_mod.BATCH_SIZE
@@ -105,20 +102,20 @@ class TestBeideWegeBekommenDasselbe:
             "hotwords",
         ],
     )
-    def test_every_configured_option_reaches_both(self, app, modell, schluessel):
-        app._run_transcription(modell, _audio(5))
-        app._run_transcription(modell, _audio(60))
+    def test_every_configured_option_reaches_both(self, pipeline, modell, schluessel):
+        pipeline.run_whisper(modell, _audio(5))
+        pipeline.run_whisper(modell, _audio(60))
         for _, kwargs in modell.aufrufe:
             assert schluessel in kwargs
 
 
 class TestDieVoraussetzungFuersBatchen:
-    def test_context_between_segments_stays_off(self, app, modell):
+    def test_context_between_segments_stays_off(self, pipeline, modell):
         """Both paths treat every chunk on its own.
 
         The batched pipeline transcribes the chunks the VAD found independently (faster-whisper ignores
         `condition_on_previous_text` there). The sequential path must not carry text over either, or the two
         would not give the same result, and the comparison behind the threshold above would not hold.
         """
-        app._run_transcription(modell, _audio(5))
+        pipeline.run_whisper(modell, _audio(5))
         assert modell.aufrufe[0][1]["condition_on_previous_text"] is False

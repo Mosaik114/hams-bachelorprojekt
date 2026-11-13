@@ -6,10 +6,9 @@ und Unterstriche, die zum Inhalt gehören.
 """
 
 import pytest
-from live_app import FakeOllama
+from live_app import FakeOllama, make_pipeline
 
 from hams import config as config_mod
-from hams.app import FloatingTranscriberApp
 from hams.transcription import plain_text
 
 
@@ -137,41 +136,41 @@ class TestPosition:
     """Die Normalisierung sitzt zwischen Ollama und allen Ausgabewegen."""
 
     def test_cleanup_normalises_its_answer(self, monkeypatch):
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        app.ollama = FakeOllama("Das ist **wichtig**.")
+        pipeline = make_pipeline()
+        pipeline.ollama = FakeOllama("Das ist **wichtig**.")
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
-        assert app._cleanup_text("das ist wichtig") == "Das ist wichtig."
+        assert pipeline.cleanup_text("das ist wichtig") == "Das ist wichtig."
 
     def test_the_prompt_mode_is_plain_too(self, monkeypatch):
         """Auch die KI-Antwort wird unveraendert eingefuegt."""
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        app.ollama = FakeOllama("Die Antwort ist **42**.")
-        assert app._generate_from_prompt("Frage") == "Die Antwort ist 42."
+        pipeline = make_pipeline()
+        pipeline.ollama = FakeOllama("Die Antwort ist **42**.")
+        assert pipeline.generate_from_prompt("Frage") == "Die Antwort ist 42."
 
     def test_the_prompt_mode_keeps_its_paragraphs(self, monkeypatch):
         """Zeilenumbrueche tragen dort Bedeutung — Hervorhebungen nicht."""
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
+        pipeline = make_pipeline()
         antwort = "Erstens: **Oslo**.\nZweitens: Bergen.\n\nSoweit dazu."
-        app.ollama = FakeOllama(antwort)
-        assert app._generate_from_prompt("Frage") == ("Erstens: Oslo.\nZweitens: Bergen.\n\nSoweit dazu.")
+        pipeline.ollama = FakeOllama(antwort)
+        assert pipeline.generate_from_prompt("Frage") == ("Erstens: Oslo.\nZweitens: Bergen.\n\nSoweit dazu.")
 
     def test_the_dictated_prompt_goes_out_untouched(self, monkeypatch):
         """Die Regel steht im Systemfeld, nicht im Prompt des Nutzers."""
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        app.ollama = FakeOllama()
-        app._generate_from_prompt("Nenne die Hauptstadt von Norwegen.")
-        gesehen = app.ollama.requests[0]
+        pipeline = make_pipeline()
+        pipeline.ollama = FakeOllama()
+        pipeline.generate_from_prompt("Nenne die Hauptstadt von Norwegen.")
+        gesehen = pipeline.ollama.requests[0]
         assert gesehen["prompt"] == "Nenne die Hauptstadt von Norwegen."
         assert "Klartext" in gesehen["system"]
         assert "Markdown" in gesehen["system"]
 
     def test_the_cleanup_does_not_send_a_system_instruction(self, monkeypatch):
         """Dort steht die Regel bereits im Prompt selbst."""
-        app = FloatingTranscriberApp.__new__(FloatingTranscriberApp)
-        app.ollama = FakeOllama()
+        pipeline = make_pipeline()
+        pipeline.ollama = FakeOllama()
         monkeypatch.setattr(config_mod.CFG, "cleanup_prompt_template", "Korrigiere: {text}")
-        app._cleanup_text("text")
-        assert "system" not in app.ollama.requests[0]
+        pipeline.cleanup_text("text")
+        assert "system" not in pipeline.ollama.requests[0]
 
 
 class TestPrompt:
