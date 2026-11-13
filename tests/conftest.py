@@ -41,6 +41,11 @@ atexit.register(shutil.rmtree, _config_dir, True)
 atexit.register(shutil.rmtree, _log_dir, True)
 atexit.register(shutil.rmtree, _data_dir, True)
 
+# What the application does at start (log, settings, colour scheme), against the throw-away folders above.
+from hams import bootstrap  # noqa: E402
+
+bootstrap.load()
+
 #: `WhisperModelMixin.model_needs_download` before `no_implicit_model_download` replaces it.
 _REAL_NEEDS_DOWNLOAD = None
 
@@ -229,10 +234,10 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     fakes.sd = fake_sounddevice()
     monkeypatch.setattr(recording_mod, "sd", fakes.sd)
     monkeypatch.setattr(status_mod, "ScanThread", InlineThread)
-    monkeypatch.setattr(recording_mod, "_resolve_mic_device", lambda raw: 7)
+    monkeypatch.setattr(recording_mod, "resolve_mic_device", lambda raw: 7)
     monkeypatch.setattr(status_mod, "sd", fake_sounddevice())
-    monkeypatch.setattr(status_mod, "_resolve_mic_device", lambda raw: 7)
-    monkeypatch.setattr(status_mod, "_list_input_devices", lambda: list(fakes.devices))
+    monkeypatch.setattr(status_mod, "resolve_mic_device", lambda raw: 7)
+    monkeypatch.setattr(status_mod, "list_input_devices", lambda: list(fakes.devices))
     monkeypatch.setattr(ollama_api.OllamaClient, "probe", lambda client, timeout=None: fakes.probe)
     patch_everywhere("_persist_config_value", lambda *args: fakes.saved.append(args) or True)
     monkeypatch.setattr(App, "_load_model_async", load)

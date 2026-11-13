@@ -9,7 +9,8 @@ import numpy as np
 import sounddevice as sd
 
 from hams import cursor_dot
-from hams.config import CFG, _resolve_mic_device, logger
+from hams.audio_devices import resolve_mic_device
+from hams.config import CFG, logger
 from hams.i18n import t
 
 #: Whisper takes 16 kHz mono. Recording in exactly that format means nothing has to be converted: other rates
@@ -237,7 +238,7 @@ class RecordingMixin:
 
         # Gerät pro Aufnahme neu auflösen: Indizes verschieben sich beim
         # Aus-/Einstecken, sonst nimmt die App stumm vom falschen Gerät auf.
-        device = _resolve_mic_device(CFG.mic_device_raw)
+        device = resolve_mic_device(CFG.mic_device_raw)
         if device != CFG.mic_device:
             logger.info("Mic device re-resolved: %r -> %r", CFG.mic_device, device)
             CFG.mic_device = device

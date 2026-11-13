@@ -1,23 +1,15 @@
-"""Konfiguration: Pfade, Einstellungen aus der TOML-Datei, gezieltes Zurueckschreiben und das Log.
+"""Settings: paths, the values from the TOML files, writing a single value back.
 
-Seiteneffekte beim Import, bewusst in dieser Reihenfolge:
-
-1. `logger = _setup_logging()` legt den Logordner an und haengt die Logdatei an.
-   Geht das nicht, bleibt es beim Konsolen-Log; der Import scheitert nie daran.
-2. `CFG = _load_config()` liest Vorlage und Nutzerdatei. Wirft nie: falsche
-   Typen und Bereiche werden gemeldet und uebergangen, eine unlesbare
-   Nutzerdatei wird gesichert (`config.toml.broken-<Zeit>`), unangetastet
-   gelassen und in `BROKEN_CONFIG` vermerkt; `main` zeigt dann einen Hinweis.
-3. `Theme.apply(CFG.appearance)` setzt die Palette vor dem ersten Widget.
-
-Die Nutzerdatei selbst wird beim Import weder angelegt noch geschrieben – das
-tut erst `ensure_user_config()` aus `main`.
+Importing this module defines things and does nothing else: no log file, no file read or written, no device query,
+no colour scheme. `CFG` starts with the built-in defaults; `hams.bootstrap` sets up the log and calls `reload()`,
+which reads the template and the user file into it (never raising: wrong types and ranges are reported and skipped,
+an unreadable user file is backed up as `config.toml.broken-<time>`, left alone and noted in `BROKEN_CONFIG`).
+`ensure_user_config()` creates or migrates the user file; `bootstrap.start` calls it once.
 """
 
 import contextlib
 import logging
 import os
-import re
 import shutil
 import sys
 import time
@@ -25,11 +17,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
-import sounddevice as sd
 from tomlkit.exceptions import TOMLKitError
 
 from hams import app_paths, branding, dictation_language, i18n
@@ -48,10 +38,11 @@ from hams.config_validation import (
     MAX_PASTE_TIMEOUT,
     MAX_RECORDING_SECONDS,
     SectionReader,
+    clean_coordinate,
     ollama_url_problem,
 )
-from hams.ui_kit import Theme
-from hams.window_position import _clean_coordinate
+
+logger = logging.getLogger("hams")
 
 APP_DIR = Path(__file__).resolve().parent
 #: Not inside the package: installed, the program folder belongs to the installer (see app_paths).
@@ -128,6 +119,18 @@ LEGACY_USER_DIR = _legacy_user_dir()
 DEFAULT_CLEANUP_PROMPT = dictation_language.DEFAULT_CLEANUP_PROMPT
 
 
+#: The colour schemes (`[ui] appearance`), the same names as `ui_kit.Theme.MODES`. Without an entry Hams is light:
+#: deliberately not the Windows theme, the user chooses.
+APPEARANCES = ("light", "dark")
+DEFAULT_APPEARANCE = "light"
+
+
+def normalise_appearance(value: Any) -> str:
+    """A known colour scheme; anything else (an old or mistyped file) is light, never a colourless window."""
+    text = str(value).strip().lower() if value is not None else ""
+    return text if text in APPEARANCES else DEFAULT_APPEARANCE
+
+
 @dataclass
 class Config:
     mic_device: str | int | None = None
@@ -176,10 +179,10 @@ class Config:
     sound_feedback: bool = True
     #: Darstellungsmodus, "light" oder "dark". Ohne Eintrag in der Nutzerdatei
     #: gilt hell — bewusst nicht das Windows-Systemtheme, der Nutzer waehlt
-    #: selbst. Ein unbekannter Wert faellt in `Theme.normalise()` auf hell
+    #: selbst. Ein unbekannter Wert faellt in `normalise_appearance()` auf hell
     #: zurueck, damit eine alte oder vertippte Datei nie ein farbloses Fenster
     #: ergibt.
-    appearance: str = Theme.DEFAULT_MODE
+    appearance: str = DEFAULT_APPEARANCE
     #: Sprache der Oberflaeche: "auto" (Systemsprache), "de" oder "en". Gilt
     #: ab dem Start; `main` aktiviert sie ueber `i18n.set_language`.
     ui_language: str = i18n.DEFAULT_SETTING
@@ -188,45 +191,6 @@ class Config:
     #: Optional: report recording state and level to an external overlay (`[integrations] cursor_dot`, see
     #: cursor_dot.py). Off: nothing is sent.
     integrations_cursor_dot: bool = False
-
-
-def _resolve_mic_device(raw: Any) -> str | int | None:
-    """Resolve microphone device from config value.
-
-    Args:
-        raw: Config value - can be None, int (device index), or string (device name).
-
-    Returns:
-        None for default device, int for device index, or string for device name.
-
-    A name substring is resolved to a concrete input-device *index* here, because
-    the same physical mic appears under several host APIs (MME/DirectSound/WASAPI)
-    and passing the bare string to sounddevice raises "Multiple input devices found".
-    Among matches we prefer the default host API, then the lowest device index.
-    """
-    if raw is None:
-        return None
-    if isinstance(raw, int):
-        return raw
-    if isinstance(raw, str):
-        needle = raw.strip().lower()
-        if needle in ("", "default"):
-            return None
-        try:
-            devices = sd.query_devices()
-            default_hostapi = sd.default.hostapi
-        except Exception:
-            return raw  # fall back to letting sounddevice resolve the name
-        matches = [
-            idx
-            for idx, dev in enumerate(devices)
-            if dev.get("max_input_channels", 0) > 0 and needle in str(dev.get("name", "")).lower()
-        ]
-        if not matches:
-            return raw
-        matches.sort(key=lambda idx: (devices[idx].get("hostapi") != default_hostapi, idx))
-        return matches[0]
-    return None
 
 
 def ipv4_loopback(url: str) -> str:
@@ -314,39 +278,6 @@ def _atomic_write(text: str) -> bool:
         with contextlib.suppress(OSError):
             tmp_path.unlink(missing_ok=True)
         return False
-
-
-def _list_input_devices() -> list[tuple[str, str]]:
-    """Eingabegeräte als (Anzeigename, Such-String) — pro physischem Mikro nur
-    einmal (bevorzugt die Standard-Host-API).
-
-    Gibt es WASAPI, zählen nur dessen Geräte: das ist genau die Liste, die auch
-    Windows unter Eingabe zeigt. MME kürzt Namen auf 31 Zeichen, und WDM-KS
-    führt sogar Geräte auf, die in Windows deaktiviert sind (Kamera-Mikrofon,
-    Stereomix) — beides ergab doppelte und unerwünschte Einträge.
-    """
-    try:
-        devices = sd.query_devices()
-        default_hostapi = sd.default.hostapi
-        wasapi = next((i for i, api in enumerate(sd.query_hostapis()) if "WASAPI" in str(api.get("name", ""))), None)
-    except Exception:
-        return []
-    seen: dict[str, tuple[str, str, int]] = {}
-    for dev in devices:
-        if dev.get("max_input_channels", 0) <= 0:
-            continue
-        if wasapi is not None and dev.get("hostapi") != wasapi:
-            continue
-        name = str(dev.get("name", "")).strip()
-        if not name:
-            continue
-        # Anzeigenamen normalisieren (führendes "3- " etc. entfernen).
-        pretty = re.sub(r"^\d+-\s*", "", name)
-        prefer = 0 if dev.get("hostapi") == default_hostapi else 1
-        prev = seen.get(pretty)
-        if prev is None or prefer < prev[2]:
-            seen[pretty] = (pretty, name, prefer)
-    return [(p, full) for (p, full, _pref) in seen.values()]
 
 
 def migrate_legacy_user_dir(new_dir: Path, old_dir: Path | None) -> bool:
@@ -624,7 +555,6 @@ def _clean_device(audio: SectionReader) -> Any:
 
 def _apply_audio(cfg: Config, audio: SectionReader) -> None:
     cfg.mic_device_raw = _clean_device(audio)
-    cfg.mic_device = _resolve_mic_device(cfg.mic_device_raw)
     cfg.max_recording_seconds = audio.integer(
         "max_recording_seconds", cfg.max_recording_seconds, 1, MAX_RECORDING_SECONDS
     )
@@ -717,13 +647,13 @@ def _apply_output(cfg: Config, output: SectionReader) -> None:
 def _apply_ui(cfg: Config, ui: SectionReader) -> None:
     cfg.sound_feedback = ui.boolean("sound_feedback", cfg.sound_feedback)
     if "window_x" in ui:
-        cfg.window_x = _clean_coordinate(ui.raw("window_x"))
+        cfg.window_x = clean_coordinate(ui.raw("window_x"))
     if "window_y" in ui:
-        cfg.window_y = _clean_coordinate(ui.raw("window_y"))
+        cfg.window_y = clean_coordinate(ui.raw("window_y"))
     cfg.tray_hint_shown = ui.boolean("tray_hint_shown", cfg.tray_hint_shown)
     # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
     # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
-    cfg.appearance = Theme.normalise(ui.raw("appearance", cfg.appearance))
+    cfg.appearance = normalise_appearance(ui.raw("appearance", cfg.appearance))
     cfg.ui_language = _clean_language(ui.raw("language", cfg.ui_language))
 
 
@@ -752,48 +682,12 @@ _SECTION_APPLIERS = (
 )
 
 
-def _setup_logging() -> logging.Logger:
-    """Das Log der Anwendung: Datei (rotierend) und Konsole ab WARNING.
-
-    Laeuft beim Import. Laesst sich die Logdatei nicht anlegen (Ordner
-    schreibgeschuetzt, Laufwerk fehlt), geht es ohne sie weiter – ein
-    Import, der daran scheitert, hiesse: kein Fenster und keine Meldung.
-    """
-    log = logging.getLogger("hams")
-    log.setLevel(logging.DEBUG)
-    if log.handlers:
-        return log
-    console_handler = logging.StreamHandler(sys.stderr)
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-    log.addHandler(console_handler)
-    try:
-        LOG_DIR.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            LOG_DIR / "hams.log",
-            maxBytes=1_000_000,
-            backupCount=3,
-            encoding="utf-8",
-        )
-    except OSError as exc:
-        log.warning("No log file in %s (%s) - logging to the console only", LOG_DIR, exc)
-        return log
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(threadName)s] %(message)s"))
-    log.addHandler(file_handler)
-    return log
+#: Defaults only: `reload()` (called by `bootstrap`) fills in the template and the user file. Every module imports
+#: this one object, so it is updated in place, never replaced.
+CFG = Config()
 
 
-logger = _setup_logging()
-
-
-# Das Log steht *vor* der Konfiguration, nicht danach: `_load_config()`
-# meldet ungueltige Werte ueber `logger`. Stuende der Aufbau spaeter,
-# schluege jede Nutzerdatei mit einem Wert ausserhalb der erlaubten
-# Bereiche beim Import fehl — und zwar lautlos, weil die Anwendung aus
-# dem Autostart ohne Konsole laeuft.
-CFG = _load_config()
-
-# Der Darstellungsmodus steht, bevor das erste Widget entsteht. Danach liest
-# jede Zeichenroutine ueber `Theme.*` automatisch die richtige Palette.
-Theme.apply(CFG.appearance)
+def reload() -> Config:
+    """Reads the template and the user file into `CFG`. Never raises (see `_load_config`)."""
+    vars(CFG).update(vars(_load_config()))
+    return CFG

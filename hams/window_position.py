@@ -1,9 +1,9 @@
 """Wo das Hauptfenster steht: gespeicherte Lage pruefen und auf einen Bildschirm holen."""
 
 import logging
-from typing import Any
 
 from hams import ui_kit as uk
+from hams.config_validation import clean_coordinate
 
 logger = logging.getLogger("hams")  # derselbe wie config.logger; kein Import, sonst Kreis mit config
 
@@ -15,23 +15,6 @@ MIN_VISIBLE_W = 120
 MIN_VISIBLE_H = 60
 #: Nach dem Ziehen wird einmal geschrieben, nicht bei jedem Ereignis.
 POSITION_SAVE_DELAY_MS = 700
-
-
-def _clean_coordinate(value: Any) -> int | None:
-    """Ganze Zahl oder None. Kaputte Werte werden verworfen, nie geraten.
-
-    Negative Werte sind ausdruecklich gueltig: Windows setzt Monitore links
-    und oberhalb des Hauptbildschirms, deren Koordinaten sind dann negativ.
-    """
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    try:
-        number = int(value)
-    except (ValueError, OverflowError):  # NaN, Unendlich
-        return None
-    if abs(number) > 100_000:  # jenseits jedes realen Verbunds
-        return None
-    return number
 
 
 def _visible_enough(x: int, y: int, width: int, height: int, areas) -> bool:
@@ -65,7 +48,7 @@ def window_position(saved_x, saved_y, width: int, height: int, areas) -> tuple[i
     """
     left, top = (areas[0][0], areas[0][1]) if areas else (0, 0)
     fallback = (left + uk.px(POSITION_FALLBACK), top + uk.px(POSITION_FALLBACK))
-    x, y = _clean_coordinate(saved_x), _clean_coordinate(saved_y)
+    x, y = clean_coordinate(saved_x), clean_coordinate(saved_y)
     if x is None or y is None:
         return fallback
     if not _visible_enough(x, y, width, height, areas):

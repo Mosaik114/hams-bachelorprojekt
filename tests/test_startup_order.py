@@ -2,16 +2,14 @@
 
 Das Laden ist dafuer gebaut, ungueltige Werte zu *melden* und weiter laufen
 zu lassen. Das setzt voraus, dass es beim Melden schon ein Log gibt:
-`CFG = _load_config()` laeuft auf Modulebene, und wenn `logger` dort noch nicht
-existiert, endet der Import in einem NameError.
+`bootstrap.load()` richtet erst das Log ein und liest dann die Einstellungen.
 
 Sichtbar wird das fuer den Nutzer gar nicht — Hams startet aus dem Autostart
 ueber pythonw.exe ohne Konsole. Die Anwendung kaeme einfach nicht hoch, ohne
 Fenster, ohne Meldung und ohne Logzeile.
 
-Der Test startet deshalb einen echten Interpreter. Im laufenden Testprozess
-ist das Modul laengst importiert; die Reihenfolge auf Modulebene laesst sich
-nur von aussen pruefen.
+Der Test startet deshalb einen echten Interpreter, so wie der Autostart: im
+laufenden Testprozess ist das Log laengst eingerichtet.
 """
 
 import logging
@@ -47,6 +45,8 @@ def _import_in_a_fresh_interpreter(config_file: Path) -> subprocess.CompletedPro
             "-c",
             textwrap.dedent("""
             import hams.main
+            from hams import bootstrap
+            bootstrap.load()
             print("IMPORT-OK", hams.main.CFG.max_recording_seconds)
         """),
         ],

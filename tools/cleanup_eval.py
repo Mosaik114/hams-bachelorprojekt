@@ -588,7 +588,10 @@ def main() -> int:
 
     workdir = Path(tempfile.mkdtemp(prefix="hams-cleanup-eval-"))
     isolate_hams(workdir)
+    from hams import bootstrap
     from hams.config import CFG
+
+    bootstrap.load()
 
     if args.model:
         CFG.ollama_model_cleanup = args.model

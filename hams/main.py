@@ -15,11 +15,11 @@ if _PROJECT_ROOT not in sys.path:
 
 import contextlib
 
-from hams import branding, config, i18n, setup_wizard
+from hams import bootstrap, branding, config, i18n, setup_wizard
 from hams import ui_kit as uk
 from hams.activation import SETTINGS_EVENT, SHOW_EVENT, SettingsRequests, request_settings, request_show
 from hams.app import FloatingTranscriberApp
-from hams.config import CFG, CONFIG_CREATED, CONFIG_MIGRATED, CONFIG_PATH, _load_config, ensure_user_config, logger
+from hams.config import CFG, CONFIG_PATH, logger
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex
 
 
@@ -119,12 +119,8 @@ def _first_windows(root: tk.Tk, app: FloatingTranscriberApp, *, setup: bool, set
 
 
 def main(*, show_settings: bool = False, show_setup: bool = False, background: bool = False) -> None:
-    state = ensure_user_config()
-    logger.info("Nutzerkonfiguration %s (%s)", CONFIG_PATH, state)
-    if state in (CONFIG_MIGRATED, CONFIG_CREATED):
-        # die eben erst entstandene Datei mitnehmen; an Ort und Stelle, weil
-        # alle Module dasselbe CFG-Objekt importiert haben
-        vars(CFG).update(vars(_load_config()))
+    state = bootstrap.start()
+    logger.info("User configuration %s (%s)", CONFIG_PATH, state)
     # Vor jedem sichtbaren Text, auch vor der Meldung an eine zweite Instanz.
     logger.info("UI language: %s (setting %s)", i18n.set_language(CFG.ui_language), CFG.ui_language)
 

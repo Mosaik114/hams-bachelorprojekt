@@ -13,8 +13,8 @@ from hams.window_position import (
     MIN_VISIBLE_H,
     MIN_VISIBLE_W,
     POSITION_FALLBACK,
-    _clean_coordinate,
     _visible_enough,
+    clean_coordinate,
     window_position,
 )
 
@@ -43,15 +43,15 @@ class TestCleanCoordinate:
         ],
     )
     def test_numbers_pass(self, value, expected):
-        assert _clean_coordinate(value) == expected
+        assert clean_coordinate(value) == expected
 
     @pytest.mark.parametrize("value", [None, "48", "", True, False, [], {}, float("nan"), float("inf"), 10**9])
     def test_everything_else_is_discarded(self, value):
-        assert _clean_coordinate(value) is None
+        assert clean_coordinate(value) is None
 
     def test_negative_is_valid(self):
         """Monitore links des Hauptbildschirms haben negative Koordinaten."""
-        assert _clean_coordinate(-1920) == -1920
+        assert clean_coordinate(-1920) == -1920
 
 
 class TestVisibility:

@@ -66,7 +66,7 @@ class TestHotplug:
             return []
 
         monkeypatch.setattr(status_mod, "ScanThread", threading.Thread)
-        monkeypatch.setattr(status_mod, "_list_input_devices", scan)
+        monkeypatch.setattr(status_mod, "list_input_devices", scan)
         win._refresh_devices()
         for thread in threading.enumerate():
             if thread.name == "mic-scan":

@@ -18,6 +18,22 @@ MAX_PASTE_TIMEOUT = 10.0
 MAX_KEEP_DAYS = 3650
 
 
+def clean_coordinate(value: Any) -> int | None:
+    """A whole number or None (`[ui] window_x`/`window_y`). Broken values are dropped, never guessed.
+
+    Negative values are valid: Windows places monitors left of and above the main screen at negative coordinates.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = int(value)
+    except (ValueError, OverflowError):  # NaN, infinity
+        return None
+    if abs(number) > 100_000:  # beyond any real arrangement of screens
+        return None
+    return number
+
+
 def ollama_url_problem(url: str) -> str:
     """Warum diese Ollama-Adresse nicht benutzt werden darf - oder "".
 

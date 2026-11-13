@@ -91,6 +91,9 @@ def run(argv: list[str] | None = None) -> int:
     """Entry point; returns the process exit code."""
     args, _unknown = _parser().parse_known_args(sys.argv[1:] if argv is None else argv)
     if args.self_test or args.install_gpu_support:
+        from hams import bootstrap
+
+        bootstrap.load()
         with contextlib.closing(_output(args.report)) as stream:
             if args.self_test:
                 from hams import self_test

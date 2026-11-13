@@ -134,7 +134,7 @@ class TestApplicationWiring:
         """Otherwise the first window would be built in the wrong palette and repainted at once."""
         config_file = tmp_path / "config.toml"
         config_file.write_text('[ui]\nappearance = "dark"\n', encoding="utf-8")
-        probe = "import hams.config; from hams.ui_kit import Theme; print(Theme.mode)"
+        probe = "from hams import bootstrap; bootstrap.load(); from hams.ui_kit import Theme; print(Theme.mode)"
         result = subprocess.run(
             [sys.executable, "-c", probe],
             capture_output=True,

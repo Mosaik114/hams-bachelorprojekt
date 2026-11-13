@@ -17,7 +17,7 @@ import tomllib
 import pytest
 
 import hams.config as config_mod
-from hams import config
+from hams import bootstrap, config
 from hams import main_window as main_window_mod
 from hams.config import CFG, Config, _apply_toml, _load_config, _persist_config_value
 from hams.config import _persist_config_value as REAL_PERSIST  # before any fixture replaces it
@@ -432,7 +432,7 @@ class TestLoggingSetup:
         saved = log.handlers[:]
         log.handlers = []
         try:
-            result = config_mod._setup_logging()
+            result = bootstrap.setup_logging()
             assert result is log
             assert not any(isinstance(h, logging.FileHandler) for h in log.handlers)
             assert log.handlers, "the console handler is still there"
@@ -447,7 +447,7 @@ class TestLoggingSetup:
         saved = log.handlers[:]
         log.handlers = []
         try:
-            config_mod._setup_logging()
+            bootstrap.setup_logging()
             assert any(isinstance(h, logging.FileHandler) for h in log.handlers)
         finally:
             for handler in log.handlers:

@@ -8,7 +8,8 @@ import sounddevice as sd
 
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
-from hams.config import CFG, _list_input_devices, _persist_config_value, _resolve_mic_device, logger
+from hams.audio_devices import list_input_devices, resolve_mic_device
+from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.recording import CHANNELS, SAMPLE_RATE, reinitialise_portaudio
 from hams.ui_kit import Theme
@@ -31,13 +32,13 @@ class StatusSectionMixin:
 
     def refresh_device_state(self, devices: list | None = None) -> None:
         """Den Zustand aus der Geräteliste ableiten; ohne `devices` wird sie neu abgefragt."""
-        self._devices = _list_input_devices() if devices is None else devices
+        self._devices = list_input_devices() if devices is None else devices
         selected = CFG.mic_device_raw
         if not self._devices:
             self._device_error = t("settings.mic.none")
         elif isinstance(selected, str) and selected.strip().lower() not in ("", "default"):
             # Die Config speichert einen Teilstring des Geraetenamens, keinen
-            # exakten Namen - genau so sucht auch _resolve_mic_device().
+            # exakten Namen - genau so sucht auch resolve_mic_device().
             needle = selected.strip().lower()
             found = any(needle in pretty.lower() or needle in full.lower() for pretty, full in self._devices)
             self._device_error = "" if found else t("settings.mic.disconnected", device=selected)
@@ -85,7 +86,7 @@ class StatusSectionMixin:
         """Thread entry: re-initialise, list, hand the result to the Tk thread."""
         try:
             reinitialise_portaudio(self._audio_busy)
-            devices = _list_input_devices()
+            devices = list_input_devices()
         except Exception:  # noqa: BLE001 - boundary of the thread
             logger.exception("Microphone scan failed")
             devices = []
@@ -125,7 +126,7 @@ class StatusSectionMixin:
             _persist_config_value("audio", "device", "default")
         else:
             CFG.mic_device_raw = pretty
-            CFG.mic_device = _resolve_mic_device(pretty)
+            CFG.mic_device = resolve_mic_device(pretty)
             _persist_config_value("audio", "device", pretty)
         logger.info("Mikrofon gewählt: %r -> %r", CFG.mic_device_raw, CFG.mic_device)
         self.refresh_device_state(self._devices)
@@ -139,7 +140,7 @@ class StatusSectionMixin:
         if not self._devices and self._device_error:
             return  # kein Eingabegerät — gar nicht erst versuchen
         try:
-            dev = _resolve_mic_device(CFG.mic_device_raw)
+            dev = resolve_mic_device(CFG.mic_device_raw)
 
             def cb(indata: np.ndarray, _frames: int, _time, _status) -> None:
                 self._mon_rms = float(np.mean(indata.astype(np.float32) ** 2))
