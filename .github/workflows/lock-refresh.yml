@@ -71,7 +71,7 @@ jobs:
             echo "CI runs on this branch via workflow_dispatch; its checks show on the head commit."
             echo "If a major upgrade breaks something, cap it in \`pyproject.toml\` and re-run this workflow."
           } > /tmp/pr-body.md
-          cat /tmp/pr-body.md >> "$GITHUB_STEP_SUMMARY"
+          tee -a "$GITHUB_STEP_SUMMARY" < /tmp/pr-body.md
 
       - name: Push the branch, open or update the pull request, start CI
         # Only from main: a run on any other branch is always a dry run
