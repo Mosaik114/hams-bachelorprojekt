@@ -219,6 +219,7 @@ MESSAGES: dict[str, str] = {
     "download.error.network": "Keine Verbindung zum Modell-Server",
     "download.error.not_found": "Modell nicht gefunden",
     "download.error.generic": "Download fehlgeschlagen",
+    "download.error.busy": "Ein anderes Hams lädt das gerade schon herunter",
     # --- Ollama
     "ollama.unreachable": "Ollama nicht erreichbar",
     "ollama.http_error": "Ollama antwortet mit Fehler {code}",

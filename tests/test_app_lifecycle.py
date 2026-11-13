@@ -294,11 +294,32 @@ class TestShutdown:
     def test_quitting_stops_the_tray_and_closes_the_window(self, live_app, hams):
         window = live_app.root
         live_app._quit_app()
+        live_app._quit_on_ui_thread()  # what the Tk thread runs next
         assert live_app._shutting_down
         assert live_app.tray_icon.stopped
         assert hams.beeps == [(440, 200)]
         window.update()
         assert not window.winfo_exists()
+
+    def test_quit_from_the_tray_thread_waits_for_the_tk_thread(self, live_app, hams):
+        """pystray calls "Quit" on its own thread; nothing may be released there."""
+        window = live_app.root
+        caller = threading.Thread(target=live_app._quit_app, name="tray")
+        caller.start()
+        caller.join(2)
+        assert not caller.is_alive(), "the tray thread must not block on Tk"
+        assert not live_app._shutting_down and not live_app.tray_icon.stopped
+        ende = time.monotonic() + 2
+        while window.winfo_exists() and time.monotonic() < ende:
+            window.update()
+            time.sleep(0.01)
+        assert live_app._shutting_down and live_app.tray_icon.stopped
+        assert not window.winfo_exists()
+
+    def test_quitting_twice_shuts_down_once(self, live_app, hams):
+        live_app._quit_on_ui_thread()
+        live_app._quit_on_ui_thread()
+        assert hams.beeps == [(440, 200)]
 
     def test_a_broken_tray_does_not_block_quitting(self, live_app):
         def broken():
@@ -306,7 +327,7 @@ class TestShutdown:
 
         live_app.tray_icon.stop = broken
         window = live_app.root
-        live_app._quit_app()
+        live_app._quit_on_ui_thread()
         window.update()
         assert not window.winfo_exists()
 

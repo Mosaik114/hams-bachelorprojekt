@@ -5,10 +5,14 @@ test installs into ``tmp_path`` and serves small zip files built on the fly.
 """
 
 import base64
+import errno
 import hashlib
 import io
 import json
+import subprocess
+import sys
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -158,7 +162,8 @@ class TestInstall:
     def test_cleans_up_downloads_and_staging(self, tmp_path, wheels):
         pinned, server = wheels
         install(tmp_path / "cuda", pinned, server)
-        assert sorted(p.name for p in tmp_path.iterdir()) == ["cuda"]
+        # The lock file stays on purpose: deleting it would race a second process that just opened it.
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["cuda", "cuda.lock"]
 
     def test_reports_progress_up_to_the_total(self, tmp_path, wheels):
         pinned, server = wheels
@@ -211,7 +216,7 @@ class TestVerification:
         with pytest.raises(gpu_support.GpuSupportError, match="RECORD"):
             install(tmp_path / "cuda", pinned, FakeServer({pinned[0].url: data}))
         assert not (tmp_path / "cuda").exists()
-        assert [p.name for p in tmp_path.iterdir()] == ["cuda.download"]  # the wheel stays for a retry
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["cuda.download", "cuda.lock"]  # the wheel stays
 
     def test_a_wheel_without_record_is_rejected(self, tmp_path):
         buffer = io.BytesIO()
@@ -413,3 +418,131 @@ class TestCli:
         monkeypatch.setattr(gpu_support, "is_supported", lambda: False)
         gpu_support.install_cli()
         assert "Windows" in capsys.readouterr().out
+
+
+# --------------------------------------------------------- local failures
+
+
+class TestLocalFailures:
+    """A full disk or a missing write right is a GpuSupportError too, never a bare OSError."""
+
+    def test_a_target_that_cannot_be_created(self, tmp_path, wheels):
+        pinned, server = wheels
+        blocker = tmp_path / "file"
+        blocker.write_text("not a folder", encoding="utf-8")
+        with pytest.raises(gpu_support.GpuSupportError) as caught:
+            install(blocker / "cuda", pinned, server)
+        assert isinstance(caught.value.__cause__, OSError)
+
+    def test_a_full_disk_while_unpacking(self, tmp_path, wheels, monkeypatch):
+        pinned, server = wheels
+
+        def full(*_args):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(gpu_support, "_extract", full)
+        with pytest.raises(gpu_support.GpuSupportError, match="No space") as caught:
+            install(tmp_path / "cuda", pinned, server)
+        assert caught.value.__cause__.errno == errno.ENOSPC
+        assert not (tmp_path / "cuda").exists()
+        assert not list(tmp_path.glob("cuda.tmp-*")), "the staging folder is cleaned up"
+
+    def test_a_refused_rename(self, tmp_path, wheels, monkeypatch):
+        pinned, server = wheels
+
+        def refused(*_args):
+            raise PermissionError(13, "Access is denied")
+
+        monkeypatch.setattr(gpu_support.os, "replace", refused)
+        with pytest.raises(gpu_support.GpuSupportError) as caught:
+            install(tmp_path / "cuda", pinned, server)
+        assert isinstance(caught.value.__cause__, PermissionError)
+
+    def test_the_lock_is_released_after_a_failure(self, tmp_path, wheels, monkeypatch):
+        pinned, server = wheels
+        monkeypatch.setattr(gpu_support, "_extract", lambda *_a: (_ for _ in ()).throw(OSError("kaputt")))
+        with pytest.raises(gpu_support.GpuSupportError):
+            install(tmp_path / "cuda", pinned, server)
+        monkeypatch.undo()
+        monkeypatch.setattr(gpu_support, "CHUNK_SIZE", 1024)
+        assert install(tmp_path / "cuda", pinned, server) == tmp_path / "cuda"
+
+
+class TestInstallLock:
+    def test_a_second_install_is_refused_while_one_runs(self, tmp_path, wheels):
+        pinned, server = wheels
+        target = tmp_path / "cuda"
+        with gpu_support._install_lock(gpu_support.lock_path(target)), pytest.raises(gpu_support.InstallBusy):
+            install(target, pinned, server)
+        assert server.requests == [], "nothing was downloaded into the shared .part files"
+        assert install(target, pinned, server) == target
+
+    def test_busy_is_a_gpu_support_error(self):
+        assert issubclass(gpu_support.InstallBusy, gpu_support.GpuSupportError)
+
+    def test_another_process_holding_the_lock(self, tmp_path, wheels):
+        """The real case: the CLI downloads while the wizard starts its own install."""
+        pinned, server = wheels
+        target = tmp_path / "cuda"
+        root = Path(__file__).resolve().parent.parent
+        holder = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import sys; from pathlib import Path; from hams import gpu_support as g\n"
+                "with g._install_lock(Path(sys.argv[1])):\n"
+                "    print('locked', flush=True); sys.stdin.readline()",
+                str(gpu_support.lock_path(target)),
+            ],
+            cwd=root,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            assert holder.stdout.readline().strip() == "locked"
+            with pytest.raises(gpu_support.InstallBusy):
+                install(target, pinned, server)
+        finally:
+            holder.communicate("go\n", timeout=10)
+        # The lock dies with the holder: no stale lock file blocks the next try.
+        assert install(target, pinned, server) == target
+
+    def test_a_leftover_lock_file_does_not_block(self, tmp_path, wheels):
+        pinned, server = wheels
+        target = tmp_path / "cuda"
+        gpu_support.lock_path(target).write_bytes(b"from a crashed run")
+        assert install(target, pinned, server) == target
+
+    def test_remove_also_removes_the_lock_file(self, tmp_path, wheels):
+        pinned, server = wheels
+        target = tmp_path / "cuda"
+        install(target, pinned, server)
+        gpu_support.remove(target)
+        assert list(tmp_path.iterdir()) == []
+
+
+class TestCliFailures:
+    @pytest.fixture(autouse=True)
+    def windows_with_gpu(self, monkeypatch):
+        monkeypatch.setattr(gpu_support, "is_supported", lambda: True)
+        monkeypatch.setattr(gpu_support, "nvidia_gpu_present", lambda: True)
+
+    def test_an_unexpected_error_is_a_sentence_not_a_traceback(self, monkeypatch):
+        def failing(progress):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+        monkeypatch.setattr(gpu_support, "install", failing)
+        out = io.StringIO()
+        assert gpu_support.install_cli(out) == 1
+        assert "No space left" in out.getvalue()
+        assert "Traceback" not in out.getvalue()
+
+    def test_a_running_install_is_named(self, monkeypatch):
+        def busy(progress):
+            raise gpu_support.InstallBusy("GPU support is already being installed by another Hams process")
+
+        monkeypatch.setattr(gpu_support, "install", busy)
+        out = io.StringIO()
+        assert gpu_support.install_cli(out) == 1
+        assert "already being installed" in out.getvalue()

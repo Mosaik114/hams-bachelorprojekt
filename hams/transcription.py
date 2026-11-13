@@ -176,7 +176,7 @@ class TranscriptionMixin:
             if show_progress and now - last_update > 0.25:
                 last_update = now
                 total_len = sum(len(c) for c in chunks)
-                self.root.after(0, lambda n=total_len: self.elapsed_label.config(text=tn("status.characters", n)))
+                self._ui_call(lambda n=total_len: self.elapsed_label.config(text=tn("status.characters", n)))
         return "".join(chunks).strip()
 
     def _generate_from_prompt(self, text: str, language: str = "") -> str:
@@ -269,7 +269,7 @@ class TranscriptionMixin:
             with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310
                 resp.read()
             logger.info("Ollama warmed up: %s", model)
-        except (urllib.error.URLError, TimeoutError) as exc:
+        except Exception as exc:  # noqa: BLE001 - Grenze des Threads: Vorwaermen ist nur ein Versuch
             logger.warning("Ollama warmup failed for %s: %s", model, exc)
 
     def _copy_and_paste(self, text: str) -> None:
@@ -332,7 +332,7 @@ class TranscriptionMixin:
             return text, language or str(getattr(info, "language", "") or "")
         except Exception:
             logger.exception("Whisper transcription failed")
-            self.root.after(0, lambda: self._apply_state("error", t("error.transcription_failed"), t("hint.see_log")))
+            self._ui_call(lambda: self._apply_state("error", t("error.transcription_failed"), t("hint.see_log")))
             self._prompt_mode = False
             return None
 
@@ -372,7 +372,7 @@ class TranscriptionMixin:
         with self._transcribe_lock:
             model = self.current_model()
             if model is None:
-                self.root.after(0, lambda: self._apply_state("error", t("error.no_model"), t("hint.try_again")))
+                self._ui_call(lambda: self._apply_state("error", t("error.no_model"), t("hint.try_again")))
                 self._prompt_mode = False
                 return
             result = self._run_transcription(model, audio)
@@ -382,8 +382,7 @@ class TranscriptionMixin:
         try:
             if not text:
                 logger.info("Transcription returned empty text")
-                self.root.after(
-                    0,
+                self._ui_call(
                     lambda: self._apply_state(
                         "no_signal",
                         t("status.no_speech"),
@@ -397,8 +396,7 @@ class TranscriptionMixin:
                 self._abliefern(text)
         except Exception:
             logger.exception("Transcription pipeline failed")
-            self.root.after(
-                0,
+            self._ui_call(
                 lambda: self._apply_state(
                     "error",
                     t("error.transcription_failed"),
@@ -413,8 +411,7 @@ class TranscriptionMixin:
         Nutzer hat waehrend des Ladens gesprochen. Nur der erste Griff kurz nach dem Anmelden wartet hier wirklich,
         und dann sagt die Statuszeile auch, worauf. False = kein Modell (Fehler ist schon gemeldet)."""
         logger.info("Aufnahme wartet auf das Modell")
-        self.root.after(
-            0,
+        self._ui_call(
             lambda: self._apply_state(
                 "transcribing",
                 t("status.model_still_loading"),
@@ -423,8 +420,7 @@ class TranscriptionMixin:
         )
         if not self._await_model(time.monotonic() + MODEL_WAIT_SECONDS):
             logger.error("Kein Modell fuer eine fertige Aufnahme verfuegbar")
-            self.root.after(
-                0,
+            self._ui_call(
                 lambda: self._apply_state(
                     "error",
                     t("error.model_unavailable"),
@@ -433,7 +429,7 @@ class TranscriptionMixin:
             )
             self._prompt_mode = False
             return False
-        self.root.after(0, lambda: self._apply_state("transcribing"))
+        self._ui_call(lambda: self._apply_state("transcribing"))
         return True
 
     def _nachbearbeiten(self, text: str, was_prompt_mode: bool, language: str = "") -> str | None:
@@ -442,13 +438,12 @@ class TranscriptionMixin:
         `language` ist die diktierte Sprache; sie waehlt die Anweisungen an Ollama.
         """
         if was_prompt_mode:
-            self.root.after(0, lambda: self._apply_state("generating"))
+            self._ui_call(lambda: self._apply_state("generating"))
             try:
                 return self._generate_from_prompt(text, language)
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
                 logger.exception("Ollama prompt-generation failed")
-                self.root.after(
-                    0,
+                self._ui_call(
                     lambda: self._apply_state(
                         "error",
                         t("error.ai_failed"),
@@ -461,7 +456,7 @@ class TranscriptionMixin:
         if time.monotonic() < self._cleanup_retry_at:
             self._delivery_note = (t("status.done_raw"), None)  # gerade erst ausgefallen: nicht erneut warten
             return text
-        self.root.after(0, lambda: self._apply_state("cleaning"))
+        self._ui_call(lambda: self._apply_state("cleaning"))
         try:
             return glossary.apply_replacements(self._cleanup_text(text, language))
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
@@ -488,4 +483,4 @@ class TranscriptionMixin:
         ).start()
         detail, hint = self._delivery_note or (None, None)
         self._delivery_note = None
-        self.root.after(0, lambda: self._apply_state("done", detail, hint, calm=True))
+        self._ui_call(lambda: self._apply_state("done", detail, hint, calm=True))

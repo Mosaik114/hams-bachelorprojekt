@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 from hams import branding, dictation_language, i18n, setup_wizard
 from hams import models as whisper_models
+from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.config import CFG, CONFIG_PATH, _persist_config_value, logger
 from hams.i18n import t
@@ -186,8 +187,7 @@ class SetupWindow(StatusSectionMixin):
                 callback()
                 self._after_task_change()
 
-        with contextlib.suppress(tk.TclError, RuntimeError):  # Fenster ist weg
-            self.win.after(0, run)
+        self.app._ui_call(run)  # wartet nie auf den Tk-Thread; nach dem Schliessen faellt es weg
 
     # ---------------------------------------------------------- drag
 
@@ -624,7 +624,12 @@ class SetupWindow(StatusSectionMixin):
         setup_wizard.TaskThread(target=self._probe_worker, daemon=True, name="hams-setup-ollama").start()
 
     def _probe_worker(self) -> None:
-        state = self.controller.services.probe_ollama()
+        """Thread entry: whatever happens, the page leaves "checking"."""
+        try:
+            state = self.controller.services.probe_ollama()
+        except Exception:  # noqa: BLE001 - boundary of the thread
+            logger.exception("Ollama probe failed")
+            state = ollama_api.OllamaState(False, (), (), t("ollama.bad_response"))
         self.post(lambda: self.controller.set_ollama_state(state))
 
     def _cleanup_layout(self) -> tuple:

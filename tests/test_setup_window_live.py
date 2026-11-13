@@ -48,7 +48,7 @@ def wizard(live_app, hams, monkeypatch, tmp_path):
     monkeypatch.setattr(sw, "TaskThread", InlineThread)
     monkeypatch.setattr(window_mod, "CONFIG_PATH", tmp_path / "config.toml")
     switched = []
-    monkeypatch.setattr(live_app, "_start_switch_thread", lambda model_id, generation: switched.append(model_id))
+    monkeypatch.setattr(live_app, "_start_switch_thread", lambda model_id, *_: switched.append(model_id))
     live_app.downloader = FakeDownloader()
     hams.switched = switched
     hams.marker = tmp_path / sw.MARKER_NAME
@@ -441,6 +441,19 @@ class TestCleanup:
         text = page_text(win)
         assert "qwen3.5:9b ist installiert" in text
         assert win.controller.choices.cleanup is True
+
+    def test_a_crashing_probe_still_ends_the_check(self, wizard, live_app):
+        """Regression: an exception in the probe thread left the page on "checking" for good."""
+
+        def crash():
+            raise AttributeError("'list' object has no attribute 'get'")
+
+        win = wizard(probe_ollama=crash)
+        go_to(win, "cleanup")
+        live_app.root.update()
+        assert win.controller.ollama is not None
+        assert not win.controller.ollama.online
+        assert win.controller.ollama.error
 
     def test_missing_model_can_be_pulled(self, wizard, live_app):
         answers = [online("llama3.2:3b"), online("llama3.2:3b", "qwen3.5:9b")]

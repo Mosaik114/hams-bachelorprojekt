@@ -224,6 +224,22 @@ class TestDescribeError:
     def test_unknown_error_has_no_traceback(self, english):
         assert sw.describe_error(ValueError("x" * 500)) == "Download failed"
 
+    def test_a_wrapped_gpu_error_keeps_its_cause(self, english):
+        from hams import gpu_support
+
+        try:
+            try:
+                raise PermissionError(13, "Access is denied")
+            except OSError as cause:
+                raise gpu_support.GpuSupportError("PermissionError: Access is denied") from cause
+        except gpu_support.GpuSupportError as wrapped:
+            assert sw.describe_error(wrapped) == "No write access to the model folder"
+
+    def test_a_running_gpu_install_elsewhere(self, english):
+        from hams import gpu_support
+
+        assert sw.describe_error(gpu_support.InstallBusy("busy")) == "Another Hams is already downloading this"
+
 
 # ---------------------------------------------------------------- navigation
 

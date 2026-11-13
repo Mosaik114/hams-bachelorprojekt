@@ -108,17 +108,10 @@ def add_cuda_libraries() -> tuple[str, ...]:
     angemeldet: list[str] = []
     for paket, unterordner in CUDA_LIBRARY_PACKAGES:
         ordner = _paket_verzeichnis(paket, unterordner)
-        if ordner is None:
-            continue
-        try:
-            os.add_dll_directory(str(ordner))
-        except OSError:  # pragma: no cover - Pfad verschwunden
-            logger.warning("CUDA-Bibliotheken unter %s nicht anmeldbar", ordner)
-            continue
-        angemeldet.append(str(ordner))
+        if ordner is not None and _register_dll_directory(ordner):
+            angemeldet.append(str(ordner))
     heruntergeladen = _downloaded_cuda_dir()
-    if heruntergeladen is not None:
-        os.add_dll_directory(str(heruntergeladen))
+    if heruntergeladen is not None and _register_dll_directory(heruntergeladen):
         angemeldet.append(str(heruntergeladen))
     if not angemeldet:
         logger.warning(
@@ -128,6 +121,16 @@ def add_cuda_libraries() -> tuple[str, ...]:
         )
     _preload_cuda_libraries_windows()
     return tuple(angemeldet)
+
+
+def _register_dll_directory(ordner: Path) -> bool:
+    """`os.add_dll_directory` ohne Absturz: ein verschwundener oder gesperrter Ordner kostet nur die GPU."""
+    try:
+        os.add_dll_directory(str(ordner))
+    except OSError:
+        logger.warning("CUDA-Bibliotheken unter %s nicht anmeldbar", ordner, exc_info=True)
+        return False
+    return True
 
 
 def _downloaded_cuda_dir() -> Path | None:
