@@ -114,3 +114,9 @@ language = "auto"
 # Release-Seite. Heruntergeladen wird nie etwas. false schaltet die Abfrage ab
 # (auch in den Einstellungen unter Allgemein).
 check = true
+
+[integrations]
+# Optional: Aufnahmezustand und Pegel an ein separates Overlay-Werkzeug melden, das
+# einen Aufnahmepunkt am Mauszeiger zeigt (siehe hams/cursor_dot.py). Bleibt alles
+# auf dem Rechner; aus heisst: es wird nichts gesendet.
+cursor_dot = false

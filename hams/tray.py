@@ -1,7 +1,5 @@
-"""Tray-Symbol und die Meldung an die Mosaiks-Suche (Soundbar am Mauszeiger)."""
+"""Tray-Symbol, Verlauf und Ein-/Ausblenden des Fensters."""
 
-import ctypes
-import os
 import sys
 import threading
 import tkinter as tk
@@ -24,37 +22,6 @@ from hams.ui_kit import Theme
 #: richtet, waere auf der Leiste mal zu blass und mal zu dunkel. Genommen sind
 #: die kraeftigen Toene, die sich auf beiden Leistenfarben behaupten.
 TRAY_PALETTE = Theme.palette(Theme.DARK)
-
-
-# Unter Linux geht die Meldung über einen Socket (linux.notify_search).
-_DOT_MSG = ctypes.windll.user32.RegisterWindowMessageW("MosaiksSuche.HamsZustand") if sys.platform == "win32" else 0
-
-
-def _notify_cursor_dot(state: str, level: float | None = None) -> None:
-    """Meldet der Mosaiks-Suche Zustand und Pegel fuer die Soundbar am Mauszeiger.
-
-    1 = Diktat (rot), 2 = Prompt (lila), 0 = aus; der Pegel (0..1) kommt ab
-    Bit 8 als Wert + 1 dazu. PostMessage wartet nicht; laeuft die Mosaiks-Suche
-    nicht, passiert einfach nichts. Die eigene Prozess-ID reist mit, damit die
-    Anzeige verschwindet, falls Hams abstuerzt.
-    """
-    if sys.platform != "win32":
-        from hams import linux
-
-        linux.notify_search({"recording": 1, "recording_prompt": 2}.get(state, 0), level)
-        return
-    if not _DOT_MSG:
-        return
-    mode = {"recording": 1, "recording_prompt": 2}.get(state, 0)
-    if level is not None:
-        mode |= (int(max(0.0, min(1.0, level)) * 255) + 1) << 8
-    try:
-        user32 = ctypes.windll.user32
-        hwnd = user32.FindWindowW(None, "Mosaiks-Suche")
-        if hwnd and _DOT_MSG:
-            user32.PostMessageW(hwnd, _DOT_MSG, mode, os.getpid())
-    except OSError:
-        pass
 
 
 def _create_tray_icon_image(color: str | None = None) -> Image.Image:

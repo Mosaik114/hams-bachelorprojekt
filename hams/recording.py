@@ -8,9 +8,9 @@ import tkinter as tk
 import numpy as np
 import sounddevice as sd
 
+from hams import cursor_dot
 from hams.config import CFG, _resolve_mic_device, logger
 from hams.i18n import t
-from hams.tray import _notify_cursor_dot
 
 #: Whisper takes 16 kHz mono. Recording in exactly that format means nothing has to be converted: other rates
 #: or a second channel used to reach Whisper unconverted and came out as gibberish.
@@ -189,7 +189,7 @@ class RecordingMixin:
             return
         level = _display_level(self._rms_level)
         self.level_meter.set_level(level)
-        _notify_cursor_dot(self._state, level)
+        cursor_dot.notify(self._state, level)
         self._level_tick_job = self.root.after(50, self._level_tick)
 
     def start_recording(self) -> None:

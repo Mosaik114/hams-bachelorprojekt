@@ -181,6 +181,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     from live_app import FakeClipboard, FakeHotkeys, FakeKeyboard, FakeStream, FakeTray, fake_sounddevice
 
     from hams import app as app_mod
+    from hams import cursor_dot
     from hams import ollama as ollama_api
     from hams import recording as recording_mod
     from hams import settings_status as status_mod
@@ -223,8 +224,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(transcription_mod, "pyperclip", fakes.clipboard)
     monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", tmp_path / "transkripte")
     monkeypatch.setattr(app_mod, "winsound", SimpleNamespace(Beep=lambda f, d: fakes.beeps.append((f, d))))
-    monkeypatch.setattr(app_mod, "_notify_cursor_dot", dot)
-    monkeypatch.setattr(recording_mod, "_notify_cursor_dot", dot)
+    monkeypatch.setattr(cursor_dot, "notify", dot)
     monkeypatch.setattr(recording_mod, "sd", fake_sounddevice())
     monkeypatch.setattr(recording_mod, "_resolve_mic_device", lambda raw: 7)
     monkeypatch.setattr(status_mod, "sd", fake_sounddevice())

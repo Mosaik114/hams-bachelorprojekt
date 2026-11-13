@@ -2,8 +2,8 @@
 
 Hauptfenster und Einstellungsfenster entstehen wirklich, mit allen Widgets und
 Zustaenden. Ersetzt wird nur, was den Rechner beruehrt: Mikrofon, globale
-Kurzbefehle, Tray-Symbol, Signalton, Zwischenablage, Tastendruck, die Meldung
-an die Mosaiks-Suche, Ollama und das Speichern der Konfiguration.
+Kurzbefehle, Tray-Symbol, Signalton, Zwischenablage, Tastendruck, die optionale
+Meldung an ein Overlay (cursor_dot), Ollama und das Speichern der Konfiguration.
 """
 
 from types import SimpleNamespace

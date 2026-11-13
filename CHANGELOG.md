@@ -11,6 +11,9 @@ follow [Semantic Versioning](https://semver.org/).
   at every start and after each save. The tray history does not need the files and works as before. A settings file
   from before this option has no `[output]` keys and keeps the old behaviour (save everything, keep it forever)
   until you change it.
+- The recording-state messages to an external cursor-dot overlay (a separate tool) are now an optional integration,
+  `[integrations] cursor_dot`, off by default; nothing is sent unless it is on. With it on, the receiver window is
+  looked up once and cached instead of 20 times a second.
 
 ### Fixed
 - **48 kHz or stereo in `[audio]` turned every dictation into gibberish.** Nothing converted the audio, so Whisper got

@@ -10,7 +10,7 @@ import tkinter as tk
 import numpy as np
 import sounddevice as sd
 
-from hams import branding
+from hams import branding, cursor_dot
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
@@ -23,7 +23,7 @@ from hams.recording import RecordingMixin
 from hams.settings_window import SettingsWindow
 from hams.setup_window import SetupWindow
 from hams.transcription import TranscriptionMixin
-from hams.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
+from hams.tray import TRAY_PALETTE, TrayMixin
 from hams.ui_dispatch import UiDispatcher
 from hams.ui_kit import Theme
 from hams.update_notice import UpdateNoticeMixin
@@ -567,7 +567,7 @@ class FloatingTranscriberApp(
 
         self._show_footer_hint(hint, calm=calm)
         self._set_tray_icon(self._tray_colour(state))
-        _notify_cursor_dot(state)
+        cursor_dot.notify(state)
         self._cancel_done_reset()
         if state == "done":
             # Ein Hinweis will gelesen werden; ohne ihn genuegt ein kurzer Blick.

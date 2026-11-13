@@ -193,6 +193,7 @@ The most useful keys:
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
 | `[output]` | `save_transcripts`, `keep_days` | keep each pasted text as a file (default off) and for how many days (default 30, `0` forever) |
 | `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
+| `[integrations]` | `cursor_dot` | optional, default `false`: tells a separate overlay tool (if one runs) that Hams is recording and how loud, through a local window message (Linux: a socket in `$XDG_RUNTIME_DIR`). See `hams/cursor_dot.py` |
 | `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
 
 **Interface language.** With `language = "auto"` (*System language* in the settings), Hams uses German when the operating system's display language is
@@ -435,7 +436,8 @@ only check-in is an update check that you can turn off (see below).
 | *User guide*, *Troubleshooting* in *Settings → About & help*, *Help …* in the tray menu | opens the page on `github.com` in your web browser | nothing from Hams |
 | Text cleanup, *Ask AI*, warm-up at start, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
 
-Nothing else; Hams has no crash reporting. `api.github.com` is the one outbound host the update check adds.
+Nothing else; Hams has no crash reporting. The optional `[integrations] cursor_dot` (off by default) only talks to
+another program on the same computer. `api.github.com` is the one outbound host the update check adds.
 When GitHub lists a newer release, Hams says so once as a tray notification and keeps a calm notice in the tray
 menu and under *Settings → General* until you open it or dismiss it (×) for that version. It never downloads or
 installs anything itself. The time of the last check and the dismissed version are kept in

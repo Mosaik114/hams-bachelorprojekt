@@ -204,6 +204,9 @@ class Config:
     ui_language: str = i18n.DEFAULT_SETTING
     #: Einmal am Tag beim Start bei GitHub nach einer neuen Version fragen (siehe updates.py).
     update_check: bool = True
+    #: Optional: report recording state and level to an external overlay (`[integrations] cursor_dot`, see
+    #: cursor_dot.py). Off: nothing is sent.
+    integrations_cursor_dot: bool = False
 
 
 def _resolve_mic_device(raw: Any) -> str | int | None:
@@ -761,6 +764,10 @@ def _apply_updates(cfg: Config, updates: SectionReader) -> None:
     cfg.update_check = updates.boolean("check", cfg.update_check, invalid=False)
 
 
+def _apply_integrations(cfg: Config, integrations: SectionReader) -> None:
+    cfg.integrations_cursor_dot = integrations.boolean("cursor_dot", cfg.integrations_cursor_dot, invalid=False)
+
+
 #: Abschnitt und Leser, in der Reihenfolge der Vorlage.
 _SECTION_APPLIERS = (
     ("audio", _apply_audio),
@@ -772,6 +779,7 @@ _SECTION_APPLIERS = (
     ("output", _apply_output),
     ("ui", _apply_ui),
     ("updates", _apply_updates),
+    ("integrations", _apply_integrations),
 )
 
 
