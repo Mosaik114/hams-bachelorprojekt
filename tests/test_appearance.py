@@ -130,7 +130,7 @@ class TestPaletteSwitch:
             for name, value in here.items():
                 for other, other_value in there.items():
                     # Geteilte Werte sind nur harmlos, wenn das andere Token in
-                    # beiden Modi denselben Wert hat (#FFFFFF, Terrakotta).
+                    # beiden Modi denselben Wert hat (#FFFFFF, Akzentfuellung).
                     # ON_SUCCESS wechselt bewusst Weiss gegen Dunkel und wird
                     # von keinem Widget als rohe Option getragen (test_tokens).
                     if "ON_SUCCESS" in (name, other):

@@ -64,11 +64,13 @@ class Theme:
             "TEXT_PRIMARY": "#F5F4EE",
             "TEXT_SECONDARY": "#B8B4A9",  # 8,04:1 auf WINDOW_BG
             "TEXT_TERTIARY": "#9D998E",  # 5,85:1 auf WINDOW_BG, 5,11:1 auf Gruppe
-            # --- Akzent: Terrakotta ------------------------------------------
-            "ACCENT_SURFACE": "#B4532F",  # Fuellung, ON_ACCENT 4,98:1
-            "ACCENT_HOVER": "#A34A29",
-            "ACCENT_PRESSED": "#8F4124",
-            "ACCENT_TINT": "#D97757",  # Punkte, Icons, Fokusring; 5,33:1
+            # --- Akzent: Tuerkis ---------------------------------------------
+            # Markenton #0E8C80 (hell) / #2AC8A6 (dunkel). Weiss auf #0E8C80
+            # ergaebe nur 4,13:1 — die Fuellung liegt deshalb etwas dunkler.
+            "ACCENT_SURFACE": "#0B7D72",  # Fuellung, ON_ACCENT 5,01:1
+            "ACCENT_HOVER": "#0A7167",  # ON_ACCENT 5,88:1
+            "ACCENT_PRESSED": "#09635B",  # ON_ACCENT 7,12:1
+            "ACCENT_TINT": "#2AC8A6",  # Punkte, Icons, Fokusring; 7,86:1
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#7DBE7A",  # Salbeigruen
             "WARNING": "#E3A94B",  # Ocker
@@ -109,12 +111,13 @@ class Theme:
             "TEXT_PRIMARY": "#1F1E1C",
             "TEXT_SECONDARY": "#56534C",  # 7,28:1 auf WINDOW_BG
             "TEXT_TERTIARY": "#67635A",  # 5,68:1 auf WINDOW_BG, 5,15:1 auf Gruppe
-            # --- Akzent: Terrakotta ------------------------------------------
-            "ACCENT_SURFACE": "#B4532F",  # dieselbe Fuellung wie im Dunkeln
-            "ACCENT_HOVER": "#A34A29",
-            "ACCENT_PRESSED": "#8F4124",
-            # Dunkler als im Dunkeln: #D97757 erreicht auf Creme nur 2,9:1.
-            "ACCENT_TINT": "#AD4F2C",  # 5,07:1 auf WINDOW_BG
+            # --- Akzent: Tuerkis ---------------------------------------------
+            "ACCENT_SURFACE": "#0B7D72",  # dieselbe Fuellung wie im Dunkeln
+            "ACCENT_HOVER": "#0A7167",
+            "ACCENT_PRESSED": "#09635B",
+            # Dunkler als der Markenton: #0E8C80 erreicht auf Creme nur 3,92:1,
+            # auf der Hoverflaeche 2,73:1.
+            "ACCENT_TINT": "#0A786E",  # 5,08:1 auf WINDOW_BG, 3,54:1 auf CONTROL_HOVER
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#3B7A3E",
             "WARNING": "#8F5B12",
