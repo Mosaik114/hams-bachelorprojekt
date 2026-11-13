@@ -167,3 +167,41 @@ class TestLanguageRow:
         assert SettingsWindow.language_hint("auto") == "Sprache der Oberfläche"
         monkeypatch.setattr(i18n, "detect_system_language", lambda *a: "en")
         assert SettingsWindow.language_hint("auto") == "Gilt nach einem Neustart"
+
+
+class TestDictationRow:
+    def test_offers_auto_and_every_supported_language(self, open_settings):
+        from hams import dictation_language
+
+        win = open_settings()
+        assert [option.value for option in win.select_dictation.options] == list(dictation_language.SETTINGS)
+        assert win.select_dictation.value == CFG.transcription_language == "de"
+        assert win.row_dictation.sub_text == "Die Sprache, die du sprichst"
+
+    def test_german_labels(self, open_settings):
+        texts = visible_texts(open_settings().win)
+        assert {"Diktiersprache", "Automatisch", "Deutsch", "English", "Français"} <= set(texts)
+
+    def test_english_labels(self, english, open_settings):
+        texts = visible_texts(open_settings().win)
+        assert {"Dictation language", "Automatic", "The language you speak", "Português"} <= set(texts)
+
+    def test_a_new_language_is_saved_and_applies_without_restart(self, open_settings, hams):
+        win = open_settings()
+        win._select_dictation_language("en")
+        assert ("transcription", "language", "en") in hams.saved
+        assert CFG.transcription_language == "en"
+        assert win.row_dictation.sub_text == "Die Sprache, die du sprichst", "no restart hint"
+
+    def test_auto_says_it_detects(self, open_settings, hams):
+        win = open_settings()
+        win._select_dictation_language("auto")
+        assert ("transcription", "language", "auto") in hams.saved
+        assert win.row_dictation.sub_text == "Wird bei jeder Aufnahme erkannt"
+
+    def test_the_same_or_an_unknown_choice_writes_nothing(self, open_settings, hams):
+        win = open_settings()
+        win._select_dictation_language("de")
+        win._select_dictation_language("klingonisch")
+        assert not [s for s in hams.saved if s[0] == "transcription"]
+        assert CFG.transcription_language == "de"

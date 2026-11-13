@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import sounddevice as sd
 
-from hams import branding, i18n
+from hams import branding, dictation_language, i18n
 from hams import ui_kit as uk
 from hams.ui_kit import Theme
 
@@ -300,6 +300,16 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
         CFG.ui_language = setting
         _persist_config_value("ui", "language", setting)
         self.row_language.set_description(self.language_hint(setting))
+
+    def _select_dictation_language(self, setting) -> None:
+        """Speichert die Diktiersprache; sie gilt ab der naechsten Aufnahme, ohne Neustart."""
+        setting = dictation_language.normalise_setting(setting)
+        if setting is None or setting == CFG.transcription_language:
+            return
+        CFG.transcription_language = setting
+        _persist_config_value("transcription", "language", setting)
+        self.row_dictation.set_description(self.dictation_hint(setting))
+        logger.info("Dictation language: %s", setting)
 
     def _on_sound(self, value: bool) -> None:
         CFG.sound_feedback = value

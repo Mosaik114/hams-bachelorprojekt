@@ -34,6 +34,9 @@ dictations.
 - **Fully local AI pipeline.** [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (CTranslate2, CUDA
   `float16`, Silero VAD, batched inference for long recordings) and [Ollama](https://ollama.com) for the cleanup.
   Audio and text never leave the machine.
+- **Dictate in several languages.** German, English, French, Spanish, Italian, Dutch, Polish and Portuguese, or
+  *Automatic*, where Whisper detects the language of each recording. Switching needs no restart: the models are
+  multilingual, only the instructions to Whisper and the LLM change. All measurements below are for German only.
 - **Glossary for names and jargon.** Words are passed to Whisper as hotword hints, fixed mishearings are corrected
   deterministically, and the LLM is told to leave those spellings alone. Edits apply live, without a restart.
 - **Graceful degradation.** If Ollama is slow or down, the raw transcript is pasted anyway. The app falls back from
@@ -150,7 +153,7 @@ Everything can be changed in the settings window or in `config.toml`. All defaul
 | Section | Key | Purpose |
 |---|---|---|
 | `[model]` | `size`, `device_priority`, `compute_priority` | Whisper model (`tiny` … `large-v3`, `turbo`) and fallback chain |
-| `[transcription]` | `language`, `beam_size`, `vad_filter` | `beam_size = 1` is greedy and fast |
+| `[transcription]` | `language`, `beam_size`, `vad_filter` | dictation language (see below); `beam_size = 1` is greedy and fast |
 | `[ollama]` | `cleanup_enabled`, `keep_alive`, `warmup_on_start` | `cleanup_enabled = false` pastes the raw text, the fastest option |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
@@ -159,11 +162,23 @@ Everything can be changed in the settings window or in `config.toml`. All defaul
 The interface is available in English and German. With `language = "auto"`, Hams uses German when the operating
 system's display language is German (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and
 English otherwise. A new language applies after a restart; the settings window says so and has a *Restart* button.
-The interface language is independent of the dictation language, which `[transcription] language` sets (`"de"` by
-default).
 
-The cleanup prompt is in [`hams/prompts/cleanup.txt`](hams/prompts/cleanup.txt). The glossary
-([`glossar.default.toml`](hams/glossar.default.toml)) is copied next to your config on first start.
+**Dictation language.** `[transcription] language` is independent of the interface language and can be changed
+under *Transcription → Dictation language*; it applies from the next recording, without a restart. Values: `"de"`,
+`"en"`, `"fr"`, `"es"`, `"it"`, `"nl"`, `"pl"`, `"pt"`, or `"auto"`, where Whisper detects the language of each
+recording before transcribing it. Without an entry, a new configuration follows the interface language (German on a
+German system, English otherwise); existing configurations keep their value. Each language brings its own Whisper
+hint sentence for the glossary words. The instructions to Ollama are German for German dictation and English for every
+other language, naming the language and forbidding translation. With `"auto"`, a detected language outside this list
+is transcribed without glossary hints and cleaned up with neutral English instructions. The WER and latency figures
+in this README and in the thesis were measured on German only; the other languages work but are not benchmarked.
+
+The cleanup prompts are [`hams/prompts/cleanup.txt`](hams/prompts/cleanup.txt) (German) and
+[`hams/prompts/cleanup.en.txt`](hams/prompts/cleanup.en.txt) (all other languages). A custom file set with
+`[ollama] cleanup_prompt_file` is used for every language. On first start, the glossary is copied next to your
+config: [`glossar.default.toml`](hams/glossar.default.toml) for German dictation,
+[`glossar.default.en.toml`](hams/glossar.default.en.toml) otherwise. Both key styles work in either file
+(`woerter`/`ersetzen` and `words`/`replace`).
 
 Upgrading from a version that still used the old working title *Wisper*: on first start Hams copies
 `%APPDATA%\Wisper` (Linux: `~/.config/Wisper`) to the new folder. The old folder is left untouched.
@@ -192,6 +207,7 @@ hams/
 ├── settings_*.py        settings window, sections, live status, model manager
 ├── config*.py           layered TOML config, validation, persistence
 ├── i18n.py              interface language; strings in messages_en.py / messages_de.py
+├── dictation_language.py  dictation language: Whisper hints and Ollama instructions per language
 └── ui_kit/              a small design system for tkinter (theme, DPI scaling, controls, icons)
 scripts/                 Windows start script and settings launcher
 linux/                   system setup and bring-to-front helper for Linux

@@ -1,0 +1,28 @@
+You receive a transcribed text in {language} that may contain errors. Your ONLY task is to:
+
+1. Correct MISSPELLED words
+2. Correct grammar mistakes
+3. Correct or add punctuation (full stops, commas)
+4. Remove stutters, repetitions and slips of the tongue
+
+FORBIDDEN — NEVER:
+- Add new words
+- Rephrase or restructure sentences
+- Change the order of the words
+- Use synonyms
+- Change or add anything to the content
+- Translate the text: it stays in {language}
+
+OUTPUT FORMAT — return plain text only:
+- no Markdown
+- no bold, no italics
+- no asterisks and no underscores for emphasis
+- no headings, no bullet points
+- no backticks, no code blocks
+- no notes, no explanations, no comments on the correction
+
+The text is pasted unchanged into an arbitrary input field. Every extra character you add ends up there as visible clutter.
+
+IMPORTANT: Change NOTHING about the content or the wording — correct only what is obviously wrong. Every word that is not clearly a mistake MUST stay. Reply ONLY with the corrected text.
+
+Text: {text}

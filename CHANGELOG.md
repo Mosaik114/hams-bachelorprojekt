@@ -19,13 +19,25 @@ follow [Semantic Versioning](https://semver.org/).
   `coverage-windows.ini`. Re-run `hams/setup_autostart.py` so autostart points to the new start script.
 - The documented default Ollama model is `qwen3.5:9b` everywhere; the evaluation states that it measured
   `qwen2.5:7b`.
+- The template `config.default.toml` no longer sets `[transcription] language`, so a new configuration follows the
+  interface language. `tools/wer_benchmark.py` always measures with `"de"` (its corpus is German).
+- The German prompt texts moved to `hams/dictation_language.py`; `config.DEFAULT_CLEANUP_PROMPT`,
+  `glossary.HOTWORD_FRAME` and `transcription.PROMPT_PLAIN_SYSTEM` still name the German versions.
 
 ### Added
 - **English interface.** Every visible text (main window, settings, tray menu, notifications, error messages,
   keycaps) now comes from a message catalog in English and German. The new option `[ui] language` picks it:
   `"auto"` (default) follows the operating system's display language, German on a German system and English
   otherwise; `"en"` and `"de"` force a language. It can be changed under *General → Language* in the settings and
-  applies after a restart. Dictation itself is unchanged (`[transcription] language`).
+  applies after a restart. It is independent of the dictation language (`[transcription] language`).
+- **Dictation language.** `[transcription] language` accepts `"de"`, `"en"`, `"fr"`, `"es"`, `"it"`, `"nl"`, `"pl"`,
+  `"pt"` and `"auto"` (Whisper detects the language of each recording first). It can be changed under
+  *Transcription → Dictation language* and applies from the next recording, without a restart. Each language gets
+  its own Whisper hint sentence for the glossary; the Ollama instructions (cleanup, glossary note, prompt mode) are
+  English for every language except German and name the language. German dictation is unchanged word for word.
+  New configurations without the key follow the interface language; existing ones keep their value.
+- English glossary template `glossar.default.en.toml` for new users who don't dictate German (no German spellings
+  such as *Pull-Request*); the glossary also accepts the keys `words` and `replace`.
 - `SECURITY.md`, `CONTRIBUTING.md`, issue and pull request templates.
 
 ## [1.0.0] – 2026-11-12

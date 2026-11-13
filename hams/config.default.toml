@@ -32,7 +32,12 @@ cuda = ["float16", "int8_float16", "int8"]
 cpu = ["int8", "float32"]
 
 [transcription]
-language = "de"
+# Diktiersprache / dictation language: "auto" (Whisper erkennt sie bei jeder
+# Aufnahme), "de", "en", "fr", "es", "it", "nl", "pl" oder "pt".
+# Ohne Eintrag folgt sie der Sprache der Oberfläche: Deutsch auf einem
+# deutschen System, sonst Englisch. Umgestellt wird in den Einstellungen unter
+# Transkription; Hams schreibt die Wahl dann in die Nutzerkonfiguration.
+# language = "de"
 vad_filter = true
 word_timestamps = false
 # beam_size=1 (greedy) ist ~2-3x schneller als der Default 5, bei kaum merklichem Qualitätsverlust.

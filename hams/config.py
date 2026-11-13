@@ -22,7 +22,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
 
 import contextlib
 
-from hams import branding, i18n
+from hams import branding, dictation_language, i18n
 from hams.config_toml import _abschnitt_finden, _toml_scalar, _toml_setzen, _trailing_comment  # noqa: F401
 from hams.config_validation import ollama_url_problem, validate_config
 from hams.ui_kit import Theme
@@ -95,17 +95,8 @@ def _legacy_user_dir() -> Path | None:
 CONFIG_PATH = _user_config_path()
 LEGACY_USER_DIR = _legacy_user_dir()
 
-DEFAULT_CLEANUP_PROMPT = (
-    "Bereinige den folgenden transkribierten deutschen Text. "
-    "Entferne Stotter, Wiederholungen und Versprecher. "
-    "Korrigiere Rechtschreibung und Grammatik. "
-    "Behalte die ursprüngliche Formulierung so nah wie möglich bei — "
-    "keine Umschreibungen, nur eine saubere Fassung von dem was gesagt wurde. "
-    "Zensiere KEINE Wörter und ersetze NICHTS inhaltlich — schreibe jeden Begriff exakt so, "
-    "wie er gesagt wurde, egal welchen Inhalt er hat. "
-    "Antworte NUR mit dem korrigierten Text, ohne Erklärungen oder Anmerkungen.\n\n"
-    "Text: {text}"
-)
+#: Die deutsche Rückfall-Anweisung; sie steht jetzt bei den übrigen Sprachtexten.
+DEFAULT_CLEANUP_PROMPT = dictation_language.DEFAULT_CLEANUP_PROMPT
 
 
 @dataclass
@@ -127,7 +118,10 @@ class Config:
         }
     )
 
-    transcription_language: str = "de"
+    #: Diktiersprache, siehe `dictation_language.SETTINGS`. Leer heisst: kein Eintrag in Vorlage oder
+    #: Nutzerdatei — `_load_config` setzt dann die Sprache der Oberflaeche ein. Bestehende Dateien
+    #: tragen "de" und behalten es.
+    transcription_language: str = ""
     transcription_vad_filter: bool = True
     transcription_word_timestamps: bool = False
     transcription_beam_size: int = 1
@@ -403,6 +397,9 @@ def _load_config() -> Config:
         if data:
             _apply_toml(cfg, data)
 
+    if not cfg.transcription_language:
+        cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
+
     errors = validate_config(cfg)
     for error in errors:
         logger.warning("Config validation: %s", error)
@@ -442,6 +439,17 @@ def _clean_language(value: Any) -> str:
     return setting
 
 
+def _clean_dictation_language(value: Any, previous: str) -> str:
+    """Ein gueltiger Wert fuer `transcription.language`; ein unbekannter wird gemeldet und uebergangen."""
+    setting = dictation_language.normalise_setting(value)
+    if setting is None:
+        logger.warning(
+            "Config: transcription.language should be one of %s, got %r - ignored", dictation_language.SETTINGS, value
+        )
+        return previous
+    return setting
+
+
 def _audio_anwenden(cfg: Config, audio: dict) -> None:
     cfg.sample_rate = int(audio.get("sample_rate", cfg.sample_rate))
     cfg.channels = int(audio.get("channels", cfg.channels))
@@ -463,7 +471,8 @@ def _modell_anwenden(cfg: Config, model: dict) -> None:
 
 
 def _transkription_anwenden(cfg: Config, transcription: dict) -> None:
-    cfg.transcription_language = str(transcription.get("language", cfg.transcription_language))
+    if "language" in transcription:
+        cfg.transcription_language = _clean_dictation_language(transcription["language"], cfg.transcription_language)
     cfg.transcription_vad_filter = bool(transcription.get("vad_filter", cfg.transcription_vad_filter))
     cfg.transcription_word_timestamps = bool(transcription.get("word_timestamps", cfg.transcription_word_timestamps))
     cfg.transcription_beam_size = int(transcription.get("beam_size", cfg.transcription_beam_size))

@@ -81,6 +81,19 @@ def ui_language():
     i18n.set_language("de")
 
 
+@pytest.fixture(autouse=True)
+def dictation_language(monkeypatch):
+    """Diktiert wird in den Tests Deutsch, unabhaengig von der Systemsprache.
+
+    Ohne Eintrag in der Konfiguration folgt die Diktiersprache der Oberflaeche und damit dem System (der
+    CI-Runner ist englisch). Andere Sprachen pruefen `test_dictation_language.py` ausdruecklich.
+    """
+    from hams.config import CFG
+
+    monkeypatch.setattr(CFG, "transcription_language", "de")
+    return "de"
+
+
 @pytest.fixture
 def english(ui_language):
     """Schaltet die Oberflaeche fuer einen Test auf Englisch."""

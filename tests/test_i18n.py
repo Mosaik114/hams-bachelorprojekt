@@ -224,11 +224,16 @@ def looks_german(text: str) -> bool:
 
 #: Literals that are German on purpose. Each entry: (module relative to hams/, start of the string).
 ALLOWLIST = {
-    # Instructions about the *dictated* language (German), not about the interface.
-    ("config.py", "Bereinige den folgenden transkribierten deutschen Text."),
-    ("transcription.py", "Antworte in normalem Klartext."),
-    ("glossary.py", "Ein deutscher Text."),
-    ("glossary.py", "Diese Wörter sind richtig geschrieben"),
+    # Instructions for German *dictation*, not for the interface (all dictation languages live in one module).
+    ("dictation_language.py", "Bereinige den folgenden transkribierten deutschen Text."),
+    ("dictation_language.py", "Antworte in normalem Klartext."),
+    ("dictation_language.py", "Ein deutscher Text."),
+    ("dictation_language.py", "Diese Wörter sind richtig geschrieben"),
+    # The Whisper frame sentences of the other dictation languages (umlauts and the like trip the German check).
+    ("dictation_language.py", "Un texte en français."),
+    ("dictation_language.py", "Un texto en español."),
+    ("dictation_language.py", "Tekst po polsku."),
+    ("dictation_language.py", "Um texto em português."),
     # Internal result codes, only written to the log.
     ("ui_kit/scale.py", "keine"),
     ("ui_kit/window.py", "keine"),

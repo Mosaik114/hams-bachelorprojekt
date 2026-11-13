@@ -18,7 +18,7 @@ if sys.platform == "win32":
 else:
     from hams.linux import keyboard
 
-from hams import glossary
+from hams import dictation_language, glossary
 from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
 from hams.i18n import t, tn
@@ -58,12 +58,8 @@ _EMPHASIS_RES = (
 #: Wird dem Prompt-Modus als Systemanweisung mitgegeben. Nicht in den Prompt
 #: des Nutzers hineingeschrieben: der bleibt Wort fuer Wort, wie diktiert.
 #: Ollama nimmt dafuer ein eigenes Feld entgegen.
-PROMPT_PLAIN_SYSTEM = (
-    "Antworte in normalem Klartext. Verwende kein Markdown: keine Sternchen "
-    "oder Unterstriche zur Hervorhebung, keine Fett- oder Kursivschrift, keine "
-    "Überschriften, keine Backticks und keine Codeblöcke. Deine Antwort wird "
-    "unverändert in ein Textfeld eingefügt."
-)
+#: Die deutsche Fassung; alle Sprachen in `dictation_language.plain_system`.
+PROMPT_PLAIN_SYSTEM = dictation_language.plain_system("de")
 
 
 def plain_text(value: str) -> str:
@@ -93,6 +89,15 @@ def plain_text(value: str) -> str:
             previous = text
             text = pattern.sub(r"\g<text>", text)
     return text
+
+
+def _prompt_language(language: str) -> str:
+    """Die diktierte Sprache, sonst die eingestellte; "" = unbekannt ("auto" ohne Ergebnis).
+
+    Welche Anweisungen daraus folgen, entscheidet `dictation_language` (unbekannt: die englischen).
+    """
+    language = language or CFG.transcription_language
+    return "" if language == dictation_language.AUTO else language
 
 
 class TranscriptionMixin:
@@ -165,7 +170,7 @@ class TranscriptionMixin:
                 self.root.after(0, lambda n=total_len: self.elapsed_label.config(text=tn("status.characters", n)))
         return "".join(chunks).strip()
 
-    def _generate_from_prompt(self, text: str) -> str:
+    def _generate_from_prompt(self, text: str, language: str = "") -> str:
         """Die KI-Antwort zum diktierten Prompt — ebenfalls als Klartext.
 
         Auch diese Antwort wird unverändert eingefügt; ein `**Oslo**` im
@@ -176,6 +181,8 @@ class TranscriptionMixin:
 
         Absätze und Zeilenumbrüche bleiben erhalten — im Prompt-Modus tragen
         sie Bedeutung, anders als eine Hervorhebung.
+
+        `language` ist die diktierte Sprache (leer: die eingestellte); sie waehlt die Systemanweisung.
         """
         answer = self._ollama_generate(
             prompt=text,
@@ -183,11 +190,11 @@ class TranscriptionMixin:
             timeout=CFG.ollama_timeout_prompt,
             stream=CFG.ollama_stream_prompt,
             progress_label=CFG.ollama_model_prompt or "prompt",
-            system=PROMPT_PLAIN_SYSTEM,
+            system=dictation_language.plain_system(_prompt_language(language)),
         )
         return plain_text(answer)
 
-    def _cleanup_text(self, text: str) -> str:
+    def _cleanup_text(self, text: str, language: str = "") -> str:
         """Clean up transcript text using LLM.
 
         Removes stuttering, repetitions, and slips of the tongue.
@@ -197,10 +204,13 @@ class TranscriptionMixin:
         Der Prompt verbietet Markdown, aber ein Modell haelt sich nicht immer
         daran — und was hier durchrutscht, landet als sichtbares `**` im
         Eingabefeld des Nutzers.
+
+        `language` ist die diktierte Sprache (leer: die eingestellte); sie waehlt Anweisung und Glossar-Satz.
         """
-        template = CFG.cleanup_prompt_template
+        language = _prompt_language(language)
+        template = dictation_language.cleanup_template(language, CFG.cleanup_prompt_template)
         prompt = template.replace("{text}", text) if "{text}" in template else f"{template}\n\nText: {text}"
-        if hinweis := glossary.cleanup_hint():
+        if hinweis := glossary.cleanup_hint(language):
             prompt = f"{hinweis}\n\n{prompt}"
         answer = self._ollama_generate(
             prompt=prompt,
@@ -276,39 +286,68 @@ class TranscriptionMixin:
             time.sleep(0.01)
         keyboard.send("ctrl+v")
 
-    def _run_transcription(self, model, audio: np.ndarray) -> str | None:
+    def _run_transcription(self, model, audio: np.ndarray) -> tuple[str, str] | None:
         """Fuehrt Whisper mit einer *festen* Modellreferenz aus.
 
         Bewusst getrennt, damit der Aufrufer den Transkriptionslock nur um
         diesen Teil legen muss — Cleanup und Einfuegen brauchen ihn nicht und
         wuerden einen Modellwechsel unnoetig lange blockieren.
+
+        Gibt Text und diktierte Sprache zurueck ("" = unbekannt), None nach
+        einem Fehler (gemeldet).
         """
-        optionen = {
-            "language": CFG.transcription_language,
-            "vad_filter": CFG.transcription_vad_filter,
-            "word_timestamps": CFG.transcription_word_timestamps,
-            "beam_size": CFG.transcription_beam_size,
-            "condition_on_previous_text": CFG.transcription_condition_on_previous_text,
-            "without_timestamps": CFG.transcription_without_timestamps,
-            "hotwords": glossary.hotwords(),  # Glossar: Namen und Begriffe öfter richtig erkennen
-        }
         try:
+            normalised = _normalize_audio(audio)
+            language = self._dictation_language(model, normalised)
+            optionen = {
+                "language": language,
+                "vad_filter": CFG.transcription_vad_filter,
+                "word_timestamps": CFG.transcription_word_timestamps,
+                "beam_size": CFG.transcription_beam_size,
+                "condition_on_previous_text": CFG.transcription_condition_on_previous_text,
+                "without_timestamps": CFG.transcription_without_timestamps,
+                # Glossar: Namen und Begriffe öfter richtig erkennen
+                "hotwords": glossary.hotwords(language),
+            }
             dauer = audio.size / max(CFG.sample_rate, 1)
             if dauer >= BATCHED_MIN_SECONDS:
                 # Erlaubt ist das nur, weil zwischen den Segmenten ohnehin kein
                 # Kontext fliesst — `condition_on_previous_text` ist aus. Sonst
                 # waere die parallele Auswertung nicht dasselbe Ergebnis.
-                segments, _ = BatchedInferencePipeline(model=model).transcribe(
-                    _normalize_audio(audio), batch_size=BATCH_SIZE, **optionen
+                segments, info = BatchedInferencePipeline(model=model).transcribe(
+                    normalised, batch_size=BATCH_SIZE, **optionen
                 )
             else:
-                segments, _ = model.transcribe(_normalize_audio(audio), **optionen)
-            return glossary.apply_replacements(" ".join(segment.text.strip() for segment in segments).strip())
+                segments, info = model.transcribe(normalised, **optionen)
+            text = glossary.apply_replacements(" ".join(segment.text.strip() for segment in segments).strip())
+            return text, language or str(getattr(info, "language", "") or "")
         except Exception:
             logger.exception("Whisper transcription failed")
             self.root.after(0, lambda: self._apply_state("error", t("error.transcription_failed"), t("hint.see_log")))
             self._prompt_mode = False
             return None
+
+    @staticmethod
+    def _dictation_language(model, audio: np.ndarray) -> str | None:
+        """Die Sprache fuer diese Aufnahme: die eingestellte oder, bei "auto", die erkannte.
+
+        Bei "auto" erkennt Whisper die Sprache *vor* der Transkription, damit Rahmensatz und Hinweise
+        schon zur Sprache passen. Kann das Modell das nicht (oder findet es nichts, etwa in einer
+        Aufnahme ohne Sprache), erkennt `transcribe` sie selbst — dann ohne Glossar-Hinweis.
+        """
+        language = dictation_language.whisper_language(CFG.transcription_language)
+        if language is not None:
+            return language
+        detect = getattr(model, "detect_language", None)
+        if detect is None:
+            return None
+        try:
+            detected, probability, _ = detect(audio=audio, vad_filter=CFG.transcription_vad_filter)
+        except Exception as exc:
+            logger.info("Language detection found nothing (%s), Whisper decides while transcribing", type(exc).__name__)
+            return None
+        logger.info("Detected language: %s (p=%.2f)", detected, probability)
+        return detected
 
     def _transcribe_audio(self, audio: np.ndarray) -> None:
         """Transcription pipeline thread target.
@@ -327,9 +366,10 @@ class TranscriptionMixin:
                 self.root.after(0, lambda: self._apply_state("error", t("error.no_model"), t("hint.try_again")))
                 self._prompt_mode = False
                 return
-            text = self._run_transcription(model, audio)
-        if text is None:
+            result = self._run_transcription(model, audio)
+        if result is None:
             return
+        text, language = result
         try:
             if not text:
                 logger.info("Transcription returned empty text")
@@ -343,7 +383,7 @@ class TranscriptionMixin:
                 )
                 return
             logger.info("Transcribed %d chars (prompt_mode=%s)", len(text), was_prompt_mode)
-            text = self._nachbearbeiten(text, was_prompt_mode)
+            text = self._nachbearbeiten(text, was_prompt_mode, language)
             if text is not None:
                 self._abliefern(text)
         except Exception:
@@ -387,12 +427,15 @@ class TranscriptionMixin:
         self.root.after(0, lambda: self._apply_state("transcribing"))
         return True
 
-    def _nachbearbeiten(self, text: str, was_prompt_mode: bool) -> str | None:
-        """Prompt-Modus: KI-Antwort statt Diktat; sonst (falls an) Bereinigung. None = abgebrochen (gemeldet)."""
+    def _nachbearbeiten(self, text: str, was_prompt_mode: bool, language: str = "") -> str | None:
+        """Prompt-Modus: KI-Antwort statt Diktat; sonst (falls an) Bereinigung. None = abgebrochen (gemeldet).
+
+        `language` ist die diktierte Sprache; sie waehlt die Anweisungen an Ollama.
+        """
         if was_prompt_mode:
             self.root.after(0, lambda: self._apply_state("generating"))
             try:
-                return self._generate_from_prompt(text)
+                return self._generate_from_prompt(text, language)
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError):
                 logger.exception("Ollama prompt-generation failed")
                 self.root.after(
@@ -407,7 +450,7 @@ class TranscriptionMixin:
         if CFG.ollama_cleanup_enabled:
             self.root.after(0, lambda: self._apply_state("cleaning"))
             try:
-                return glossary.apply_replacements(self._cleanup_text(text))
+                return glossary.apply_replacements(self._cleanup_text(text, language))
             except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
                 logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
                 self.root.after(0, lambda: self._apply_state("done", t("status.done_raw")))

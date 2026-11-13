@@ -6,7 +6,7 @@ CONTROL_WIDTH stehen weiter an der Klasse SettingsWindow.
 
 import tkinter as tk
 
-from hams import i18n
+from hams import dictation_language, i18n
 from hams import ui_kit as uk
 from hams.config import CFG
 from hams.i18n import t
@@ -79,6 +79,8 @@ class SectionsMixin:
         self.cancel_button.set_hover_colour(Theme.ERROR)
         self._refresh_models()
 
+        self._build_dictation_language(group)
+
         # Eine eigene Zeile fuer den Bestand auf der Platte. Bewusst nicht als
         # Papierkorb neben dem Auswahlfeld: das zeigt immer das *eingestellte*
         # Modell, und genau das darf man nicht loeschen. Eine Loeschung braucht
@@ -123,6 +125,33 @@ class SectionsMixin:
             group.body, t("settings.hardware.title"), variant="display", value="—", hairline=False
         )
         self.row_hardware.pack(fill="x")
+
+    def _build_dictation_language(self, group: uk.GroupSurface) -> None:
+        """Die Diktiersprache. Gilt ab der naechsten Aufnahme, ohne Neustart: das Modell ist mehrsprachig,
+        es aendern sich nur die Sprachangabe an Whisper und die Anweisungen an Ollama."""
+        self.row_dictation = uk.SettingRow(
+            group.body,
+            t("settings.dictation.title"),
+            variant="description",
+            description=self.dictation_hint(CFG.transcription_language),
+        )
+        self.row_dictation.pack(fill="x")
+        self.select_dictation = uk.Select(
+            group.body,
+            bg_under=Theme.GROUP_SURFACE,
+            options=[uk.Option(value, t(f"dictation.{value}")) for value in dictation_language.SETTINGS],
+            value=CFG.transcription_language,
+            on_change=self._select_dictation_language,
+        )
+        uk.keep_logical_width(self.select_dictation, self.CONTROL_WIDTH)
+        self.row_dictation.set_control(self.select_dictation)
+
+    @staticmethod
+    def dictation_hint(setting: str) -> str:
+        """Unterzeile der Diktiersprache: bei "auto" der Hinweis, dass jede Aufnahme neu erkannt wird."""
+        if setting == dictation_language.AUTO:
+            return t("settings.dictation.auto_hint")
+        return t("settings.dictation.hint")
 
     def _build_ai(self, master: tk.Misc) -> None:
         group = self._group(master, t("settings.section.ai"))

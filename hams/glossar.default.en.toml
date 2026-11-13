@@ -1,0 +1,27 @@
+# Glossary for Hams: words that Hams should always spell correctly.
+#
+# On first use, Hams puts a copy next to its configuration (Windows: %APPDATA%\Hams\glossar.toml,
+# Linux: ~/.config/hams/glossar.toml). Edit that copy freely; changes apply from the next recording,
+# without a restart. This example only contains technical terms; add your own names and terms.
+#
+# words:    How the words are spelled. Whisper gets them as a hint and recognises them more often.
+#           Put the important ones first: Whisper only reads roughly the first 200 tokens (including a short
+#           frame sentence in the dictated language), so keep the list short.
+# replace:  Fixed corrections "wrong = right" for mishearings that always come out the same way. Case on the
+#           left doesn't matter, and only whole words are replaced.
+#
+# The German keys "woerter" and "ersetzen" work as well.
+
+words = [
+    # Tools and terms around Hams
+    "Hams", "Whisper", "faster-whisper", "Ollama", "CUDA", "cuBLAS", "cuDNN", "CTranslate2",
+    # Common technical terms when dictating about software
+    "GitHub", "Python", "TypeScript", "Kubernetes", "PyTorch", "LLM", "API", "JSON",
+]
+
+[replace]
+"Olama" = "Ollama"
+"Git Hub" = "GitHub"
+"Type Script" = "TypeScript"
+"Pie Torch" = "PyTorch"
+"Faster Whisper" = "faster-whisper"

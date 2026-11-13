@@ -156,7 +156,7 @@ def durchlauf(modell, stichproben, gebatcht: bool, batch_size: int):
     from hams.config import CFG
 
     optionen = {
-        "language": CFG.transcription_language,
+        "language": "de",  # der Korpus ist deutsch, egal welche Diktiersprache eingestellt ist
         "vad_filter": CFG.transcription_vad_filter,
         "word_timestamps": CFG.transcription_word_timestamps,
         "beam_size": CFG.transcription_beam_size,

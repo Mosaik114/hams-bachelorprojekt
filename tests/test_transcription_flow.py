@@ -60,7 +60,7 @@ def ollama(monkeypatch):
         return FakeResponse(json.dumps({"response": state.answer}).encode())
 
     monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-    monkeypatch.setattr(glossary, "cleanup_hint", lambda: "")  # Prompts hier ohne Glossar-Satz vergleichen
+    monkeypatch.setattr(glossary, "cleanup_hint", lambda _language: "")  # Prompts hier ohne Glossar-Satz vergleichen
     return state
 
 
@@ -117,7 +117,7 @@ class TestPipeline:
         assert ollama.requests[0][0]["prompt"] == "Korrigiere den Text.\n\nText: Hallo Welt"
 
     def test_the_glossary_goes_before_the_cleanup_prompt(self, ready, ollama, monkeypatch):
-        monkeypatch.setattr(glossary, "cleanup_hint", lambda: "Bleibt so: Mazgin.")
+        monkeypatch.setattr(glossary, "cleanup_hint", lambda _language: "Bleibt so: Mazgin.")
         CFG.ollama_cleanup_enabled = True
         CFG.cleanup_prompt_template = "Korrigiere: {text}"
         ollama.answer = "Hallo Mätzgin"

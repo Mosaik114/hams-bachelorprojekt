@@ -1,9 +1,13 @@
 """Katalog der anwählbaren Whisper-Modelle und Erkennung des Installationsstands.
 
-faster-whisper kennt neunzehn Bezeichner, aber die meisten sind für dieses
-Produkt sinnlos: alle `.en`-Varianten und sämtliche `distil-*`-Modelle sind
-englischsprachig, Hams transkribiert Deutsch; `large` ist nur ein Alias auf
-`large-v3`, `large-v1` und `large-v2` sind davon überholt. Übrig bleiben sechs.
+faster-whisper kennt neunzehn Bezeichner; angeboten werden nur die sechs
+mehrsprachigen. Die Diktiersprache ist einstellbar (`dictation_language`) und
+lässt sich ohne Neustart wechseln — das geht nur, weil jedes Modell im Katalog
+alle Sprachen kann. Die `.en`-Varianten und sämtliche `distil-*`-Modelle
+können nur Englisch; mit ihnen würde aus einem Sprachwechsel ein Modellwechsel
+samt Download, und bei Turbo und Large v3 bringen sie für Englisch kaum etwas.
+`large` ist nur ein Alias auf `large-v3`, `large-v1` und `large-v2` sind davon
+überholt.
 
 Wer einen anderen Wert braucht, trägt ihn weiterhin in `config.toml` ein — die
 Anwendung reicht den String unverändert an faster-whisper durch.

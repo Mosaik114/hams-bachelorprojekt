@@ -4,6 +4,7 @@ import ipaddress
 import urllib.parse
 from typing import Any
 
+from hams.dictation_language import SETTINGS as DICTATION_SETTINGS
 from hams.i18n import SETTINGS as LANGUAGE_SETTINGS
 
 
@@ -77,8 +78,17 @@ def validate_config(cfg: Any) -> list[str]:
     if problem:
         errors.append(problem)
 
+    errors.extend(_dictation_problems(cfg))
     errors.extend(_ui_problems(cfg))
     return errors
+
+
+def _dictation_problems(cfg: Any) -> list[str]:
+    """Problems with `transcription.language`. Empty means "not set" and is resolved while loading."""
+    language = getattr(cfg, "transcription_language", "")
+    if language and language not in DICTATION_SETTINGS:
+        return [f"transcription.language should be one of {', '.join(DICTATION_SETTINGS)}, got {language}"]
+    return []
 
 
 def _ui_problems(cfg: Any) -> list[str]:

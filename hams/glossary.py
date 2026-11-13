@@ -6,7 +6,9 @@ Zwei Wege, die sich ergänzen:
 Dazu `cleanup_hint()`: ein Satz für die Ollama-Bereinigung, damit sie die Schreibweisen nicht „verbessert“.
 
 Die Datei liegt neben der Konfiguration (`glossar.toml` im Ordner `Hams` unter %APPDATA% bzw. in
-~/.config/hams) und wird beim ersten Zugriff aus `glossar.default.toml` angelegt. Sie wird neu gelesen,
+~/.config/hams) und wird beim ersten Zugriff aus einer Vorlage angelegt: `glossar.default.toml` (deutsch kommentiert)
+fuer deutsches Diktat, sonst `glossar.default.en.toml` (englisch, ohne deutsche Schreibweisen wie „Pull-Request“).
+Beide Schluesselpaare gelten in jeder Datei: `woerter`/`ersetzen` und `words`/`replace`. Sie wird neu gelesen,
 sobald sie sich ändert – ohne Neustart. Eine kaputte Datei legt nichts lahm: dann gilt ein leeres Glossar,
 und das Log sagt, warum.
 """
@@ -19,9 +21,12 @@ from pathlib import Path
 
 import tomllib
 
-from hams.config import APP_DIR, CONFIG_PATH, logger
+from hams import dictation_language
+from hams.config import APP_DIR, CFG, CONFIG_PATH, logger
 
 DEFAULT_PATH = APP_DIR / "glossar.default.toml"
+#: Vorlage fuer jedes andere Diktat als Deutsch.
+DEFAULT_PATH_EN = APP_DIR / "glossar.default.en.toml"
 _cache: dict = {"path": None, "mtime": None, "words": (), "replacements": ()}
 
 
@@ -29,22 +34,39 @@ def glossary_path() -> Path:
     return CONFIG_PATH.parent / "glossar.toml"
 
 
+def default_path() -> Path:
+    """Die Vorlage fuer einen neuen Nutzer, passend zu seiner Diktiersprache."""
+    german = dictation_language.glossary_default_language(CFG.transcription_language) == "de"
+    return DEFAULT_PATH if german else DEFAULT_PATH_EN
+
+
 def _ensure_file(path: Path) -> None:
-    if path.exists() or not DEFAULT_PATH.exists():
+    source = default_path()
+    if path.exists() or not source.exists():
         return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(DEFAULT_PATH, path)
+        shutil.copyfile(source, path)
         logger.info("Glossar angelegt: %s", path)
     except OSError:
         logger.warning("Glossar konnte nicht angelegt werden: %s", path)
 
 
+def _list(value) -> list:
+    return value if isinstance(value, list) else []
+
+
+def _table(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
 def _parse(data: dict) -> tuple[tuple[str, ...], tuple[tuple[re.Pattern, str], ...]]:
-    words = tuple(w.strip() for w in data.get("woerter", []) if isinstance(w, str) and w.strip())
+    listed = _list(data.get("woerter")) + _list(data.get("words"))
+    words = tuple(w.strip() for w in listed if isinstance(w, str) and w.strip())
     replacements = []
+    table = {**_table(data.get("ersetzen")), **_table(data.get("replace"))}
     # längste zuerst, damit „Insha Allah“ vor „Allah“ greift
-    pairs = [(k, v) for k, v in data.get("ersetzen", {}).items() if isinstance(v, str) and k.strip()]
+    pairs = [(k, v) for k, v in table.items() if isinstance(v, str) and k.strip()]
     for wrong, right in sorted(pairs, key=lambda p: -len(p[0])):
         pattern = re.compile(r"(?<!\w)" + r"\s+".join(map(re.escape, wrong.split())) + r"(?!\w)", re.IGNORECASE)
         replacements.append((pattern, right))
@@ -75,15 +97,19 @@ def words() -> tuple[str, ...]:
     return _load()["words"]
 
 
-#: Whisper nimmt den Hinweis als „vorigen Text“. Eine bloße Liste arabischer und englischer Wörter zog die Ausgabe
-#: ins Englische („The Prophet“ statt „der Prophet“) – ein deutscher Rahmensatz hält sie beim Deutschen.
-HOTWORD_FRAME = "Ein deutscher Text. Namen und Begriffe darin: {}."
+#: Der deutsche Rahmensatz, wie er vor der Sprachwahl hiess; alle Sprachen in `dictation_language.HOTWORD_FRAMES`.
+HOTWORD_FRAME = dictation_language.HOTWORD_FRAMES["de"]
 
 
-def hotwords() -> str | None:
-    """Hinweis für Whisper (faster-whisper `hotwords`); None, wenn das Glossar leer ist."""
+def hotwords(language: str | None) -> str | None:
+    """Hinweis für Whisper (faster-whisper `hotwords`) in der diktierten Sprache.
+
+    None, wenn das Glossar leer ist oder es für die Sprache keinen Rahmensatz gibt (siehe
+    `dictation_language.hotword_frame`).
+    """
     liste = words()
-    return HOTWORD_FRAME.format(", ".join(liste)) if liste else None
+    frame = dictation_language.hotword_frame(language)
+    return frame.format(", ".join(liste)) if liste and frame else None
 
 
 def apply_replacements(text: str) -> str:
@@ -92,9 +118,6 @@ def apply_replacements(text: str) -> str:
     return text
 
 
-def cleanup_hint() -> str:
+def cleanup_hint(language: str | None) -> str:
     """Satz für die Bereinigung: diese Schreibweisen gelten als richtig und bleiben, wie sie sind."""
-    liste = words()
-    if not liste:
-        return ""
-    return "Diese Wörter sind richtig geschrieben und bleiben genau so: " + ", ".join(liste) + "."
+    return dictation_language.glossary_hint(language, words())
