@@ -5,6 +5,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **The brand colour is now turquoise**: logo, app and window icon, tray icon and the accent in both themes
+  (buttons, focus ring, switches, checkmarks). The fill is `#0B7D72` (white text 5.01:1), the tint `#0A786E` in the
+  light theme (5.08:1 on the window) and `#2AC8A6` in the dark theme (7.86:1). Status colours (recording, AI, error,
+  warning, success) are unchanged.
+
 ## [1.2.0] – 2026-11-13
 
 Fixes and restructuring from the independent code audit (see the [review log](https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/docs/reviews.md)).
