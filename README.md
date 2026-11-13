@@ -19,6 +19,13 @@
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
+<p align="center">
+  <img src="docs/images/demo.gif" width="880" alt="Hams in action: the cursor sits in an email draft, Hams records a spoken sentence with filler words, transcribes it and pastes the cleaned-up sentence at the cursor">
+  <br>
+  <sub>A real run, recorded in real time (only the idle pauses are trimmed): Whisper turbo on the GPU, cleanup by
+  <code>qwen3.5:9b</code> in Ollama.</sub>
+</p>
+
 ---
 
 *Hams* (Arabic **همس**, "whisper") started as my Bachelor project at Kiel University (CAU) and is the dictation
@@ -48,6 +55,17 @@ dictations.
   complexity limits, hash-locked dependencies, `pip-audit` and a gitleaks history scan in CI.
 - **Private by design.** Logs record text *lengths*, never the dictated text. Plain-HTTP Ollama is only accepted
   on the local machine; a remote endpoint must use HTTPS.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/settings.png" width="200" alt="Settings window"><br><sub>Settings</sub></td>
+    <td align="center"><img src="docs/images/wizard-welcome.png" width="200" alt="Setup wizard: welcome"><br><sub>First-run wizard</sub></td>
+    <td align="center"><img src="docs/images/wizard-hardware.png" width="200" alt="Setup wizard: graphics card check"><br><sub>Graphics card check</sub></td>
+    <td align="center"><img src="docs/images/wizard-finish.png" width="200" alt="Setup wizard: ready to dictate"><br><sub>Ready to dictate</sub></td>
+  </tr>
+</table>
 
 ## How it works
 
