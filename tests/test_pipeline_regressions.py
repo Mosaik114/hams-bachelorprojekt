@@ -38,6 +38,7 @@ def app(monkeypatch, tmp_path):
     instance._add_to_history = lambda text: None
     instance._copy_and_paste = instance.pasted.append
     instance._save_transcript_file = lambda text: None
+    instance.elapsed_label = SimpleNamespace(config=lambda **_: None)  # streamed answers count characters
     empty = tmp_path / "glossary.toml"
     empty.write_text("", encoding="utf-8")
     monkeypatch.setattr(glossary, "glossary_path", lambda: empty)
@@ -194,7 +195,6 @@ def broken_ollama(request, monkeypatch):
     monkeypatch.setattr(CFG, "ollama_cleanup_enabled", True)
     monkeypatch.setattr(CFG, "ollama_timeout_cleanup", 5)
     monkeypatch.setattr(CFG, "ollama_timeout_prompt", 5)
-    monkeypatch.setattr(CFG, "ollama_stream_prompt", False)
     yield server
     server.close()
 

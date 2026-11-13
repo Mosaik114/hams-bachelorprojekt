@@ -154,14 +154,12 @@ def proben(korpus: Path) -> list[tuple[str, str, str, np.ndarray]]:
 
 def durchlauf(modell, stichproben, gebatcht: bool, batch_size: int):
     from hams.config import CFG
+    from hams.transcription import WHISPER_OPTIONS
 
     optionen = {
         "language": "de",  # der Korpus ist deutsch, egal welche Diktiersprache eingestellt ist
         "vad_filter": CFG.transcription_vad_filter,
-        "word_timestamps": CFG.transcription_word_timestamps,
-        "beam_size": CFG.transcription_beam_size,
-        "condition_on_previous_text": CFG.transcription_condition_on_previous_text,
-        "without_timestamps": CFG.transcription_without_timestamps,
+        **WHISPER_OPTIONS,
     }
     if gebatcht:
         from faster_whisper import BatchedInferencePipeline

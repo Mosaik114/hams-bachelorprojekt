@@ -1,4 +1,4 @@
-"""Configuration validation for Hams."""
+"""Typed reading of the config file and the check of the Ollama address."""
 
 import ipaddress
 import math
@@ -6,13 +6,8 @@ import urllib.parse
 from collections.abc import Callable
 from typing import Any
 
-from hams.dictation_language import SETTINGS as DICTATION_SETTINGS
-from hams.i18n import SETTINGS as LANGUAGE_SETTINGS
-
-#: Allowed values, shared by the typed readers below and by `validate_config`.
-MODEL_SIZES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
+#: Ranges for the typed readers below.
 MAX_RECORDING_SECONDS = 3600
-MAX_BEAM_SIZE = 10
 #: Upper bound for the Ollama timeouts (seconds); a larger value is a typo, not a wish.
 MAX_OLLAMA_TIMEOUT = 3600
 #: Upper bound for `ollama.cleanup_temperature`; Ollama's useful range ends at 2.
@@ -21,12 +16,6 @@ MAX_CLEANUP_TEMPERATURE = 2.0
 MAX_PASTE_TIMEOUT = 10.0
 #: Upper bound for `output.keep_days`: ten years.
 MAX_KEEP_DAYS = 3650
-
-
-class ConfigValidationError(ValueError):
-    """Raised when configuration values are invalid."""
-
-    pass
 
 
 def ollama_url_problem(url: str) -> str:
@@ -56,56 +45,6 @@ def _is_loopback(host: str) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
-
-
-def validate_config(cfg: Any) -> list[str]:
-    """Validate configuration values.
-
-    Returns a list of error messages (empty if valid).
-    """
-    errors: list[str] = []
-
-    if cfg.max_recording_seconds <= 0 or cfg.max_recording_seconds > MAX_RECORDING_SECONDS:
-        errors.append(f"audio.max_recording_seconds should be between 1 and 3600, got {cfg.max_recording_seconds}")
-
-    if cfg.model_size not in MODEL_SIZES:
-        errors.append(f"model.size should be a valid Whisper model size, got {cfg.model_size}")
-
-    if cfg.transcription_beam_size < 1 or cfg.transcription_beam_size > MAX_BEAM_SIZE:
-        errors.append(f"transcription.beam_size should be between 1 and 10, got {cfg.transcription_beam_size}")
-
-    if cfg.ollama_timeout_cleanup <= 0:
-        errors.append(f"ollama.timeout_cleanup should be positive, got {cfg.ollama_timeout_cleanup}")
-
-    if cfg.ollama_timeout_prompt <= 0:
-        errors.append(f"ollama.timeout_prompt should be positive, got {cfg.ollama_timeout_prompt}")
-
-    if cfg.clipboard_paste_timeout < 0:
-        errors.append(f"clipboard.paste_timeout should be non-negative, got {cfg.clipboard_paste_timeout}")
-
-    problem = ollama_url_problem(cfg.ollama_url)
-    if problem:
-        errors.append(problem)
-
-    errors.extend(_dictation_problems(cfg))
-    errors.extend(_ui_problems(cfg))
-    return errors
-
-
-def _dictation_problems(cfg: Any) -> list[str]:
-    """Problems with `transcription.language`. Empty means "not set" and is resolved while loading."""
-    language = getattr(cfg, "transcription_language", "")
-    if language and language not in DICTATION_SETTINGS:
-        return [f"transcription.language should be one of {', '.join(DICTATION_SETTINGS)}, got {language}"]
-    return []
-
-
-def _ui_problems(cfg: Any) -> list[str]:
-    """Problems in the [ui] section."""
-    language = getattr(cfg, "ui_language", "auto")
-    if language not in LANGUAGE_SETTINGS:
-        return [f"ui.language should be one of {', '.join(LANGUAGE_SETTINGS)}, got {language}"]
-    return []
 
 
 class SectionReader:

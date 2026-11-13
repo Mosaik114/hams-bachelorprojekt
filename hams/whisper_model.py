@@ -9,6 +9,13 @@ from hams.backend_preload import cuda_libraries_found
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 
+#: Compute types per device, tried in this order: the first one the device supports wins. float16 is the fast
+#: path on an NVIDIA GPU; int8 runs on cards without float16 and on any CPU.
+COMPUTE_PRIORITY = {
+    "cuda": ("float16", "int8_float16", "int8"),
+    "cpu": ("int8", "float32"),
+}
+
 
 def usable_devices(priority) -> tuple[str, ...]:
     """The configured devices minus CUDA when cuBLAS is missing.
@@ -148,7 +155,7 @@ class WhisperModelMixin:
         """
         errors: list[str] = []
         for device in usable_devices(CFG.model_device_priority):
-            for compute_type in CFG.model_compute_priority.get(device, ()):
+            for compute_type in COMPUTE_PRIORITY.get(device, ()):
                 try:
                     logger.info("Loading Whisper model %s on %s/%s", model_id, device, compute_type)
                     model = WhisperModel(model_id, device=device, compute_type=compute_type)

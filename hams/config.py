@@ -23,7 +23,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
@@ -38,6 +38,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
 import contextlib
 
 from hams import app_paths, branding, dictation_language, i18n
+from hams import models as whisper_models
 from hams.config_toml import (  # noqa: F401
     TomlEncodingError,
     _set_toml_value,
@@ -48,7 +49,6 @@ from hams.config_toml import (  # noqa: F401
     verify_toml_value,
 )
 from hams.config_validation import (
-    MAX_BEAM_SIZE,
     MAX_CLEANUP_TEMPERATURE,
     MAX_KEEP_DAYS,
     MAX_OLLAMA_TIMEOUT,
@@ -56,7 +56,6 @@ from hams.config_validation import (
     MAX_RECORDING_SECONDS,
     SectionReader,
     ollama_url_problem,
-    validate_config,
 )
 from hams.ui_kit import Theme
 from hams.window_position import _clean_coordinate
@@ -145,23 +144,14 @@ class Config:
     max_recording_seconds: int = 300
 
     model_size: str = "turbo"
+    #: Devices tried in this order; `["cpu"]` keeps the GPU free. Compute types per device: whisper_model.py.
     model_device_priority: tuple[str, ...] = ("cuda", "cpu")
-    model_compute_priority: dict[str, tuple[str, ...]] = field(
-        default_factory=lambda: {
-            "cuda": ("float16", "int8_float16", "int8"),
-            "cpu": ("int8", "float32"),
-        }
-    )
 
     #: Diktiersprache, siehe `dictation_language.SETTINGS`. Leer heisst: kein Eintrag in Vorlage oder
     #: Nutzerdatei — `_load_config` setzt dann die Sprache der Oberflaeche ein. Bestehende Dateien
     #: tragen "de" und behalten es.
     transcription_language: str = ""
     transcription_vad_filter: bool = True
-    transcription_word_timestamps: bool = False
-    transcription_beam_size: int = 1
-    transcription_condition_on_previous_text: bool = False
-    transcription_without_timestamps: bool = True
 
     hotkey_transcript: str = "ctrl+shift+space"
     hotkey_prompt: str = "ctrl+shift+alt+space"
@@ -174,10 +164,8 @@ class Config:
     ollama_timeout_prompt: int = 60
     #: Sampling-Temperatur der Bereinigung. 0 = deterministisch (gemessen besser, docs/evaluation.md).
     ollama_cleanup_temperature: float = 0.0
-    ollama_stream_prompt: bool = True
     ollama_cleanup_enabled: bool = True
     ollama_keep_alive: str = "30m"
-    ollama_warmup_on_start: bool = True
     #: Zuletzt bekannte Lage des Hauptfensters in physischen Bildschirmpixeln.
     #: None heisst: noch nie gemerkt, es gilt der Rueckfall.
     window_x: int | None = None
@@ -544,11 +532,6 @@ def _load_layers() -> Config:
 
     if not cfg.transcription_language:
         cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
-
-    errors = validate_config(cfg)
-    for error in errors:
-        logger.warning("Config validation: %s", error)
-
     return cfg
 
 
@@ -560,6 +543,16 @@ RETIRED_KEYS: dict[tuple[str, str], Any] = {
     # Whisper takes 16 kHz mono and nothing converted other rates: 48 kHz stereo came out as gibberish.
     ("audio", "sample_rate"): 16_000,
     ("audio", "channels"): 1,
+    # Whisper and Ollama internals nobody needs to change; the values are measured (docs/evaluation.md) and now
+    # live next to the code that uses them (whisper_model.COMPUTE_PRIORITY, transcription.WHISPER_OPTIONS).
+    ("model", "compute_priority"): {"cuda": ["float16", "int8_float16", "int8"], "cpu": ["int8", "float32"]},
+    ("transcription", "word_timestamps"): False,
+    ("transcription", "beam_size"): 1,
+    ("transcription", "condition_on_previous_text"): False,
+    ("transcription", "without_timestamps"): True,
+    ("ollama", "stream_prompt"): True,
+    ("ollama", "stream"): True,
+    ("ollama", "warmup_on_start"): True,
 }
 
 
@@ -650,24 +643,17 @@ def _text_list(value: Any) -> tuple[str, ...] | None:
 
 
 def _apply_model(cfg: Config, model: SectionReader) -> None:
-    cfg.model_size = model.text("size", cfg.model_size)
+    if "size" in model:
+        cfg.model_size = model.text("size", cfg.model_size)
+        if not whisper_models.find(cfg.model_size):
+            # Allowed on purpose (another faster-whisper size or a model folder), but a typo would only show up
+            # as a failed load.
+            logger.warning("Config: model.size %r is not one of Hams' models - it is loaded as given", cfg.model_size)
     if "device_priority" in model:
         devices = _text_list(model.raw("device_priority"))
         if devices is None:
             devices = model.reject("device_priority", "a list of texts", model.raw("device_priority"), None)
         cfg.model_device_priority = devices or cfg.model_device_priority
-    if "compute_priority" in model:
-        cfg.model_compute_priority = _clean_compute_priority(model) or cfg.model_compute_priority
-
-
-def _clean_compute_priority(model: SectionReader) -> dict[str, tuple[str, ...]] | None:
-    raw = model.raw("compute_priority")
-    if not isinstance(raw, dict):
-        return model.reject("compute_priority", "a table of lists", raw, None)
-    cleaned = {str(device): types for device, value in raw.items() if (types := _text_list(value))}
-    if len(cleaned) != len(raw):
-        model.reject("compute_priority", "lists of texts only", raw, "the valid entries")
-    return cleaned or None
 
 
 def _apply_transcription(cfg: Config, transcription: SectionReader) -> None:
@@ -676,14 +662,6 @@ def _apply_transcription(cfg: Config, transcription: SectionReader) -> None:
             transcription.raw("language"), cfg.transcription_language
         )
     cfg.transcription_vad_filter = transcription.boolean("vad_filter", cfg.transcription_vad_filter)
-    cfg.transcription_word_timestamps = transcription.boolean("word_timestamps", cfg.transcription_word_timestamps)
-    cfg.transcription_beam_size = transcription.integer("beam_size", cfg.transcription_beam_size, 1, MAX_BEAM_SIZE)
-    cfg.transcription_condition_on_previous_text = transcription.boolean(
-        "condition_on_previous_text", cfg.transcription_condition_on_previous_text
-    )
-    cfg.transcription_without_timestamps = transcription.boolean(
-        "without_timestamps", cfg.transcription_without_timestamps
-    )
 
 
 def _apply_hotkeys(cfg: Config, hotkeys: SectionReader) -> None:
@@ -706,12 +684,8 @@ def _apply_ollama(cfg: Config, ollama: SectionReader) -> None:
     cfg.ollama_cleanup_temperature = ollama.number(
         "cleanup_temperature", cfg.ollama_cleanup_temperature, 0.0, MAX_CLEANUP_TEMPERATURE
     )
-    # `stream` ist der alte Name des Schluessels; der neue hat Vorrang.
-    stream_key = "stream" if "stream" in ollama and "stream_prompt" not in ollama else "stream_prompt"
-    cfg.ollama_stream_prompt = ollama.boolean(stream_key, cfg.ollama_stream_prompt)
     cfg.ollama_cleanup_enabled = ollama.boolean("cleanup_enabled", cfg.ollama_cleanup_enabled)
     cfg.ollama_keep_alive = _clean_keep_alive(ollama, cfg.ollama_keep_alive)
-    cfg.ollama_warmup_on_start = ollama.boolean("warmup_on_start", cfg.ollama_warmup_on_start)
     _load_cleanup_prompt(cfg, ollama.text("cleanup_prompt_file", ""))
 
 

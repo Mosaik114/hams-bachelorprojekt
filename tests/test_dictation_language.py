@@ -14,7 +14,6 @@ from hams import glossary
 from hams import transcription as transcription_mod
 from hams.app import FloatingTranscriberApp
 from hams.config import CFG, Config, _apply_toml, _load_config
-from hams.config_validation import validate_config
 
 AUDIO = np.full(16000, 0.2, dtype=np.float32)
 
@@ -142,13 +141,6 @@ class TestConfig:
     def test_an_existing_config_keeps_its_value(self, tmp_path, monkeypatch):
         cfg = self._load(tmp_path, monkeypatch, '[transcription]\nlanguage = "de"\n', "en")
         assert cfg.transcription_language == "de"
-
-    def test_validation(self):
-        cfg = Config()
-        cfg.transcription_language = "auto"
-        assert not [e for e in validate_config(cfg) if "transcription.language" in e]
-        cfg.transcription_language = "xx"
-        assert [e for e in validate_config(cfg) if "transcription.language" in e]
 
 
 # ---------------------------------------------------------------- per-language assets

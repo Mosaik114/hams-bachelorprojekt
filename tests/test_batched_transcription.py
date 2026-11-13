@@ -18,12 +18,9 @@ Die Schwelle ist deshalb kein Geschmack, sondern die Stelle, an der die
 Messung kippt.
 """
 
-import inspect
-
 import numpy as np
 import pytest
 
-from hams import config as config_mod
 from hams import transcription as transcription_mod
 from hams.app import FloatingTranscriberApp
 from hams.recording import SAMPLE_RATE
@@ -116,14 +113,12 @@ class TestBeideWegeBekommenDasselbe:
 
 
 class TestDieVoraussetzungFuersBatchen:
-    def test_context_between_segments_stays_off(self):
-        """Ohne das waere die parallele Auswertung nicht dasselbe Ergebnis.
+    def test_context_between_segments_stays_off(self, app, modell):
+        """Both paths treat every chunk on its own.
 
-        Gebatcht werden die vom VAD gefundenen Abschnitte unabhaengig
-        voneinander. Floesse Kontext von einem in den naechsten, waere das
-        Ergebnis von der Reihenfolge abhaengig — und der Vergleich, auf dem
-        die Schwelle oben beruht, hinfaellig.
+        The batched pipeline transcribes the chunks the VAD found independently (faster-whisper ignores
+        `condition_on_previous_text` there). The sequential path must not carry text over either, or the two
+        would not give the same result, and the comparison behind the threshold above would not hold.
         """
-        assert config_mod.Config().transcription_condition_on_previous_text is False
-        rumpf = inspect.getsource(FloatingTranscriberApp._run_transcription)
-        assert "condition_on_previous_text" in rumpf
+        app._run_transcription(modell, _audio(5))
+        assert modell.aufrufe[0][1]["condition_on_previous_text"] is False

@@ -3,8 +3,6 @@
 import pytest
 
 from hams import models
-from hams.config import Config
-from hams.config_validation import validate_config
 from hams.settings_window import SettingsWindow as SW
 
 
@@ -333,15 +331,27 @@ class TestHint:
         assert "geladen" in window.description
 
 
-class TestValidator:
-    @pytest.mark.parametrize("model_id", list(models.catalog_ids()))
-    def test_curated_models_pass(self, model_id):
-        config = Config()
-        config.model_size = model_id
-        assert not [e for e in validate_config(config) if "model.size" in e]
+class TestModelSizeWarning:
+    """`model.size` may name any faster-whisper model; one outside the catalog is loaded as given, with a warning."""
 
-    def test_custom_value_is_reported_but_not_fatal(self):
-        config = Config()
-        config.model_size = "large-v2"
-        errors = [e for e in validate_config(config) if "model.size" in e]
-        assert len(errors) == 1  # nur ein Hinweis, kein Abbruch
+    def _load(self, tmp_path, monkeypatch, caplog, size):
+        import logging
+
+        from hams import config as config_mod
+
+        path = tmp_path / "config.toml"
+        path.write_text(f'[model]\nsize = "{size}"\n', encoding="utf-8")
+        monkeypatch.setattr(config_mod, "CONFIG_PATH", path)
+        with caplog.at_level(logging.WARNING, logger="hams"):
+            cfg = config_mod._load_config()
+        return cfg, [r.getMessage() for r in caplog.records if "model.size" in r.getMessage()]
+
+    @pytest.mark.parametrize("model_id", [info.model_id for info in models.CATALOG])
+    def test_curated_models_pass(self, model_id, tmp_path, monkeypatch, caplog):
+        cfg, warnings = self._load(tmp_path, monkeypatch, caplog, model_id)
+        assert cfg.model_size == model_id and warnings == []
+
+    def test_custom_value_is_reported_but_kept(self, tmp_path, monkeypatch, caplog):
+        cfg, warnings = self._load(tmp_path, monkeypatch, caplog, "large-v2")
+        assert cfg.model_size == "large-v2"
+        assert len(warnings) == 1

@@ -10,7 +10,6 @@ import pytest
 from source_code import PACKAGE_DIR, module_files
 
 from hams import i18n
-from hams.config_validation import validate_config
 from hams.messages_de import MESSAGES as DE
 from hams.messages_en import MESSAGES as EN
 
@@ -197,14 +196,6 @@ class TestConfig:
         cfg = Config()
         _apply_toml(cfg, {"ui": {}})
         assert cfg.ui_language == "auto"
-
-    def test_validation(self):
-        from hams.config import Config
-
-        cfg = Config()
-        assert not [e for e in validate_config(cfg) if "ui.language" in e]
-        cfg.ui_language = "fr"
-        assert [e for e in validate_config(cfg) if "ui.language" in e]
 
 
 # ---------------------------------------------------------------- strings that bypass the catalog

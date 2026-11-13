@@ -14,6 +14,12 @@ follow [Semantic Versioning](https://semver.org/).
 - The recording-state messages to an external cursor-dot overlay (a separate tool) are now an optional integration,
   `[integrations] cursor_dot`, off by default; nothing is sent unless it is on. With it on, the receiver window is
   looked up once and cached instead of 20 times a second.
+- Fewer settings: Whisper and Ollama internals that the settings window never showed are now fixed in the code with
+  their measured values (`[model] compute_priority`, `[transcription] beam_size`, `word_timestamps`,
+  `condition_on_previous_text`, `without_timestamps`, `[ollama] stream_prompt`/`stream`, `warmup_on_start`). Old
+  files that still carry them load as before; a value that differs from the fixed one is ignored with one warning.
+- A `[model] size` outside Hams' model list is still loaded as given, now with a warning in the log; the separate
+  validation pass that could no longer fail is gone.
 
 ### Fixed
 - **48 kHz or stereo in `[audio]` turned every dictation into gibberish.** Nothing converted the audio, so Whisper got

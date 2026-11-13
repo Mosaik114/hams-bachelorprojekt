@@ -379,8 +379,9 @@ def transcribe_all(samples: list[Sample], workdir: Path) -> dict:
     from faster_whisper import WhisperModel
 
     from hams.config import CFG
+    from hams.whisper_model import COMPUTE_PRIORITY
 
-    compute = CFG.model_compute_priority.get("cuda", ("float16",))[0]
+    compute = COMPUTE_PRIORITY["cuda"][0]
     model = WhisperModel(CFG.model_size, device="cuda", compute_type=compute)
     pipeline = make_pipeline()
     for sample in samples:

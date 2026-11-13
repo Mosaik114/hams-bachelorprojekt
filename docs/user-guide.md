@@ -186,9 +186,9 @@ The most useful keys:
 
 | Section | Key | Purpose |
 |---|---|---|
-| `[model]` | `size`, `device_priority`, `compute_priority` | Whisper model (`tiny` … `large-v3`, `turbo`) and fallback chain (GPU `float16` → `int8_float16` → `int8` → CPU) |
-| `[transcription]` | `language`, `beam_size`, `vad_filter` | dictation language (see [Dictation languages](#dictation-languages)); `beam_size = 1` is greedy and fast |
-| `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `warmup_on_start`, `url`, `cleanup_prompt_file`, `cleanup_temperature` | `cleanup_enabled = false` pastes the raw text, the fastest option; `cleanup_temperature` (default `0`, up to `2`) only affects cleanup, not *Ask AI* |
+| `[model]` | `size`, `device_priority` | Whisper model (`tiny` … `large-v3`, `turbo`) and the devices to try (`["cpu"]` keeps the GPU free); on each device Hams tries `float16` → `int8_float16` → `int8` (GPU) or `int8` → `float32` (CPU) |
+| `[transcription]` | `language`, `vad_filter` | dictation language (see [Dictation languages](#dictation-languages)); silence removal before recognition |
+| `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `url`, `cleanup_prompt_file`, `cleanup_temperature` | `cleanup_enabled = false` pastes the raw text, the fastest option; `cleanup_temperature` (default `0`, up to `2`) only affects cleanup, not *Ask AI* |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts (dictation and *Ask AI*) |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
 | `[output]` | `save_transcripts`, `keep_days` | keep each pasted text as a file (default off) and for how many days (default 30, `0` forever) |

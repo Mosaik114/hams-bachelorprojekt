@@ -23,12 +23,9 @@ max_recording_seconds = 300
 
 [model]
 size = "turbo"
-# Geräte-Reihenfolge beim Laden, das erste verfügbare mit passendem Compute-Type wird genutzt.
+# Geräte-Reihenfolge beim Laden: das erste, das sich laden lässt, wird genutzt.
+# ["cpu"] lässt die Grafikkarte frei.
 device_priority = ["cuda", "cpu"]
-
-[model.compute_priority]
-cuda = ["float16", "int8_float16", "int8"]
-cpu = ["int8", "float32"]
 
 [transcription]
 # Diktiersprache / dictation language: "auto" (Whisper erkennt sie bei jeder
@@ -37,14 +34,8 @@ cpu = ["int8", "float32"]
 # deutschen System, sonst Englisch. Umgestellt wird in den Einstellungen unter
 # Transkription; Hams schreibt die Wahl dann in die Nutzerkonfiguration.
 # language = "de"
+# Stille vor der Erkennung herausschneiden (Silero VAD).
 vad_filter = true
-word_timestamps = false
-# beam_size=1 (greedy) ist ~2-3x schneller als der Default 5, bei kaum merklichem Qualitätsverlust.
-beam_size = 1
-# Kontext aus voriger Aufnahme ausschalten — jede Aufnahme ist unabhängig.
-condition_on_previous_text = false
-# Internes Timestamp-Tracking überspringen — spart Post-Processing.
-without_timestamps = true
 
 [hotkeys]
 transcript = "ctrl+shift+space"
@@ -69,13 +60,9 @@ timeout_prompt = 60
 cleanup_temperature = 0
 # Cleanup komplett abschalten → Whisper-Rohtext wird direkt eingefügt (maximal schnell).
 cleanup_enabled = true
-# Streaming nur für Prompt-Modus sinnvoll (lange Antworten). Cleanup ist kurz → nicht-stream.
-stream_prompt = true
 # Hält das Modell nach Gebrauch im VRAM, damit der nächste Request nicht nachladen muss.
 # "30m", "1h", "-1" (unbegrenzt) oder "0" (sofort entladen) — siehe Ollama-Doku.
 keep_alive = "30m"
-# Lädt das Cleanup-Modell beim App-Start vor, damit der erste Request nicht 10-30s wartet.
-warmup_on_start = true
 # Datei relativ zum Projekt mit dem Cleanup-Prompt. {text} wird durch das Transkript ersetzt.
 cleanup_prompt_file = "prompts/cleanup.txt"
 

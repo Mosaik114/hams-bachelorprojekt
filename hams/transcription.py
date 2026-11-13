@@ -39,6 +39,16 @@ BATCHED_MIN_SECONDS = 30.0
 #: Groesser bringt nichts mehr (8 -> 16 gemessen: +1,4 %), kostet aber VRAM.
 BATCH_SIZE = 8
 
+#: Fixed Whisper options (docs/evaluation.md, docs/hardware.md). Greedy decoding (`beam_size` 1) is 2-3 times
+#: faster than faster-whisper's default of 5 at hardly any loss for dictation; no previous-text conditioning, so a
+#: recording never continues an earlier one; no timestamps, which Hams never shows.
+WHISPER_OPTIONS = {
+    "beam_size": 1,
+    "condition_on_previous_text": False,
+    "word_timestamps": False,
+    "without_timestamps": True,
+}
+
 #: Everything a failing Ollama request can raise: no connection, a connection dropped mid-answer
 #: (ConnectionResetError, RemoteDisconnected, IncompleteRead), a timeout, broken JSON or an answer of the
 #: wrong shape. Each of them must end in the raw text, never in a lost dictation.
@@ -295,7 +305,7 @@ class TranscriptionMixin:
             prompt=text,
             model=CFG.ollama_model_prompt,
             timeout=CFG.ollama_timeout_prompt,
-            stream=CFG.ollama_stream_prompt,
+            stream=True,  # long answers: the window counts the characters as they arrive
             progress_label=CFG.ollama_model_prompt or "prompt",
             system=dictation_language.plain_system(_prompt_language(language)),
         )
@@ -387,8 +397,6 @@ class TranscriptionMixin:
         raise FileExistsError(f"no free transcript name for {stamp}")
 
     def _warmup_ollama_async(self) -> None:
-        if not CFG.ollama_warmup_on_start:
-            return
         threading.Thread(target=self._warmup_ollama, daemon=True, name="ollama-warmup").start()
 
     def _warmup_ollama(self) -> None:
@@ -449,18 +457,15 @@ class TranscriptionMixin:
             optionen = {
                 "language": language,
                 "vad_filter": CFG.transcription_vad_filter,
-                "word_timestamps": CFG.transcription_word_timestamps,
-                "beam_size": CFG.transcription_beam_size,
-                "condition_on_previous_text": CFG.transcription_condition_on_previous_text,
-                "without_timestamps": CFG.transcription_without_timestamps,
+                **WHISPER_OPTIONS,
                 # Glossar: Namen und Begriffe öfter richtig erkennen
                 "hotwords": glossary.hotwords(language),
             }
             dauer = audio.size / SAMPLE_RATE
             if dauer >= BATCHED_MIN_SECONDS:
-                # Erlaubt ist das nur, weil zwischen den Segmenten ohnehin kein
-                # Kontext fliesst — `condition_on_previous_text` ist aus. Sonst
-                # waere die parallele Auswertung nicht dasselbe Ergebnis.
+                # The batched pipeline transcribes the speech chunks independently; faster-whisper ignores
+                # `condition_on_previous_text` there. The sequential path has it off as well (WHISPER_OPTIONS),
+                # so both paths treat every chunk without the text before it.
                 segments, info = BatchedInferencePipeline(model=model).transcribe(
                     normalised, batch_size=BATCH_SIZE, **optionen
                 )

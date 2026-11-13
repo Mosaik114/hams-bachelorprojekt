@@ -518,8 +518,7 @@ class _Response:
 class TestAnUnusableAiAnswerIsAFailure:
     @pytest.fixture
     def answer(self, monkeypatch, pipeline_app):
-        def install(response, *, stream):
-            monkeypatch.setattr(CFG, "ollama_stream_prompt", stream)
+        def install(response):
             monkeypatch.setattr(transcription_mod.urllib.request, "urlopen", lambda request, timeout=None: response)
             pipeline_app._run_transcription = lambda model, audio: ("was ist die hauptstadt", "de")
             pipeline_app._transcribe_audio(AUDIO, prompt_mode=True)
@@ -528,23 +527,23 @@ class TestAnUnusableAiAnswerIsAFailure:
         return install
 
     @pytest.mark.parametrize(
-        ("response", "stream"),
+        "response",
         [
-            (_Response(b'{"response": "", "done": true}'), False),
-            (_Response(b'{"error": "model not found"}'), False),
-            (_Response(b"", [b'{"response": "Oslo"}\n', b'{"error": "out of memory"}\n']), True),
-            (_Response(b"", [b'{"response": "Os"}\n', b'{"response": "lo"}\n']), True),  # cut off, no "done"
-            (_Response(b"", [b'{"response": "   ", "done": true}\n']), True),
+            _Response(b"", [b'{"response": "", "done": true}\n']),
+            _Response(b"", [b'{"error": "model not found"}\n']),
+            _Response(b"", [b'{"response": "Oslo"}\n', b'{"error": "out of memory"}\n']),
+            _Response(b"", [b'{"response": "Os"}\n', b'{"response": "lo"}\n']),  # cut off, no "done"
+            _Response(b"", [b'{"response": "   ", "done": true}\n']),
         ],
         ids=["empty", "error-field", "error-in-stream", "no-done", "blank-stream"],
     )
-    def test_nothing_is_pasted_and_the_error_says_so(self, answer, response, stream):
-        app = answer(response, stream=stream)
+    def test_nothing_is_pasted_and_the_error_says_so(self, answer, response):
+        app = answer(response)
         assert app.pasted == [], "the clipboard stays untouched"
         state, detail, hint = app.states[-1]
         assert (state, detail) == ("error", "KI-Antwort fehlgeschlagen")
         assert hint.startswith("Die KI hat keine brauchbare Antwort geliefert")
 
     def test_a_complete_stream_is_pasted(self, answer):
-        app = answer(_Response(b"", [b'{"response": "Os"}\n', b'{"response": "lo", "done": true}\n']), stream=True)
+        app = answer(_Response(b"", [b'{"response": "Os"}\n', b'{"response": "lo", "done": true}\n']))
         assert app.pasted == ["Oslo"]

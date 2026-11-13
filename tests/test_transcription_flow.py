@@ -177,8 +177,7 @@ class TestPipeline:
         assert hams.clipboard.copies[-1] == "Hallo Welt."
 
     def test_prompt_mode_pastes_the_answer_as_plain_text(self, ready, hams, ollama):
-        CFG.ollama_stream_prompt = False
-        ollama.answer = "Die Hauptstadt ist **Oslo**."
+        ollama.lines = [json.dumps({"response": "Die Hauptstadt ist **Oslo**.", "done": True}).encode()]
         run(ready, prompt_mode=True)
         body = ollama.requests[0][0]
         assert body["prompt"] == "Hallo Welt", "der diktierte Prompt bleibt Wort fuer Wort"
@@ -353,14 +352,11 @@ class TestSaveAndWarmup:
         ollama.error = urllib.error.URLError("aus")
         live_app._warmup_ollama()
 
-    def test_the_warmup_thread_honours_the_setting(self, live_app, monkeypatch):
+    def test_the_warmup_runs_in_its_own_thread(self, live_app, monkeypatch):
         from hams.transcription import TranscriptionMixin
 
         started = []
         monkeypatch.setattr(live_app, "_warmup_ollama", lambda: started.append(1))
-        CFG.ollama_warmup_on_start = False
-        TranscriptionMixin._warmup_ollama_async(live_app)
-        CFG.ollama_warmup_on_start = True
         TranscriptionMixin._warmup_ollama_async(live_app)
         ende = time.monotonic() + 2
         while not started and time.monotonic() < ende:

@@ -137,7 +137,6 @@ On the CPU, the large models need several seconds per sentence. [hardware.md](ha
 - Set the dictation language explicitly instead of *Automatic*; detection costs an extra pass.
 - Turn off text cleanup (*Settings → AI*, or `[ollama] cleanup_enabled = false`) if Ollama runs on the CPU too.
   Cleanup can take longer than transcription.
-- Keep `[transcription] beam_size = 1` (the default).
 - The very first dictation after a start can be slower while everything warms up.
 
 ## Ollama is not reachable
@@ -157,9 +156,9 @@ Ollama is optional. Without it, dictation still works and pastes the raw text (*
   you run Ollama on a different port or machine, set `[ollama] url`, for example
   `url = "http://127.0.0.1:11500/api/generate"`. Other machines must be reached over `https://`.
 - The first cleanup after starting Ollama can take 10–30 s while the model loads. Hams warms the model up at start
-  (`[ollama] warmup_on_start`) and keeps it loaded for 30 minutes (`keep_alive`). Cleanup gives up after 30 s and
+  (when cleanup is on) and keeps it loaded for 30 minutes (`keep_alive`). Cleanup gives up after 30 s and
   pastes the raw text.
-- After Ollama failed once, Hams pastes raw text for the next 60 seconds without asking Ollama again, so dictation
+- After Ollama could not be reached, Hams pastes raw text for the next 60 seconds without asking it again, so dictation
   doesn't keep waiting for a service that is down. Cleanup resumes by itself after that.
 - If you don't want Ollama at all, switch cleanup off; Hams then doesn't contact it for dictation.
 

@@ -26,10 +26,6 @@ FIELDS = [
     ("audio", "max_recording_seconds", "max_recording_seconds", "int"),
     ("model", "size", "model_size", "text"),
     ("transcription", "vad_filter", "transcription_vad_filter", "bool"),
-    ("transcription", "word_timestamps", "transcription_word_timestamps", "bool"),
-    ("transcription", "beam_size", "transcription_beam_size", "int"),
-    ("transcription", "condition_on_previous_text", "transcription_condition_on_previous_text", "bool"),
-    ("transcription", "without_timestamps", "transcription_without_timestamps", "bool"),
     ("hotkeys", "transcript", "hotkey_transcript", "text"),
     ("hotkeys", "prompt", "hotkey_prompt", "text"),
     ("ollama", "url", "ollama_url", "text"),
@@ -38,10 +34,8 @@ FIELDS = [
     ("ollama", "timeout_cleanup", "ollama_timeout_cleanup", "int"),
     ("ollama", "timeout_prompt", "ollama_timeout_prompt", "int"),
     ("ollama", "cleanup_temperature", "ollama_cleanup_temperature", "number"),
-    ("ollama", "stream_prompt", "ollama_stream_prompt", "bool"),
     ("ollama", "cleanup_enabled", "ollama_cleanup_enabled", "bool"),
     ("ollama", "keep_alive", "ollama_keep_alive", "keep_alive"),
-    ("ollama", "warmup_on_start", "ollama_warmup_on_start", "bool"),
     ("clipboard", "paste_timeout", "clipboard_paste_timeout", "number"),
     ("output", "save_transcripts", "save_transcripts", "bool"),
     ("output", "keep_days", "transcripts_keep_days", "days"),
@@ -101,7 +95,6 @@ class TestWrongTypesFallBack:
         special = {
             ("audio", "device"),
             ("model", "device_priority"),
-            ("model", "compute_priority"),
             ("ollama", "cleanup_prompt_file"),
             ("ui", "appearance"),
             ("ui", "language"),
@@ -147,10 +140,10 @@ class TestValidValuesStillWork:
     def test_valid_values_are_taken(self, caplog):
         data = {
             "audio": {"max_recording_seconds": 60, "device": 3},
-            "model": {"size": "small", "device_priority": ["cpu"], "compute_priority": {"cpu": ["int8"]}},
-            "transcription": {"beam_size": 5, "vad_filter": False},
+            "model": {"size": "small", "device_priority": ["cpu"]},
+            "transcription": {"vad_filter": False},
             "hotkeys": {"transcript": "ctrl+h"},
-            "ollama": {"timeout_cleanup": 45.0, "keep_alive": -1, "stream": False},
+            "ollama": {"timeout_cleanup": 45.0, "keep_alive": -1},
             "clipboard": {"paste_timeout": 1},
         }
         cfg = Config()
@@ -159,20 +152,13 @@ class TestValidValuesStillWork:
         assert (cfg.max_recording_seconds, cfg.mic_device_raw) == (60, 3)
         assert cfg.model_size == "small"
         assert cfg.model_device_priority == ("cpu",)
-        assert cfg.model_compute_priority == {"cpu": ("int8",)}
-        assert (cfg.transcription_beam_size, cfg.transcription_vad_filter) == (5, False)
+        assert cfg.transcription_vad_filter is False
         assert cfg.hotkey_transcript == "ctrl+h"
         assert cfg.ollama_timeout_cleanup == 45
         assert type(cfg.ollama_timeout_cleanup) is int
         assert cfg.ollama_keep_alive == "-1"
-        assert cfg.ollama_stream_prompt is False, "the old key name `stream` still counts"
         assert cfg.clipboard_paste_timeout == 1.0
         assert _warnings(caplog) == []
-
-    def test_the_new_stream_key_wins_over_the_old_one(self):
-        cfg = Config()
-        _apply_toml(cfg, {"ollama": {"stream": False, "stream_prompt": True}})
-        assert cfg.ollama_stream_prompt is True
 
 
 class TestListsAndDevices:
@@ -192,21 +178,6 @@ class TestListsAndDevices:
             _apply_toml(cfg, {"model": {"device_priority": value}})
         assert cfg.model_device_priority == Config().model_device_priority
         assert any("model.device_priority" in message for message in _warnings(caplog))
-
-    @pytest.mark.parametrize("value", ["x", ["a"], {"cuda": "float16"}, {"cuda": []}])
-    def test_a_wrong_compute_priority_keeps_the_default(self, value, caplog):
-        cfg = Config()
-        with caplog.at_level(logging.WARNING, logger="hams"):
-            _apply_toml(cfg, {"model": {"compute_priority": value}})
-        assert cfg.model_compute_priority == Config().model_compute_priority
-        assert any("model.compute_priority" in message for message in _warnings(caplog))
-
-    def test_valid_compute_entries_survive_a_broken_neighbour(self, caplog):
-        cfg = Config()
-        with caplog.at_level(logging.WARNING, logger="hams"):
-            _apply_toml(cfg, {"model": {"compute_priority": {"cpu": ["int8"], "cuda": 7}}})
-        assert cfg.model_compute_priority == {"cpu": ("int8",)}
-        assert any("model.compute_priority" in message for message in _warnings(caplog))
 
     def test_a_cleanup_prompt_file_that_is_no_text_is_ignored(self):
         cfg = Config()
@@ -468,3 +439,53 @@ class TestLoggingSetup:
             for handler in log.handlers:
                 handler.close()
             log.handlers = saved
+
+
+class TestRetiredKeys:
+    """Whisper and Ollama internals are constants now (audit finding H13); old files still carry the keys."""
+
+    OLD_TEMPLATE = (
+        "[model]\n"
+        'size = "turbo"\n'
+        'device_priority = ["cuda", "cpu"]\n'
+        "[model.compute_priority]\n"
+        'cuda = ["float16", "int8_float16", "int8"]\n'
+        'cpu = ["int8", "float32"]\n'
+        "[transcription]\n"
+        "word_timestamps = false\nbeam_size = 1\ncondition_on_previous_text = false\nwithout_timestamps = true\n"
+        "[ollama]\nstream_prompt = true\nwarmup_on_start = true\n"
+    )
+
+    def _load(self, tmp_path, monkeypatch, caplog, text):
+        path = tmp_path / "config.toml"
+        path.write_text(text, encoding="utf-8")
+        monkeypatch.setattr(config_mod, "CONFIG_PATH", path)
+        with caplog.at_level(logging.WARNING, logger="hams"):
+            cfg = _load_config()
+        return cfg, [r.getMessage() for r in caplog.records if "no longer settings" in r.getMessage()]
+
+    def test_an_old_template_copy_loads_without_a_warning(self, tmp_path, monkeypatch, caplog):
+        cfg, warnings = self._load(tmp_path, monkeypatch, caplog, self.OLD_TEMPLATE)
+        assert warnings == []
+        assert cfg.model_device_priority == ("cuda", "cpu")
+
+    def test_changed_internals_are_ignored_with_one_warning(self, tmp_path, monkeypatch, caplog):
+        text = "[transcription]\nbeam_size = 5\n[ollama]\nwarmup_on_start = false\nstream = false\n"
+        cfg, warnings = self._load(tmp_path, monkeypatch, caplog, text)
+        assert len(warnings) == 1
+        for key in ("transcription.beam_size = 5", "ollama.warmup_on_start = False", "ollama.stream = False"):
+            assert key in warnings[0]
+        assert not hasattr(cfg, "transcription_beam_size")
+
+    def test_the_constants_reach_whisper(self):
+        from hams.transcription import WHISPER_OPTIONS
+        from hams.whisper_model import COMPUTE_PRIORITY
+
+        assert WHISPER_OPTIONS == {
+            "beam_size": 1,
+            "condition_on_previous_text": False,
+            "word_timestamps": False,
+            "without_timestamps": True,
+        }
+        assert COMPUTE_PRIORITY["cuda"][0] == "float16"
+        assert COMPUTE_PRIORITY["cpu"][0] == "int8"
