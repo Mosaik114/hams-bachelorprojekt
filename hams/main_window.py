@@ -42,8 +42,9 @@ class MainWindowMixin:
     def _retint_windows(self) -> int:
         """Faerbt alle offenen Hams-Fenster neu ein. Gibt die Widgetzahl zurueck."""
         painted = uk.apply_theme_tree(self.root)
-        if self.settings_win is not None and self.settings_win.alive():
-            painted += self.settings_win.retint()
+        for win in (self.settings_win, getattr(self, "setup_win", None)):
+            if win is not None and win.alive():
+                painted += win.retint()
         return painted
 
     # ------------------------------------------------------------------ UI build
@@ -183,10 +184,10 @@ class MainWindowMixin:
             ("prompt", t("shortcut.prompt"), CFG.hotkey_prompt),
         )
 
-    def _show_footer_hint(self, hint: str | None) -> None:
-        """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe."""
+    def _show_footer_hint(self, hint: str | None, *, calm: bool = False) -> None:
+        """Tasten oder Hinweis — nie beides, und nie mit anderer Höhe. `calm`: Auskunft statt Fehler."""
         if hint:
-            self.footer_label.configure(text=hint, fg=Theme.ERROR)
+            self.footer_label.configure(text=hint, fg=Theme.TEXT_SECONDARY if calm else Theme.ERROR)
             self.shortcut_box.pack_forget()
             self.footer_label.pack(fill="both", expand=True)
         else:

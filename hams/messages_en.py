@@ -32,6 +32,7 @@ MESSAGES: dict[str, str] = {
     "status.done": "Pasted",
     "status.done_raw": "Pasted · without cleanup",
     "status.copied_from_history": "Copied from history",
+    "status.setup_pending": "Finish the setup to load a speech model",
     "status.no_signal": "No microphone signal",
     "status.no_recording": "Nothing recorded",
     "status.no_speech": "No speech detected",
@@ -50,6 +51,10 @@ MESSAGES: dict[str, str] = {
     "hint.mic_silent": "“{device}” isn't picking up any sound. Is the microphone muted?",
     "hint.recording_kept": "Your recording is safe and will be transcribed shortly.",
     "hint.no_switch_while_recording": "You can't switch models while recording.",
+    "hint.cleanup_offline": (
+        "Ollama isn't running, so the text was pasted without cleanup. Turn cleanup off in Settings → AI to skip this "
+        "step."
+    ),
     "error.shortcut_unavailable": "Shortcut unavailable",
     "error.shortcut_invalid": "Can't register “{combo}” ({name}). Check the setting in {path}.",
     "error.shortcut_taken": "Couldn't register “{combo}”. Another program is probably using it.",
@@ -79,6 +84,7 @@ MESSAGES: dict[str, str] = {
     "tray.tooltip.ready": "{product} — ready",
     "tray.toggle_window": "Show or hide window",
     "tray.settings": "Settings …",
+    "tray.setup": "Run setup …",
     "tray.history": "Recent transcripts",
     "tray.history_empty": "No transcripts yet",
     "tray.quit": "Quit",
@@ -149,6 +155,7 @@ MESSAGES: dict[str, str] = {
     "settings.ollama.group_installed": "Installed models",
     "settings.ollama.in_memory": "loaded",
     "settings.ollama.not_installed": "Not installed",
+    "settings.ollama.optional": "Optional · Ollama isn't running",
     "settings.restart.title": "Restart",
     "settings.restart.hint": "If shortcuts stop responding",
     "settings.restart.button": "Restart",
@@ -161,6 +168,9 @@ MESSAGES: dict[str, str] = {
     "settings.language.title": "Language",
     "settings.language.hint": "Language of the interface",
     "settings.language.restart": "Takes effect after a restart",
+    "settings.setup.title": "Setup assistant",
+    "settings.setup.hint": "Graphics card, speech model, microphone and Ollama",
+    "settings.setup.button": "Run again",
     # --- Whisper model catalog and downloads
     "model.summary.turbo": "Fast · very good",
     "model.summary.large-v3": "Highest accuracy",
@@ -187,6 +197,8 @@ MESSAGES: dict[str, str] = {
     "ollama.http_error": "Ollama returned error {code}",
     "ollama.bad_response": "Ollama sent an unreadable response",
     "ollama.pull_hint": "Get more models with ollama pull",
+    "ollama.pull_failed": "Ollama couldn't download the model: {error}",
+    "ollama.pull_incomplete": "The download stopped before it was complete",
     # --- keys on the keycaps
     "key.ctrl": "Ctrl",
     "key.shift": "Shift",
@@ -218,4 +230,93 @@ MESSAGES: dict[str, str] = {
     "autostart.removed": "Autostart removed.",
     "autostart.not_found": "No autostart entry found.",
     "autostart.service_added": "Service {service} installed (starts with your session and after crashes).",
+    # --- first-run setup wizard
+    "setup.window_title": "{product} — Setup",
+    "setup.title": "Set up {product}",
+    "setup.step": "Step {current} of {count}",
+    "setup.close_tooltip": "Close setup",
+    "setup.back": "Back",
+    "setup.next": "Next",
+    "setup.skip": "Skip",
+    "setup.finish": "Finish",
+    "setup.download": "Download",
+    "setup.retry": "Try again",
+    "setup.cancel_tooltip": "Cancel download",
+    "setup.task.starting": "Starting …",
+    "setup.task.progress": "{percent}% · {progress}",
+    "setup.task.unpacking": "Unpacking · {percent}%",
+    "setup.task.cancelled": "Download cancelled",
+    "setup.task.cancelled_resume": "Cancelled · the next try continues where it stopped",
+    "setup.welcome.title": "Welcome",
+    "setup.welcome.body": (
+        "{product} turns your speech into text right where the cursor is. Speech recognition runs entirely on this "
+        "computer. A few quick steps and you're ready to dictate."
+    ),
+    "setup.hardware.title": "Graphics card",
+    "setup.hardware.gpu_ready": (
+        "An NVIDIA graphics card is ready. {product} transcribes on the GPU: a sentence usually takes well under a "
+        "second."
+    ),
+    "setup.hardware.gpu_download": (
+        "An NVIDIA graphics card was found. To use it, {product} needs NVIDIA's CUDA libraries, a one-time download of "
+        "{size}. Without them {product} runs on the processor, which is slower."
+    ),
+    "setup.hardware.gpu_manual": (
+        "An NVIDIA graphics card was found, but the CUDA libraries are missing. In a source install, add them with pip "
+        "install -e \".[cuda]\". Until then {product} runs on the processor."
+    ),
+    "setup.hardware.cpu": (
+        "No NVIDIA graphics card was found, so {product} runs on the processor (CPU). That works well with a smaller "
+        "speech model; the next step suggests one."
+    ),
+    "setup.gpu.row": "GPU support",
+    "setup.gpu.offer": "{size} from NVIDIA, verified after download",
+    "setup.gpu.done": "Installed · the GPU is used from now on",
+    "setup.model.title": "Speech model",
+    "setup.model.gpu": "Whisper turns your voice into text. With your graphics card, Turbo is fast and very accurate.",
+    "setup.model.cpu": (
+        "Whisper turns your voice into text. On the processor we suggest Small: a typical sentence is ready in about a "
+        "second. Turbo is more accurate but takes about three times as long without a graphics card."
+    ),
+    "setup.model.choose": "Model",
+    "setup.model.row": "Download",
+    "setup.model.missing": "{size} · not downloaded yet",
+    "setup.model.installed": "Downloaded and ready",
+    "setup.model.recommended": "Recommended",
+    "setup.mic.title": "Microphone",
+    "setup.mic.body": (
+        "Pick the microphone you want to dictate with and say a few words. The bar shows how well {product} hears you."
+    ),
+    "setup.mic.check": "Sound check",
+    "setup.mic.waiting": "Say something …",
+    "setup.mic.heard": "Heard you · the microphone works",
+    "setup.cleanup.title": "Text cleanup (optional)",
+    "setup.cleanup.body": (
+        "{product} can polish every transcript with a local AI model in Ollama: punctuation, filler words, small "
+        "slips. You don't need it. Without it, {product} pastes the Whisper text as it is, with your glossary "
+        "replacements applied."
+    ),
+    "setup.cleanup.service": "Ollama",
+    "setup.cleanup.checking": "Checking …",
+    "setup.cleanup.offline": "Not running on this computer",
+    "setup.cleanup.offline_body": (
+        "Cleanup stays off, and {product} works fine without it. To add it later, install Ollama and turn on Settings "
+        "→ AI → Clean up text."
+    ),
+    "setup.cleanup.get": "Get Ollama",
+    "setup.cleanup.check_again": "Check again",
+    "setup.cleanup.online": "Running",
+    "setup.cleanup.model_missing": "{model} isn't installed yet · several GB",
+    "setup.cleanup.model_ready": "{model} is installed",
+    "setup.finish.title": "Ready to dictate",
+    "setup.finish.body": (
+        "Put the cursor where the text should go, press the shortcut, speak, and press it again. The text is pasted "
+        "right there."
+    ),
+    "setup.finish.try": "Try it now: press {combo} and say a sentence.",
+    "setup.finish.status": "Status",
+    "setup.finish.change": (
+        "The shortcuts are set in the [hotkeys] section of config.toml. You can run this setup again from Settings or "
+        "the tray menu."
+    ),
 }

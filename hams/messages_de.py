@@ -32,6 +32,7 @@ MESSAGES: dict[str, str] = {
     "status.done": "Eingefügt",
     "status.done_raw": "Eingefügt · ohne Bereinigung",
     "status.copied_from_history": "Aus Verlauf kopiert",
+    "status.setup_pending": "Einrichtung abschließen, um ein Sprachmodell zu laden",
     "status.no_signal": "Kein Mikrofonsignal",
     "status.no_recording": "Keine Aufnahme erkannt",
     "status.no_speech": "Keine Sprache erkannt",
@@ -50,6 +51,10 @@ MESSAGES: dict[str, str] = {
     "hint.mic_silent": "„{device}“ liefert kein Signal. Ist das Mikrofon stummgeschaltet?",
     "hint.recording_kept": "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
     "hint.no_switch_while_recording": "Das Modell lässt sich während einer Aufnahme nicht wechseln.",
+    "hint.cleanup_offline": (
+        "Ollama läuft nicht, deshalb wurde der Text ohne Bereinigung eingefügt. Wer die Bereinigung unter "
+        "Einstellungen → KI ausschaltet, spart sich diesen Schritt."
+    ),
     "error.shortcut_unavailable": "Kurzbefehl nicht verfügbar",
     "error.shortcut_invalid": "„{combo}“ ({name}) lässt sich nicht registrieren. Prüfe die Einstellung in {path}.",
     "error.shortcut_taken": "„{combo}“ konnte nicht registriert werden. Vermutlich belegt ihn ein anderes Programm.",
@@ -81,6 +86,7 @@ MESSAGES: dict[str, str] = {
     "tray.tooltip.ready": "{product} — bereit",
     "tray.toggle_window": "Fenster zeigen oder ausblenden",
     "tray.settings": "Einstellungen …",
+    "tray.setup": "Einrichtung …",
     "tray.history": "Letzte Transkripte",
     "tray.history_empty": "Noch keine Transkripte",
     "tray.quit": "Beenden",
@@ -153,6 +159,7 @@ MESSAGES: dict[str, str] = {
     "settings.ollama.group_installed": "Installierte Modelle",
     "settings.ollama.in_memory": "im Speicher",
     "settings.ollama.not_installed": "Nicht installiert",
+    "settings.ollama.optional": "Optional · Ollama läuft nicht",
     "settings.restart.title": "Neustart",
     "settings.restart.hint": "Wenn Kurzbefehle nicht reagieren",
     "settings.restart.button": "Neu starten",
@@ -165,6 +172,9 @@ MESSAGES: dict[str, str] = {
     "settings.language.title": "Sprache",
     "settings.language.hint": "Sprache der Oberfläche",
     "settings.language.restart": "Gilt nach einem Neustart",
+    "settings.setup.title": "Einrichtungsassistent",
+    "settings.setup.hint": "Grafikkarte, Sprachmodell, Mikrofon und Ollama",
+    "settings.setup.button": "Erneut starten",
     # --- Whisper-Katalog und Downloads
     "model.summary.turbo": "Schnell · sehr gut",
     "model.summary.large-v3": "Höchste Genauigkeit",
@@ -191,6 +201,8 @@ MESSAGES: dict[str, str] = {
     "ollama.http_error": "Ollama antwortet mit Fehler {code}",
     "ollama.bad_response": "Ollama antwortet unverständlich",
     "ollama.pull_hint": "Weitere Modelle per ollama pull",
+    "ollama.pull_failed": "Ollama konnte das Modell nicht laden: {error}",
+    "ollama.pull_incomplete": "Der Download brach ab, bevor er vollständig war",
     # --- Tastenkappen (Beschriftung einer deutschen Tastatur)
     "key.ctrl": "Strg",
     "key.shift": "Umschalt",
@@ -222,4 +234,94 @@ MESSAGES: dict[str, str] = {
     "autostart.removed": "Autostart entfernt.",
     "autostart.not_found": "Kein Autostart-Eintrag gefunden.",
     "autostart.service_added": "Dienst {service} eingerichtet (startet mit der Sitzung und nach Abstürzen).",
+    # --- first-run setup wizard
+    "setup.window_title": "{product} — Einrichtung",
+    "setup.title": "{product} einrichten",
+    "setup.step": "Schritt {current} von {count}",
+    "setup.close_tooltip": "Einrichtung schließen",
+    "setup.back": "Zurück",
+    "setup.next": "Weiter",
+    "setup.skip": "Überspringen",
+    "setup.finish": "Fertig",
+    "setup.download": "Laden",
+    "setup.retry": "Erneut versuchen",
+    "setup.cancel_tooltip": "Download abbrechen",
+    "setup.task.starting": "Startet …",
+    "setup.task.progress": "{percent} % · {progress}",
+    "setup.task.unpacking": "Entpacken · {percent} %",
+    "setup.task.cancelled": "Download abgebrochen",
+    "setup.task.cancelled_resume": "Abgebrochen · der nächste Versuch setzt dort fort",
+    "setup.welcome.title": "Willkommen",
+    "setup.welcome.body": (
+        "{product} macht aus Sprache Text, direkt an der Cursorposition. Die Spracherkennung läuft vollständig auf "
+        "diesem Rechner. Ein paar kurze Schritte, dann kann es losgehen."
+    ),
+    "setup.hardware.title": "Grafikkarte",
+    "setup.hardware.gpu_ready": (
+        "Eine NVIDIA-Grafikkarte ist bereit. {product} transkribiert auf der GPU: ein Satz braucht meist deutlich "
+        "unter einer Sekunde."
+    ),
+    "setup.hardware.gpu_download": (
+        "Eine NVIDIA-Grafikkarte wurde gefunden. Um sie zu nutzen, braucht {product} die CUDA-Bibliotheken von NVIDIA, "
+        "einmalig {size}. Ohne sie läuft {product} auf dem Prozessor, langsamer."
+    ),
+    "setup.hardware.gpu_manual": (
+        "Eine NVIDIA-Grafikkarte wurde gefunden, aber die CUDA-Bibliotheken fehlen. In einer Quellinstallation kommen "
+        "sie mit pip install -e \".[cuda]\". Bis dahin läuft {product} auf dem Prozessor."
+    ),
+    "setup.hardware.cpu": (
+        "Keine NVIDIA-Grafikkarte gefunden, {product} läuft deshalb auf dem Prozessor (CPU). Das geht gut mit einem "
+        "kleineren Sprachmodell; der nächste Schritt schlägt eines vor."
+    ),
+    "setup.gpu.row": "GPU-Unterstützung",
+    "setup.gpu.offer": "{size} von NVIDIA, nach dem Laden geprüft",
+    "setup.gpu.done": "Installiert · ab jetzt rechnet die GPU",
+    "setup.model.title": "Sprachmodell",
+    "setup.model.gpu": "Whisper macht aus deiner Stimme Text. Mit deiner Grafikkarte ist Turbo schnell und sehr genau.",
+    "setup.model.cpu": (
+        "Whisper macht aus deiner Stimme Text. Auf dem Prozessor empfehlen wir Small: ein üblicher Satz ist in etwa "
+        "einer Sekunde fertig. Turbo ist genauer, braucht ohne Grafikkarte aber etwa dreimal so lange."
+    ),
+    "setup.model.choose": "Modell",
+    "setup.model.row": "Download",
+    "setup.model.missing": "{size} · noch nicht geladen",
+    "setup.model.installed": "Geladen und bereit",
+    "setup.model.recommended": "Empfohlen",
+    "setup.mic.title": "Mikrofon",
+    "setup.mic.body": (
+        "Wähle das Mikrofon, mit dem du diktieren willst, und sag ein paar Worte. Der Balken zeigt, wie gut {product} "
+        "dich hört."
+    ),
+    "setup.mic.check": "Hörprobe",
+    "setup.mic.waiting": "Sag etwas …",
+    "setup.mic.heard": "Gehört · das Mikrofon funktioniert",
+    "setup.cleanup.title": "Textbereinigung (optional)",
+    "setup.cleanup.body": (
+        "{product} kann jedes Transkript mit einem lokalen KI-Modell in Ollama glätten: Satzzeichen, Füllwörter, "
+        "kleine Versprecher. Nötig ist das nicht. Ohne Ollama fügt {product} den Whisper-Text unverändert ein, mit den "
+        "Ersetzungen aus dem Glossar."
+    ),
+    "setup.cleanup.service": "Ollama",
+    "setup.cleanup.checking": "Wird geprüft …",
+    "setup.cleanup.offline": "Läuft nicht auf diesem Rechner",
+    "setup.cleanup.offline_body": (
+        "Die Bereinigung bleibt aus, und {product} funktioniert ohne sie. Wer sie später möchte, installiert Ollama "
+        "und schaltet Einstellungen → KI → Text bereinigen ein."
+    ),
+    "setup.cleanup.get": "Ollama holen",
+    "setup.cleanup.check_again": "Erneut prüfen",
+    "setup.cleanup.online": "Läuft",
+    "setup.cleanup.model_missing": "{model} ist noch nicht installiert · mehrere GB",
+    "setup.cleanup.model_ready": "{model} ist installiert",
+    "setup.finish.title": "Bereit zum Diktieren",
+    "setup.finish.body": (
+        "Setz den Cursor dorthin, wo der Text hin soll, drück den Kurzbefehl, sprich und drück ihn noch einmal. Der "
+        "Text wird genau dort eingefügt."
+    ),
+    "setup.finish.try": "Probier es aus: {combo} drücken und einen Satz sagen.",
+    "setup.finish.status": "Status",
+    "setup.finish.change": (
+        "Die Kurzbefehle stehen im Abschnitt [hotkeys] der config.toml. Die Einrichtung lässt sich jederzeit über die "
+        "Einstellungen oder das Tray-Menü erneut starten."
+    ),
 }

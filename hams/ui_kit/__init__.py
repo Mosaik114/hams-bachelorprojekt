@@ -63,6 +63,7 @@ from hams.ui_kit.caches import (
     _img_cache,
 )
 from hams.ui_kit.controls import (
+    ProgressBar,
     SignalMeter,
     StatusDot,
     Switch,

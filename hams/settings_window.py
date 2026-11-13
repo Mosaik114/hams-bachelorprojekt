@@ -41,6 +41,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
     #: Die Beschreibung bricht um, sie darf also ein ganzer Satz sein.
     RESTART_HINT = Text("settings.restart.hint")
     RESTART_WIDTH = 108  # logisch; „Neu starten" plus Luft
+    SETUP_WIDTH = 124  # logisch; „Erneut starten" plus Luft
     DELETE_PLACEHOLDER = Text("settings.storage.delete_placeholder")
     DELETE_WIDTH = 88  # logisch; „Löschen" plus Luft
     #: So lange bleibt die Erfolgsmeldung stehen, bevor die Zeile wieder den
@@ -241,6 +242,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
         CFG.ollama_cleanup_enabled = value
         _persist_config_value("ollama", "cleanup_enabled", value)
         self._sync_cleanup_dependency()
+        self._show_ollama_status()
 
     def _sync_cleanup_dependency(self) -> None:
         """Cleanup an, Ollama aus — das muss sofort sichtbar sein.

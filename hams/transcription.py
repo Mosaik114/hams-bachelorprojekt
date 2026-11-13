@@ -103,6 +103,15 @@ def _prompt_language(language: str) -> str:
 class TranscriptionMixin:
     """Transkription, Bereinigung mit Ollama und Einfuegen des Textes."""
 
+    #: Nach einem Ausfall von Ollama fragt die Bereinigung so lange nicht erneut. Jedes Diktat
+    #: wuerde sonst erst auf einen Dienst warten, der nicht da ist.
+    CLEANUP_RETRY_SECONDS = 60.0
+    #: Klassenwerte als Vorgabe: Tests bauen die Anwendung auch ohne __init__.
+    _cleanup_retry_at = 0.0
+    _cleanup_offline_noted = False
+    #: (Statustext, Hinweis) fuer die naechste Ablieferung, oder None.
+    _delivery_note: tuple | None = None
+
     # ------------------------------------------------------------------ transcription
 
     def _ollama_generate(
@@ -447,14 +456,25 @@ class TranscriptionMixin:
                     ),
                 )
                 return None
-        if CFG.ollama_cleanup_enabled:
-            self.root.after(0, lambda: self._apply_state("cleaning"))
-            try:
-                return glossary.apply_replacements(self._cleanup_text(text, language))
-            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
-                logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
-                self.root.after(0, lambda: self._apply_state("done", t("status.done_raw")))
-        return text  # Cleanup deaktiviert oder nicht erreichbar — Roh-Transkript
+        if not CFG.ollama_cleanup_enabled:
+            return text
+        if time.monotonic() < self._cleanup_retry_at:
+            self._delivery_note = (t("status.done_raw"), None)  # gerade erst ausgefallen: nicht erneut warten
+            return text
+        self.root.after(0, lambda: self._apply_state("cleaning"))
+        try:
+            return glossary.apply_replacements(self._cleanup_text(text, language))
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+            logger.warning("Ollama cleanup unavailable, using raw transcript: %s", exc)
+            self._note_cleanup_offline()
+        return text  # nicht erreichbar — Roh-Transkript
+
+    def _note_cleanup_offline(self) -> None:
+        """Ollama fehlt: Rohtext einfuegen, einmal je Sitzung ruhig erklaeren, danach nur noch kurz."""
+        hint = None if self._cleanup_offline_noted else t("hint.cleanup_offline")
+        self._cleanup_offline_noted = True
+        self._cleanup_retry_at = time.monotonic() + self.CLEANUP_RETRY_SECONDS
+        self._delivery_note = (t("status.done_raw"), hint)
 
     def _abliefern(self, text: str) -> None:
         """Einfügen zuerst, Datei im Hintergrund speichern → kein Disk-I/O vor dem Paste."""
@@ -466,4 +486,6 @@ class TranscriptionMixin:
             daemon=True,
             name="save-transcript",
         ).start()
-        self.root.after(0, lambda: self._apply_state("done"))
+        detail, hint = self._delivery_note or (None, None)
+        self._delivery_note = None
+        self.root.after(0, lambda: self._apply_state("done", detail, hint, calm=True))

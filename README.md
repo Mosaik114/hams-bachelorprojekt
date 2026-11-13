@@ -107,13 +107,18 @@ Other findings from the WER benchmark (`tools/wer_benchmark.py`, 80 synthetic sa
 3. Optional, for the LLM cleanup: install [Ollama](https://ollama.com/download) and run
    `ollama pull qwen3.5:9b`. Without it, Hams pastes the raw transcript.
 
-On first start, faster-whisper downloads the `turbo` model (about 1.5 GB). Without a GPU, Hams transcribes on the
-CPU. With an NVIDIA GPU, Hams can fetch the CUDA libraries it needs (cuBLAS and cuDNN, a one-time download of about
-1.4 GB, unpacked 2.1 GB) from PyPI. The installer does not include them because most of their size is useless without
-an NVIDIA card. For now, run this once in a terminal and restart Hams:
+**First start.** A short setup assistant opens and walks you through the rest; you don't need to read any docs.
+It sets the interface and dictation language, checks for an NVIDIA graphics card, downloads a speech model with a
+progress bar (Turbo with a GPU, the smaller Small on the CPU), lets you pick and test the microphone, checks whether
+Ollama is running (cleanup stays off if it isn't, and Hams works fine without it) and shows the shortcuts. Every
+download can be cancelled and retried. You can run it again any time from Settings → General or the tray menu.
+
+With an NVIDIA GPU, the assistant offers the CUDA libraries Hams needs (cuBLAS and cuDNN, a one-time download of
+about 1.4 GB, unpacked 2.1 GB) from PyPI. The installer does not include them because most of their size is useless
+without an NVIDIA card. The same download also works from a terminal (wait for it to finish, then restart Hams):
 
 ```powershell
-& "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" --install-gpu-support
+Start-Process -Wait -NoNewWindow "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" -ArgumentList "--install-gpu-support"
 ```
 
 The download is checked against pinned SHA-256 hashes and can be resumed. It goes to `%LOCALAPPDATA%\Hams\cuda`, next to
@@ -170,6 +175,14 @@ uv pip install --python .venv/bin/python -e ".[cuda,dev]"
 | Bring to front | tray icon | `linux/show-hams.sh` (bind it to a key or panel button) |
 
 </details>
+
+## Documentation
+
+- [User guide](docs/user-guide.md): install, first start, daily use, settings, glossary, uninstall, privacy
+- [Hardware](docs/hardware.md): requirements, measured speed per Whisper model on GPU and CPU, recommendations
+- [Troubleshooting](docs/troubleshooting.md): hotkeys, pasting, SmartScreen, GPU, Ollama, microphone, bug reports
+- [Architecture](docs/architecture.md): pipeline, threads, modules, design decisions
+- [Evaluation](docs/evaluation.md): the thesis measurements, methodology and limitations
 
 ## Configuration
 

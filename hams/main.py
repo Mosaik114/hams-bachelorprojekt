@@ -14,7 +14,7 @@ if _PROJECT_ROOT not in sys.path:
 
 import contextlib
 
-from hams import branding, i18n
+from hams import branding, i18n, setup_wizard
 from hams import ui_kit as uk
 from hams.activation import SettingsRequests, request_settings
 from hams.app import FloatingTranscriberApp
@@ -63,7 +63,7 @@ def _accept_settings_requests(root: tk.Tk, app: FloatingTranscriberApp) -> Setti
     return requests
 
 
-def main(*, show_settings: bool = False) -> None:
+def main(*, show_settings: bool = False, show_setup: bool = False) -> None:
     state = ensure_user_config()
     logger.info("Nutzerkonfiguration %s (%s)", CONFIG_PATH, state)
     if state in ("migriert", "angelegt"):
@@ -79,13 +79,17 @@ def main(*, show_settings: bool = False) -> None:
         return
 
     settings_requests = None
+    # Nach dem Schloss: eine zweite Instanz darf die Markierung nicht anlegen.
+    setup = show_setup or setup_wizard.needs_setup(state, setup_wizard.marker_path(CONFIG_PATH))
     try:
         awareness = uk.enable_dpi_awareness()  # muss vor tk.Tk() stehen
         logger.info("DPI awareness: %s", awareness)
         root = tk.Tk()
-        app = FloatingTranscriberApp(root)
+        app = FloatingTranscriberApp(root, setup=setup)
         settings_requests = _accept_settings_requests(root, app)
-        if show_settings:
+        if setup:
+            root.after_idle(app._open_setup)
+        elif show_settings:
             root.after_idle(app._open_settings)
         root.mainloop()
     finally:
@@ -102,4 +106,4 @@ def main(*, show_settings: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    main(show_settings="--settings" in sys.argv[1:])
+    main(show_settings="--settings" in sys.argv[1:], show_setup="--setup" in sys.argv[1:])

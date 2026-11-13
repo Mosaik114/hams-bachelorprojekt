@@ -20,6 +20,7 @@ from hams.instance import _acquire_single_instance_mutex, _release_single_instan
 from hams.main_window import MainWindowMixin
 from hams.recording import RecordingMixin
 from hams.settings_window import SettingsWindow
+from hams.setup_window import SetupWindow
 from hams.transcription import TranscriptionMixin
 from hams.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
 from hams.ui_kit import Theme
@@ -49,7 +50,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
     WINDOW_WIDTH = 360  # logisch; Platz fuer beide Kurzbefehle als Tasten
     WINDOW_MIN_HEIGHT = 190  # logisch; die echte Hoehe kommt aus dem Layout
 
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Tk, *, setup: bool = False) -> None:
         self.root = root
         self._init_window()
         self._init_model_state()
@@ -58,7 +59,13 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         self._build_ui()
         self._fit_window()
         self._apply_state("model_loading")
-        self._load_model_async()
+        if setup and CFG.model_size not in whisper_models.installed_whisper_models():
+            # faster-whisper luede das fehlende Modell sonst wortlos herunter. Der
+            # Assistent laedt es mit Fortschritt; bis dahin sagt der Status, worauf es wartet.
+            self._model_deferred = True
+            self._apply_state("model_loading", t("status.setup_pending"))
+        else:
+            self._load_model_async()
         self._warmup_ollama_async()
         self._register_hotkeys()
 
@@ -93,6 +100,9 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         self.root.configure(bg=Theme.WINDOW_BG)
         self._apply_window_icon()
         self.settings_win: SettingsWindow | None = None
+        self.setup_win: SetupWindow | None = None
+        #: True, solange der Start das Modell fuer den Einrichtungsassistenten zurueckhaelt.
+        self._model_deferred = False
         # Wer sonst noch das Mikrofon offen hat und es waehrend einer Aufnahme
         # freigeben muss. Klare Lebenszyklus-Schnittstelle statt Zugriff auf
         # private Methoden des Einstellungsfensters.
@@ -263,6 +273,32 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
 
         self.root.after(0, _do)
 
+    def _open_setup(self, icon=None, item=None) -> None:
+        """Der Einrichtungsassistent: beim ersten Start, aus den Einstellungen und aus dem Tray."""
+
+        def _do() -> None:
+            if self.setup_win is not None and self.setup_win.alive():
+                self.setup_win.focus()
+                return
+            self.setup_win = SetupWindow(self)
+
+        self.root.after(0, _do)
+
+    def on_setup_closed(self, completed: bool) -> None:
+        """Der Assistent ist zu. Hielt der Start das Modell zurueck, wird es jetzt geladen.
+
+        Hat der Assistent schon einen Wechsel oder Download angestossen, kuemmert sich der darum.
+        """
+        self.setup_win = None
+        logger.info("Setup closed (%s)", "completed" if completed else "not completed")
+        if not self._model_deferred:
+            return
+        self._model_deferred = False
+        if self.model_ready.is_set() or self.is_switching_model or self.downloading_model is not None:
+            return
+        self._apply_state("model_loading")
+        self._load_model_async()
+
     def restart_app(self) -> str:
         """Ersetzt den laufenden Prozess durch einen frischen. "" bei Erfolg.
 
@@ -386,8 +422,13 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
     )
 
     RECORDING_STATES = ("recording", "recording_prompt")
+    #: So lange steht "Eingefügt", bevor das Fenster wieder "Bereit" zeigt (ms).
+    DONE_MS = 3000
+    HINT_DONE_MS = 8000
 
-    def _apply_state(self, state: str, detail: str | None = None, hint: str | None = None) -> None:
+    def _apply_state(
+        self, state: str, detail: str | None = None, hint: str | None = None, *, calm: bool = False
+    ) -> None:
         """Die einzige Stelle, an der sich die Oberfläche des Hauptfensters ändert.
 
         Der Button zeigt die *Aktion*, die Statuszeile den *Zustand* — nie
@@ -397,6 +438,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
             state: Schlüssel aus `STATE_TABLE`.
             detail: Ersetzt den Standardtext der Statuszeile.
             hint: Fußzeilentext; ohne Angabe stehen dort die Kurzbefehle.
+            calm: Der Hinweis ist eine Auskunft, kein Fehler (gedeckte Schrift statt Fehlerrot).
         """
         dot, text, role, button_text, enabled = self.STATE_TABLE[state]
         self._state = state
@@ -423,12 +465,13 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
             self.elapsed_label.config(text="")
             self.level_meter.set_level(0.0)
 
-        self._show_footer_hint(hint)
+        self._show_footer_hint(hint, calm=calm)
         self._set_tray_icon(self._tray_colour(state))
         _notify_cursor_dot(state)
         self._cancel_done_reset()
         if state == "done":
-            self._done_job = self.root.after(3000, self._back_to_ready)
+            # Ein Hinweis will gelesen werden; ohne ihn genuegt ein kurzer Blick.
+            self._done_job = self.root.after(self.HINT_DONE_MS if hint else self.DONE_MS, self._back_to_ready)
 
     @staticmethod
     def _tray_colour(state: str) -> str:

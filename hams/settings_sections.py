@@ -296,7 +296,6 @@ class SectionsMixin:
             t("settings.language.title"),
             variant="description",
             description=self.language_hint(CFG.ui_language),
-            hairline=False,
         )
         self.row_language.pack(fill="x")
         self.select_language = uk.Select(
@@ -308,6 +307,27 @@ class SectionsMixin:
         )
         uk.keep_logical_width(self.select_language, self.CONTROL_WIDTH)
         self.row_language.set_control(self.select_language)
+        self._build_setup_row(group)
+
+    def _build_setup_row(self, group: uk.GroupSurface) -> None:
+        """Der Einrichtungsassistent, noch einmal: neues Mikrofon, GPU nachgeruestet, Ollama installiert."""
+        self.row_setup = uk.SettingRow(
+            group.body,
+            t("settings.setup.title"),
+            variant="description",
+            description=t("settings.setup.hint"),
+            hairline=False,
+        )
+        self.row_setup.pack(fill="x")
+        self.setup_button = uk.SecondaryButton(
+            group.body,
+            t("settings.setup.button"),
+            self.app._open_setup,
+            bg_under=Theme.GROUP_SURFACE,
+            height=uk.Height.STANDARD,
+        )
+        uk.keep_logical_width(self.setup_button, self.SETUP_WIDTH)
+        self.row_setup.set_control(self.setup_button)
 
     @staticmethod
     def language_hint(setting: str) -> str:

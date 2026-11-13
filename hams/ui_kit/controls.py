@@ -384,3 +384,18 @@ class SignalMeter(tk.Canvas):
                 self.create_rectangle(half, 0, filled - half, height, fill=colour, outline="")
             self.create_image(0, 0, anchor="nw", image=cap)
             self.create_image(filled - height, 0, anchor="nw", image=cap)
+
+
+class ProgressBar(SignalMeter):
+    """Fortschritt eines Downloads: dieselbe ruhige Spur wie der Pegel, immer in Akzentfarbe.
+
+    Der Pegel faerbt sich ab 60 % gelb und ab 82 % rot - fuer einen Download, der fast
+    fertig ist, waere das die falsche Botschaft.
+    """
+
+    @staticmethod
+    def level_colour(level: float) -> str:
+        return Theme.ACCENT_TINT
+
+    def set_fraction(self, fraction: float) -> None:
+        self.set_level(fraction)

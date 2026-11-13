@@ -24,7 +24,7 @@ body:
     id: version
     attributes:
       label: Hams version
-      description: "`pip show hams`, or the version in CHANGELOG.md / the commit you are on"
+      description: "Installer version (Settings, or the setup file name), or `pip show hams` / the commit for a source install"
     validations:
       required: true
   - type: dropdown
@@ -48,6 +48,14 @@ body:
     attributes:
       label: Log
       description: >-
-        Relevant lines from hams/logs/hams.log in your Hams folder. The log contains timings and text lengths, never
-        the dictated text.
+        Relevant lines from %LOCALAPPDATA%\Hams\logs\hams.log (Linux: ~/.local/share/hams/logs). The log contains
+        timings and text lengths, never the dictated text.
+      render: text
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Self-test report
+      description: >-
+        Windows installer: run `Start-Process -Wait "$env:LOCALAPPDATA\Programs\Hams\Hams.exe" "--self-test --report
+        hams-report.txt"` in PowerShell and paste the file's content. It lists versions and checks, no personal data.
       render: text

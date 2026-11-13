@@ -152,6 +152,7 @@ class TrayMixin:
         return pystray.Menu(
             pystray.MenuItem(t("tray.toggle_window"), self._toggle_visibility, default=True),
             pystray.MenuItem(t("tray.settings"), self._open_settings),
+            pystray.MenuItem(t("tray.setup"), self._open_setup),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.history"), pystray.Menu(*history_items)),
             pystray.Menu.SEPARATOR,

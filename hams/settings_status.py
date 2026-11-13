@@ -199,6 +199,10 @@ class StatusSectionMixin:
             self.row_cleanup_model.set_status("idle", t("settings.ollama.checking"))
             return
         state = self._ollama_state
+        if not state.online and not CFG.ollama_cleanup_enabled:
+            # Ohne Bereinigung ist ein fehlendes Ollama kein Fehler, nur eine Auskunft.
+            self.row_cleanup_model.set_status("idle", t("settings.ollama.optional"))
+            return
         self.row_cleanup_model.set_status(
             "ready" if state.online else "error",
             t("settings.ollama.online") if state.online else state.error or t("ollama.unreachable"),

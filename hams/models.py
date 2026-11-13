@@ -372,7 +372,7 @@ class ModelDownloader:
                 error = CANCELLED
                 logger.info("Download von %s abgebrochen", info.model_id)
             else:
-                error = _describe_download_error(exc)
+                error = describe_download_error(exc)
                 logger.exception("Download von %s fehlgeschlagen", info.model_id)
         else:
             logger.info("Download von %s abgeschlossen", info.model_id)
@@ -383,7 +383,7 @@ class ModelDownloader:
         on_finished(info.model_id, error)
 
 
-def _describe_download_error(exc: BaseException) -> str:
+def describe_download_error(exc: BaseException) -> str:
     """Uebersetzt eine Ausnahme in einen Satz fuer die Oberflaeche.
 
     Der vollstaendige Stacktrace bleibt im Log; hier steht nur, was der Nutzer
@@ -414,6 +414,10 @@ def _describe_download_error(exc: BaseException) -> str:
     if "404" in text or "not found" in text or "repositorynotfound" in text:
         return t("download.error.not_found")
     return t("download.error.generic")
+
+
+#: Former name, kept for callers outside the package.
+_describe_download_error = describe_download_error
 
 
 def format_bytes(value: int) -> str:

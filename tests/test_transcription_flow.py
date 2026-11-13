@@ -132,6 +132,27 @@ class TestPipeline:
         assert hams.clipboard.copies == ["Hallo Welt"]
         assert ("done", "Eingefügt · ohne Bereinigung") in ready.seen
 
+    def test_without_ollama_one_calm_hint_then_no_more_waiting(self, ready, hams, ollama):
+        from hams.ui_kit import Theme
+
+        CFG.ollama_cleanup_enabled = True
+        ollama.error = urllib.error.URLError("verbindung abgelehnt")
+        run(ready)
+        assert status(ready) == "Eingefügt · ohne Bereinigung", (
+            "der Hinweis bleibt stehen, statt ueberschrieben zu werden"
+        )
+        assert ready.footer_label.cget("text").startswith("Ollama läuft nicht")
+        assert ready.footer_label.cget("fg") == Theme.TEXT_SECONDARY, "eine Auskunft, kein Fehlerrot"
+        assert ready._state == "done"
+        run(ready)
+        assert len(ollama.requests) == 1, "kurz nach dem Ausfall wird nicht erneut gewartet"
+        assert hams.clipboard.copies == ["Hallo Welt", "Hallo Welt"]
+        assert status(ready) == "Eingefügt · ohne Bereinigung"
+        assert ready.footer_label.cget("text") == "", "der Hinweis kommt nur einmal"
+        ready._cleanup_retry_at = 0.0  # eine Minute spaeter
+        run(ready)
+        assert len(ollama.requests) == 2
+
     def test_prompt_mode_pastes_the_answer_as_plain_text(self, ready, hams, ollama):
         CFG.ollama_stream_prompt = False
         ready._prompt_mode = True
@@ -203,9 +224,9 @@ def record_states(app):
     original = app._apply_state
     app.seen = []
 
-    def apply(state, detail=None, hint=None):
+    def apply(state, detail=None, hint=None, **options):
         app.seen.append((state, detail))
-        original(state, detail, hint)
+        original(state, detail, hint, **options)
 
     return apply
 

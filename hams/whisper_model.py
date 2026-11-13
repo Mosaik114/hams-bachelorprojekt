@@ -68,9 +68,13 @@ class WhisperModelMixin:
                     logger.warning("Model load failed: %s", errors[-1])
         return None, None, " | ".join(errors)
 
-    def switch_model(self, model_id: str) -> bool:
-        """Startet einen Wechsel. Gibt False zurueck, wenn er gerade nicht geht."""
-        if model_id == self.active_model_size and self.model_ready.is_set():
+    def switch_model(self, model_id: str, *, force: bool = False) -> bool:
+        """Startet einen Wechsel. Gibt False zurueck, wenn er gerade nicht geht.
+
+        `force` laedt auch das schon aktive Modell neu - etwa auf der GPU, nachdem der
+        Einrichtungsassistent die CUDA-Bibliotheken geholt hat.
+        """
+        if model_id == self.active_model_size and self.model_ready.is_set() and not force:
             return False
         if self.is_recording:
             self._apply_state(
@@ -202,9 +206,13 @@ class WhisperModelMixin:
         with contextlib.suppress(tk.TclError, RuntimeError):  # Fenster ist weg
             self.root.after(0, callback)
 
+    def _download_views(self) -> list:
+        """Die offenen Fenster, die einen Download anzeigen: Einstellungen und Einrichtung."""
+        return [win for win in (self.settings_win, getattr(self, "setup_win", None)) if win is not None and win.alive()]
+
     def _push_download_progress(self) -> None:
-        if self.settings_win is not None and self.settings_win.alive():
-            self.settings_win.on_download_progress(self.download_done, self.download_total, self.download_percent)
+        for view in self._download_views():
+            view.on_download_progress(self.download_done, self.download_total, self.download_percent)
 
     def _after_download(self, model_id: str, error: str) -> None:
         """Nach dem Download: bei Erfolg direkt aktivieren.
@@ -216,8 +224,8 @@ class WhisperModelMixin:
         if not error:
             self.download_percent = 100
         switching = self.switch_model(model_id) if not error else False
-        if self.settings_win is not None and self.settings_win.alive():
-            self.settings_win.on_download_finished(model_id, error, switching)
+        for view in self._download_views():
+            view.on_download_finished(model_id, error, switching)
 
     def _load_model(self) -> None:
         model, device, info = self._build_model(CFG.model_size)

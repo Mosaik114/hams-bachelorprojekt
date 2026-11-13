@@ -6,6 +6,11 @@ follow [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- **Ollama is optional, and its absence is calm.** The assistant switches cleanup off when Ollama isn't running.
+  With cleanup on and Ollama offline, the raw transcript (with glossary replacements) is pasted as before, but the
+  status now really says *Pasted · without cleanup*, a single neutral hint appears once per session instead of
+  nothing, and Hams stops asking Ollama for a minute, so dictations don't wait on a missing service. The settings
+  show a missing Ollama as *Optional* instead of an error while cleanup is off.
 - **Renamed from the working title *Wisper* to Hams everywhere.** The Python package is now `hams` (`python -m hams.main`,
   `hams/setup_autostart.py`); the `wisper` command alias is gone, use `hams`.
 - **User data moved** to `%APPDATA%\Hams` (Windows) and `~/.config/hams` (Linux). On first start, an existing
@@ -28,6 +33,13 @@ follow [Semantic Versioning](https://semver.org/).
   `glossary.HOTWORD_FRAME` and `transcription.PROMPT_PLAIN_SYSTEM` still name the German versions.
 
 ### Added
+- **First-run setup assistant.** Opens on the first start (and from *Settings → General → Setup assistant*, the
+  tray menu or `--setup`): interface and dictation language; graphics card check with the optional CUDA download
+  (size shown, progress, cancel, resume); Whisper model download with progress, preselecting Turbo on a ready NVIDIA
+  GPU and Small on the CPU; microphone choice with live level and a sound check; Ollama check with an optional pull
+  of the cleanup model; the shortcuts. Errors are sentences with a *Try again* button, never tracebacks. A marker
+  file `setup.json` next to the configuration remembers a completed setup; installations that existed before are
+  treated as set up. On the first start the model is not loaded silently any more; the assistant downloads it.
 - **English interface.** Every visible text (main window, settings, tray menu, notifications, error messages,
   keycaps) now comes from a message catalog in English and German. The new option `[ui] language` picks it:
   `"auto"` (default) follows the operating system's display language, German on a German system and English

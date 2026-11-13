@@ -83,6 +83,7 @@ class TestStartupActivation(unittest.TestCase):
         self.app = Mock()
         self.factory = Mock(return_value=self.app)
         self.release = Mock()
+        self.setup_wizard = types.SimpleNamespace(needs_setup=Mock(return_value=False), marker_path=Mock())
         config = types.SimpleNamespace(
             CFG=types.SimpleNamespace(ui_language="de"),
             CONFIG_PATH="unused",
@@ -95,6 +96,8 @@ class TestStartupActivation(unittest.TestCase):
             "hams.branding": types.SimpleNamespace(PRODUCT_NAME="Hams"),
             "hams.ui_kit": Mock(),
             "hams.activation": activation,
+            # Ohne Ersatz schriebe der echte Assistent seine Markierung neben "unused", also ins Arbeitsverzeichnis.
+            "hams.setup_wizard": self.setup_wizard,
             "hams.app": types.SimpleNamespace(FloatingTranscriberApp=self.factory),
             "hams.config": config,
             "hams.instance": types.SimpleNamespace(
@@ -130,6 +133,16 @@ class TestStartupActivation(unittest.TestCase):
     def test_normal_autostart_stays_hidden(self):
         self.main.main()
         self.root.after_idle.assert_not_called()
+
+    def test_first_start_opens_the_setup_wizard(self):
+        self.setup_wizard.needs_setup.return_value = True
+        self.main.main(show_settings=True)
+        self.factory.assert_called_once_with(self.root, setup=True)
+        self.root.after_idle.assert_called_once_with(self.app._open_setup)
+
+    def test_setup_flag_opens_the_wizard_after_it_was_completed(self):
+        self.main.main(show_setup=True)
+        self.root.after_idle.assert_called_once_with(self.app._open_setup)
 
     def test_cleanup_also_runs_after_mainloop_failure(self):
         self.root.mainloop.side_effect = RuntimeError("test")

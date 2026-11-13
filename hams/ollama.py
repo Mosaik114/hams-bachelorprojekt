@@ -4,9 +4,10 @@ Bewusst nur Lesezugriffe. Das Erzeugen von Text bleibt in `transcription.py` —
 steht ausschließlich, was Hams über den Dienst *weiß*, damit die Oberfläche
 nichts erfinden muss.
 
-Hams lädt keine Ollama-Modelle nach: `/api/pull` bliebe minutenlang ohne
-verlässliche Größenangabe hängen, und Ollama bringt dafür ein eigenes Werkzeug
-mit. Die Auswahl zeigt deshalb nur, was wirklich installiert ist.
+Die Auswahl in den Einstellungen zeigt nur, was wirklich installiert ist, und lädt
+nichts nach. Einzige Ausnahme ist `pull`: der Einrichtungsassistent bietet an, das
+voreingestellte Cleanup-Modell zu holen. Die Größe kennt `/api/pull` erst, wenn eine
+Schicht zu laden beginnt; die Anzeige zählt deshalb mit, was bisher angemeldet ist.
 """
 
 from __future__ import annotations
@@ -223,3 +224,78 @@ def probe(base: str, timeout: float = TIMEOUT) -> OllamaState:
     if error:
         return OllamaState(False, (), (), error)
     return OllamaState(True, models, running_models(base, timeout), "")
+
+
+# --------------------------------------------------------------------- pull
+
+#: Zwischen zwei Statuszeilen von `/api/pull` vergeht selten mehr als eine
+#: Sekunde; eine Minute Stille heißt, dass die Verbindung hängt.
+PULL_TIMEOUT = 60.0
+
+
+class PullError(RuntimeError):
+    """Ollama hat das Modell nicht geladen; die Nachricht ist für die Oberfläche gedacht."""
+
+
+class PullCancelled(PullError):
+    """Der Nutzer hat abgebrochen. Ollama behält, was schon da ist, und setzt beim nächsten Mal fort."""
+
+
+def pull(base: str, name: str, progress, cancel, *, opener=None, timeout: float = PULL_TIMEOUT) -> None:
+    """Lädt ein Modell über `/api/pull` und meldet den Fortschritt.
+
+    Args:
+        progress: (geladen, gesamt) in Bytes über alle bisher angemeldeten Schichten.
+        cancel: wird vor jeder Statuszeile gefragt; True bricht ab.
+        opener: Ersatz für `urllib.request.urlopen` (Tests).
+
+    Raises:
+        PullCancelled: `cancel()` war True.
+        PullError: Ollama meldet einen Fehler oder ist nicht erreichbar.
+    """
+    opener = opener or urllib.request.urlopen
+    body = json.dumps({"model": name, "stream": True}).encode()
+    # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
+    request = urllib.request.Request(  # noqa: S310
+        f"{base}/api/pull", data=body, headers={"Content-Type": "application/json"}
+    )
+    try:
+        response = opener(request, timeout=timeout)
+    except Exception as exc:  # noqa: BLE001 - in Klartext übersetzen
+        raise PullError(_describe_error(exc)) from exc
+    with response:
+        _read_pull_stream(response, progress, cancel)
+
+
+def _read_pull_stream(lines, progress, cancel) -> None:
+    """Liest die Statuszeilen bis `success`. Fortschritt je Schicht, addiert über alle."""
+    totals: dict[str, int] = {}
+    completed: dict[str, int] = {}
+    for raw in lines:
+        if cancel():
+            raise PullCancelled(t("setup.task.cancelled"))
+        entry = _pull_entry(raw)
+        if entry is None:
+            continue
+        if entry.get("error"):
+            raise PullError(t("ollama.pull_failed", error=str(entry["error"])))
+        digest = str(entry.get("digest") or "")
+        if digest and entry.get("total"):
+            totals[digest] = int(entry["total"])
+            completed[digest] = int(entry.get("completed") or 0)
+            progress(sum(completed.values()), sum(totals.values()))
+        if entry.get("status") == "success":
+            return
+    raise PullError(t("ollama.pull_incomplete"))
+
+
+def _pull_entry(raw) -> dict | None:
+    line = raw.strip() if isinstance(raw, (bytes, str)) else b""
+    if not line:
+        return None
+    try:
+        entry = json.loads(line)
+    except ValueError:
+        logger.debug("Ollama pull: unreadable status line ignored")
+        return None
+    return entry if isinstance(entry, dict) else None
