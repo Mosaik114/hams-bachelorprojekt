@@ -291,9 +291,8 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
 class SignalMeter(tk.Canvas):
     """Pegel als durchgehender Balken — dauerhaft sichtbar, im Ruhezustand leer.
 
-    Früher 22 einzelne Segmente; im Ruhezustand sah das aus wie eine
-    gestrichelte Platzhalterlinie. Jetzt ist es eine ruhige Spur, in die der
-    Pegel von links hineinläuft. Die Farbe folgt der Aussteuerung: bis 60 %
+    Eine ruhige Spur, in die der Pegel von links hineinläuft (einzelne Segmente
+    sähen im Ruhezustand wie eine gestrichelte Platzhalterlinie aus). Die Farbe folgt der Aussteuerung: bis 60 %
     Bereit-Grün, darüber Warnung, ab 82 % Fehler.
     """
 

@@ -209,11 +209,6 @@ class TestGlossaryEncodings:
         assert pipeline_app.pasted == ["frau Müller"]
         assert "Müller" in glossary.hotwords("de")
 
-    def test_glossary_does_not_import_tomllib_itself(self):
-        """Python 3.10 has no tomllib; the shared reader in config_toml has the fallback."""
-        source = Path(glossary.__file__).read_text(encoding="utf-8")
-        assert "import tomllib" not in source
-
 
 class TestConfigEncodings:
     @pytest.fixture

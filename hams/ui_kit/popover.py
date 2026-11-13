@@ -131,7 +131,7 @@ class Popover(tk.Toplevel):
     """Schwebende Auswahlliste.
 
     Tiefe entsteht ohne nativen Schatten — den gibt Windows für randlose
-    Fenster nicht her (in Phase 9 gemessen). Stattdessen: eigene hellere
+    Fenster nicht her (gemessen). Stattdessen: eigene hellere
     Fläche, feine Umrandung, Rundung und Abstand.
     """
 

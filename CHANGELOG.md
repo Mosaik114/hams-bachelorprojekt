@@ -20,6 +20,8 @@ follow [Semantic Versioning](https://semver.org/).
   files that still carry them load as before; a value that differs from the fixed one is ignored with one warning.
 - A `[model] size` outside Hams' model list is still loaded as given, now with a warning in the log; the separate
   validation pass that could no longer fail is gone.
+- Development: ruff targets Python 3.11, matching `requires-python`; the `tomli` fallback for 3.10 is gone, and
+  comments that only told the history of the code were rewritten or removed.
 
 ### Removed
 - Unused code that only tests called (`PrimaryButton`, `rounded_image`, `separator`, `focus_chain`, `icon_names`,

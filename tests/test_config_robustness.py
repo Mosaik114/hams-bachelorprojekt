@@ -12,9 +12,9 @@ Two reviewer findings are pinned down here:
 
 import logging
 import math
+import tomllib
 
 import pytest
-import tomllib
 
 import hams.config as config_mod
 from hams.config import Config, _apply_toml, _load_config, _persist_config_value

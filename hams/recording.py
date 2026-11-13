@@ -85,10 +85,9 @@ class RecordingMixin:
     def _may_record(self) -> bool:
         """Darf jetzt aufgenommen werden?
 
-        Frueher hing das am geladenen Modell. Das war eine Sperre zu viel:
-        `start_recording` fasst das Modell nirgends an — es oeffnet das
-        Mikrofon und sammelt Puffer. Gebraucht wird es erst danach, in
-        `_transcribe_audio`.
+        Nicht erst, wenn das Modell geladen ist: `start_recording` fasst das
+        Modell nirgends an — es oeffnet das Mikrofon und sammelt Puffer.
+        Gebraucht wird es erst danach, in `_transcribe_audio`.
 
         Gemessen: bis das Modell steht, vergehen warm rund 2,2 s und kalt
         deutlich mehr. Die mittlere Aufnahmedauer betraegt 11,95 s. Wer gleich

@@ -5,8 +5,9 @@ looked that window up by title on every message. Now nothing is sent unless `[in
 and the window handle is cached.
 """
 
-import pytest
 import tomllib
+
+import pytest
 
 from hams import config as config_mod
 from hams import cursor_dot

@@ -8,9 +8,9 @@ from before the option has no `[output]` keys and keeps the old behaviour: every
 import os
 import threading
 import time
+import tomllib
 
 import pytest
-import tomllib
 
 from hams import config as config_mod
 from hams import transcription as transcription_mod

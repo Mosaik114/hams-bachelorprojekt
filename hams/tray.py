@@ -28,8 +28,6 @@ def _create_tray_icon_image(color: str | None = None) -> Image.Image:
     """Das Tray-Symbol im aktuellen Zustand.
 
     Die Form ist immer die Hams-Bildmarke, die Farbe kommt aus dem Zustand.
-    Hier stand frueher ein blauer Kreis mit weissem „W"; beides gehoerte zum
-    alten Produktnamen und ist ersatzlos verschwunden.
     """
     return branding.tray_image(color or TRAY_PALETTE["ACCENT_TINT"])
 
@@ -84,12 +82,12 @@ class TrayMixin:
 
         pystray liest die Zahl der Positionsparameter aus `co_argcount` und
         lässt nur 0, 1 oder 2 zu; alles andere quittiert es mit `ValueError`.
-        Der frühere Schlüssel-Trick
+        Der naheliegende Trick mit Vorgabewerten
 
             lambda _icon=None, _item=None, i=idx: ...
 
-        zählt drei — Vorgabewerte ändern daran nichts. Das Tray-Menü liess sich
-        deshalb nicht mehr aufbauen, sobald der Verlauf einen Eintrag hatte.
+        zählt drei — Vorgabewerte ändern daran nichts, und das Tray-Menü liesse
+        sich nicht mehr aufbauen, sobald der Verlauf einen Eintrag hat.
         Die geschlossene Variable hier hält den Index, ohne ihn in die Signatur
         zu schreiben.
         """
@@ -134,8 +132,8 @@ class TrayMixin:
     def _refresh_tray(self) -> None:
         """Baut das Tray-Menü neu.
 
-        Der Aufbau steht mit im Schutzbereich: er lief bisher davor und riss bei
-        einem Fehler den ganzen Tk-Rückruf mit, statt sich im Log zu melden.
+        Der Aufbau steht mit im Schutzbereich: ein Fehler darin meldet sich im
+        Log, statt den ganzen Tk-Rückruf mitzureissen.
         """
         if not hasattr(self, "tray_icon"):
             return

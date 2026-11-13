@@ -9,7 +9,7 @@
 # an und schreibt jede Änderung aus den Einstellungen nur noch dorthin. Hier
 # stehen deshalb ausschliesslich Voreinstellungen und keine Nutzerwahl.
 #
-# Alle Felder sind optional. Was hier fehlt, kommt aus den Defaults in main.py;
+# Alle Felder sind optional. Was hier fehlt, kommt aus den Defaults in config.py;
 # was in der Nutzerdatei fehlt, kommt aus dieser Vorlage.
 
 [audio]

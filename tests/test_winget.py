@@ -8,11 +8,10 @@ import hashlib
 import re
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 
 import pytest
-
-from hams.config import tomllib  # tomllib, or tomli on Python 3.10
 
 yaml = pytest.importorskip("yaml")
 

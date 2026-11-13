@@ -1,6 +1,4 @@
-"""Tastenkürzel als Tastenkappen (KeyCombo) und ihre Beschriftung.
-
-Ausgelagert aus controls.py (Q7)."""
+"""Tastenkürzel als Tastenkappen (KeyCombo) und ihre Beschriftung."""
 
 from __future__ import annotations
 

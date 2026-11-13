@@ -1,7 +1,7 @@
 """Die Gruppen des Einstellungsfensters: Aufnahme, Transkription, KI, Allgemein (Kurzbefehle: settings_shortcuts.py).
 
-Ausgelagert aus settings_window.py (Q7), das Lebenszyklus, Ziehen und Schalter behält. Konstanten wie
-CONTROL_WIDTH stehen weiter an der Klasse SettingsWindow.
+Lebenszyklus, Ziehen und Schalter stehen in settings_window.py, ebenso Konstanten wie CONTROL_WIDTH an der
+Klasse SettingsWindow.
 """
 
 import tkinter as tk

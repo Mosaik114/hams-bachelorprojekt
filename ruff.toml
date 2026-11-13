@@ -1,7 +1,7 @@
 # Linter- und Formatregeln für Hams. Die Regelauswahl steht hier fest, weil ruff seine Voreinstellung
 # zwischen Versionen ändert.
 line-length = 120
-target-version = "py310"   # Hams läuft unter Windows auch mit älterem Python
+target-version = "py311"   # wie requires-python in pyproject.toml
 extend-exclude = ["**/.venv", "**/*.egg-info", "tools/_korpus"]
 
 [lint]

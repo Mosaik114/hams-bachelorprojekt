@@ -51,10 +51,10 @@ class SectionReader:
     """Typed, forgiving access to one table of a parsed TOML file.
 
     TOML has types, but a hand-edited file can still carry the wrong one:
-    `timeout_cleanup = "30s"`, `hotkeys = "x"` or `check = "false"`. The old
-    loader called `int()`/`bool()` on such values. That either raised during
-    the import of `hams.config` (the windowed app then never started, without
-    a single log line) or, worse, turned the string "false" into True.
+    `timeout_cleanup = "30s"`, `hotkeys = "x"` or `check = "false"`. Calling
+    `int()`/`bool()` on such values would either raise during the import of
+    `hams.config` (the windowed app would never start, without a single log
+    line) or, worse, turn the string "false" into True.
 
     Every getter here returns the value only if it has the right type (a bool
     must be a real TOML boolean) and lies in its range. Anything else is

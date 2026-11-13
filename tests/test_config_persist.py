@@ -1,7 +1,8 @@
 """Tests für das abschnittsbewusste, atomare Schreiben von config.toml."""
 
-import pytest
 import tomllib
+
+import pytest
 
 from hams.config import _persist_config_value, _toml_scalar, _trailing_comment
 

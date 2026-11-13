@@ -14,13 +14,9 @@ from __future__ import annotations
 
 import logging
 import re
+import tomllib
 from pathlib import Path
 from typing import Any
-
-try:
-    import tomllib  # Python 3.11+
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
-    import tomli as tomllib  # type: ignore[import-not-found]
 
 logger = logging.getLogger("hams")
 

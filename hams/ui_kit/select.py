@@ -1,6 +1,4 @@
-"""Auswahlfeld (Select): zeigt den gewählten Wert und öffnet das Popover.
-
-Ausgelagert aus popover.py (Q7)."""
+"""Auswahlfeld (Select): zeigt den gewählten Wert und öffnet das Popover."""
 
 from __future__ import annotations
 

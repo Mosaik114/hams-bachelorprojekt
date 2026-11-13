@@ -17,10 +17,7 @@ class StatusSectionMixin:
     """Einstellungen: Mikrofon, Live-Pegel und Ollama-Status."""
 
     def device_options(self) -> list:
-        """(Anzeigename, Wert) je Eingabegerät — Logik ohne Widget.
-
-        Phase 12 tauscht nur das Control aus; diese Liste bleibt unverändert.
-        """
+        """(Anzeigename, Wert) je Eingabegerät — Logik ohne Widget."""
         options = [(t("settings.mic.system_default"), None)]
         options += [(pretty, pretty) for pretty, _full in _list_input_devices()]
         return options
@@ -168,8 +165,8 @@ class StatusSectionMixin:
     def _schedule_ollama_check(self) -> None:
         """Alle paar Sekunden nachsehen — sparsam, aber nicht nur einmal.
 
-        Bisher wurde genau beim Öffnen geprüft; startete Ollama danach, blieb
-        die Anzeige dauerhaft falsch.
+        Nur beim Öffnen zu prüfen hiesse: startet Ollama danach, bleibt die
+        Anzeige dauerhaft falsch.
         """
         if not self.alive():
             return

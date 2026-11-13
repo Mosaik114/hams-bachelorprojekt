@@ -19,10 +19,10 @@ import os
 import subprocess
 import sys
 import textwrap
+import tomllib
 from pathlib import Path
 
 import pytest
-import tomllib
 
 from hams.config import Config, _apply_toml
 

@@ -61,7 +61,7 @@ def round_window_corners(root: tk.Misc, radius: int = Radius.WINDOW) -> str:
     """Rundet die Fensterecken. Gibt den benutzten Weg zurück (für das Log).
 
     Auf Windows 11 übernimmt das der Compositor: die Ecke wird kantengeglättet
-    und passt sich der Systemdarstellung an. Darunter bleibt der bisherige Weg
+    und passt sich der Systemdarstellung an. Darunter bleibt der Weg
     über `SetWindowRgn`, der mit einer 1-Bit-Maske schneidet und deshalb harte
     Treppen erzeugt.
 

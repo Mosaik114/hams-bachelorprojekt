@@ -1,7 +1,4 @@
-"""Eine Zeile der Einstellungen (Titel, Beschreibung oder Status, Control rechts oder darunter).
-
-Ausgelagert aus layout.py (Q7), das Scrollbereich, Überschrift, Gruppe und Trennlinie behält.
-"""
+"""Eine Zeile der Einstellungen (Titel, Beschreibung oder Status, Control rechts oder darunter)."""
 
 from __future__ import annotations
 
@@ -242,9 +239,9 @@ class SettingRow(tk.Frame):
     def _refit(self, _event=None) -> None:
         """Passt Titel und Unterzeile an den Platz an, der wirklich übrig ist.
 
-        Die Unterzeile bricht um — früher wurde sie gekürzt, und gerade die
-        Hinweise („Ollama wird gepr…“) waren dann nicht mehr lesbar. Nur der
-        Titel wird im Notfall gekürzt; er ist kurz und passt praktisch immer.
+        Die Unterzeile bricht um statt gekürzt zu werden: gerade Hinweise
+        („Ollama wird gepr…“) wären sonst nicht lesbar. Nur der Titel wird im
+        Notfall gekürzt; er ist kurz und passt praktisch immer.
         """
         try:
             width = self._text_box.winfo_width()

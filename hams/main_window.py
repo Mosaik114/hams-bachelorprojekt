@@ -1,6 +1,6 @@
 """Das Hauptfenster von Hams: Aufbau der fünf Zonen, Darstellung (hell/dunkel) und Fensterlage.
 
-Ausgelagert aus app.py (Q7); FloatingTranscriberApp erbt es als Mixin. Die Zustände (was die Zonen gerade
+FloatingTranscriberApp erbt es als Mixin. Die Zustände (was die Zonen gerade
 zeigen) bleiben in app.py, _apply_state ist ihre einzige Stelle.
 """
 

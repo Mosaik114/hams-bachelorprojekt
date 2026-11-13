@@ -1,6 +1,6 @@
 """Fortschritt und Abbruch beim Laden eines Modells vom Hugging-Face-Hub (tqdm-Ersatz).
 
-Ausgelagert aus models.py (Q7); `ModelDownloader` reicht die Klasse als `tqdm_class` an `snapshot_download`.
+`ModelDownloader` reicht die Klasse als `tqdm_class` an `snapshot_download`.
 """
 
 from __future__ import annotations

@@ -14,6 +14,7 @@ Die Nutzerdatei selbst wird beim Import weder angelegt noch geschrieben – das
 tut erst `ensure_user_config()` aus `main`.
 """
 
+import contextlib
 import logging
 import os
 import re
@@ -29,13 +30,6 @@ from pathlib import Path
 from typing import Any
 
 import sounddevice as sd
-
-try:
-    import tomllib  # noqa: F401 - Python 3.11+; tests import it from here
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
-    import tomli as tomllib  # type: ignore[import-not-found]  # noqa: F401
-
-import contextlib
 
 from hams import app_paths, branding, dictation_language, i18n
 from hams import models as whisper_models
