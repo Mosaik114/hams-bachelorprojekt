@@ -73,6 +73,33 @@ dependency, regenerate both with the `uv pip compile` command at the top of each
 - Every pull request must pass the same checks as `main`: ruff, tests on Windows and Linux with the coverage gate,
   `pip-audit`, and the package build.
 
+## Releasing to winget (manual)
+
+`packaging/winget/manifest/` holds a manifest set for the package `Mosaik114.Hams` (schema 1.10: version,
+installer, defaultLocale), matching the Inno Setup installer: `InstallerType: inno`, `Scope: user`, silent
+switches, and the uninstall key `{AppId}_is1` as product code. The templates carry the version from
+`pyproject.toml` and an all-zero placeholder hash. Nothing is submitted automatically; submitting needs a published
+GitHub release and a pull request to [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs):
+
+1. Tag and publish the release (CI attaches `Hams-Setup-<version>.exe`) and download that exact file. The hash
+   must be the one of the published asset, not of a local rebuild.
+2. Fill in version, URL and SHA-256:
+
+   ```powershell
+   .\packaging\winget\update-manifest.ps1 -Setup "$HOME\Downloads\Hams-Setup-1.1.0.exe" -Validate
+   ```
+
+   This writes `build\winget\manifests\m\Mosaik114\Hams\<version>\` (the winget-pkgs layout) and runs
+   `winget validate` on it. The templates stay unchanged.
+3. Optionally try it: `winget settings --enable LocalManifestFiles` (once, in an admin shell), then
+   `winget install --manifest build\winget\manifests\m\Mosaik114\Hams\<version>`.
+4. Fork microsoft/winget-pkgs, copy the folder to the same path there and open a pull request (or use
+   `wingetcreate submit` with that folder). The winget bots run their own validation and install tests.
+
+For later versions, repeat step 2 with the new installer; once the package exists, `wingetcreate update
+Mosaik114.Hams` works as well. `tests/test_winget.py` keeps the templates in line with `pyproject.toml` and
+`hams.iss`.
+
 ## Reporting security issues
 
 Please don't open a public issue. See [SECURITY.md](SECURITY.md).

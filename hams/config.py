@@ -162,6 +162,8 @@ class Config:
     #: Sprache der Oberflaeche: "auto" (Systemsprache), "de" oder "en". Gilt
     #: ab dem Start; `main` aktiviert sie ueber `i18n.set_language`.
     ui_language: str = i18n.DEFAULT_SETTING
+    #: Einmal am Tag beim Start bei GitHub nach einer neuen Version fragen (siehe updates.py).
+    update_check: bool = True
 
 
 def _resolve_mic_device(raw: Any) -> str | int | None:
@@ -433,6 +435,7 @@ def _apply_toml(cfg: Config, data: dict) -> None:
     # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
     cfg.appearance = Theme.normalise(ui.get("appearance", cfg.appearance))
     cfg.ui_language = _clean_language(ui.get("language", cfg.ui_language))
+    cfg.update_check = bool(data.get("updates", {}).get("check", cfg.update_check))
 
 
 def _clean_language(value: Any) -> str:

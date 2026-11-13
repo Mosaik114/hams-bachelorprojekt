@@ -186,6 +186,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     FakeStream.opened.clear()
     FakeStream.fail_with = None
     FakeHotkeys.failing = set()
+    FakeHotkeys.taken = set()
     snapshot = dict(vars(CFG))
     monkeypatch.setattr(app_mod, "SystemHotkeys", Hotkeys)
     monkeypatch.setattr(app_mod, "keyboard", fakes.keyboard)
@@ -201,9 +202,11 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(status_mod, "_resolve_mic_device", lambda raw: 7)
     monkeypatch.setattr(status_mod, "_list_input_devices", lambda: list(fakes.devices))
     monkeypatch.setattr(ollama_api, "probe", lambda base, timeout=None: fakes.probe)
-    patch_everywhere("_persist_config_value", lambda *args: fakes.saved.append(args))
+    patch_everywhere("_persist_config_value", lambda *args: fakes.saved.append(args) or True)
     monkeypatch.setattr(App, "_load_model_async", load)
     monkeypatch.setattr(App, "_warmup_ollama_async", lambda self: None)
+    # Nie ins Netz: die Update-Abfrage pruefen test_updates.py und test_update_notice.py mit Attrappen.
+    monkeypatch.setattr(App, "_start_update_check", lambda self: None)
     monkeypatch.setattr(App, "_setup_tray", lambda self: setattr(self, "tray_icon", FakeTray()))
     CFG.sound_feedback = True
     yield fakes

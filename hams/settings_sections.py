@@ -1,4 +1,4 @@
-"""Die Gruppen des Einstellungsfensters: Aufnahme, Transkription, KI, Kurzbefehle, Allgemein.
+"""Die Gruppen des Einstellungsfensters: Aufnahme, Transkription, KI, Allgemein (Kurzbefehle: settings_shortcuts.py).
 
 Ausgelagert aus settings_window.py (Q7), das Lebenszyklus, Ziehen und Schalter behält. Konstanten wie
 CONTROL_WIDTH stehen weiter an der Klasse SettingsWindow.
@@ -6,9 +6,9 @@ CONTROL_WIDTH stehen weiter an der Klasse SettingsWindow.
 
 import tkinter as tk
 
-from hams import dictation_language, i18n
+from hams import branding, dictation_language, i18n, updates
 from hams import ui_kit as uk
-from hams.config import CFG
+from hams.config import CFG, _persist_config_value
 from hams.i18n import t
 from hams.ui_kit import Theme
 
@@ -206,47 +206,6 @@ class SectionsMixin:
         self._refresh_ollama_models()
         self._show_ollama_status()
 
-    def _build_shortcuts(self, master: tk.Misc) -> None:
-        """Beide Kurzbefehle als Tasten — und der Neustart, falls sie ausfallen.
-
-        Vorher standen beide Kombinationen als roher Konfigurationswert
-        untereinander in einer Zeile („ctrl+shift+space“). Ohne Beschriftung
-        war nicht zu erkennen, welche wofuer ist.
-        """
-        group = self._group(master, t("settings.section.shortcuts"))
-
-        self.shortcut_keys = {}
-        for key, title, combo in self.app.shortcuts():
-            row = uk.SettingRow(group.body, title)
-            row.pack(fill="x")
-            keys = uk.KeyCombo(group.body, bg_under=Theme.GROUP_SURFACE, combo=combo)
-            row.set_control(keys)
-            self.shortcut_keys[key] = keys
-
-        # Steht bewusst direkt unter den Kurzbefehlen: das ist der Fall, in dem
-        # man ihn braucht. Windows kann den Tastaturhook entfernen, ohne dass
-        # die Anwendung etwas davon mitbekommt — Fenster und Tray-Symbol laufen
-        # dann weiter, nur die Tastenkombinationen kommen nicht mehr an. Von
-        # innen laesst sich der Hook nicht neu setzen (siehe `restart_app`),
-        # ein frischer Prozess dagegen schon.
-        self.row_restart = uk.SettingRow(
-            group.body,
-            t("settings.restart.title"),
-            variant="description",
-            description=self.RESTART_HINT,
-            hairline=False,
-        )
-        self.row_restart.pack(fill="x")
-        self.restart_button = uk.SecondaryButton(
-            group.body,
-            t("settings.restart.button"),
-            self._restart_app,
-            bg_under=Theme.GROUP_SURFACE,
-            height=uk.Height.STANDARD,
-        )
-        uk.keep_logical_width(self.restart_button, self.RESTART_WIDTH)
-        self.row_restart.set_control(self.restart_button)
-
     def _build_general(self, master: tk.Misc) -> None:
         group = self._group(master, t("settings.section.general"))
 
@@ -307,7 +266,74 @@ class SectionsMixin:
         )
         uk.keep_logical_width(self.select_language, self.CONTROL_WIDTH)
         self.row_language.set_control(self.select_language)
+        self._build_update_rows(group)
         self._build_setup_row(group)
+
+    def _build_update_rows(self, group: uk.GroupSurface) -> None:
+        """Der Schalter fuer die taegliche Update-Abfrage; darueber, falls eine aussteht, der Hinweis."""
+        self._general_group = group
+        self.row_update: uk.SettingRow | None = None
+        self.row_updates = uk.SettingRow(
+            group.body,
+            t("settings.updates.title"),
+            variant="description",
+            description=t("settings.updates.hint"),
+            interactive=True,
+            command=lambda: self.switch_updates.toggle(),
+        )
+        self.row_updates.pack(fill="x")
+        self.switch_updates = uk.Switch(
+            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.update_check, command=self._on_updates
+        )
+        self.row_updates.set_control(self.switch_updates)
+        if self.app.available_update is not None:
+            self.show_update(self.app.available_update)
+
+    def _on_updates(self, value: bool) -> None:
+        """Gilt ab dem naechsten Start: dann fragt Hams wieder (oder nicht mehr)."""
+        CFG.update_check = value
+        _persist_config_value("updates", "check", value)
+
+    def show_update(self, release) -> None:
+        """Ruhiger Hinweis auf eine neue Version: ansehen oder fuer diese Version ausblenden."""
+        if self.row_update is not None:
+            self.row_update.set_description(self.update_hint(release.version))
+            return
+        body = self._general_group.body
+        self.row_update = uk.SettingRow(
+            body, t("settings.update.title"), variant="description", description=self.update_hint(release.version)
+        )
+        self.row_update.pack(fill="x", before=self.row_updates)
+        box = tk.Frame(body, bg=Theme.GROUP_SURFACE)
+        box.focus_ring = True  # die Knoepfe darin tragen ihn
+        view = uk.SecondaryButton(
+            box,
+            t("settings.update.open"),
+            self.app.open_release_page,
+            bg_under=Theme.GROUP_SURFACE,
+            height=uk.Height.STANDARD,
+        )
+        uk.keep_logical_width(view, self.UPDATE_WIDTH)
+        view.pack(side="left")
+        dismiss = uk.IconButton(
+            box,
+            "close",
+            self._dismiss_update,
+            bg_under=Theme.GROUP_SURFACE,
+            tooltip=t("settings.update.dismiss_tooltip"),
+        )
+        dismiss.pack(side="left", padx=(uk.px(uk.Space.XS), 0))
+        self.row_update.set_control(box)
+
+    @staticmethod
+    def update_hint(version: str) -> str:
+        return t("settings.update.hint", product=branding.PRODUCT_NAME, version=version, current=updates.app_version())
+
+    def _dismiss_update(self) -> None:
+        self.app.dismiss_update()
+        if self.row_update is not None:
+            self.row_update.destroy()
+            self.row_update = None
 
     def _build_setup_row(self, group: uk.GroupSurface) -> None:
         """Der Einrichtungsassistent, noch einmal: neues Mikrofon, GPU nachgeruestet, Ollama installiert."""

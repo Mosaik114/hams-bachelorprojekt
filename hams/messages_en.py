@@ -87,6 +87,9 @@ MESSAGES: dict[str, str] = {
     "tray.setup": "Run setup …",
     "tray.history": "Recent transcripts",
     "tray.history_empty": "No transcripts yet",
+    "tray.update": "Update available: {product} {version} …",
+    "update.notify_title": "{product} {version} is available",
+    "update.notify_body": "See what's new from the tray menu or Settings → General.",
     "tray.quit": "Quit",
     # --- second instance
     "instance.already_running": "{product} is already running.",
@@ -160,6 +163,20 @@ MESSAGES: dict[str, str] = {
     "settings.restart.hint": "If shortcuts stop responding",
     "settings.restart.button": "Restart",
     "settings.restart.running": "Restarting …",
+    "settings.shortcut.transcript_hint": "Starts and stops dictation",
+    "settings.shortcut.prompt_hint": "Records a prompt for the AI",
+    "settings.shortcut.linux_hint": "Change it in System Settings → Keyboard → Shortcuts",
+    "settings.shortcut.change": "Change",
+    "settings.shortcut.default": "Default",
+    "settings.shortcut.cancel_tooltip": "Cancel",
+    "settings.shortcut.capture": "Press the new shortcut … Esc cancels",
+    "settings.shortcut.saved": "Changed · works right away",
+    "settings.shortcut.not_saved": "Works now, but couldn't be saved to config.toml",
+    "settings.shortcut.unsupported": "This key can't be part of a shortcut",
+    "settings.shortcut.need_modifier": "Add Ctrl, Alt or Win; only F keys work on their own",
+    "settings.shortcut.reserved": "{combo} is reserved by Windows or for copy and paste",
+    "settings.shortcut.duplicate": "{combo} is already the shortcut for {name}",
+    "settings.shortcut.in_use": "{combo} is in use by another app",
     "settings.sound.title": "Sound",
     "settings.sound.hint": "Short beep on start and stop",
     "settings.appearance.title": "Appearance",
@@ -171,6 +188,12 @@ MESSAGES: dict[str, str] = {
     "settings.setup.title": "Setup assistant",
     "settings.setup.hint": "Graphics card, speech model, microphone and Ollama",
     "settings.setup.button": "Run again",
+    "settings.updates.title": "Check for updates",
+    "settings.updates.hint": "Once a day at start, asks GitHub for a new version",
+    "settings.update.title": "Update available",
+    "settings.update.hint": "{product} {version} is out · you have {current}",
+    "settings.update.open": "View",
+    "settings.update.dismiss_tooltip": "Hide this notice for this version",
     # --- Whisper model catalog and downloads
     "model.summary.turbo": "Fast · very good",
     "model.summary.large-v3": "Highest accuracy",
@@ -316,7 +339,11 @@ MESSAGES: dict[str, str] = {
     "setup.finish.try": "Try it now: press {combo} and say a sentence.",
     "setup.finish.status": "Status",
     "setup.finish.change": (
-        "The shortcuts are set in the [hotkeys] section of config.toml. You can run this setup again from Settings or "
-        "the tray menu."
+        "You can change the shortcuts in Settings → Shortcuts. You can run this setup again from Settings or the tray "
+        "menu."
+    ),
+    "setup.finish.change_linux": (
+        "The shortcuts are managed in System Settings → Keyboard → Shortcuts. You can run this setup again from "
+        "Settings or the tray menu."
     ),
 }

@@ -215,6 +215,7 @@ Everything can be changed in the settings window or in `config.toml`. All defaul
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
 | `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
+| `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
 
 The interface is available in English and German. With `language = "auto"`, Hams uses German when the operating
 system's display language is German (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and

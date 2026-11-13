@@ -149,7 +149,11 @@ class TrayMixin:
         if not history_items:
             history_items.append(pystray.MenuItem(t("tray.history_empty"), None, enabled=False))
 
+        update_items = getattr(self, "update_menu_items", lambda _item: [])(pystray.MenuItem)
+        if update_items:
+            update_items.append(pystray.Menu.SEPARATOR)
         return pystray.Menu(
+            *update_items,
             pystray.MenuItem(t("tray.toggle_window"), self._toggle_visibility, default=True),
             pystray.MenuItem(t("tray.settings"), self._open_settings),
             pystray.MenuItem(t("tray.setup"), self._open_setup),

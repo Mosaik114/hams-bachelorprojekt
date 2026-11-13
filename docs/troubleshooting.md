@@ -36,7 +36,13 @@ it.* The log contains `Hotkey registered: … (System)` when the normal registra
 
 Conversely, while Hams is running, the combination no longer reaches other applications.
 
-To change the hotkeys, quit Hams (tray icon → *Quit*), edit `%APPDATA%\Hams\config.toml` and start Hams again:
+To change the hotkeys, open *Settings → Shortcuts*, press **Change** and press the new combination; it works right
+away and is saved to `config.toml` (details in the [user guide](user-guide.md#changing-the-hotkeys)). Hams checks
+the combination first and says why it can't take it: reserved by Windows (for example `Alt+Tab`, `Win+L`,
+`Ctrl+V`), already the other Hams hotkey, or *in use by another app*. Combinations with `win` are often reserved by
+Windows. On Linux, change them in *System Settings → Keyboard → Shortcuts*.
+
+You can still edit `[hotkeys]` in `%APPDATA%\Hams\config.toml` by hand (quit Hams first):
 
 ```toml
 [hotkeys]
@@ -45,8 +51,8 @@ prompt = "ctrl+alt+p"
 ```
 
 Modifiers are `ctrl`, `shift`, `alt` and `win`; the key is a letter, a digit, `F1` … `F24`, `space`, `enter`,
-`tab`, `insert`, `delete`, `home`, `end`, `page up`, `page down`, `pause` or an arrow key. Combinations with `win` are
-often reserved by Windows. An invalid entry shows *Can't register "…"* with the path of the file to fix.
+`tab`, `insert`, `delete`, `home`, `end`, `page up`, `page down`, `pause` or an arrow key. An invalid entry shows
+*Can't register "…"* with the path of the file to fix.
 
 **Hotkeys worked and then stopped** (for example after standby or a long session): open *Settings → Shortcuts* and
 press **Restart**. That starts a fresh Hams process with fresh hotkey registrations. It refuses while a recording

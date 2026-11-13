@@ -29,6 +29,8 @@ MOD_NOREPEAT = 0x4000  # gehaltene Taste loest nicht staendig neu aus
 
 WM_HOTKEY = 0x0312
 WM_QUIT = 0x0012
+#: Kennung fuer die kurze Probe in `available`; weit weg von den fortlaufenden Kennungen der Kurzbefehle.
+PROBE_ID = 0xBFFF
 
 _MODS = {
     "ctrl": MOD_CONTROL,
@@ -158,6 +160,21 @@ class SystemHotkeys:
                 handler()
             except Exception:
                 logger.exception("Kurzbefehl-Handler fehlgeschlagen")
+
+    @staticmethod
+    def available(combo: str) -> bool:
+        """Whether no other program holds `combo`: register it briefly and release it at once.
+
+        Hams' own shortcuts must be stopped first, or they count as taken.
+        """
+        parsed = parse_combo(combo)
+        if parsed is None:
+            return False
+        user32 = ctypes.windll.user32
+        if not user32.RegisterHotKey(None, PROBE_ID, parsed[0] | MOD_NOREPEAT, parsed[1]):
+            return False
+        user32.UnregisterHotKey(None, PROBE_ID)
+        return True
 
     def stop(self) -> None:
         if self._thread is not None and self._thread_id:

@@ -16,17 +16,25 @@ class FakeHotkeys:
     """`SystemHotkeys` ohne `RegisterHotKey`; `failing` scheitert absichtlich."""
 
     failing: set = set()
+    #: Kombinationen, die ein anderes Programm haelt (`available` meldet sie belegt).
+    taken: set = set()
 
     def __init__(self) -> None:
         self.entries: list = []
         self.stopped = False
+        self.probed: list = []
 
     def register(self, entries) -> list:
         self.entries = list(entries)
         return [combo for combo, _handler in self.entries if combo in self.failing]
 
+    def available(self, combo) -> bool:
+        self.probed.append(combo)
+        return combo not in self.taken
+
     def stop(self) -> None:
         self.stopped = True
+        self.entries = []
 
 
 class FakeKeyboard:

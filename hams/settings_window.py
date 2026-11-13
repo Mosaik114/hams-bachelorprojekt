@@ -17,10 +17,11 @@ from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import Text, t
 from hams.settings_models import ModelSectionMixin
 from hams.settings_sections import SectionsMixin
+from hams.settings_shortcuts import ShortcutsSectionMixin
 from hams.settings_status import StatusSectionMixin
 
 
-class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
+class SettingsWindow(SectionsMixin, ShortcutsSectionMixin, ModelSectionMixin, StatusSectionMixin):
     """Randloses Einstellungsfenster im Mosaik-Design.
 
     Zeigt Mikrofon-Auswahl mit Live-Pegel, Status-Lampen (Modell/Ollama/Mikro)
@@ -42,6 +43,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
     RESTART_HINT = Text("settings.restart.hint")
     RESTART_WIDTH = 108  # logisch; „Neu starten" plus Luft
     SETUP_WIDTH = 124  # logisch; „Erneut starten" plus Luft
+    UPDATE_WIDTH = 96  # logisch; „Ansehen“ plus Luft
     DELETE_PLACEHOLDER = Text("settings.storage.delete_placeholder")
     DELETE_WIDTH = 88  # logisch; „Löschen" plus Luft
     #: So lange bleibt die Erfolgsmeldung stehen, bevor die Zeile wieder den
@@ -139,6 +141,7 @@ class SettingsWindow(SectionsMixin, ModelSectionMixin, StatusSectionMixin):
 
     def close(self) -> None:
         self._alive = False
+        self._close_capture()
         uk.Scale.unregister(self._on_scale_change)
         if self._ollama_job is not None:
             with contextlib.suppress(ValueError, tk.TclError):

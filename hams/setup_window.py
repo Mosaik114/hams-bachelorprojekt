@@ -15,6 +15,7 @@ Mikrofonauswahl und Live-Pegel kommen unverändert aus `StatusSectionMixin`.
 from __future__ import annotations
 
 import contextlib
+import sys
 import tkinter as tk
 from typing import TYPE_CHECKING
 
@@ -730,7 +731,8 @@ class SetupWindow(StatusSectionMixin):
         self.status_row.pack(fill="x")
         combo = "+".join(uk.key_labels(CFG.hotkey_transcript))
         self._paragraph(body, t("setup.finish.try", combo=combo))
-        self._paragraph(body, t("setup.finish.change"), tertiary=True)
+        change = "setup.finish.change" if sys.platform == "win32" else "setup.finish.change_linux"
+        self._paragraph(body, t(change), tertiary=True)
         self._poll_status()
 
     def _poll_status(self) -> None:

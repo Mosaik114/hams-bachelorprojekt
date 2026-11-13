@@ -113,11 +113,26 @@ to your configuration file.
 | Recording | microphone, live input level |
 | Transcription | Whisper model (download, switch, delete downloaded models), dictation language, hardware in use |
 | AI | text cleanup on/off, cleanup model, prompt model, Ollama status |
-| Shortcuts | shows both hotkeys; *Restart* button for when hotkeys stop responding |
-| General | sound on start/stop, light or dark appearance, interface language, *Run again* for the setup assistant |
+| Shortcuts | both hotkeys, each with *Change* (see [Changing the hotkeys](#changing-the-hotkeys)); *Restart* button for when hotkeys stop responding |
+| General | sound on start/stop, light or dark appearance, interface language, *Check for updates*, *Run again* for the setup assistant |
 
 Model switches and dictation language apply from the next recording. The interface language applies after a
 restart (the settings offer a *Restart* button).
+
+### Changing the hotkeys
+
+In *Settings → Shortcuts*, press **Change** next to a hotkey, then press the new combination. Esc (or the ×)
+cancels and keeps the old one. While Hams waits for the keys, both hotkeys are paused, so pressing the old
+combination doesn't start a recording.
+
+A new combination needs Ctrl, Alt or Win (Shift alone isn't enough); only function keys work on their own. Hams
+refuses combinations Windows keeps for itself or that would break typing (for example Alt+Tab, Win+L, Ctrl+C,
+Ctrl+V, F12), the combination the other Hams hotkey already uses, and combinations another program has registered
+(*… is in use by another app*). An accepted combination works immediately, without a restart, and is saved to
+`[hotkeys]` in `config.toml`. **Default** (shown while changing a hotkey that differs from its default) restores
+`Ctrl+Shift+Space` for dictation or `Ctrl+Shift+Alt+Space` for prompt mode.
+
+On Linux, KDE manages the hotkeys of the desktop portal: change them in *System Settings → Keyboard → Shortcuts*.
 
 ### The configuration file
 
@@ -143,7 +158,13 @@ cleanup_enabled = false        # paste the raw Whisper text (fastest)
 max_recording_seconds = 120
 ```
 
-The hotkeys can currently only be changed in this file, not in the settings window.
+The settings window writes the same `[hotkeys]` keys (see [Changing the hotkeys](#changing-the-hotkeys)). To turn
+off the update check (see [Privacy](#privacy)):
+
+```toml
+[updates]
+check = false
+```
 
 ## Dictation languages
 
@@ -233,8 +254,8 @@ Hams copied it once and never touches it again; you can delete it yourself.
 
 ## Privacy
 
-Your audio and your text are processed on your computer. Hams has no account, no telemetry, no analytics and no
-update check.
+Your audio and your text are processed on your computer. Hams has no account, no telemetry and no analytics. Its
+only check-in is an update check that you can turn off (see below).
 
 **What is stored locally**
 
@@ -254,9 +275,16 @@ update check.
 | `--install-gpu-support` / GPU step of the setup assistant | `files.pythonhosted.org` (PyPI) | download of three pinned NVIDIA wheels (cuBLAS, cuDNN, NVRTC) |
 | Cleanup step of the setup assistant, if you start the model download | your local Ollama, which then downloads the model from its own registry (`ollama.com`) | the model name |
 | *Get Ollama* in the setup assistant | opens `https://ollama.com/download` in your web browser | nothing from Hams |
+| Update check: at start, at most once every 24 hours, unless turned off | `api.github.com` (`/repos/Mosaik114/hams-bachelorprojekt/releases/latest`) | a plain HTTPS request without account or identifier (generic user agent `Hams-update-check`); the answer is the latest version number. Nothing is downloaded; offline or on errors nothing is shown |
+| *View* on the update notice | opens the release page on `github.com` in your web browser | nothing from Hams |
 | Text cleanup, prompt mode, warm-up at start, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
 
-Nothing else. Hams does not contact GitHub, does not check for updates and has no crash reporting. If you point
+Nothing else; Hams has no crash reporting. `api.github.com` is the one outbound host the update check adds.
+When GitHub lists a newer release, Hams says so once as a tray notification and keeps a calm notice in the tray
+menu and under *Settings → General* until you open it or dismiss it (×) for that version. It never downloads or
+installs anything itself. The time of the last check and the dismissed version are kept in
+`%LOCALAPPDATA%\Hams\update-check.json`. **To turn the check off**, switch off *Settings → General → Check for
+updates*, or set `check = false` under `[updates]` in `config.toml`; Hams then makes no request to GitHub at all. If you point
 `[ollama] url` at another machine, your transcripts go to that machine; Hams then requires HTTPS.
 
 Ollama itself is a separate program with its own network behaviour (for example `ollama pull` downloads from

@@ -24,6 +24,7 @@ from hams.setup_window import SetupWindow
 from hams.transcription import TranscriptionMixin
 from hams.tray import TRAY_PALETTE, TrayMixin, _notify_cursor_dot
 from hams.ui_kit import Theme
+from hams.update_notice import UpdateNoticeMixin
 from hams.whisper_model import WhisperModelMixin
 from hams.window_position import window_position
 
@@ -40,7 +41,9 @@ else:
     from hams.portal_hotkeys import PortalSystemHotkeys as SystemHotkeys
 
 
-class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, RecordingMixin, TranscriptionMixin):
+class FloatingTranscriberApp(
+    MainWindowMixin, TrayMixin, WhisperModelMixin, RecordingMixin, TranscriptionMixin, UpdateNoticeMixin
+):
     """Main application class for Hams.
 
     Manages the Tkinter UI, system tray, audio recording, transcription,
@@ -73,6 +76,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
         self.root.bind("<Configure>", self._on_root_configure)
         self.root.protocol("WM_DELETE_WINDOW", self._hide_window)
         self._setup_tray()
+        self._start_update_check()
         if sys.platform != "win32":
             linux.on_show_request(lambda: self.root.after(0, self._show_window))
         self.root.withdraw()
@@ -264,6 +268,40 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
                     )
                 )
 
+    def suspend_hotkeys(self) -> None:
+        """Gibt beide Kurzbefehle frei, etwa solange die Einstellungen eine neue Kombination aufnehmen.
+
+        Sonst loeste die alte Kombination beim Aufnehmen ein Diktat aus, und sie belegte sich selbst.
+        """
+        self._system_hotkeys.stop()
+        try:
+            keyboard.unhook_all_hotkeys()
+        except Exception:
+            logger.exception("Hotkey unhook failed")
+
+    def reregister_hotkeys(self) -> None:
+        """Meldet die Kurzbefehle aus CFG neu an und zeigt sie im Hauptfenster - ohne Neustart."""
+        self.suspend_hotkeys()
+        if self._state == "error" and self.status_label.cget("text") == t("error.shortcut_unavailable"):
+            # Die alte Meldung galt der alten Kombination; scheitert die neue, meldet sich die Anmeldung erneut.
+            self._apply_state("ready" if self.model_ready.is_set() else "model_loading")
+        self._register_hotkeys()
+        for key, _title, combo in self.shortcuts():
+            keys = self.shortcut_keys.get(key)
+            if keys is not None:
+                keys.set_combo(combo)
+
+    def shortcut_available(self, combo: str) -> bool:
+        """Ob kein anderes Programm `combo` belegt. Nur wo das System es pruefen kann, sonst True."""
+        probe = getattr(self._system_hotkeys, "available", None)
+        if probe is None:
+            return True
+        try:
+            return bool(probe(combo))
+        except Exception:
+            logger.exception("Hotkey probe failed: %s", combo)
+            return True
+
     def _open_settings(self, icon=None, item=None) -> None:
         def _do() -> None:
             if self.settings_win is not None and self.settings_win.alive():
@@ -378,11 +416,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin, WhisperModelMixin, Reco
             except Exception:
                 logger.exception("Stream cleanup failed")
             self.stream = None
-        self._system_hotkeys.stop()
-        try:
-            keyboard.unhook_all_hotkeys()
-        except Exception:
-            logger.exception("Hotkey unhook failed")
+        self.suspend_hotkeys()
         self.downloader.cancel()  # unvollstaendige Dateien bleiben, sie setzen fort
         if self.model is not None:
             self.model = None

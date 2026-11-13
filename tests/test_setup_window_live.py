@@ -488,7 +488,8 @@ class TestFinish:
         go_to(win, "finish")
         text = page_text(win)
         assert "Strg+Umschalt+Leertaste drücken" in text
-        assert "[hotkeys]" in text
+        assert "Einstellungen → Kurzbefehle ändern" in text
+        assert "[hotkeys]" not in text
         live_app.status_label.config(text="Bereit · Turbo")
         win._poll_status()
         assert win.status_row.value_label.cget("text") == "Bereit · Turbo"

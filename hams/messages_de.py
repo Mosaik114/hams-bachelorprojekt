@@ -89,6 +89,9 @@ MESSAGES: dict[str, str] = {
     "tray.setup": "Einrichtung …",
     "tray.history": "Letzte Transkripte",
     "tray.history_empty": "Noch keine Transkripte",
+    "tray.update": "Update verfügbar: {product} {version} …",
+    "update.notify_title": "{product} {version} ist verfügbar",
+    "update.notify_body": "Was neu ist, zeigen das Tray-Menü und Einstellungen → Allgemein.",
     "tray.quit": "Beenden",
     # --- Zweite Instanz
     "instance.already_running": "{product} läuft bereits.",
@@ -164,6 +167,20 @@ MESSAGES: dict[str, str] = {
     "settings.restart.hint": "Wenn Kurzbefehle nicht reagieren",
     "settings.restart.button": "Neu starten",
     "settings.restart.running": "Wird neu gestartet …",
+    "settings.shortcut.transcript_hint": "Startet und beendet ein Diktat",
+    "settings.shortcut.prompt_hint": "Nimmt einen Prompt für die KI auf",
+    "settings.shortcut.linux_hint": "Ändern unter Systemeinstellungen → Tastatur → Kurzbefehle",
+    "settings.shortcut.change": "Ändern",
+    "settings.shortcut.default": "Standard",
+    "settings.shortcut.cancel_tooltip": "Abbrechen",
+    "settings.shortcut.capture": "Neue Tastenkombination drücken … Esc bricht ab",
+    "settings.shortcut.saved": "Geändert · gilt sofort",
+    "settings.shortcut.not_saved": "Gilt jetzt, ließ sich aber nicht in config.toml speichern",
+    "settings.shortcut.unsupported": "Diese Taste geht nicht für einen Kurzbefehl",
+    "settings.shortcut.need_modifier": "Mit Strg, Alt oder Win kombinieren; nur F-Tasten gehen allein",
+    "settings.shortcut.reserved": "{combo} ist von Windows oder für Kopieren und Einfügen belegt",
+    "settings.shortcut.duplicate": "{combo} ist schon der Kurzbefehl für {name}",
+    "settings.shortcut.in_use": "{combo} wird schon von einer anderen App benutzt",
     "settings.sound.title": "Signalton",
     "settings.sound.hint": "Kurzer Ton bei Start und Stopp",
     "settings.appearance.title": "Darstellung",
@@ -175,6 +192,12 @@ MESSAGES: dict[str, str] = {
     "settings.setup.title": "Einrichtungsassistent",
     "settings.setup.hint": "Grafikkarte, Sprachmodell, Mikrofon und Ollama",
     "settings.setup.button": "Erneut starten",
+    "settings.updates.title": "Nach Updates suchen",
+    "settings.updates.hint": "Fragt einmal am Tag beim Start bei GitHub nach einer neuen Version",
+    "settings.update.title": "Update verfügbar",
+    "settings.update.hint": "{product} {version} ist erschienen · installiert ist {current}",
+    "settings.update.open": "Ansehen",
+    "settings.update.dismiss_tooltip": "Hinweis für diese Version ausblenden",
     # --- Whisper-Katalog und Downloads
     "model.summary.turbo": "Schnell · sehr gut",
     "model.summary.large-v3": "Höchste Genauigkeit",
@@ -321,7 +344,11 @@ MESSAGES: dict[str, str] = {
     "setup.finish.try": "Probier es aus: {combo} drücken und einen Satz sagen.",
     "setup.finish.status": "Status",
     "setup.finish.change": (
-        "Die Kurzbefehle stehen im Abschnitt [hotkeys] der config.toml. Die Einrichtung lässt sich jederzeit über die "
-        "Einstellungen oder das Tray-Menü erneut starten."
+        "Die Kurzbefehle lassen sich unter Einstellungen → Kurzbefehle ändern. Die Einrichtung lässt sich jederzeit "
+        "über die Einstellungen oder das Tray-Menü erneut starten."
+    ),
+    "setup.finish.change_linux": (
+        "Die Kurzbefehle verwaltet das System unter Systemeinstellungen → Tastatur → Kurzbefehle. Die Einrichtung "
+        "lässt sich jederzeit über die Einstellungen oder das Tray-Menü erneut starten."
     ),
 }

@@ -33,6 +33,21 @@ follow [Semantic Versioning](https://semver.org/).
   `glossary.HOTWORD_FRAME` and `transcription.PROMPT_PLAIN_SYSTEM` still name the German versions.
 
 ### Added
+- **Change the hotkeys in the settings.** *Settings → Shortcuts* has *Change* next to each hotkey: press the new
+  combination (Esc cancels), and Hams checks it (needs Ctrl, Alt or Win unless it is an F key; no combinations
+  Windows reserves or that break copy and paste; not the other Hams hotkey; not one another program registered,
+  probed with `RegisterHotKey`), saves it to `[hotkeys]` and registers both hotkeys again right away, without a
+  restart. *Default* restores the original combination. On Linux the row points to KDE's system settings, which
+  manage the portal shortcuts. The setup assistant's last page now points to the settings instead of `config.toml`.
+- **Update notice.** At start, at most once every 24 hours, Hams asks `api.github.com` for the latest release in
+  the background (5 s timeout). If it is newer than the running version, a tray notification says so once, and a
+  calm notice stays in the tray menu and under *Settings → General* with a link to the release page until it is
+  dismissed for that version. Nothing is downloaded; offline or on errors nothing is shown. Turn it off under
+  *Settings → General → Check for updates* or with `[updates] check = false`; the state lives in
+  `update-check.json` in the data folder. The user guide's privacy section lists the new host.
+- **winget manifests** for `Mosaik114.Hams` in `packaging/winget/manifest/` (schema 1.10, Inno Setup, per-user)
+  and `packaging/winget/update-manifest.ps1`, which fills in version, URL and SHA-256 from a built installer.
+  Submitting to winget-pkgs is a manual step after a release, described in `CONTRIBUTING.md`.
 - **First-run setup assistant.** Opens on the first start (and from *Settings → General → Setup assistant*, the
   tray menu or `--setup`): interface and dictation language; graphics card check with the optional CUDA download
   (size shown, progress, cancel, resume); Whisper model download with progress, preselecting Turbo on a ready NVIDIA

@@ -1,0 +1,29 @@
+# Default locale manifest for winget.
+# Template: packaging/winget/update-manifest.ps1 fills in the version for a built installer.
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+
+PackageIdentifier: Mosaik114.Hams
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Mosaik114
+PublisherUrl: https://github.com/Mosaik114
+PublisherSupportUrl: https://github.com/Mosaik114/hams-bachelorprojekt/issues
+PackageName: Hams
+PackageUrl: https://github.com/Mosaik114/hams-bachelorprojekt
+License: MIT
+LicenseUrl: https://github.com/Mosaik114/hams-bachelorprojekt/blob/main/LICENSE
+ShortDescription: Local voice input for Windows. Press a hotkey, speak, and the text appears at the cursor.
+Description: |-
+  Hams transcribes speech locally with faster-whisper (on an NVIDIA GPU or the CPU) and pastes the text wherever
+  the cursor is. An optional local Ollama model cleans up punctuation and filler words, and a second hotkey sends a
+  spoken prompt to the model. Audio and text stay on the computer.
+Moniker: hams
+Tags:
+  - dictation
+  - speech-to-text
+  - transcription
+  - voice-input
+  - whisper
+ReleaseNotesUrl: https://github.com/Mosaik114/hams-bachelorprojekt/releases/tag/v1.0.0
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0
