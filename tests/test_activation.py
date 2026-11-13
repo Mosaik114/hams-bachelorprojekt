@@ -100,7 +100,10 @@ class TestStartupActivation(unittest.TestCase):
             CFG=types.SimpleNamespace(ui_language="de"),
             CONFIG_PATH="unused",
             logger=Mock(),
-            ensure_user_config=Mock(return_value="vorhanden"),
+            ensure_user_config=Mock(return_value="existing"),
+            CONFIG_CREATED="created",
+            CONFIG_MIGRATED="migrated",
+            BROKEN_CONFIG=None,
             _load_config=Mock(),
         )
         modules = {
@@ -214,6 +217,46 @@ class TestStartupActivation(unittest.TestCase):
             self.main.main(show_settings=True)
         self.assertEqual(self.main.SettingsRequests.return_value.close.call_count, 2)
         self.release.assert_called_once_with()
+
+    def _run_threads_inline(self):
+        def thread(target, **_kwargs):
+            return types.SimpleNamespace(start=target)
+
+        self.main.threading = types.SimpleNamespace(Thread=thread)
+
+    def test_a_broken_config_is_shown_without_blocking_the_start(self):
+        self._run_threads_inline()
+        self.main.config.BROKEN_CONFIG = types.SimpleNamespace(
+            path="C:/x/config.toml", backup="C:/x/config.toml.broken-1", error="duplicate table"
+        )
+        self.main.main()
+        box = self.main.ctypes.windll.user32.MessageBoxW
+        box.assert_called_once()
+        message = box.call_args.args[1]
+        assert "config.toml.broken-1" in message
+        assert "duplicate table" in message
+        self.factory.assert_called_once()
+
+    def test_a_readable_config_shows_nothing(self):
+        self._run_threads_inline()
+        self.main.main()
+        self.main.ctypes.windll.user32.MessageBoxW.assert_not_called()
+
+    def test_a_second_instance_does_not_repeat_the_hint(self):
+        self.main.config.BROKEN_CONFIG = types.SimpleNamespace(path="p", backup=None, error="e")
+        self.main._acquire_single_instance_mutex.return_value = None
+        self.main.main(show_settings=True)
+        self.main.ctypes.windll.user32.MessageBoxW.assert_not_called()
+
+    def test_on_linux_the_hint_is_a_notification(self):
+        self.main.config.BROKEN_CONFIG = types.SimpleNamespace(path="p", backup=None, error="e")
+        self.main.sys = types.SimpleNamespace(platform="linux")
+        linux = types.SimpleNamespace(notify=Mock())
+        import hams
+
+        with patch.dict(sys.modules, {"hams.linux": linux}), patch.object(hams, "linux", linux, create=True):
+            self.main._warn_about_broken_config()
+        linux.notify.assert_called_once()
 
 
 if __name__ == "__main__":

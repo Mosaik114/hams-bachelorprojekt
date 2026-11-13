@@ -1,10 +1,25 @@
-"""Konfiguration: Pfade, Einstellungen aus der TOML-Datei, gezieltes Zurueckschreiben und das Log."""
+"""Konfiguration: Pfade, Einstellungen aus der TOML-Datei, gezieltes Zurueckschreiben und das Log.
+
+Seiteneffekte beim Import, bewusst in dieser Reihenfolge:
+
+1. `logger = _setup_logging()` legt den Logordner an und haengt die Logdatei an.
+   Geht das nicht, bleibt es beim Konsolen-Log; der Import scheitert nie daran.
+2. `CFG = _load_config()` liest Vorlage und Nutzerdatei. Wirft nie: falsche
+   Typen und Bereiche werden gemeldet und uebergangen, eine unlesbare
+   Nutzerdatei wird gesichert (`config.toml.broken-<Zeit>`), unangetastet
+   gelassen und in `BROKEN_CONFIG` vermerkt; `main` zeigt dann einen Hinweis.
+3. `Theme.apply(CFG.appearance)` setzt die Palette vor dem ersten Widget.
+
+Die Nutzerdatei selbst wird beim Import weder angelegt noch geschrieben – das
+tut erst `ensure_user_config()` aus `main`.
+"""
 
 import logging
 import os
 import re
 import shutil
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,8 +38,18 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
 import contextlib
 
 from hams import app_paths, branding, dictation_language, i18n
-from hams.config_toml import _abschnitt_finden, _toml_scalar, _toml_setzen, _trailing_comment  # noqa: F401
-from hams.config_validation import ollama_url_problem, validate_config
+from hams.config_toml import _set_toml_value, _toml_scalar, _trailing_comment, verify_toml_value  # noqa: F401
+from hams.config_validation import (
+    CHANNELS,
+    MAX_BEAM_SIZE,
+    MAX_OLLAMA_TIMEOUT,
+    MAX_PASTE_TIMEOUT,
+    MAX_RECORDING_SECONDS,
+    SAMPLE_RATES,
+    SectionReader,
+    ollama_url_problem,
+    validate_config,
+)
 from hams.ui_kit import Theme
 from hams.window_position import _clean_coordinate
 
@@ -260,10 +285,17 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
     except OSError:
         logger.warning("Config schreiben fehlgeschlagen: %s nicht lesbar", CONFIG_PATH)
         return False
-    return _atomar_schreiben(_toml_setzen(text, section, key, value))
+    new_text = _set_toml_value(text, section, key, value)
+    problem = verify_toml_value(new_text, section, key, value)
+    if problem:
+        # Die alte Datei bleibt, wie sie ist: lieber diese eine Aenderung
+        # verlieren als eine Datei, die beim naechsten Start alles verwirft.
+        logger.error("Config not saved (%s.%s): %s - %s left unchanged", section, key, problem, CONFIG_PATH)
+        return False
+    return _atomic_write(new_text)
 
 
-def _atomar_schreiben(text: str) -> bool:
+def _atomic_write(text: str) -> bool:
     """Über eine temporäre Datei – ein Abbruch mitten im Schreiben lässt die Konfiguration nie halbiert zurück."""
     tmp_path = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
     try:
@@ -340,19 +372,26 @@ def migrate_legacy_user_dir(new_dir: Path, old_dir: Path | None) -> bool:
     return True
 
 
+#: Ergebnisse von `ensure_user_config`.
+CONFIG_EXISTING = "existing"
+CONFIG_MIGRATED = "migrated"
+CONFIG_CREATED = "created"
+CONFIG_FAILED = "failed"
+
+
 def ensure_user_config() -> str:
     """Sorgt dafür, dass eine persönliche Konfiguration existiert.
 
     Genau einmal: existiert die Nutzerdatei bereits, wird nichts kopiert. Eine
     später geänderte Vorlage darf persönliche Werte nie wieder überschreiben.
 
-    Gibt zurück, was geschehen ist — "vorhanden", "migriert", "angelegt" oder
-    "fehlgeschlagen".
+    Gibt zurück, was geschehen ist: `CONFIG_EXISTING`, `CONFIG_MIGRATED`,
+    `CONFIG_CREATED` oder `CONFIG_FAILED`.
     """
     if migrate_legacy_user_dir(CONFIG_PATH.parent, LEGACY_USER_DIR) and CONFIG_PATH.exists():
-        return "migriert"
+        return CONFIG_MIGRATED
     if CONFIG_PATH.exists():
-        return "vorhanden"
+        return CONFIG_EXISTING
     source = LEGACY_CONFIG_PATH if LEGACY_CONFIG_PATH.exists() else DEFAULT_CONFIG_PATH
     try:
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -367,12 +406,69 @@ def ensure_user_config() -> str:
             CONFIG_PATH,
             exc_info=True,
         )
-        return "fehlgeschlagen"
+        return CONFIG_FAILED
     if source is LEGACY_CONFIG_PATH:
         logger.info("Konfiguration aus %s nach %s übernommen", LEGACY_CONFIG_PATH, CONFIG_PATH)
-        return "migriert"
+        return CONFIG_MIGRATED
     logger.info("Neue Konfiguration unter %s angelegt", CONFIG_PATH)
-    return "angelegt"
+    return CONFIG_CREATED
+
+
+@dataclass(frozen=True)
+class BrokenConfig:
+    """Die Nutzerdatei liess sich beim letzten Laden nicht lesen."""
+
+    path: Path
+    #: Die Sicherungskopie, oder None, wenn auch das Kopieren scheiterte.
+    backup: Path | None
+    error: str
+
+
+#: Gesetzt, wenn `_load_config` die Nutzerdatei nicht lesen konnte; `main` zeigt dann einen Hinweis.
+#: Ueber `config.BROKEN_CONFIG` lesen, nicht importieren: jedes Laden setzt den Wert neu.
+BROKEN_CONFIG: BrokenConfig | None = None
+
+
+def _backup_broken_config(path: Path) -> Path | None:
+    """Legt `config.toml.broken-<Zeitstempel>` neben die unlesbare Datei.
+
+    Die Datei selbst bleibt unangetastet: Hams ueberschreibt sie nie, ein
+    Speichern wird abgelehnt, solange sie kaputt ist (siehe
+    `_persist_config_value`). Die Kopie ist fuer den Fall, dass der Nutzer
+    sie beim Reparieren verschlimmert. Liegt schon eine inhaltsgleiche Kopie
+    da, wird keine weitere angelegt – sonst kaeme bei jedem Start eine dazu.
+    """
+    try:
+        content = path.read_bytes()
+        for existing in sorted(path.parent.glob(path.name + ".broken-*")):
+            if existing.read_bytes() == content:
+                return existing
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        for attempt in range(100):
+            suffix = f"-{attempt}" if attempt else ""
+            backup = path.with_name(f"{path.name}.broken-{stamp}{suffix}")
+            try:
+                with backup.open("xb") as handle:
+                    handle.write(content)
+            except FileExistsError:
+                continue
+            return backup
+    except OSError:
+        logger.error("Could not keep a copy of the unreadable config %s", path, exc_info=True)
+    return None
+
+
+def _note_broken_user_config(path: Path, exc: Exception) -> None:
+    global BROKEN_CONFIG
+    backup = _backup_broken_config(path)
+    BROKEN_CONFIG = BrokenConfig(path, backup, str(exc))
+    logger.error(
+        "USER CONFIG UNREADABLE: %s (%s). All settings fall back to the defaults for this session; "
+        "the file is left unchanged and nothing will be saved into it until it is fixed. Copy: %s",
+        path,
+        exc,
+        backup,
+    )
 
 
 def _read_toml(path: Path) -> dict:
@@ -382,11 +478,15 @@ def _read_toml(path: Path) -> dict:
     try:
         with path.open("rb") as handle:
             return tomllib.load(handle)
-    except (OSError, tomllib.TOMLDecodeError) as exc:
+    except (OSError, ValueError) as exc:  # TOMLDecodeError und UnicodeDecodeError sind ValueErrors
         print(
             f"[{branding.PRODUCT_NAME}] could not load {path.name} ({exc}) — using defaults.",
             file=sys.stderr,
         )
+        if path == CONFIG_PATH:
+            _note_broken_user_config(path, exc)
+        else:
+            logger.error("Could not read %s (%s)", path, exc)
         return {}
 
 
@@ -396,7 +496,23 @@ def _load_config() -> Config:
     Drei Ebenen in dieser Reihenfolge. Deshalb muss eine ältere Nutzerdatei
     keinen später hinzugekommenen Schlüssel kennen: was dort fehlt, kommt aus
     der Vorlage, und was auch dort fehlt, steht im Datenmodell.
+
+    Wirft nie: das Laden laeuft beim Import von `hams.config`, und eine
+    Ausnahme dort hiesse, dass die fensterlose Anwendung gar nicht startet.
     """
+    global BROKEN_CONFIG
+    BROKEN_CONFIG = None
+    try:
+        return _load_layers()
+    except Exception:
+        logger.exception("Config could not be loaded - using the built-in defaults")
+        cfg = Config()
+        with contextlib.suppress(Exception):
+            cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
+        return cfg
+
+
+def _load_layers() -> Config:
     cfg = Config()
     for path in (DEFAULT_CONFIG_PATH, CONFIG_PATH):
         data = _read_toml(path)
@@ -413,29 +529,22 @@ def _load_config() -> Config:
     return cfg
 
 
-def _apply_toml(cfg: Config, data: dict) -> None:
-    """Legt eine gelesene Datei über die bisherigen Werte."""
-    _audio_anwenden(cfg, data.get("audio", {}))
-    _modell_anwenden(cfg, data.get("model", {}))
-    _transkription_anwenden(cfg, data.get("transcription", {}))
-    hotkeys = data.get("hotkeys", {})
-    cfg.hotkey_transcript = str(hotkeys.get("transcript", cfg.hotkey_transcript))
-    cfg.hotkey_prompt = str(hotkeys.get("prompt", cfg.hotkey_prompt))
-    _ollama_anwenden(cfg, data.get("ollama", {}))
-    clipboard = data.get("clipboard", {})
-    cfg.clipboard_paste_timeout = float(clipboard.get("paste_timeout", cfg.clipboard_paste_timeout))
+def _warn_config(message: str) -> None:
+    logger.warning("Config: %s", message)
 
-    ui = data.get("ui", {})
-    cfg.sound_feedback = bool(ui.get("sound_feedback", cfg.sound_feedback))
-    if "window_x" in ui:
-        cfg.window_x = _clean_coordinate(ui.get("window_x"))
-    if "window_y" in ui:
-        cfg.window_y = _clean_coordinate(ui.get("window_y"))
-    # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
-    # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
-    cfg.appearance = Theme.normalise(ui.get("appearance", cfg.appearance))
-    cfg.ui_language = _clean_language(ui.get("language", cfg.ui_language))
-    cfg.update_check = bool(data.get("updates", {}).get("check", cfg.update_check))
+
+def _apply_toml(cfg: Config, data: dict) -> None:
+    """Legt eine gelesene Datei über die bisherigen Werte.
+
+    Jeder Wert wird typgeprueft gelesen (`SectionReader`): ein falscher Typ
+    oder ein Wert ausserhalb des Bereichs wird gemeldet und uebergangen, nie
+    geraten und nie mit einer Ausnahme quittiert.
+    """
+    if not isinstance(data, dict):
+        _warn_config(f"the file should contain tables, got {type(data).__name__} - ignored")
+        return
+    for section, apply in _SECTION_APPLIERS:
+        apply(cfg, SectionReader(data, section, _warn_config))
 
 
 def _clean_language(value: Any) -> str:
@@ -457,87 +566,179 @@ def _clean_dictation_language(value: Any, previous: str) -> str:
     return setting
 
 
-def _audio_anwenden(cfg: Config, audio: dict) -> None:
-    cfg.sample_rate = int(audio.get("sample_rate", cfg.sample_rate))
-    cfg.channels = int(audio.get("channels", cfg.channels))
-    cfg.mic_device_raw = audio.get("device")
+def _clean_device(audio: SectionReader) -> Any:
+    """`audio.device`: None, ein Geraeteindex oder ein Namensteil. Alles andere gilt als Standardgeraet."""
+    raw = audio.raw("device")
+    if raw is None or (isinstance(raw, (int, str)) and not isinstance(raw, bool)):
+        return raw
+    return audio.reject("device", '"default", a device number or part of its name', raw, None)
+
+
+def _apply_audio(cfg: Config, audio: SectionReader) -> None:
+    cfg.sample_rate = audio.choice("sample_rate", cfg.sample_rate, SAMPLE_RATES)
+    cfg.channels = audio.choice("channels", cfg.channels, CHANNELS)
+    cfg.mic_device_raw = _clean_device(audio)
     cfg.mic_device = _resolve_mic_device(cfg.mic_device_raw)
-    cfg.max_recording_seconds = int(audio.get("max_recording_seconds", cfg.max_recording_seconds))
+    cfg.max_recording_seconds = audio.integer(
+        "max_recording_seconds", cfg.max_recording_seconds, 1, MAX_RECORDING_SECONDS
+    )
 
 
-def _modell_anwenden(cfg: Config, model: dict) -> None:
-    cfg.model_size = str(model.get("size", cfg.model_size))
-    device_priority = model.get("device_priority")
-    if isinstance(device_priority, list) and device_priority:
-        cfg.model_device_priority = tuple(str(d) for d in device_priority)
-    compute_priority = model.get("compute_priority", {})
-    if isinstance(compute_priority, dict) and compute_priority:
-        cfg.model_compute_priority = {
-            str(k): tuple(str(x) for x in v) for k, v in compute_priority.items() if isinstance(v, list) and v
-        }
+def _text_list(value: Any) -> tuple[str, ...] | None:
+    """Eine nicht leere Liste aus Texten als Tupel, sonst None."""
+    if isinstance(value, list) and value and all(isinstance(item, str) for item in value):
+        return tuple(value)
+    return None
 
 
-def _transkription_anwenden(cfg: Config, transcription: dict) -> None:
+def _apply_model(cfg: Config, model: SectionReader) -> None:
+    cfg.model_size = model.text("size", cfg.model_size)
+    if "device_priority" in model:
+        devices = _text_list(model.raw("device_priority"))
+        if devices is None:
+            devices = model.reject("device_priority", "a list of texts", model.raw("device_priority"), None)
+        cfg.model_device_priority = devices or cfg.model_device_priority
+    if "compute_priority" in model:
+        cfg.model_compute_priority = _clean_compute_priority(model) or cfg.model_compute_priority
+
+
+def _clean_compute_priority(model: SectionReader) -> dict[str, tuple[str, ...]] | None:
+    raw = model.raw("compute_priority")
+    if not isinstance(raw, dict):
+        return model.reject("compute_priority", "a table of lists", raw, None)
+    cleaned = {str(device): types for device, value in raw.items() if (types := _text_list(value))}
+    if len(cleaned) != len(raw):
+        model.reject("compute_priority", "lists of texts only", raw, "the valid entries")
+    return cleaned or None
+
+
+def _apply_transcription(cfg: Config, transcription: SectionReader) -> None:
     if "language" in transcription:
-        cfg.transcription_language = _clean_dictation_language(transcription["language"], cfg.transcription_language)
-    cfg.transcription_vad_filter = bool(transcription.get("vad_filter", cfg.transcription_vad_filter))
-    cfg.transcription_word_timestamps = bool(transcription.get("word_timestamps", cfg.transcription_word_timestamps))
-    cfg.transcription_beam_size = int(transcription.get("beam_size", cfg.transcription_beam_size))
-    cfg.transcription_condition_on_previous_text = bool(
-        transcription.get("condition_on_previous_text", cfg.transcription_condition_on_previous_text)
+        cfg.transcription_language = _clean_dictation_language(
+            transcription.raw("language"), cfg.transcription_language
+        )
+    cfg.transcription_vad_filter = transcription.boolean("vad_filter", cfg.transcription_vad_filter)
+    cfg.transcription_word_timestamps = transcription.boolean("word_timestamps", cfg.transcription_word_timestamps)
+    cfg.transcription_beam_size = transcription.integer("beam_size", cfg.transcription_beam_size, 1, MAX_BEAM_SIZE)
+    cfg.transcription_condition_on_previous_text = transcription.boolean(
+        "condition_on_previous_text", cfg.transcription_condition_on_previous_text
     )
-    cfg.transcription_without_timestamps = bool(
-        transcription.get("without_timestamps", cfg.transcription_without_timestamps)
+    cfg.transcription_without_timestamps = transcription.boolean(
+        "without_timestamps", cfg.transcription_without_timestamps
     )
 
 
-def _ollama_anwenden(cfg: Config, ollama: dict) -> None:
-    url = ipv4_loopback(str(ollama.get("url", cfg.ollama_url)))
+def _apply_hotkeys(cfg: Config, hotkeys: SectionReader) -> None:
+    cfg.hotkey_transcript = hotkeys.text("transcript", cfg.hotkey_transcript)
+    cfg.hotkey_prompt = hotkeys.text("prompt", cfg.hotkey_prompt)
+
+
+def _apply_ollama(cfg: Config, ollama: SectionReader) -> None:
+    url = ipv4_loopback(ollama.text("url", cfg.ollama_url))
     problem = ollama_url_problem(url)
     if problem:
         # Nur melden reicht nicht: die Adresse bekaeme trotzdem jedes Diktat.
         logger.warning("Config: %s - using %s instead", problem, cfg.ollama_url)
     else:
         cfg.ollama_url = url
-    cfg.ollama_model_cleanup = str(ollama.get("model_transcript_cleanup", cfg.ollama_model_cleanup))
-    cfg.ollama_model_prompt = str(ollama.get("model_prompt_generate", cfg.ollama_model_prompt))
-    cfg.ollama_timeout_cleanup = int(ollama.get("timeout_cleanup", cfg.ollama_timeout_cleanup))
-    cfg.ollama_timeout_prompt = int(ollama.get("timeout_prompt", cfg.ollama_timeout_prompt))
-    cfg.ollama_stream_prompt = bool(ollama.get("stream_prompt", ollama.get("stream", cfg.ollama_stream_prompt)))
-    cfg.ollama_cleanup_enabled = bool(ollama.get("cleanup_enabled", cfg.ollama_cleanup_enabled))
-    cfg.ollama_keep_alive = str(ollama.get("keep_alive", cfg.ollama_keep_alive))
-    cfg.ollama_warmup_on_start = bool(ollama.get("warmup_on_start", cfg.ollama_warmup_on_start))
-    prompt_file_rel = ollama.get("cleanup_prompt_file")
-    if isinstance(prompt_file_rel, str) and prompt_file_rel.strip():
-        prompt_path = (APP_DIR / prompt_file_rel).resolve()
-        try:
-            cfg.cleanup_prompt_template = prompt_path.read_text(encoding="utf-8")
-        except OSError as exc:
-            print(
-                f"[{branding.PRODUCT_NAME}] could not load the cleanup prompt ({exc}) — using the default.",
-                file=sys.stderr,
-            )
+    cfg.ollama_model_cleanup = ollama.text("model_transcript_cleanup", cfg.ollama_model_cleanup)
+    cfg.ollama_model_prompt = ollama.text("model_prompt_generate", cfg.ollama_model_prompt)
+    cfg.ollama_timeout_cleanup = ollama.integer("timeout_cleanup", cfg.ollama_timeout_cleanup, 1, MAX_OLLAMA_TIMEOUT)
+    cfg.ollama_timeout_prompt = ollama.integer("timeout_prompt", cfg.ollama_timeout_prompt, 1, MAX_OLLAMA_TIMEOUT)
+    # `stream` ist der alte Name des Schluessels; der neue hat Vorrang.
+    stream_key = "stream" if "stream" in ollama and "stream_prompt" not in ollama else "stream_prompt"
+    cfg.ollama_stream_prompt = ollama.boolean(stream_key, cfg.ollama_stream_prompt)
+    cfg.ollama_cleanup_enabled = ollama.boolean("cleanup_enabled", cfg.ollama_cleanup_enabled)
+    cfg.ollama_keep_alive = _clean_keep_alive(ollama, cfg.ollama_keep_alive)
+    cfg.ollama_warmup_on_start = ollama.boolean("warmup_on_start", cfg.ollama_warmup_on_start)
+    _load_cleanup_prompt(cfg, ollama.text("cleanup_prompt_file", ""))
+
+
+def _clean_keep_alive(ollama: SectionReader, current: str) -> str:
+    """Ollama versteht "30m" ebenso wie eine Zahl in Sekunden (-1 = unbegrenzt)."""
+    value = ollama.raw("keep_alive", current)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return ollama.text("keep_alive", current)
+
+
+def _load_cleanup_prompt(cfg: Config, prompt_file_rel: str) -> None:
+    if not prompt_file_rel.strip():
+        return
+    prompt_path = (APP_DIR / prompt_file_rel).resolve()
+    try:
+        cfg.cleanup_prompt_template = prompt_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(
+            f"[{branding.PRODUCT_NAME}] could not load the cleanup prompt ({exc}) — using the default.",
+            file=sys.stderr,
+        )
+
+
+def _apply_clipboard(cfg: Config, clipboard: SectionReader) -> None:
+    cfg.clipboard_paste_timeout = clipboard.number("paste_timeout", cfg.clipboard_paste_timeout, 0.0, MAX_PASTE_TIMEOUT)
+
+
+def _apply_ui(cfg: Config, ui: SectionReader) -> None:
+    cfg.sound_feedback = ui.boolean("sound_feedback", cfg.sound_feedback)
+    if "window_x" in ui:
+        cfg.window_x = _clean_coordinate(ui.raw("window_x"))
+    if "window_y" in ui:
+        cfg.window_y = _clean_coordinate(ui.raw("window_y"))
+    # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
+    # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
+    cfg.appearance = Theme.normalise(ui.raw("appearance", cfg.appearance))
+    cfg.ui_language = _clean_language(ui.raw("language", cfg.ui_language))
+
+
+def _apply_updates(cfg: Config, updates: SectionReader) -> None:
+    # Datenschutz: "false" in Anfuehrungszeichen schaltet ab, und ein unklarer Wert
+    # schaltet ebenfalls ab - im Zweifel fragt Hams nicht bei GitHub nach.
+    cfg.update_check = updates.boolean("check", cfg.update_check, invalid=False)
+
+
+#: Abschnitt und Leser, in der Reihenfolge der Vorlage.
+_SECTION_APPLIERS = (
+    ("audio", _apply_audio),
+    ("model", _apply_model),
+    ("transcription", _apply_transcription),
+    ("hotkeys", _apply_hotkeys),
+    ("ollama", _apply_ollama),
+    ("clipboard", _apply_clipboard),
+    ("ui", _apply_ui),
+    ("updates", _apply_updates),
+)
 
 
 def _setup_logging() -> logging.Logger:
-    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    """Das Log der Anwendung: Datei (rotierend) und Konsole ab WARNING.
+
+    Laeuft beim Import. Laesst sich die Logdatei nicht anlegen (Ordner
+    schreibgeschuetzt, Laufwerk fehlt), geht es ohne sie weiter – ein
+    Import, der daran scheitert, hiesse: kein Fenster und keine Meldung.
+    """
     log = logging.getLogger("hams")
     log.setLevel(logging.DEBUG)
     if log.handlers:
         return log
-    file_handler = RotatingFileHandler(
-        LOG_DIR / "hams.log",
-        maxBytes=1_000_000,
-        backupCount=3,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(threadName)s] %(message)s"))
-    log.addHandler(file_handler)
     console_handler = logging.StreamHandler(sys.stderr)
     console_handler.setLevel(logging.WARNING)
     console_handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
     log.addHandler(console_handler)
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            LOG_DIR / "hams.log",
+            maxBytes=1_000_000,
+            backupCount=3,
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        log.warning("No log file in %s (%s) - logging to the console only", LOG_DIR, exc)
+        return log
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(threadName)s] %(message)s"))
+    log.addHandler(file_handler)
     return log
 
 

@@ -14,6 +14,7 @@ ist das Modul laengst importiert; die Reihenfolge auf Modulebene laesst sich
 nur von aussen pruefen.
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -93,7 +94,7 @@ class TestEineKaputteKonfigurationHaeltNichtAuf:
 
         result = _import_in_a_fresh_interpreter(config_file)
 
-        assert "Config validation" in result.stderr
+        assert "Config: audio.sample_rate" in result.stderr
         assert "12345" in result.stderr
 
 
@@ -113,12 +114,18 @@ class TestDieRegelnSindAbgedeckt:
         assert len(validate_config(cfg)) == 9
 
     @pytest.mark.parametrize("regel", sorted(KAPUTTE_DATEIEN))
-    def test_each_broken_file_trips_exactly_its_rule(self, regel):
-        """Der Weg von der Datei bis zur Meldung, ohne Interpreterstart."""
-        cfg = Config()
-        _apply_toml(cfg, tomllib.loads(KAPUTTE_DATEIEN[regel]))
+    def test_each_broken_file_is_reported(self, regel, caplog):
+        """Der Weg von der Datei bis zur Meldung, ohne Interpreterstart.
 
-        assert len(validate_config(cfg)) == 1
+        Werte mit festem Bereich weist schon das Laden ab (gemeldet, Voreinstellung bleibt);
+        was dort durchgeht, meldet `validate_config` - genau einmal.
+        """
+        cfg = Config()
+        with caplog.at_level(logging.WARNING, logger="hams"):
+            _apply_toml(cfg, tomllib.loads(KAPUTTE_DATEIEN[regel]))
+
+        rejected_while_loading = any(r.getMessage().startswith("Config: ") for r in caplog.records)
+        assert len(validate_config(cfg)) == (0 if rejected_while_loading else 1)
 
     def test_a_broken_url_is_refused_already_while_loading(self):
         """Die Adresse bekommt jedes Diktat - sie wird gar nicht erst uebernommen."""
