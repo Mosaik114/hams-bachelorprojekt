@@ -44,7 +44,7 @@ $process = Start-Process $Setup -ArgumentList $arguments -Wait -PassThru
 Assert-That ($process.ExitCode -eq 0) "setup exits with 0 (got $($process.ExitCode))"
 Assert-That (Test-Path $Exe) "Hams.exe installed per user in $AppDir"
 Assert-That (Test-Path $Shortcut) "Start menu shortcut exists"
-Assert-That ((Get-Autostart) -eq "`"$Exe`"") "autostart entry points at Hams.exe"
+Assert-That ((Get-Autostart) -eq "`"$Exe`" --background") "autostart entry starts Hams.exe in the tray (--background)"
 $installed = Get-FileList $AppDir
 Write-Host ("Installed: {0} files, {1:N0} MB" -f $installed.Count, ((Get-ChildItem $AppDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB))
 
