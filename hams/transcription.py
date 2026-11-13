@@ -124,6 +124,25 @@ def cleanup_options() -> dict:
     return {"temperature": CFG.ollama_cleanup_temperature, "seed": 0}
 
 
+def _clipboard_confirms(text: str, timeout: float) -> bool:
+    r"""Whether the clipboard holds `text` within `timeout` seconds; asked at least once.
+
+    Line endings are compared as `\n`: Windows hands `\r\n` back for a `\n` that was copied.
+    """
+    target = text.replace("\r\n", "\n")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            if pyperclip.paste().replace("\r\n", "\n") == target:
+                return True
+        except pyperclip.PyperclipException:
+            logger.warning("Clipboard could not be read", exc_info=True)
+            return False
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.01)
+
+
 class TranscriptionMixin:
     """Transkription, Bereinigung mit Ollama und Einfuegen des Textes."""
 
@@ -354,23 +373,20 @@ class TranscriptionMixin:
         except Exception as exc:  # noqa: BLE001 - Grenze des Threads: Vorwaermen ist nur ein Versuch
             logger.warning("Ollama warmup failed for %s: %s", model, exc)
 
-    def _copy_and_paste(self, text: str) -> None:
-        """Kopiert Text in die Zwischenablage und sendet Ctrl+V. Wartet nur
-        kurz, bis der Inhalt bestätigt ist. Normalisiert \\r\\n → \\n, weil
-        Windows beim Lesen Zeilenumbrüche umwandelt und sonst der Vergleich
-        nie matcht."""
+    def _copy_and_paste(self, text: str) -> bool:
+        """Copies the text and sends Ctrl+V - but only once the clipboard confirms it holds that text.
+
+        Without the confirmation Ctrl+V would paste whatever was on the clipboard before (a password, say), so
+        Hams pastes nothing and asks for Ctrl+V instead; the text is in the tray history either way. Returns
+        whether it pasted.
+        """
         pyperclip.copy(text)
-        target = text.replace("\r\n", "\n")
-        deadline = time.monotonic() + CFG.clipboard_paste_timeout
-        while time.monotonic() < deadline:
-            try:
-                if pyperclip.paste().replace("\r\n", "\n") == target:
-                    break
-            except pyperclip.PyperclipException:
-                logger.exception("Clipboard read failed")
-                break
-            time.sleep(0.01)
-        keyboard.send("ctrl+v")
+        if _clipboard_confirms(text, CFG.clipboard_paste_timeout):
+            keyboard.send("ctrl+v")
+            return True
+        logger.warning("Clipboard did not confirm the text within %.2f s - not pasted", CFG.clipboard_paste_timeout)
+        self._delivery_note = (t("status.copied_only"), t("hint.press_ctrl_v"))
+        return False
 
     def _run_transcription(self, model, audio: np.ndarray) -> tuple[str, str] | None:
         """Fuehrt Whisper mit einer *festen* Modellreferenz aus.

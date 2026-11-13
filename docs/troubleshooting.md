@@ -74,9 +74,10 @@ says *Pasted* but nothing appeared:
   `Ctrl+V` yourself. Running Hams itself as administrator is not recommended.
 - **The field ignores `Ctrl+V`** (some terminals use `Ctrl+Shift+V`, some web forms block pasting). Paste manually
   from the clipboard, or pick the text from tray icon → *Recent transcripts*.
-- **Something older was pasted instead.** Hams waits up to `[clipboard] paste_timeout` seconds (default `0.3`) for
-  the clipboard to confirm the new text, then sends `Ctrl+V` anyway. Clipboard managers and remote-desktop sessions
-  can be slower than that. Raise the value, for example to `1.0`.
+- **The window says *Copied, not pasted*.** Hams waits up to `[clipboard] paste_timeout` seconds (default `0.3`)
+  for the clipboard to confirm the new text. Without that confirmation it does not send `Ctrl+V`: it would paste
+  whatever was on the clipboard before. Press `Ctrl+V` yourself. If this happens often (clipboard managers and
+  remote-desktop sessions can be slow), raise the value, for example to `1.0`.
 
 Every pasted text is also saved in `%LOCALAPPDATA%\Hams\transcripts`, so nothing you dictated is lost.
 

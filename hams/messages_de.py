@@ -35,6 +35,7 @@ MESSAGES: dict[str, str] = {
     "status.generating": "Generiere Antwort …",
     "status.done": "Eingefügt",
     "status.done_raw": "Eingefügt · ohne Bereinigung",
+    "status.copied_only": "Kopiert, nicht eingefügt",
     "status.copied_from_history": "Aus Verlauf kopiert",
     "status.setup_pending": "Einrichtung abschließen, um ein Sprachmodell herunterzuladen",
     "status.no_signal": "Kein Mikrofonsignal",
@@ -56,6 +57,7 @@ MESSAGES: dict[str, str] = {
     "hint.mic_silent": "„{device}“ liefert kein Signal. Ist das Mikrofon stummgeschaltet?",
     "hint.recording_kept": "Die Aufnahme ist gesichert und wird gleich ausgewertet.",
     "hint.no_switch_while_recording": "Das Modell lässt sich während einer Aufnahme nicht wechseln.",
+    "hint.press_ctrl_v": "Die Zwischenablage hat den Text nicht rechtzeitig bestätigt. Mit Strg+V fügst du ihn ein.",
     "hint.cleanup_offline": (
         "Ollama läuft nicht, deshalb wurde der Text ohne Bereinigung eingefügt. Wer die Bereinigung unter "
         "Einstellungen → KI ausschaltet, spart sich diesen Schritt."

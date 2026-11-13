@@ -10,6 +10,9 @@ follow [Semantic Versioning](https://semver.org/).
   it three times too slow or interleaved, without an error. Hams now always records 16 kHz mono, which is what
   Whisper takes; `sample_rate` and `channels` are no longer settings. An old file that still sets another value is
   ignored with one warning in the log.
+- **An older clipboard content could be pasted** when the clipboard did not confirm the new text within
+  `[clipboard] paste_timeout`: Hams sent `Ctrl+V` anyway. It now pastes only a confirmed text; otherwise the window
+  says *Copied, not pasted* and asks you to press `Ctrl+V`.
 
 ## [1.1.2] – 2026-11-13
 

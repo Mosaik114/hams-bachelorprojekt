@@ -275,18 +275,35 @@ class TestPaste:
         assert hams.clipboard.copies == ["eins\r\nzwei"]
         assert hams.keyboard.sent == ["ctrl+v"]
 
-    def test_an_unreadable_clipboard_still_pastes(self, live_app, hams):
+    def test_an_unreadable_clipboard_is_not_pasted(self, live_app, hams):
+        """Unconfirmed, Ctrl+V could paste what was there before - a password, say (audit finding H2)."""
         hams.clipboard.broken = True
-        live_app._copy_and_paste("Text")
-        assert hams.keyboard.sent == ["ctrl+v"]
+        assert live_app._copy_and_paste("Text") is False
+        assert hams.keyboard.sent == []
+        assert live_app._delivery_note == ("Kopiert, nicht eingefügt", live_app._delivery_note[1])
+        assert "Strg+V" in live_app._delivery_note[1]
 
-    def test_a_slow_clipboard_is_given_the_configured_time_only(self, live_app, hams, monkeypatch):
+    def test_a_slow_clipboard_is_given_the_configured_time_then_not_pasted(self, live_app, hams, monkeypatch):
         monkeypatch.setattr(hams.clipboard, "paste", lambda: "noch alt")
         CFG.clipboard_paste_timeout = 0.05
         start = time.monotonic()
-        live_app._copy_and_paste("neu")
+        assert live_app._copy_and_paste("neu") is False
         assert time.monotonic() - start < 1
+        assert hams.keyboard.sent == []
+
+    def test_a_zero_timeout_still_asks_the_clipboard_once(self, live_app, hams):
+        CFG.clipboard_paste_timeout = 0.0
+        assert live_app._copy_and_paste("sofort") is True
         assert hams.keyboard.sent == ["ctrl+v"]
+
+    def test_the_main_window_asks_for_ctrl_v(self, live_app, hams, monkeypatch):
+        monkeypatch.setattr(hams.clipboard, "paste", lambda: "noch alt")
+        CFG.clipboard_paste_timeout = 0.0
+        live_app._abliefern("neu")
+        live_app.root.update()
+        assert hams.keyboard.sent == []
+        assert live_app.status_label.cget("text") == "Kopiert, nicht eingefügt"
+        assert "Strg+V" in live_app.footer_label.cget("text")
 
 
 class TestSaveAndWarmup:

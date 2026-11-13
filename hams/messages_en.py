@@ -35,6 +35,7 @@ MESSAGES: dict[str, str] = {
     "status.generating": "Writing answer …",
     "status.done": "Pasted",
     "status.done_raw": "Pasted · without cleanup",
+    "status.copied_only": "Copied, not pasted",
     "status.copied_from_history": "Copied from history",
     "status.setup_pending": "Finish setup to download a speech model",
     "status.no_signal": "No microphone signal",
@@ -56,6 +57,7 @@ MESSAGES: dict[str, str] = {
     "hint.mic_silent": "“{device}” isn't picking up any sound. Is the microphone muted?",
     "hint.recording_kept": "Your recording is safe and will be transcribed shortly.",
     "hint.no_switch_while_recording": "You can't switch models while recording.",
+    "hint.press_ctrl_v": "The clipboard didn't confirm the text in time. Press Ctrl+V to paste it.",
     "hint.cleanup_offline": (
         "Ollama isn't running, so the text was pasted without cleanup. Turn cleanup off in Settings → AI to skip this "
         "step."
