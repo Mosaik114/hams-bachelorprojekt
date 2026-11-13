@@ -9,7 +9,7 @@ Hintergrundarbeit (GPU-Download, Ollama-Abfrage und -Download) meldet sich über
 Anwendung (`ModelManager.start_download`), genau wie aus den Einstellungen; das
 Fenster zeigt ihn nur an.
 
-Mikrofonauswahl und Live-Pegel kommen unverändert aus `StatusSectionMixin`.
+Mikrofonauswahl und Live-Pegel kommen aus `LevelMonitor`, demselben Baustein wie in den Einstellungen.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from hams.config import CFG, CONFIG_PATH, logger
 from hams.i18n import t
 from hams.settings_models import catalog_options
 from hams.settings_sections import choose_dictation_language, choose_ui_language, dictation_options, language_options
-from hams.settings_status import StatusSectionMixin
+from hams.settings_status import LevelMonitor
 from hams.setup_wizard import Choices, SetupController, Task, task_view
 from hams.ui_kit import Theme
 
@@ -73,7 +73,7 @@ class TaskRow:
             self.bar.set_fraction(view.fraction)
 
 
-class SetupWindow(StatusSectionMixin):
+class SetupWindow:
     """Randloses Fenster im Mosaik-Design, eine Seite zur Zeit."""
 
     WIDTH = 460  # logisch
@@ -91,13 +91,8 @@ class SetupWindow(StatusSectionMixin):
             setup_wizard.write_marker(self.marker, False)
         self.model_task = Task()
         self.completed = False
-        # Zustand, den StatusSectionMixin erwartet
-        self._mon_stream = None
-        self._mon_rms = 0.0
-        self._suspended = True
-        self._devices: list = []
-        self._device_error = ""
-        self._tick_job: str | None = None
+        #: Microphone select and level on the microphone page; runs only while that page is shown.
+        self.monitor: LevelMonitor | None = None
         self._status_job: str | None = None
         self._alive = True
         self._drag = (0, 0)
@@ -118,7 +113,6 @@ class SetupWindow(StatusSectionMixin):
         self._attach_download()
         self._build()
         uk.Scale.register(self._on_scale_change)
-        app.recorder.register_consumer(self)
         self.win.update_idletasks()
         uk.round_window_corners(self.win)
         self.focus()
@@ -181,8 +175,7 @@ class SetupWindow(StatusSectionMixin):
         self.controller.pull_task.cancel()
         uk.Scale.unregister(self._on_scale_change)
         self._cancel_jobs()
-        self._stop_monitor()
-        self.app.recorder.unregister_consumer(self)
+        self._leave_microphone()
         with contextlib.suppress(tk.TclError):
             self.win.destroy()
         self.app.on_setup_closed(self.completed)
@@ -229,7 +222,7 @@ class SetupWindow(StatusSectionMixin):
         self._update_footer()
 
     def _cancel_jobs(self) -> None:
-        for name in ("_tick_job", "_status_job"):
+        for name in ("_status_job",):
             job = getattr(self, name)
             if job is not None:
                 with contextlib.suppress(ValueError, tk.TclError):
@@ -611,23 +604,18 @@ class SetupWindow(StatusSectionMixin):
         self._heading(body, t("setup.mic.title"))
         self._paragraph(body, t("setup.mic.body", product=branding.PRODUCT_NAME))
         group = self._group(body)
-        self._build_microphone_rows(group.body, level_hairline=True)
+        self.monitor = LevelMonitor(self, group.body, level_hairline=True, on_level=self._note_level)
         self.row_check = uk.SettingRow(group.body, t("setup.mic.check"), variant="status", hairline=False)
         self.row_check.pack(fill="x")
         self._show_mic_check()
-        self._suspended = False
-        self._tick()
+        self.monitor.start()
 
     def _leave_microphone(self) -> None:
-        self._suspended = True
-        if self._tick_job is not None:
-            with contextlib.suppress(ValueError, tk.TclError):
-                self.win.after_cancel(self._tick_job)
-            self._tick_job = None
-        self._stop_monitor()
+        if self.monitor is not None:
+            self.monitor.stop()
+            self.monitor = None
 
-    def _update_mic_status(self, level: float) -> None:
-        super()._update_mic_status(level)
+    def _note_level(self, level: float) -> None:
         was_heard = self.controller.mic_heard
         if self.controller.note_level(level) and not was_heard:
             self._show_mic_check()
@@ -637,11 +625,6 @@ class SetupWindow(StatusSectionMixin):
             self.row_check.set_status("ready", t("setup.mic.heard"))
         else:
             self.row_check.set_status("idle", t("setup.mic.waiting"))
-
-    def resume_microphone(self) -> None:
-        """Nach einer Aufnahme: den Pegel nur auf der Mikrofonseite wieder öffnen."""
-        if self.controller.page == "microphone":
-            super().resume_microphone()
 
     # ---------------------------------------------------------- page: cleanup
 

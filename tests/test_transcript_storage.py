@@ -139,15 +139,16 @@ class TestSettingsSwitch:
         CFG.save_transcripts = False
         live_app._open_settings()
         live_app.root.update()
-        win = live_app.settings_win
+        general = live_app.settings_win.general
         assert (
-            win.row_transcripts.sub_text == f"Behält jeden eingefügten Text {CFG.transcripts_keep_days} Tage als Datei"
+            general.row_transcripts.sub_text
+            == f"Behält jeden eingefügten Text {CFG.transcripts_keep_days} Tage als Datei"
         )
-        win.switch_transcripts.toggle()
+        general.switch_transcripts.toggle()
         assert CFG.save_transcripts is True
         assert ("output", "save_transcripts", True) in hams.saved
 
     def test_unlimited_retention_is_named_as_such(self):
-        from hams.settings_sections import SectionsMixin
+        from hams.settings_sections import GeneralSection
 
-        assert SectionsMixin.transcripts_hint(0) == "Behält jeden eingefügten Text als Datei"
+        assert GeneralSection.transcripts_hint(0) == "Behält jeden eingefügten Text als Datei"

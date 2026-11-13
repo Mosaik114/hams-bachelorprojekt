@@ -55,14 +55,24 @@ class Select(BaseControl):
     # ------------------------------------------------------------ Daten
 
     def set_options(self, options: list) -> None:
+        shown = self._shown_label()
         self._option_list = list(options)
-        self._render()
+        if self._shown_label() != shown:
+            self._render()
 
     def set_value(self, value, notify: bool = False) -> None:
+        shown = self._shown_label()
         self._value = value
-        self._render()
+        if self._shown_label() != shown:
+            self._render()
         if notify and self._on_change is not None:
             self._on_change(value)
+
+    def _shown_label(self) -> str:
+        """The text in the field. The image only depends on it (plus state, size and colours, which redraw
+        themselves); a settings window that syncs its rows on every show must not redraw unchanged fields."""
+        selected = self._selected()
+        return selected.label if selected is not None else self._placeholder
 
     @property
     def value(self):

@@ -7,8 +7,10 @@ internals such as caches, icon painters and animation helpers; they import them 
 from hams.ui_kit import *  # noqa: F403 - everything the package exports
 from hams.ui_kit.animation import (  # noqa: F401
     FRAME_MS,
+    FRAME_PERIOD_MS,
     SPI_GETCLIENTAREAANIMATION,
     Animator,
+    HighResolutionTimer,
     blend,
     ease_out,
     init_animations,

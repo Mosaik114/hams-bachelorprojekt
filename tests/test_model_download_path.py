@@ -144,8 +144,8 @@ class TestAFailedSwitchIsShown:
         assert live_app.footer_label.cget("text").startswith("Weiter mit Turbo")
         live_app._open_settings()
         live_app.root.update()
-        win = live_app.settings_win
-        assert win.row_model._sub_text == "Large v3 ließ sich nicht laden · das bisherige Modell bleibt aktiv"
+        row = live_app.settings_win.transcription.row_model
+        assert row.sub_text == "Large v3 ließ sich nicht laden · das bisherige Modell bleibt aktiv"
 
     def test_ready_names_the_loaded_model(self, live_app):
         CFG.model_size = "small"

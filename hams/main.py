@@ -116,6 +116,8 @@ def _first_windows(root: tk.Tk, app: FloatingTranscriberApp, *, setup: bool, set
         root.after_idle(app._show_window)
     if settings:
         root.after_idle(app._open_settings)
+    else:
+        root.after(app.PREBUILD_DELAY_MS, app.prebuild_settings)
 
 
 def main(*, show_settings: bool = False, show_setup: bool = False, background: bool = False) -> None:

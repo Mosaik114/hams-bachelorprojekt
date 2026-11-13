@@ -1,9 +1,8 @@
-"""Tests der Einstellungslogik ohne Fenster.
+"""Tests der Einstellungslogik.
 
-Geräteauswahl, Mikrofonstatus und die Cleanup-Abhängigkeit sind reine Logik und
-lassen sich ohne die vollständige Anwendung prüfen. Der Lebenszyklus zwischen
-Aufnahme und Pegelmonitor braucht dagegen echte Audio-Streams und wurde als
-Integrationslauf geprüft.
+Geräteauswahl, Mikrofonstatus und die Cleanup-Abhängigkeit werden an den echten
+Abschnitten des Einstellungsfensters geprüft (`LevelMonitor`, `AiSection`), mit
+den Attrappen aus tests/live_app.py statt echter Geräte und ohne Ollama.
 """
 
 import types
@@ -11,25 +10,20 @@ import types
 import pytest
 
 from hams import audio_devices
+from hams import settings_extras as extras
 from hams.recording import Recorder
+from hams.settings_extras import AiSection
 from hams.settings_window import SettingsWindow as SW
 
 #: Platzhalter für „ein Mikrofon-Strom ist offen“
 _EIN_STROM = object()
 
 
-class _Stub:
-    """Minimalobjekt mit den Feldern, die die geprüften Methoden anfassen."""
-
-    def __init__(self, devices, selected, suspended=False, recording=False):
-        self._devices = devices
-        self._device_error = ""
-        self._suspended = suspended
-        self._selected = selected
-
-    # von refresh_device_state benutzt
-    refresh_device_state = SW.refresh_device_state
-    device_options = SW.device_options
+@pytest.fixture
+def monitor(live_app):
+    """Der Pegelmonitor des echten, vorab versteckt gebauten Einstellungsfensters (kein Strom offen)."""
+    live_app.prebuild_settings()
+    return live_app.settings_win.recording.monitor
 
 
 @pytest.fixture
@@ -87,45 +81,43 @@ class TestMicConsumerApi:
 
 
 class TestDeviceState:
-    def test_no_input_device_is_reported(self, config, monkeypatch):
+    def test_no_input_device_is_reported(self, monitor, config, monkeypatch):
         monkeypatch.setattr("hams.settings_status.list_input_devices", lambda: [])
         config("Shure MV7+")
-        stub = _Stub([], "Shure MV7+")
-        stub.refresh_device_state()
-        assert stub._device_error == "Kein Mikrofon gefunden"
+        monitor.refresh_device_state()
+        assert monitor.device_error == "Kein Mikrofon gefunden"
 
-    def test_missing_selected_device_is_reported(self, config, monkeypatch):
+    def test_missing_selected_device_is_reported(self, monitor, config, monkeypatch):
         monkeypatch.setattr("hams.settings_status.list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         config("Shure MV7+")
-        stub = _Stub([], "Shure MV7+")
-        stub.refresh_device_state()
-        assert "nicht verbunden" in stub._device_error
+        monitor.refresh_device_state()
+        assert "nicht verbunden" in monitor.device_error
 
-    def test_substring_match_counts_as_present(self, config, monkeypatch):
+    def test_substring_match_counts_as_present(self, monitor, config, monkeypatch):
         """Die Config speichert ein Namensfragment, keinen exakten Gerätenamen."""
         monkeypatch.setattr(
             "hams.settings_status.list_input_devices",
             lambda: [("Mikrofon (Shure MV7+)", "3- Mikrofon (Shure MV7+)")],
         )
         config("Shure MV7+")
-        stub = _Stub([], "Shure MV7+")
-        stub.refresh_device_state()
-        assert stub._device_error == ""
+        monitor.refresh_device_state()
+        assert monitor.device_error == ""
 
-    def test_default_device_never_errors(self, config, monkeypatch):
+    def test_default_device_never_errors(self, monitor, config, monkeypatch):
         monkeypatch.setattr("hams.settings_status.list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
         config("default")
-        stub = _Stub([], "default")
-        stub.refresh_device_state()
-        assert stub._device_error == ""
+        monitor.refresh_device_state()
+        assert monitor.device_error == ""
 
-    def test_options_always_offer_the_system_default(self):
-        options = _Stub([("Webcam", "Webcam (USB)")], None).device_options()
+    def test_options_always_offer_the_system_default(self, monitor):
+        monitor.refresh_device_state([("Webcam", "Webcam (USB)")])
+        options = monitor.device_options()
         assert options[0] == ("System-Standard", None)
         assert ("Webcam", "Webcam") in options
 
-    def test_options_are_pairs_of_label_and_value(self):
-        for label, value in _Stub([("A", "A full"), ("B", "B full")], None).device_options():
+    def test_options_are_pairs_of_label_and_value(self, monitor):
+        monitor.refresh_device_state([("A", "A full"), ("B", "B full")])
+        for label, value in monitor.device_options():
             assert isinstance(label, str)
             assert value is None or isinstance(value, str)
 
@@ -175,109 +167,108 @@ class TestInputDeviceList:
 class TestMicStatus:
     """Status als Punkt *und* Text — nie allein über die Farbe."""
 
-    class _Row:
-        def __init__(self):
-            self.status = None
-            self.text = None
+    @pytest.fixture
+    def run(self, monitor):
+        def _run(level, *, error="", stream=_EIN_STROM):
+            monitor.device_error = error
+            monitor.stream = stream
+            monitor.update_status(level)
+            row = monitor.row_mic
+            return types.SimpleNamespace(status=row.status_dot._status, text=row.sub_text)
 
-        def set_status(self, status, text):
-            self.status, self.text = status, text
+        yield _run
+        monitor.stream = None  # der Platzhalter ist kein Strom, den jemand schließen könnte
 
-    def _run(self, level, *, error="", stream=_EIN_STROM, recording=False):
-        window = SW.__new__(SW)
-        window.row_mic = self._Row()
-        window._device_error = error
-        window._mon_stream = stream
-        window.app = type("A", (), {"is_recording": recording})()
-        SW._update_mic_status(window, level)
-        return window.row_mic
-
-    def test_good_signal(self):
-        row = self._run(0.5)
+    def test_good_signal(self, run):
+        row = run(0.5)
         assert row.status == "ready" and row.text
 
-    def test_quiet_signal(self):
-        row = self._run(0.05)
+    def test_quiet_signal(self, run):
+        row = run(0.05)
         assert row.status == "warning" and "Leise" in row.text
 
-    def test_no_signal(self):
-        row = self._run(0.001)
+    def test_no_signal(self, run):
+        row = run(0.001)
         assert row.status == "error" and "Kein Signal" in row.text
 
-    def test_device_error_wins(self):
-        row = self._run(0.5, error="„Yeti“ ist nicht verbunden")
+    def test_device_error_wins(self, run):
+        row = run(0.5, error="„Yeti“ ist nicht verbunden")
         assert row.status == "error" and "Yeti" in row.text
 
-    def test_unavailable_device(self):
-        row = self._run(0.5, stream=None)
+    def test_unavailable_device(self, run):
+        row = run(0.5, stream=None)
         assert row.status == "warning" and "nicht verfügbar" in row.text
 
-    def test_every_state_has_text(self):
+    def test_every_state_has_text(self, run):
         for level in (0.0, 0.02, 0.5):
-            assert self._run(level).text
+            assert run(level).text
+
+
+class _NoThread:
+    """Ein Hintergrundfaden, der nie läuft: hier soll niemand Ollama fragen."""
+
+    def __init__(self, **_options):
+        pass
+
+    def start(self) -> None:
+        pass
 
 
 class TestCleanupDependency:
-    class _Row:
-        def __init__(self):
-            self.enabled = True
-            self.description = ""
+    @pytest.fixture
+    def ai(self, live_app, monkeypatch):
+        """Der KI-Abschnitt des echten, gezeigten Fensters; Ollama wird dabei nicht gefragt."""
+        monkeypatch.setattr(extras, "threading", types.SimpleNamespace(Thread=_NoThread))
+        live_app._open_settings()
+        live_app.root.update()
+        return live_app.settings_win.ai
 
-        def set_enabled(self, value):
-            self.enabled = value
+    @pytest.fixture
+    def run(self, ai, monkeypatch):
+        def _run(cleanup_on, ollama_online):
+            monkeypatch.setattr("hams.config.CFG.ollama_cleanup_enabled", cleanup_on)
+            ai.ollama_online = ollama_online
+            ai.sync_cleanup_dependency()
+            return ai
 
-        def set_description(self, text):
-            self.description = text
+        return _run
 
-    def _run(self, cleanup_on, ollama_online, monkeypatch):
-        monkeypatch.setattr("hams.config.CFG.ollama_cleanup_enabled", cleanup_on)
-        window = SW.__new__(SW)
-        window.pull_row = window.pull_task = None
-        window._alive = True
-        window.win = type("W", (), {"winfo_exists": lambda self: True})()
-        window._ollama_online = ollama_online
-        window.row_cleanup = self._Row()
-        window.row_cleanup_model = self._Row()
-        window.row_prompt_model = self._Row()
-        SW._sync_cleanup_dependency(window)
-        return window
+    def test_cleanup_on_and_ollama_up(self, run):
+        ai = run(True, True)
+        assert ai.row_cleanup_model._enabled
+        assert "nicht erreichbar" not in ai.row_cleanup.sub_text
 
-    def test_cleanup_on_and_ollama_up(self, monkeypatch):
-        window = self._run(True, True, monkeypatch)
-        assert window.row_cleanup_model.enabled
-        assert "nicht erreichbar" not in window.row_cleanup.description
-
-    def test_cleanup_on_but_ollama_down_is_visible(self, monkeypatch):
+    def test_cleanup_on_but_ollama_down_is_visible(self, run):
         """Der Widerspruch darf nicht erst nach der nächsten Aufnahme auffallen."""
-        window = self._run(True, False, monkeypatch)
-        assert not window.row_cleanup_model.enabled
-        assert "nicht erreichbar" in window.row_cleanup.description
+        ai = run(True, False)
+        assert not ai.row_cleanup_model._enabled
+        assert "nicht erreichbar" in ai.row_cleanup.sub_text
 
-    def test_cleanup_off_disables_the_model_row(self, monkeypatch):
-        window = self._run(False, True, monkeypatch)
-        assert not window.row_cleanup_model.enabled
+    def test_cleanup_off_disables_the_model_row(self, run):
+        ai = run(False, True)
+        assert not ai.row_cleanup_model._enabled
 
-    def test_description_returns_to_normal(self, monkeypatch):
-        window = self._run(True, False, monkeypatch)
-        assert "nicht erreichbar" in window.row_cleanup.description
-        window = self._run(True, True, monkeypatch)
-        assert "Bereinigt" in window.row_cleanup.description
+    def test_description_returns_to_normal(self, run):
+        ai = run(True, False)
+        assert "nicht erreichbar" in ai.row_cleanup.sub_text
+        ai = run(True, True)
+        assert "Bereinigt" in ai.row_cleanup.sub_text
 
-    def test_cleanup_off_leaves_the_prompt_model_alone(self, monkeypatch):
+    def test_cleanup_off_leaves_the_prompt_model_alone(self, run):
         """Prompt-Modus und Cleanup sind unabhängig voneinander."""
-        window = self._run(False, True, monkeypatch)
-        assert window.row_prompt_model.enabled
-        assert "KI fragen" in window.row_prompt_model.description
+        ai = run(False, True)
+        assert ai.row_prompt_model._enabled
+        assert "KI fragen" in ai.row_prompt_model.sub_text
 
-    def test_offline_disables_the_prompt_model(self, monkeypatch):
-        window = self._run(True, False, monkeypatch)
-        assert not window.row_prompt_model.enabled
-        assert "nicht erreichbar" in window.row_prompt_model.description
+    def test_offline_disables_the_prompt_model(self, run):
+        ai = run(True, False)
+        assert not ai.row_prompt_model._enabled
+        assert "nicht erreichbar" in ai.row_prompt_model.sub_text
 
 
 class TestIntervals:
     def test_ollama_is_polled_sparingly(self):
-        assert 2000 <= SW.OLLAMA_INTERVAL_MS <= 30000
+        assert 2000 <= AiSection.OLLAMA_INTERVAL_MS <= 30000
 
     def test_window_is_larger_than_before(self):
         assert (SW.WIDTH, SW.HEIGHT) == (440, 680)

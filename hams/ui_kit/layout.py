@@ -6,6 +6,7 @@ import contextlib
 import tkinter as tk
 from collections.abc import Callable
 
+from hams.ui_kit.animation import Animator
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.surfaces import surface
 from hams.ui_kit.theme import Radius, Space, Theme
@@ -25,12 +26,19 @@ class ScrollArea(tk.Frame):
     BAR_WIDTH = 4  # logisch
     BAR_INSET = 3  # logisch
     STEP = 40  # logisch, eine Tastenstufe
+    #: Wheel and keys glide to their target in this time instead of jumping (only with animations on). A new
+    #: notch during the glide extends the target, so a fast spin stays one continuous movement.
+    GLIDE_MS = 140
 
     def __init__(self, master: tk.Misc, *, bg_under: str, on_scroll: Callable[[float], None] | None = None) -> None:
         super().__init__(master, bg=bg_under)
         self._bg_under = bg_under
         self._on_scroll = on_scroll
         self._offset = 0
+        #: Where the running glide ends, or None.
+        self._target: int | None = None
+        self._bar_item: int | None = None
+        self._bar_key: tuple | None = None
 
         self.canvas = tk.Canvas(self, bg=bg_under, bd=0, highlightthickness=0, takefocus=0)
         self.canvas.pack(side="left", fill="both", expand=True)
@@ -84,11 +92,34 @@ class ScrollArea(tk.Frame):
         elif self._offset == 0:
             self.canvas.yview_moveto(0)
 
-    def scroll_by(self, delta: int) -> None:
-        self.scroll_to(self._offset + delta)
+    def scroll_by(self, delta: int, *, glide: bool = False) -> None:
+        """Moves by `delta` px; `glide` lets wheel and keys ease out instead of jumping."""
+        if not (glide and Animator.enabled):
+            self.scroll_to(self._offset + delta)
+            return
+        base = self._target if self._target is not None else self._offset
+        self.glide_to(base + delta)
+
+    def glide_to(self, offset: int) -> None:
+        """Eases out to `offset`, starting from where the view is now."""
+        target = max(0, min(int(offset), self.scrollable))
+        start = self._offset
+        if target == start:
+            Animator.cancel(self.canvas, "scroll")
+            self._target = None
+            return
+        self._target = target
+
+        def step(fraction: float) -> None:
+            self.scroll_to(round(start + (target - start) * fraction))
+
+        def done() -> None:
+            self._target = None
+
+        Animator.run(self.canvas, "scroll", self.GLIDE_MS, step, done)
 
     def scroll_page(self, direction: int) -> None:
-        self.scroll_by(direction * max(1, self.canvas.winfo_height() - px(self.STEP)))
+        self.scroll_by(direction * max(1, self.canvas.winfo_height() - px(self.STEP)), glide=True)
 
     def refresh(self) -> None:
         """Neu bewerten, ob die Leiste noch gebraucht wird.
@@ -103,12 +134,18 @@ class ScrollArea(tk.Frame):
 
     def bind_keys(self, widget: tk.Misc) -> None:
         """Tastaturscrollen an ein Fenster hängen (Pfeile, Bild auf/ab, Pos1/Ende)."""
-        widget.bind("<Up>", lambda _e: self.scroll_by(-px(self.STEP)), add="+")
-        widget.bind("<Down>", lambda _e: self.scroll_by(px(self.STEP)), add="+")
+        widget.bind("<Up>", lambda _e: self.scroll_by(-px(self.STEP), glide=True), add="+")
+        widget.bind("<Down>", lambda _e: self.scroll_by(px(self.STEP), glide=True), add="+")
         widget.bind("<Prior>", lambda _e: self.scroll_page(-1), add="+")
         widget.bind("<Next>", lambda _e: self.scroll_page(1), add="+")
-        widget.bind("<Home>", lambda _e: self.scroll_to(0), add="+")
-        widget.bind("<End>", lambda _e: self.scroll_to(self.scrollable), add="+")
+        widget.bind("<Home>", lambda _e: self._glide_or_jump(0), add="+")
+        widget.bind("<End>", lambda _e: self._glide_or_jump(self.scrollable), add="+")
+
+    def _glide_or_jump(self, offset: int) -> None:
+        if Animator.enabled:
+            self.glide_to(offset)
+        else:
+            self.scroll_to(offset)
 
     # Windows und macOS melden das Rad als <MouseWheel> mit `delta`; Tk 8.6 unter
     # Linux (X11/XWayland) dagegen als Maustaste 4 (hoch) und 5 (runter).
@@ -126,12 +163,16 @@ class ScrollArea(tk.Frame):
     def _on_wheel(self, event: tk.Event) -> None:
         num = getattr(event, "num", None)
         if num == 4:
-            notches = 1
+            notches = 1.0
         elif num == 5:
-            notches = -1
+            notches = -1.0
         else:
-            notches = int(event.delta / 120)
-        self.scroll_by(-notches * px(self.STEP))
+            # Fractions too: a precision touchpad reports small deltas (e.g. 30), which `int(delta / 120)` turned
+            # into 0 - the touchpad did not scroll at all.
+            notches = event.delta / 120
+        delta = round(-notches * px(self.STEP))
+        if delta:
+            self.scroll_by(delta, glide=True)
 
     # ------------------------------------------------------------ Layout
 
@@ -156,21 +197,29 @@ class ScrollArea(tk.Frame):
             self._gutter.pack(side="right", fill="y", before=self.canvas)
 
     def _draw_bar(self) -> None:
-        self.bar.delete("all")
+        """The thumb. While scrolling only its position changes, so the item is moved, not drawn anew."""
         span = self.body.winfo_reqheight()
         view = self.canvas.winfo_height()
         if span <= view or view <= 1:
+            self.bar.delete("all")
+            self._bar_item = self._bar_key = None
             self._show_bar(False)
             return
         self._show_bar(True)
         track = view
         length = max(px(20), int(track * view / span))
         top = int((track - length) * (self._offset / max(1, self.scrollable)))
+        key = (length, Theme.CONTROL_HOVER, px(self.BAR_WIDTH), px(self.BAR_INSET))
+        if self._bar_item is not None and key == self._bar_key:
+            self.bar.coords(self._bar_item, px(self.BAR_INSET), top)
+            return
+        self.bar.delete("all")
         image = surface(
             px(self.BAR_WIDTH), length, Radius.pill(px(self.BAR_WIDTH)), Theme.CONTROL_HOVER, squircle=False
         )
         self._bar_image = image
-        self.bar.create_image(px(self.BAR_INSET), top, anchor="nw", image=image)
+        self._bar_key = key
+        self._bar_item = self.bar.create_image(px(self.BAR_INSET), top, anchor="nw", image=image)
 
     def _on_scale_change(self, _factor: float) -> None:
         try:

@@ -1,5 +1,6 @@
 """Tests der Einstellungs-Bausteine: ScrollArea, GroupSurface, SettingRow."""
 
+import time
 import tkinter as tk
 
 import kit as uk
@@ -80,6 +81,43 @@ class TestScrollArea:
         area._on_wheel(type("E", (), {"delta": -120})())
         root.update()
         assert area.offset > 0
+
+    def test_a_touchpad_delta_below_one_notch_still_scrolls(self, area, root):
+        area._on_wheel(type("E", (), {"delta": -30})())
+        root.update()
+        assert area.offset == round(uk.px(ScrollArea.STEP) / 4)
+
+    def test_the_wheel_glides_to_its_target(self, area, root, monkeypatch):
+        monkeypatch.setattr(uk.Animator, "enabled", True)
+        offsets = []
+        area._on_scroll = offsets.append
+        area._on_wheel(type("E", (), {"delta": -120})())
+        area._on_wheel(type("E", (), {"delta": -120})())  # a second notch extends the same glide
+        assert area._target == 2 * uk.px(ScrollArea.STEP)
+        end = time.monotonic() + 3
+        while uk.Animator.pending(area.canvas) and time.monotonic() < end:
+            root.update()
+            time.sleep(0.002)
+        assert area.offset == 2 * uk.px(ScrollArea.STEP)
+        assert area._target is None
+        assert len(offsets) > 2, "it moved in steps, not in one jump"
+        assert offsets == sorted(offsets)
+
+    def test_a_glide_to_where_it_already_is_does_nothing(self, area, monkeypatch):
+        monkeypatch.setattr(uk.Animator, "enabled", True)
+        area.glide_to(0)
+        assert area._target is None
+        assert uk.Animator.pending(area.canvas) == 0
+
+    def test_scrolling_moves_the_thumb_instead_of_redrawing_it(self, area, root):
+        root.update()
+        item = area._bar_item
+        assert item is not None
+        top = area.bar.coords(item)[1]
+        area.scroll_by(40)
+        root.update()
+        assert area._bar_item == item
+        assert area.bar.coords(item)[1] > top
 
     def test_mouse_wheel_on_linux_scrolls_down_and_up(self, area, root):
         area.canvas.event_generate("<Enter>")

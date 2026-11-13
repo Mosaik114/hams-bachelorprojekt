@@ -7,7 +7,6 @@ import pytest
 from hams import glossary
 from hams import ollama as ollama_api
 from hams import settings_extras as extras
-from hams import settings_status as status_mod
 from hams import setup_wizard as sw
 from hams.config import CFG
 from hams.setup_wizard import Task
@@ -48,7 +47,6 @@ class TestLogic:
 @pytest.fixture
 def settings(live_app, hams, monkeypatch):
     inline = SimpleNamespace(Thread=InlineThread)
-    monkeypatch.setattr(status_mod, "threading", inline)
     monkeypatch.setattr(extras, "threading", inline)
     monkeypatch.setattr(sw, "TaskThread", InlineThread)
     CFG.ollama_model_cleanup = "qwen3:8b"
@@ -62,7 +60,7 @@ def settings(live_app, hams, monkeypatch):
 
 
 def shown(win) -> bool:
-    return win.pull_row.row.winfo_manager() == "pack"
+    return win.ai.pull_row.row.winfo_manager() == "pack"
 
 
 class TestPullRow:
@@ -87,11 +85,11 @@ class TestPullRow:
         monkeypatch.setattr(ollama_api.OllamaClient, "pull", pull)
         win = settings()
         assert shown(win)
-        assert win.pull_row.row._control is win.pull_row.button
-        win.pull_row.button._invoke()
+        assert win.ai.pull_row.row._control is win.ai.pull_row.button
+        win.ai.pull_row.button._invoke()
         live_app.root.update()
         assert calls == ["qwen3:8b"]
-        assert win.pull_task.state == sw.DONE
+        assert win.ai.pull_task.state == sw.DONE
         assert not shown(win), "nach der neuen Abfrage ist das Modell da, die Zeile geht"
 
     def test_a_failed_download_offers_retry(self, settings, hams, live_app, monkeypatch):
@@ -102,22 +100,28 @@ class TestPullRow:
 
         monkeypatch.setattr(ollama_api.OllamaClient, "pull", pull)
         win = settings()
-        win._start_model_pull()
+        win.ai.start_model_pull()
         live_app.root.update()
-        assert win.pull_task.state == sw.FAILED
+        assert win.ai.pull_task.state == sw.FAILED
         assert shown(win)
-        assert win.pull_row.row._sub_text == "kaputt"
-        assert win.pull_row.button.cget("text") == "Erneut versuchen"
+        assert win.ai.pull_row.row._sub_text == "kaputt"
+        assert win.ai.pull_row.button.cget("text") == "Erneut versuchen"
 
-    def test_closing_the_window_cancels_a_running_download(self, settings, hams):
+    def test_closing_the_window_cancels_a_running_download(self, settings, hams, live_app):
         hams.probe = online()
         win = settings()
-        win.pull_task.begin()
-        win._start_model_pull()  # läuft schon: nichts Neues
+        ai = win.ai
+        ai.pull_task.begin()
+        ai.start_model_pull()  # läuft schon: nichts Neues
         win.close()
-        assert win.pull_task.cancel_event.is_set()
-        win._refresh_pull_row()  # geschlossen: nichts passiert
-        win._post_pull(lambda: None)
+        assert ai.pull_task.cancel_event.is_set()
+        # Versteckt, nicht zerstört: dasselbe Fenster, keine Ollama-Abfrage mehr geplant.
+        assert not win.alive() and win.reusable()
+        assert live_app.settings_win is win
+        assert not ai.pending("ollama")
+        ai.refresh_pull_row()  # versteckt: nichts passiert
+        ai._post_pull(lambda: None)
+        live_app.root.update()  # das Nachspiel des Laufs prallt am versteckten Fenster ab
 
 
 class TestGlossaryButton:
@@ -125,9 +129,9 @@ class TestGlossaryButton:
         opened = []
         monkeypatch.setattr(glossary, "open_in_editor", lambda: opened.append(True))
         win = settings()
-        win.glossary_button._invoke()
+        win.general.glossary_button._invoke()
         assert opened == [True]
-        assert "nächste Diktat" in win.row_glossary._sub_text
+        assert "nächste Diktat" in win.general.row_glossary._sub_text
 
     def test_names_the_file_when_no_editor_opens(self, settings, monkeypatch, tmp_path):
         def fail():
@@ -136,5 +140,5 @@ class TestGlossaryButton:
         monkeypatch.setattr(glossary, "open_in_editor", fail)
         monkeypatch.setattr(glossary, "glossary_path", lambda: tmp_path / "glossary.toml")
         win = settings()
-        win._edit_glossary()
-        assert str(tmp_path / "glossary.toml") in win.row_glossary._sub_text
+        win.general.edit_glossary()
+        assert str(tmp_path / "glossary.toml") in win.general.row_glossary._sub_text

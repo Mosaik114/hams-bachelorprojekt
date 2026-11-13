@@ -1,9 +1,12 @@
 """Tests des Whisper-Modellkatalogs, der Cache-Erkennung und der Auswahl."""
 
-import pytest
+from types import SimpleNamespace
 
-from hams import models
-from hams.settings_window import SettingsWindow as SW
+import pytest
+from setup_fakes import InlineThread
+
+from hams import models, settings_models
+from hams.config import CFG
 
 #: The catalog ids in their order.
 CATALOG_IDS = tuple(info.model_id for info in models.CATALOG)
@@ -140,200 +143,135 @@ class TestCacheDetection:
         assert free is None or free > 0
 
 
-class _StubWindow:
-    """Nur die Felder, die model_options, _select_model und der Download anfassen."""
+class FakeDownloader:
+    """`ModelDownloader` ohne Netz: merkt sich nur, was gestartet wurde."""
 
-    model_options = SW.model_options
-    _update_model_hint = SW._update_model_hint
-    _select_model = SW._select_model
-    _begin_download = SW._begin_download
-    _cancel_download = SW._cancel_download
-    _attach_download = SW._attach_download
-    on_download_progress = SW.on_download_progress
-    on_download_finished = SW.on_download_finished
-    download_text = staticmethod(SW.download_text)
-    MODEL_HINT = SW.MODEL_HINT
-    model_hint = SW.model_hint
-    CANCELLED = None
+    def __init__(self):
+        self.model_id, self.active, self.started = None, False, []
 
-    def _refresh_storage(self):
-        """Baut im echten Fenster die Bestandszeile neu auf — hier nur gezaehlt."""
-        self.storage_refreshed += 1
+    def start(self, info, on_progress, on_finished):
+        self.started.append(info.model_id)
+        self.model_id, self.active = info.model_id, True
+        return ""
 
-    def __init__(self, installed, active="turbo", switch_ok=True, problem=""):
-        self._installed_models = set(installed)
-        self._downloading = ""
-        self.storage_refreshed = 0
-        switched = []
-        started = []
-        cancelled = []
-
-        class _App:
-            active_model_size = active
-            downloading = None
-            download_done = 0
-            download_total = 0
-            download_percent = 0
-            fallback = None
-
-            def __init__(self):
-                self.models = self  # the window reaches the model manager through `app.models`
-                self.switched = switched
-                self.started = started
-                self.cancelled = cancelled
-
-            def switch_model(self, model_id):
-                switched.append(model_id)
-                return switch_ok
-
-            def start_download(self, model_id):
-                started.append(model_id)
-                if not problem:
-                    self.downloading = model_id
-                return problem
-
-            def cancel_download(self):
-                cancelled.append(self.downloading)
-
-        self.app = _App()
-        self.description = SW.MODEL_HINT
-        self.selected = None
-        self.control = None
-        self.row_model = type(
-            "R",
-            (),
-            {
-                "set_description": lambda _s, text: setattr(self, "description", text),
-                "set_control": lambda _s, widget: setattr(self, "control", widget),
-            },
-        )()
-        self.enabled = True
-        self.cancel_enabled = True
-        self.model_select = type(
-            "S",
-            (),
-            {
-                "set_value": lambda _s, value: setattr(self, "selected", value),
-                "set_options": lambda _s, options: None,
-                "set_enabled": lambda _s, value: setattr(self, "enabled", value),
-            },
-        )()
-        self.cancel_button = type("B", (), {"set_enabled": lambda _s, value: setattr(self, "cancel_enabled", value)})()
-
-    def alive(self):
-        return True
+    def cancel(self):
+        self.active = False
 
 
 @pytest.fixture
-def config(monkeypatch):
-    def _set(model_id):
-        monkeypatch.setattr("hams.config.CFG.model_size", model_id)
+def settings(live_app, monkeypatch):
+    """Oeffnet das echte Einstellungsfenster und liefert seine Gruppe "Transkription".
 
-    return _set
+    `settings(installed, chosen, active="turbo", switch_ok=True)`: die installierten Modelle, das gewaehlte
+    (`CFG.model_size`) und das geladene. Ein Wechsel wird nur aufgezeichnet (`live_app.switched`), ein Download
+    nur gestartet (`live_app.models.downloader.started`).
+    """
+    monkeypatch.setattr(settings_models, "threading", SimpleNamespace(Thread=InlineThread))
+    monkeypatch.setattr(models, "cached_whisper_models", lambda: ())
+    live_app.models.downloader = FakeDownloader()
+    live_app.switched = []
+
+    def _open(installed, chosen, active="turbo", switch_ok=True):
+        monkeypatch.setattr(models, "installed_whisper_models", lambda: set(installed))
+        monkeypatch.setattr(CFG, "model_size", chosen)
+        monkeypatch.setattr(live_app, "switch_model", lambda model_id: live_app.switched.append(model_id) or switch_ok)
+        live_app.models.active_model_size = active
+        live_app._open_settings()
+        live_app.root.update()
+        return live_app.settings_win.transcription
+
+    return _open
+
+
+def description(section) -> str:
+    return section.row_model.sub_text
 
 
 class TestOptions:
-    def test_two_groups(self, config):
-        config("turbo")
-        options = _StubWindow({"turbo"}).model_options()
+    def test_two_groups(self, settings):
+        options = settings({"turbo"}, "turbo").model_select.options
         assert {o.group for o in options} == {"Installiert", "Verfügbar"}
 
-    def test_installed_model_has_no_download_marker(self, config):
-        config("turbo")
-        options = _StubWindow({"turbo"}).model_options()
+    def test_installed_model_has_no_download_marker(self, settings):
+        options = settings({"turbo"}, "turbo").model_select.options
         turbo = next(o for o in options if o.value == "turbo")
         assert turbo.group == "Installiert" and turbo.trailing == ""
 
-    def test_available_models_show_their_size(self, config):
-        config("turbo")
-        options = _StubWindow({"turbo"}).model_options()
+    def test_available_models_show_their_size(self, settings):
+        options = settings({"turbo"}, "turbo").model_select.options
         large = next(o for o in options if o.value == "large-v3")
         assert large.group == "Verfügbar" and "3,1 GB" in large.trailing
 
-    def test_meta_lines_are_present(self, config):
-        config("turbo")
-        for option in _StubWindow({"turbo"}).model_options():
+    def test_meta_lines_are_present(self, settings):
+        for option in settings({"turbo"}, "turbo").model_select.options:
             assert option.meta
 
-    def test_custom_config_value_is_shown_not_reset(self, config):
+    def test_custom_config_value_is_shown_not_reset(self, settings):
         """Ein eigener Wert darf nicht stillschweigend auf Turbo fallen."""
-        config("large-v2")
-        options = _StubWindow({"turbo"}).model_options()
+        tr = settings({"turbo"}, "large-v2")
+        options = tr.model_select.options
         assert options[0].value == "large-v2"
         assert "Benutzerdefiniert" in options[0].label
+        assert tr.model_select.value == "large-v2"
 
-    def test_all_six_are_offered(self, config):
-        config("turbo")
-        values = [o.value for o in _StubWindow({"turbo"}).model_options()]
+    def test_all_six_are_offered(self, settings):
+        values = [o.value for o in settings({"turbo"}, "turbo").model_select.options]
         assert set(CATALOG_IDS) <= set(values)
 
 
 class TestSelection:
-    def test_installed_model_triggers_a_switch(self, config, patch_everywhere):
+    def test_installed_model_triggers_a_switch(self, settings, hams, live_app):
         """Gespeichert wird erst nach erfolgreichem Wechsel, nicht beim Klick."""
-        config("turbo")
-        written = {}
-        patch_everywhere("_persist_config_value", lambda s, k, v: written.update({(s, k): v}))
-        window = _StubWindow({"turbo", "small"})
-        window._select_model("small")
-        assert window.app.switched == ["small"]
-        assert written == {}, "Config darf noch nicht auf das neue Modell zeigen"
+        tr = settings({"turbo", "small"}, "turbo")
+        tr.select_model("small")
+        assert live_app.switched == ["small"]
+        assert hams.saved == [], "Config darf noch nicht auf das neue Modell zeigen"
 
-    def test_uninstalled_model_is_not_persisted(self, config, patch_everywhere):
+    def test_uninstalled_model_is_not_persisted(self, settings, hams, live_app):
         """Sonst zöge der nächste Start wortlos mehrere Gigabyte nach."""
-        config("turbo")
-        written = {}
-        patch_everywhere("_persist_config_value", lambda s, k, v: written.update({(s, k): v}))
-        window = _StubWindow({"turbo"})
-        window._select_model("large-v3")
-        assert written == {}
-        assert window.selected == "turbo", "Auswahl muss zurückspringen"
-        assert window.app.started == ["large-v3"], "Auswahl startet den Download"
+        tr = settings({"turbo"}, "turbo")
+        tr.select_model("large-v3")
+        assert hams.saved == []
+        assert tr.model_select.value == "turbo", "Auswahl muss zurückspringen"
+        assert live_app.models.downloader.started == ["large-v3"], "Auswahl startet den Download"
+        assert live_app.switched == []
 
-    def test_choosing_the_active_model_changes_nothing(self, config, patch_everywhere):
-        config("turbo")
-        written = {}
-        patch_everywhere("_persist_config_value", lambda s, k, v: written.update({(s, k): v}))
-        window = _StubWindow({"turbo"})
-        window._select_model("turbo")
-        assert written == {}
-        assert window.app.switched == []
+    def test_choosing_the_active_model_changes_nothing(self, settings, hams, live_app):
+        tr = settings({"turbo"}, "turbo")
+        tr.select_model("turbo")
+        assert hams.saved == []
+        assert live_app.switched == []
 
-    def test_rejected_switch_restores_the_selection(self, config):
+    def test_rejected_switch_restores_the_selection(self, settings):
         """Waehrend einer Aufnahme lehnt die Anwendung ab — die Zeile sagt es."""
-        config("turbo")
-        window = _StubWindow({"turbo", "small"}, switch_ok=False)
-        window._select_model("small")
-        assert window.selected == "turbo"
-        assert "Aufnahme" in window.description
+        tr = settings({"turbo", "small"}, "turbo", switch_ok=False)
+        tr.select_model("small")
+        assert tr.model_select.value == "turbo"
+        assert "Aufnahme" in description(tr)
 
-    def test_switch_disables_the_select_while_loading(self, config):
-        config("turbo")
-        window = _StubWindow({"turbo", "small"})
-        window._select_model("small")
-        assert window.enabled is False
-        assert "geladen" in window.description
+    def test_switch_disables_the_select_while_loading(self, settings):
+        tr = settings({"turbo", "small"}, "turbo")
+        tr.select_model("small")
+        assert tr.model_select.enabled is False
+        assert "geladen" in description(tr)
 
 
 class TestHint:
-    def test_normal_state(self, config):
-        config("turbo")
-        window = _StubWindow({"turbo"}, active="turbo")
-        window._update_model_hint()
-        assert window.description == models.find("turbo").meta
+    def test_normal_state(self, settings):
+        tr = settings({"turbo"}, "turbo", active="turbo")
+        tr.update_model_hint()
+        assert description(tr) == models.find("turbo").meta
 
-    def test_chosen_differs_from_active(self, config):
+    def test_chosen_differs_from_active(self, settings):
         """Aktiv und für den nächsten Start gewählt sind zwei Zustände."""
-        config("small")
-        window = _StubWindow({"turbo", "small"}, active="turbo")
-        window._update_model_hint()
-        assert "nächsten Start" in window.description
+        tr = settings({"turbo", "small"}, "small", active="turbo")
+        tr.update_model_hint()
+        assert "nächsten Start" in description(tr)
 
-    def test_not_installed_is_named(self, config):
-        config("medium")
-        window = _StubWindow({"turbo"}, active="turbo")
-        window._update_model_hint()
-        assert "geladen" in window.description
+    def test_not_installed_is_named(self, settings):
+        tr = settings({"turbo"}, "medium", active="turbo")
+        tr.update_model_hint()
+        assert "geladen" in description(tr)
 
 
 class TestModelSizeWarning:

@@ -1,179 +1,217 @@
-"""Das Einstellungsfenster: Aufbau und Schalter."""
+"""The settings window: frame, header, scroll area and the six sections.
 
+The window is built once and then only shown and hidden. Building it costs about 300 ms on the Tk thread (about
+250 widgets, each a native window on Windows); showing a built one costs about 20 ms. The app builds it ahead in
+an idle moment after the start (`FloatingTranscriberApp.prebuild_settings`), so even the first opening is quick.
+Each time it is shown, every section first takes over the current state (`Section.sync`), so a hidden window
+never shows anything stale; each time it is hidden, the sections stop their timers, streams and captures.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import sys
 import tkinter as tk
 from typing import TYPE_CHECKING
 
-import sounddevice as sd
-
 from hams import branding
 from hams import ui_kit as uk
+from hams.i18n import t
+from hams.settings_about import AboutSection
+from hams.settings_extras import AiSection
+from hams.settings_models import TranscriptionSection
+from hams.settings_sections import GeneralSection, Section
+from hams.settings_shortcuts import ShortcutsSection
+from hams.settings_status import RecordingSection
 from hams.ui_kit import Theme
 
 if TYPE_CHECKING:
     from hams.app import FloatingTranscriberApp
-import contextlib
-
-from hams.config import CFG, _persist_config_value, logger
-from hams.i18n import Text, t
-from hams.settings_about import AboutSectionMixin
-from hams.settings_extras import ExtrasSectionMixin
-from hams.settings_models import ModelSectionMixin
-from hams.settings_sections import SectionsMixin, choose_dictation_language, choose_ui_language
-from hams.settings_shortcuts import ShortcutsSectionMixin
-from hams.settings_status import StatusSectionMixin
 
 
-class SettingsWindow(
-    SectionsMixin,
-    ShortcutsSectionMixin,
-    ModelSectionMixin,
-    StatusSectionMixin,
-    ExtrasSectionMixin,
-    AboutSectionMixin,
-):
-    """Randloses Einstellungsfenster im Mosaik-Design.
+class SettingsWindow:
+    """Frameless settings window in the Mosaik design.
 
-    Zeigt Mikrofon-Auswahl mit Live-Pegel, Status-Lampen (Modell/Ollama/Mikro)
-    und Schnell-Schalter. Öffnet einen eigenen Monitor-Stream, solange es offen
-    ist und nicht aufgenommen wird, damit man den Pegel *vor* dem Sprechen sieht.
+    Shows the microphone choice with live level, the state of model, Ollama and microphone, and the switches.
+    While it is shown and nothing is being recorded, it keeps a level stream of its own open, so the level is
+    visible *before* speaking.
     """
 
-    WIDTH = 440  # logisch
-    HEIGHT = 680  # logisch
-    OLLAMA_INTERVAL_MS = 5000  # sparsam, aber nicht nur einmal
-    #: Breite der Controls, die *neben* dem Text stehen (Pegel, Darstellung,
-    #: Loeschauswahl). Auswahlfelder mit langen Werten stehen gestapelt darunter.
-    CONTROL_WIDTH = 160  # logisch
-    MODEL_HINT = Text("settings.model.hint")
-    APPEARANCE_LABELS = Text(
-        lambda: {Theme.LIGHT: t("settings.appearance.light"), Theme.DARK: t("settings.appearance.dark")}
-    )
-    #: Die Beschreibung bricht um, sie darf also ein ganzer Satz sein.
-    RESTART_HINT = Text("settings.restart.hint")
-    RESTART_WIDTH = 108  # logisch; „Neu starten" plus Luft
-    SETUP_WIDTH = 124  # logisch; „Erneut starten" plus Luft
-    UPDATE_WIDTH = 96  # logisch; „Ansehen“ plus Luft
-    DELETE_PLACEHOLDER = Text("settings.storage.delete_placeholder")
-    DELETE_WIDTH = 88  # logisch; „Löschen" plus Luft
-    #: So lange bleibt die Erfolgsmeldung stehen, bevor die Zeile wieder den
-    #: Bestand zeigt.
-    DELETE_NOTE_MS = 4000
+    WIDTH = 440  # logical
+    HEIGHT = 680  # logical
+    #: How long the invisible first layout stays mapped (`lay_out_hidden`); the layout needs two or three idle
+    #: rounds of the main loop, measured well under 100 ms.
+    LAYOUT_HIDDEN_MS = 250
+    #: Far outside every screen, for the invisible first layout.
+    OFFSCREEN = -32000
 
-    def __init__(self, app: "FloatingTranscriberApp") -> None:
+    def __init__(self, app: FloatingTranscriberApp, *, show: bool = True) -> None:
         self.app = app
         self.win = tk.Toplevel(app.root)
+        self.win.withdraw()
         self.win.title(t("settings.window_title", product=branding.PRODUCT_NAME))
         uk.frame_window(self.win)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
-        try:
-            px, py = app.root.winfo_rootx(), app.root.winfo_rooty()
-        except Exception:
-            px, py = 80, 80
-        self._logical_size = (self.WIDTH, self.HEIGHT)
-        self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}+{px + uk.px(24)}+{py + uk.px(24)}")
+        self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}")
         self.win.bind("<Escape>", lambda _e: self.close())
-
-        self._mon_stream: sd.InputStream | None = None
-        self._mon_rms = 0.0
-        self._suspended = False
-        self._devices: list = []
-        self._device_error = ""
-        #: Letzte Antwort des Dienstes, uebernommen von der Anwendung. Die
-        #: Signatur daneben entscheidet, ob die Auswahllisten überhaupt neu
-        #: gebaut werden müssen.
-        self._ollama_state = app.ollama_state
-        self._ollama_signature = self._ollama_state.signature()
-        self._ollama_online = self._ollama_state.online
-        self._ollama_job: str | None = None
-        self._installed_models: set = set()
-        #: Modell, dessen Download dieses Fenster gerade zeigt.
-        self._downloading = ""
-        #: Modell, fuer das die Loeschruckfrage gerade offen steht.
-        self._delete_target = ""
-        self._storage_note_job: str | None = None
-        self._tick_job: str | None = None
-        self._alive = True
+        self.win.bind("<Destroy>", self._on_destroy, add="+")
+        self._shown = False
+        self._destroyed = False
+        #: The colour scheme the widgets are painted in; a switch while hidden is caught up on `show`.
+        self._painted_mode = Theme.mode
         self._drag = (0, 0)
-        #: Built with the Ollama section (settings_extras); the shortcut being recorded (settings_shortcuts).
-        self.pull_task = None
-        self.pull_row = None
-        self._capture = None
+        self._layout_job: str | None = None
 
         self._build()
-        self._attach_download()
         uk.Scale.register(self._on_scale_change)
-        app.recorder.register_consumer(self)
         self.win.update_idletasks()
-        self.win.focus_force()
-        uk.round_window_corners(self.win)
-        self._start_monitor()
-        self._tick()
-        self._refresh_status()
-        self._schedule_ollama_check()
+        if show:
+            self.show()
 
     # ---------------------------------------------------------- lifecycle
 
     def alive(self) -> bool:
+        """Whether the window is shown. A hidden one keeps its widgets but takes no events."""
         try:
-            return self._alive and bool(self.win.winfo_exists())
-        except Exception:
+            return self._shown and not self._destroyed and bool(self.win.winfo_exists())
+        except tk.TclError:
             return False
+
+    def reusable(self) -> bool:
+        """Whether this (hidden) window can be shown again instead of building a new one."""
+        try:
+            return not self._destroyed and bool(self.win.winfo_exists())
+        except tk.TclError:
+            return False
+
+    def show(self) -> None:
+        """Takes over the current state, then appears next to the main window."""
+        if self._shown:
+            self.focus()
+            return
+        self._end_hidden_layout(show=True)
+        if self._painted_mode != Theme.mode:
+            self._repaint()
+        for section in self.sections:
+            section.sync()
+        self._shown = True
+        try:
+            x, y = self.app.root.winfo_rootx(), self.app.root.winfo_rooty()
+        except tk.TclError:
+            x, y = 80, 80
+        self.win.geometry(f"+{x + uk.px(24)}+{y + uk.px(24)}")
+        self.scroll.scroll_to(0)
+        self._on_scroll(self.scroll.offset)
+        self.win.deiconify()
+        self.win.update_idletasks()
+        self.win.focus_force()
+        uk.round_window_corners(self.win)
+        for section in self.sections:
+            section.on_show()
 
     def focus(self) -> None:
         uk.bring_to_front(self.win)
 
-    def retint(self) -> int:
-        """Faerbt das Einstellungsfenster neu ein — ohne zu springen.
+    def lay_out_hidden(self) -> None:
+        """Windows: maps the window once, fully transparent and off screen, so that Tk lays it out ahead.
 
-        Die Rollposition wird ausdruecklich gesichert und wieder gesetzt: das
-        Neuzeichnen der Gruppenflaechen loest Configure-Ereignisse aus, und die
-        koennen den Ausschnitt verschieben. Die Kopfzeilenlinie wird danach neu
-        bewertet, weil sie nur bei gescrolltem Inhalt sichtbar ist.
+        A withdrawn Tk window does not arrange its content at all (its canvases stay 1 x 1 px); without this the
+        first `show()` paid for the whole layout and every surface rendered at its final size (measured 120 ms).
+        Tk maps a toplevel without activating it (`SW_SHOWNOACTIVATE`), the window is frameless (no taskbar
+        entry) and at alpha 0, so nothing is seen and no focus moves. Not on Linux: there the window manager
+        decides where a window goes and may show it in the task list.
+        """
+        if sys.platform != "win32" or self._shown or self._layout_job is not None or not self.reusable():
+            return
+        try:
+            self.win.attributes("-alpha", 0.0)
+            self.win.geometry(f"+{self.OFFSCREEN}+{self.OFFSCREEN}")
+            self.win.deiconify()
+        except tk.TclError:  # pragma: no cover - the window is going away
+            return
+        self._layout_job = self.win.after(self.LAYOUT_HIDDEN_MS, self._end_hidden_layout)
+
+    def _end_hidden_layout(self, *, show: bool = False) -> None:
+        if self._layout_job is None:
+            return
+        if show:
+            with contextlib.suppress(ValueError, tk.TclError):
+                self.win.after_cancel(self._layout_job)
+        self._layout_job = None
+        with contextlib.suppress(tk.TclError):
+            if not show:
+                self.win.withdraw()
+            self.win.attributes("-alpha", 1.0)
+
+    def close(self) -> None:
+        """Hides the window; everything it ran stops. The widgets stay for the next opening."""
+        if not self._shown:
+            return
+        self._shown = False
+        popover = uk.Popover.current
+        if popover is not None and str(popover.trigger).startswith(str(self.win)):
+            uk.Popover.dismiss_current()
+        for section in self.sections:
+            section.on_hide()
+        with contextlib.suppress(tk.TclError):
+            self.win.withdraw()
+
+    def destroy(self) -> None:
+        """For good: hides, then removes the widgets."""
+        self.close()
+        with contextlib.suppress(tk.TclError):
+            self.win.destroy()
+
+    def _on_destroy(self, event: tk.Event) -> None:
+        if event.widget is self.win:
+            self._destroyed = True
+            self._shown = False
+            uk.Scale.unregister(self._on_scale_change)
+
+    def retint(self) -> int:
+        """Recolours the window - without jumping.
+
+        The scroll position is saved and set again explicitly: repainting the group surfaces causes Configure
+        events, and they can move the view. The header line is evaluated again afterwards, because it is only
+        visible with scrolled content.
         """
         offset = self.scroll.offset
-        painted = uk.apply_theme_tree(self.win)
+        painted = self._repaint()
         self.scroll.scroll_to(offset)
         self._on_scroll(self.scroll.offset)
         return painted
 
-    def _on_scale_change(self, _factor: float) -> None:
-        """Fenstergrösse dem neuen DPI nachziehen.
+    def _repaint(self) -> int:
+        self._painted_mode = Theme.mode
+        return uk.apply_theme_tree(self.win)
 
-        Die Controls darin skalieren selbst; das Fenster selbst hat niemand
-        gefragt und bliebe sonst in der alten Pixelgrösse stehen.
+    def _on_scale_change(self, _factor: float) -> None:
+        """Follows a new DPI with the window size.
+
+        The controls inside scale themselves; the window itself nobody asked, and it would keep the old pixel size.
         """
-        if not self.alive():
+        if not self.reusable():
             return
-        width, height = self._logical_size
         try:
-            self.win.geometry(f"{uk.px(width)}x{uk.px(height)}")
+            self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}")
             uk.round_window_corners(self.win)
-        except tk.TclError:  # pragma: no cover - Fenster verschwindet gerade
+        except tk.TclError:  # pragma: no cover - the window is just going away
             pass
 
-    def close(self) -> None:
-        self._alive = False
-        self._close_capture()
-        self._cancel_model_pull()  # kein Download, den niemand mehr sieht
-        uk.Scale.unregister(self._on_scale_change)
-        if self._ollama_job is not None:
-            with contextlib.suppress(ValueError, tk.TclError):
-                self.win.after_cancel(self._ollama_job)
-            self._ollama_job = None
-        if self._tick_job is not None:
-            with contextlib.suppress(Exception):
-                self.win.after_cancel(self._tick_job)
-            self._tick_job = None
-        if self._storage_note_job is not None:
-            with contextlib.suppress(Exception):
-                self.win.after_cancel(self._storage_note_job)
-            self._storage_note_job = None
-        self._stop_monitor()
-        self.app.recorder.unregister_consumer(self)
-        with contextlib.suppress(Exception):
-            self.win.destroy()
-        self.app.settings_win = None
+    # ---------------------------------------------------------- events from the app
+
+    def on_model_changed(self) -> None:
+        self.transcription.on_model_changed()
+
+    def on_download_progress(self, done: int, total: int, percent: int) -> None:
+        self.transcription.on_download_progress(done, total, percent)
+
+    def on_download_finished(self, model_id: str, error: str, switching: bool) -> None:
+        self.transcription.on_download_finished(model_id, error, switching)
+
+    def show_update(self, release) -> None:
+        self.general.show_update(release)
 
     # ---------------------------------------------------------- drag
 
@@ -188,11 +226,10 @@ class SettingsWindow(
     # ---------------------------------------------------------- build
 
     def _build(self) -> None:
-        """Kopfzeile, Scrollbereich, vier Gruppen.
+        """Header, scroll area, the groups.
 
-        Die Gruppen liegen als eine Fläche mit Trennlinien vor, nicht als eine
-        Karte je Einstellung — das ist der Unterschied, der das Fenster ruhig
-        wirken lässt.
+        The groups are one surface each with hairlines, not one card per setting - that is the difference that
+        makes the window feel calm.
         """
         head = tk.Frame(self.win, bg=Theme.WINDOW_BG)
         head.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(uk.px(uk.Space.WINDOW), 0))
@@ -206,7 +243,7 @@ class SettingsWindow(
             anchor="w",
         )
         title.pack(side="left")
-        # Ziehen am Kopf nur ohne Systemrahmen; unter Linux zieht man an der KDE-Titelleiste.
+        # Dragging by the header only without a system frame; on Linux one drags by the KDE title bar.
         for widget in (head, title) if not uk.system_frame() else ():
             widget.bind("<ButtonPress-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._on_drag)
@@ -215,10 +252,10 @@ class SettingsWindow(
             head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip=t("settings.close_tooltip")
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
-        if not uk.system_frame():  # unter Linux hat die KDE-Titelleiste das Kreuz
+        if not uk.system_frame():  # on Linux the KDE title bar has the cross
             self._close_btn.pack(side="right")
 
-        # Trennlinie erscheint erst, wenn Inhalt darunter wegscrollt.
+        # The hairline appears only when content scrolls away below it.
         self._head_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
         self._head_line.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
 
@@ -227,104 +264,26 @@ class SettingsWindow(
         self.scroll.bind_keys(self.win)
 
         body = self.scroll.body
-        self._build_recording(body)
-        self._build_transcription(body)
-        self._build_ai(body)
-        self._build_shortcuts(body)
-        self._build_general(body)
-        self._build_about(body)
+        self.recording = RecordingSection(self, body)
+        self.transcription = TranscriptionSection(self, body)
+        self.ai = AiSection(self, body)
+        self.shortcuts = ShortcutsSection(self, body)
+        self.general = GeneralSection(self, body)
+        self.about = AboutSection(self, body)
+        self.sections: list[Section] = [
+            self.recording,
+            self.transcription,
+            self.ai,
+            self.shortcuts,
+            self.general,
+            self.about,
+        ]
 
-        # Die Tabulatorkette folgt der Stapelreihenfolge, und die entspricht der
-        # Reihenfolge der Erzeugung. Die Kopfzeile entsteht zuerst, das Kreuz
-        # laege damit *vor* allen Einstellungen. `lift` schiebt die Kopfzeile ans
-        # Ende der Kette; sichtbar bleibt sie oben, weil das die Packung regelt.
+        # The tab order follows the stacking order, and that is the order of creation. The header is created first,
+        # so the cross would come *before* all settings. `lift` moves the header to the end of the chain; it stays
+        # visible on top because packing decides that.
         head.lift()
 
-    # ---------------------------------------------------------- Kopfzeilenlinie
-
     def _on_scroll(self, offset: int) -> None:
-        """Die Linie erscheint erst, wenn etwas darunter liegt."""
+        """The line appears only when something lies under it."""
         self._head_line.configure(bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
-
-    # ---------------------------------------------------------- Schalter
-
-    def _toggle_cleanup(self) -> None:
-        self.switch_cleanup.toggle()
-
-    def _toggle_sound(self) -> None:
-        self.switch_sound.toggle()
-
-    # ---------------------------------------------------------- toggles
-
-    def _on_cleanup(self, value: bool) -> None:
-        CFG.ollama_cleanup_enabled = value
-        _persist_config_value("ollama", "cleanup_enabled", value)
-        self._sync_cleanup_dependency()
-        self._show_ollama_status()
-
-    def _sync_cleanup_dependency(self) -> None:
-        """Cleanup an, Ollama aus — das muss sofort sichtbar sein.
-
-        Sonst zeigte das Fenster einen aktiven Schalter neben einem Dienst, der
-        gar nicht antwortet, und der Widerspruch fiel erst nach der nächsten
-        Aufnahme auf.
-        """
-        if not self.alive():
-            return
-        self.row_cleanup_model.set_enabled(CFG.ollama_cleanup_enabled and self._ollama_online)
-        # Der Prompt-Modus haengt nicht am Cleanup-Schalter. Beide gemeinsam
-        # abzuschalten waere bequem und falsch: sie sind unabhaengig.
-        self.row_prompt_model.set_enabled(self._ollama_online)
-        self._refresh_pull_row()
-        self.row_prompt_model.set_description(
-            t("settings.prompt_model.ready") if self._ollama_online else t("ollama.unreachable")
-        )
-        if CFG.ollama_cleanup_enabled and not self._ollama_online:
-            self.row_cleanup.set_description(t("settings.cleanup.offline"))
-        else:
-            self.row_cleanup.set_description(t("settings.cleanup.active"))
-
-    def _restart_app(self) -> None:
-        """Startet Hams neu — oder sagt, warum gerade nicht.
-
-        Kein Rueckfragedialog: der Knopf sitzt hinter einer eigenen Zeile mit
-        klarer Beschriftung, und die beiden Faelle, in denen ein Neustart
-        wirklich weh taete (laufende Aufnahme, laufender Download), lehnt
-        `restart_app` von sich aus ab.
-        """
-        self.restart_button.set_enabled(False)
-        self.row_restart.set_description(t("settings.restart.running"))
-        reason = self.app.restart_app()
-        if reason:
-            self.restart_button.set_enabled(True)
-            self.row_restart.set_description(reason)
-            logger.info("Restart refused: %s", reason)
-
-    def _select_appearance(self, mode) -> None:
-        """Schreibt die Wahl und wendet sie sofort an.
-
-        Erst speichern, dann umschalten: das Umfaerben beruehrt dieses Fenster
-        selbst, und eine fehlgeschlagene Schreibaktion soll nicht mitten in
-        einem halb neu gezeichneten Baum auffallen.
-        """
-        mode = Theme.normalise(mode)
-        if mode == Theme.mode:
-            return
-        _persist_config_value("ui", "appearance", mode)
-        self.app.set_appearance(mode)
-
-    def _select_language(self, setting) -> None:
-        """Speichert die Sprache; sie gilt ab dem naechsten Start (siehe `language_hint`)."""
-        setting = choose_ui_language(setting)
-        if setting is not None:
-            self.row_language.set_description(self.language_hint(setting))
-
-    def _select_dictation_language(self, setting) -> None:
-        """Speichert die Diktiersprache; sie gilt ab der naechsten Aufnahme, ohne Neustart."""
-        setting = choose_dictation_language(setting)
-        if setting is not None:
-            self.row_dictation.set_description(self.dictation_hint(setting))
-
-    def _on_sound(self, value: bool) -> None:
-        CFG.sound_feedback = value
-        _persist_config_value("ui", "sound_feedback", value)

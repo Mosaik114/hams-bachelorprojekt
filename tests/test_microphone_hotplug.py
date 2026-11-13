@@ -26,39 +26,39 @@ class TestHotplug:
     def test_a_new_microphone_appears_after_reopening_the_settings(self, live_app, hams):
         CFG.mic_device_raw = "default"
         win = _open_settings(live_app)
-        assert "Yeti" not in _labels(win.mic_select)
+        assert "Yeti" not in _labels(win.recording.monitor.mic_select)
         win.close()
 
         hams.devices.append(("Yeti", "Yeti (USB)"))
-        win = _open_settings(live_app)
-        assert "Yeti" in _labels(win.mic_select)
+        assert _open_settings(live_app) is win, "the hidden window is shown again"
+        assert "Yeti" in _labels(win.recording.monitor.mic_select)
         assert hams.sd.reinits == 2, "each scan re-initialises PortAudio"
 
     def test_the_level_meter_resumes_after_the_scan(self, live_app, hams):
-        win = _open_settings(live_app)
-        assert win._scanning is False
-        assert win._mon_stream is not None
+        monitor = _open_settings(live_app).recording.monitor
+        assert monitor.scanning is False
+        assert monitor.stream is not None
 
     def test_no_reinitialisation_while_recording(self, live_app, hams):
-        win = _open_settings(live_app)
+        monitor = _open_settings(live_app).recording.monitor
         before = hams.sd.reinits
         live_app.toggle_recording()
         assert live_app.is_recording
-        win._refresh_devices()
+        monitor.refresh_devices()
         live_app.root.update()
         assert hams.sd.reinits == before, "re-initialising would cut the recording off"
-        assert win._scanning is False
+        assert monitor.scanning is False
 
     def test_the_monitor_stops_during_the_scan(self, live_app, hams, monkeypatch):
-        win = _open_settings(live_app)
+        monitor = _open_settings(live_app).recording.monitor
         seen = []
         monkeypatch.setattr(status_mod, "reinitialise_portaudio", lambda busy: seen.append(busy()) or True)
-        win._refresh_devices()
+        monitor.refresh_devices()
         live_app.root.update()
         assert seen == [False], "the level meter of this window was closed before re-initialising"
 
     def test_the_scan_runs_off_the_tk_thread(self, live_app, hams, monkeypatch):
-        win = _open_settings(live_app)
+        monitor = _open_settings(live_app).recording.monitor
         threads = []
 
         def scan():
@@ -67,7 +67,7 @@ class TestHotplug:
 
         monkeypatch.setattr(status_mod, "ScanThread", threading.Thread)
         monkeypatch.setattr(status_mod, "list_input_devices", scan)
-        win._refresh_devices()
+        monitor.refresh_devices()
         for thread in threading.enumerate():
             if thread.name == "mic-scan":
                 thread.join(2)

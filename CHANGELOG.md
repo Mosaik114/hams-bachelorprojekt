@@ -5,6 +5,31 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **The settings window opens almost at once.** It is built once, hidden, a few seconds after the start, and from
+  then on only shown and hidden; each time it is shown it first takes over the current state. Measured on the Tk
+  thread (hidden desktop, 100 % DPI, `tools/ui_benchmark.py`): first opening 1,447 ms → 53 ms, opening again
+  307 ms → 23 ms. On Windows the window is laid out once ahead, fully transparent and off screen; Tk maps it
+  without activating it, so no focus moves.
+- **Rounded surfaces render about 30 times faster, pixel for pixel the same.** Large surfaces are stretched from a
+  small template instead of being drawn at four times their size (compared on 2,184 shape and size combinations:
+  not one pixel differs). Switching between light and dark: 393 → about 110 ms.
+- **Smooth scrolling and 120 frames a second.** Mouse wheel, arrow and page keys glide to their target instead of
+  jumping 40 px; a precision touchpad, which reports fractions of a notch, now scrolls at all. Animations run every
+  8 ms (was 16) with a 1 ms Windows timer while something moves, and measure time with the fine clock (Python's
+  `time.monotonic` advances in 15.6 ms steps on Windows, which doubled frames). Tk has no vertical sync, so frames
+  are regular but not locked to the display.
+- **The level meter is redrawn about 60 times a second** (was 16), only while the window is visible (0.4 ms per
+  tick; the Tk thread of an open settings window uses about 3 % of one core instead of 1 %).
+- **The model cache is read in the background.** The first scan after a while took about half a second on a cold
+  disk and froze the window; the rows now show the last known state until the answer arrives.
+- The fonts for text drawn into images (select fields) are looked up once instead of walking the whole Windows
+  font folder on every drawing (about 90 ms per opening, 300 ms per theme switch).
+- Internal: the settings window is no longer six mixins sharing undeclared state. Each group is a section object
+  that owns its widgets (`settings_sections.Section`: build once, `sync` on show, `on_hide`); the microphone list
+  with level meter is one `LevelMonitor`, shared by the settings and the setup assistant (audit finding 11).
+  `tools/ui_benchmark.py` measures opening, scrolling, animation, theme switch and the assistant reproducibly.
+
 ## [1.2.2] – 2026-11-13
 
 ### Changed

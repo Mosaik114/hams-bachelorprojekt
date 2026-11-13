@@ -157,10 +157,16 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
     def value(self) -> bool:
         return self._value
 
-    def set(self, value: bool) -> None:
+    def set(self, value: bool, *, animate: bool = True) -> None:
+        """Sets the value; `animate=False` jumps (for a window that syncs its rows before it is shown)."""
         if value != self._value:
             self._value = value
-            self._glide()
+            if animate:
+                self._glide()
+            else:
+                Animator.cancel(self, "knob")
+                self._progress = 1.0 if value else 0.0
+                self._draw()
 
     def toggle(self) -> None:
         if not State.is_interactive(self._states):

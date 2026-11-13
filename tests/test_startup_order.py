@@ -119,32 +119,45 @@ ISS = (Path(__file__).resolve().parent.parent / "packaging" / "hams.iss").read_t
 class _Root:
     def __init__(self):
         self.idle = []
+        self.later = []
 
     def after_idle(self, fn):
         self.idle.append(fn)
+
+    def after(self, delay_ms, fn):
+        self.later.append((delay_ms, fn))
 
 
 class TestTheWindowOnStart:
     @pytest.fixture
     def app(self):
-        return SimpleNamespace(_show_window="show", _open_setup="setup", _open_settings="settings")
+        return SimpleNamespace(
+            _show_window="show",
+            _open_setup="setup",
+            _open_settings="settings",
+            prebuild_settings="prebuild",
+            PREBUILD_DELAY_MS=3000,
+        )
 
     @pytest.mark.parametrize(
-        ("flags", "expected"),
+        ("flags", "expected", "prebuild"),
         [
-            ({}, ["show"]),
-            ({"background": True}, []),
-            ({"setup": True}, ["setup"]),
-            ({"setup": True, "background": True}, ["setup"]),
-            ({"settings": True}, ["show", "settings"]),
-            ({"settings": True, "background": True}, ["settings"]),
+            ({}, ["show"], True),
+            ({"background": True}, [], True),
+            ({"setup": True}, ["setup"], False),
+            ({"setup": True, "background": True}, ["setup"], False),
+            ({"settings": True}, ["show", "settings"], False),
+            ({"settings": True, "background": True}, ["settings"], False),
         ],
     )
-    def test_only_the_autostart_starts_hidden(self, app, flags, expected):
+    def test_only_the_autostart_starts_hidden(self, app, flags, expected, prebuild):
+        """Die Einstellungen werden nur dann verborgen vorgebaut, wenn beim Start weder sie noch der Assistent
+        aufgehen - sonst baut sie das Oeffnen ohnehin sofort."""
         root = _Root()
         options = {"setup": False, "settings": False, "background": False, **flags}
         main._first_windows(root, app, **options)
         assert root.idle == expected
+        assert root.later == ([(3000, "prebuild")] if prebuild else [])
 
     def test_the_command_line_passes_background_on(self, monkeypatch):
         seen = {}

@@ -124,14 +124,14 @@ class TestReport:
 
 class TestReportHint:
     def test_names_the_file(self):
-        hint = settings_about.AboutSectionMixin.report_hint("C:/x/hams-report.txt", 0, True)
+        hint = settings_about.report_hint("C:/x/hams-report.txt", 0, True)
         assert hint == "Geöffnet · hams-report.txt", "the file name, not a full path that wraps"
 
     def test_says_so_when_checks_failed(self):
-        assert "2 Prüfung" in settings_about.AboutSectionMixin.report_hint("r.txt", 2, True)
+        assert "2 Prüfung" in settings_about.report_hint("r.txt", 2, True)
 
     def test_says_saved_when_no_editor_opened(self):
-        assert settings_about.AboutSectionMixin.report_hint("r.txt", 0, False).startswith("Gespeichert")
+        assert settings_about.report_hint("r.txt", 0, False).startswith("Gespeichert")
 
 
 class TestTray:
@@ -151,29 +151,29 @@ def settings(live_app, monkeypatch):
     def _open():
         live_app._open_settings()
         live_app.root.update()
-        return live_app.settings_win
+        return live_app.settings_win.about
 
     return _open
 
 
 class TestAboutGroup:
     def test_shows_the_version(self, settings):
-        win = settings()
-        assert win.row_version.value_label.cget("text") == f"Hams {updates.app_version()}"
+        ab = settings()
+        assert ab.row_version.value_label.cget("text") == f"Hams {updates.app_version()}"
 
     def test_the_buttons_open_the_docs(self, settings, monkeypatch):
         opened = []
         monkeypatch.setattr(support.webbrowser, "open", opened.append)
-        win = settings()
-        win.guide_button._invoke()
-        win.troubleshooting_button._invoke()
+        ab = settings()
+        ab.guide_button._invoke()
+        ab.troubleshooting_button._invoke()
         assert opened == [support.USER_GUIDE_URL, support.TROUBLESHOOTING_URL]
 
     def test_opens_the_log_folder(self, settings, monkeypatch):
         opened = []
         monkeypatch.setattr(support, "open_log_folder", lambda: opened.append(True))
-        win = settings()
-        win.logs_button._invoke()
+        ab = settings()
+        ab.logs_button._invoke()
         assert opened == [True]
 
     def test_names_the_log_folder_when_it_cannot_be_opened(self, settings, monkeypatch, tmp_path):
@@ -182,23 +182,23 @@ class TestAboutGroup:
 
         monkeypatch.setattr(support, "open_log_folder", fail)
         monkeypatch.setattr(support, "LOG_DIR", tmp_path)
-        win = settings()
-        win._open_logs()
-        assert str(tmp_path) in win.row_logs._sub_text
+        ab = settings()
+        ab.open_logs()
+        assert str(tmp_path) in ab.row_logs._sub_text
 
     def test_creates_and_opens_the_report(self, settings, live_app, monkeypatch, tmp_path):
         report = tmp_path / "hams-report.txt"
         opened = []
         monkeypatch.setattr(support, "write_report", lambda: (report, 0))
         monkeypatch.setattr(support, "open_path", opened.append)
-        win = settings()
-        win.report_button._invoke()
-        assert "wird erstellt" in win.row_report._sub_text
+        ab = settings()
+        ab.report_button._invoke()
+        assert "wird erstellt" in ab.row_report._sub_text
         live_app._ui_dispatcher.drain()
         live_app.root.update()
         assert opened == [report]
-        assert win.row_report._sub_text == "Geöffnet · hams-report.txt"
-        assert not win._report_running
+        assert ab.row_report._sub_text == "Geöffnet · hams-report.txt"
+        assert not ab.report_running
 
     def test_a_second_click_while_running_does_nothing(self, settings, monkeypatch):
         calls = []
@@ -207,9 +207,9 @@ class TestAboutGroup:
             "threading",
             SimpleNamespace(Thread=lambda **kw: calls.append(kw) or InlineThread(lambda: None)),
         )
-        win = settings()
-        win._create_report()
-        win._create_report()
+        ab = settings()
+        ab.create_report()
+        ab.create_report()
         assert len(calls) == 1
 
     def test_a_failed_report_says_so(self, settings, live_app, monkeypatch):
@@ -217,28 +217,29 @@ class TestAboutGroup:
             raise OSError("voll")
 
         monkeypatch.setattr(support, "write_report", fail)
-        win = settings()
-        win._create_report()
+        ab = settings()
+        ab.create_report()
         live_app._ui_dispatcher.drain()
         live_app.root.update()
-        assert "nicht schreiben" in win.row_report._sub_text
+        assert "nicht schreiben" in ab.row_report._sub_text
 
     def test_an_editor_that_does_not_start_leaves_the_path(self, settings, monkeypatch, tmp_path):
         def fail(_path):
             raise OSError("kein Editor")
 
         monkeypatch.setattr(support, "open_path", fail)
-        win = settings()
-        win._report_finished(tmp_path / "r.txt", 0)
-        assert win.row_report._sub_text.startswith("Gespeichert")
+        ab = settings()
+        ab.report_finished(tmp_path / "r.txt", 0)
+        assert ab.row_report._sub_text.startswith("Gespeichert")
 
     def test_a_closed_window_still_opens_the_report(self, settings, monkeypatch, tmp_path):
         opened = []
         monkeypatch.setattr(support, "open_path", opened.append)
-        win = settings()
-        win.close()
-        win._report_finished(tmp_path / "r.txt", 0)
-        win._report_finished(None, 0)
+        ab = settings()
+        ab.window.close()
+        assert not ab.alive()
+        ab.report_finished(tmp_path / "r.txt", 0)
+        ab.report_finished(None, 0)
         assert opened == [tmp_path / "r.txt"]
 
 
@@ -246,21 +247,21 @@ class TestReportRowDetails:
     """Third review: the row named a full path that wrapped over several lines, and "Prüfung(en)"."""
 
     def test_one_and_several_failed_checks_are_pluralised(self):
-        hint = settings_about.AboutSectionMixin.report_hint
+        hint = settings_about.report_hint
         assert hint("r.txt", 1, True) == "1 Prüfung fehlgeschlagen · gespeichert als r.txt"
         assert hint("r.txt", 3, True) == "3 Prüfungen fehlgeschlagen · gespeichert als r.txt"
 
     def test_open_is_greyed_out_until_a_report_exists_then_opens_it_again(self, settings, monkeypatch, tmp_path):
         opened = []
         monkeypatch.setattr(support, "open_path", opened.append)
-        win = settings()
-        assert win.report_open_button.has_state(uk.State.DISABLED)
-        win._open_last_report()  # nothing yet: nothing happens
+        ab = settings()
+        assert ab.report_open_button.has_state(uk.State.DISABLED)
+        ab.open_last_report()  # nothing yet: nothing happens
         assert opened == []
         report = tmp_path / "hams-report.txt"
-        win._report_finished(report, 0)
-        assert not win.report_open_button.has_state(uk.State.DISABLED)
-        win.report_open_button._invoke()
+        ab.report_finished(report, 0)
+        assert not ab.report_open_button.has_state(uk.State.DISABLED)
+        ab.report_open_button._invoke()
         assert opened == [report, report]
 
     def test_open_says_saved_when_the_editor_does_not_start(self, settings, monkeypatch, tmp_path):
@@ -268,7 +269,7 @@ class TestReportRowDetails:
             raise OSError("kein Editor")
 
         monkeypatch.setattr(support, "open_path", fail)
-        win = settings()
-        win._report_finished(tmp_path / "hams-report.txt", 0)
-        win._open_last_report()
-        assert win.row_report._sub_text == "Gespeichert als hams-report.txt"
+        ab = settings()
+        ab.report_finished(tmp_path / "hams-report.txt", 0)
+        ab.open_last_report()
+        assert ab.row_report._sub_text == "Gespeichert als hams-report.txt"

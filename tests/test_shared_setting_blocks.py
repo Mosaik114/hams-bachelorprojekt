@@ -1,14 +1,35 @@
 """The setup assistant uses the settings' building blocks instead of its own copies (audit finding H14)."""
 
+from setup_fakes import InlineThread, fake_services
+
 from hams import ollama as ollama_api
 from hams import settings_sections, setup_window
-from hams import settings_status as status_mod
+from hams import setup_wizard as wizard_mod
 from hams.config import CFG
 from hams.settings_models import catalog_options
+from hams.settings_status import LevelMonitor
 
 
-def test_both_windows_share_the_microphone_rows():
-    assert setup_window.SetupWindow._build_microphone_rows is status_mod.StatusSectionMixin._build_microphone_rows
+def test_both_windows_share_the_microphone_rows(live_app, hams, monkeypatch, tmp_path):
+    """Settings and setup assistant show the microphone with the same `LevelMonitor`, not with two copies."""
+    monkeypatch.setattr(wizard_mod, "TaskThread", InlineThread)
+    monkeypatch.setattr(setup_window, "CONFIG_PATH", tmp_path / "config.toml")
+    live_app._open_settings()
+    live_app.root.update()
+    settings = live_app.settings_win.recording.monitor
+
+    live_app.setup_win = setup = setup_window.SetupWindow(live_app, fake_services())
+    try:
+        while setup.controller.page != "microphone":
+            setup.controller.next()
+        setup.show_page()
+        live_app.root.update()
+        assert type(setup.monitor) is type(settings) is LevelMonitor
+        assert setup.monitor.row_mic._title_text == settings.row_mic._title_text
+        assert setup.monitor.row_level._title_text == settings.row_level._title_text
+    finally:
+        setup.close(confirmed=True)
+        live_app.root.update()
 
 
 def test_catalog_options_show_the_download_size_only_when_missing():

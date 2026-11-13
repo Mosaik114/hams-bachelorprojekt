@@ -9,9 +9,11 @@ from types import SimpleNamespace
 
 import kit as uk
 import pytest
+from setup_fakes import InlineThread
 
 from hams import models as whisper_models
-from hams.settings_window import SettingsWindow
+from hams import settings_models
+from hams.settings_models import confirm_text, storage_text
 from hams.ui_kit.icons import _ICON_PAINTERS
 
 # ------------------------------------------------------------------ Attrappen
@@ -228,15 +230,22 @@ class TestDelete:
 # ------------------------------------------------------------- Loeschregeln
 
 
-class _App:
-    def __init__(self, active=None):
-        self.models = SimpleNamespace(active_model_size=active)
+@pytest.fixture
+def transcription(live_app, monkeypatch):
+    """Die Gruppe "Transkription" des echten Einstellungsfensters; `active` ist das geladene Modell.
 
+    Der Bestand kommt ueber den echten Scan aus dem nachgebildeten Cache (Fixture `cache`), der Scan-Thread laeuft
+    sofort auf dem Testthread.
+    """
+    monkeypatch.setattr(settings_models, "threading", SimpleNamespace(Thread=InlineThread))
 
-def _window(active=None):
-    window = SettingsWindow.__new__(SettingsWindow)
-    window.app = _App(active)
-    return window
+    def _open(active=None):
+        live_app.models.active_model_size = active
+        live_app._open_settings()
+        live_app.root.update()
+        return live_app.settings_win.transcription
+
+    return _open
 
 
 class TestDeletableRules:
@@ -244,30 +253,30 @@ class TestDeletableRules:
     def konfiguriert(self, monkeypatch):
         monkeypatch.setattr("hams.config.CFG.model_size", "turbo")
 
-    def test_the_loaded_model_stays(self, cache):
+    def test_the_loaded_model_stays(self, cache, transcription):
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
-        allowed = {e.model_id for e in _window(active="turbo").deletable_models()}
+        allowed = {e.model_id for e in transcription(active="turbo").deletable_models()}
         assert allowed == {"tiny"}
 
-    def test_the_configured_model_stays_while_it_is_complete(self, cache):
+    def test_the_configured_model_stays_while_it_is_complete(self, cache, transcription):
         """Sonst laedt faster-whisper es beim naechsten Start wortlos nach."""
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)]), _Repo(TINY, 78_203_619, [_Revision("a", VOLL)])])
-        allowed = {e.model_id for e in _window(active=None).deletable_models()}
+        allowed = {e.model_id for e in transcription(active=None).deletable_models()}
         assert allowed == {"tiny"}
 
-    def test_an_incomplete_leftover_of_the_configured_model_may_go(self, cache):
+    def test_an_incomplete_leftover_of_the_configured_model_may_go(self, cache, transcription):
         """Es ist ohnehin nicht ladbar — die Regel schuetzt hier nichts."""
         cache([_Repo(TURBO, 400_000, [_Revision("z", REST)])])
-        allowed = {e.model_id for e in _window(active=None).deletable_models()}
+        allowed = {e.model_id for e in transcription(active=None).deletable_models()}
         assert allowed == {"turbo"}
 
-    def test_nothing_is_deletable_when_only_the_active_model_is_there(self, cache):
+    def test_nothing_is_deletable_when_only_the_active_model_is_there(self, cache, transcription):
         cache([_Repo(TURBO, 1_621_665_983, [_Revision("z", VOLL)])])
-        assert _window(active="turbo").deletable_models() == []
+        assert transcription(active="turbo").deletable_models() == []
 
-    def test_an_empty_cache_offers_nothing(self, cache):
+    def test_an_empty_cache_offers_nothing(self, cache, transcription):
         cache([])
-        assert _window(active="turbo").deletable_models() == []
+        assert transcription(active="turbo").deletable_models() == []
 
 
 class TestStorageText:
@@ -276,43 +285,43 @@ class TestStorageText:
             whisper_models.CachedModel("turbo", "Turbo", 1_621_665_983, True, ()),
             whisper_models.CachedModel("tiny", "Tiny", 78_203_619, True, ()),
         ]
-        assert SettingsWindow.storage_text(cached) == "2 Modelle · 1,7 GB"
+        assert storage_text(cached) == "2 Modelle · 1,7 GB"
 
     def test_one_model_is_singular(self):
         cached = [whisper_models.CachedModel("tiny", "Tiny", 78_203_619, True, ())]
-        assert SettingsWindow.storage_text(cached) == "1 Modell · 78 MB"
+        assert storage_text(cached) == "1 Modell · 78 MB"
 
     def test_an_empty_disk_says_so(self):
-        assert SettingsWindow.storage_text([]) == "Noch nichts gespeichert"
+        assert storage_text([]) == "Noch nichts gespeichert"
 
     def test_leftovers_count_towards_the_total(self):
         cached = [whisper_models.CachedModel("base", "Base", 12_000_000, False, ())]
-        assert "12 MB" in SettingsWindow.storage_text(cached)
+        assert "12 MB" in storage_text(cached)
 
     def test_the_line_stays_short_enough_for_the_row(self):
         """Neben dem Auswahlfeld bleiben rund 150 px — etwa 34 Zeichen."""
         cached = [
             whisper_models.CachedModel(i.model_id, i.label, 3_000_000_000, True, ()) for i in whisper_models.CATALOG
         ]
-        assert len(SettingsWindow.storage_text(cached)) <= 34
+        assert len(storage_text(cached)) <= 34
 
 
 class TestConfirmText:
     def test_a_complete_model_names_the_space_it_frees(self):
         entry = whisper_models.CachedModel("turbo", "Turbo", 1_621_665_983, True, ())
-        assert SettingsWindow.confirm_text(entry) == "Turbo löschen? 1,6 GB frei"
+        assert confirm_text(entry) == "Turbo löschen? 1,6 GB frei"
 
     def test_a_leftover_asks_without_a_number(self):
         """Bei 0 B waere „gibt 0 B frei" eine Meldung ueber nichts."""
         entry = whisper_models.CachedModel("base", "Base", 0, False, ())
-        assert SettingsWindow.confirm_text(entry) == "Rest von Base entfernen?"
+        assert confirm_text(entry) == "Rest von Base entfernen?"
 
     def test_both_forms_fit_the_row(self):
         for entry in (
             whisper_models.CachedModel("large-v3", "Large v3", 3_090_835_702, True, ()),
             whisper_models.CachedModel("large-v3", "Large v3", 0, False, ()),
         ):
-            assert len(SettingsWindow.confirm_text(entry)) <= 34
+            assert len(confirm_text(entry)) <= 34
 
 
 # ------------------------------------------------------------------- Symbol

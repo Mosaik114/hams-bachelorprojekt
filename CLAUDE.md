@@ -14,8 +14,10 @@ new ones; `hams.ui_kit` exports only what the app uses (tests take internals fro
   `hams.status.StatusSink` and `whisper_model.ModelEvents`, which the app implements; windows reach them as
   `app.models`, `app.recorder`, `app.ollama`, `app.updates`. See `docs/architecture.md`.
 - **Settings:** `hams/config.py` (+ `config_toml.py`) only defines things; importing it reads no file and queries no
-  device. `bootstrap.load()`/`start()` fills the one `CFG` object in place. Window `settings_window.py` with its
-  groups in `settings_sections.py`.
+  device. `bootstrap.load()`/`start()` fills the one `CFG` object in place. Window `settings_window.py`: built once
+  and then only shown/hidden (`close()` hides); its six groups are `Section` objects (`settings_sections.Section`,
+  one module each) that `sync()` from the current state on every show. Measure UI speed with
+  `tools/ui_benchmark.py` (see its docstring).
 - **Tests:** `pytest tests` (≈1,800 test functions, ≈3,350 test cases including parametrisation). Tk tests open
   real windows. Run them headless: under `xvfb-run` on Linux, or on a separate desktop on Windows. Build core
   objects with the fakes in `tests/live_app.py` (`make_pipeline`, `ready_models`, `RecordingSink`, `FakeOllama`);

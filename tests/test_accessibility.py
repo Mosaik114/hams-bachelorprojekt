@@ -432,9 +432,9 @@ class TestGreyscale:
         assert parameter["text"].default is inspect.Parameter.empty, "SettingRow.set_status muss Text mitfuehren"
 
     def test_a_download_shows_numbers_not_only_a_bar(self):
-        from hams.settings_window import SettingsWindow as SW
+        from hams.settings_models import download_text
 
-        text = SW.download_text("Tiny", 13_000_000, 78_000_000, 17)
+        text = download_text("Tiny", 13_000_000, 78_000_000, 17)
         assert "17 %" in text and "13/78 MB" in text
 
 
@@ -562,24 +562,28 @@ class TestLanguage:
         assert not offenders, "\n".join(offenders)
 
     def test_the_window_titles_are_german(self):
-        from hams.settings_window import SettingsWindow as SW
+        from hams.settings_models import TranscriptionSection
 
-        assert "Einstellungen" in SW.MODEL_HINT or SW.MODEL_HINT
-        assert SW.MODEL_HINT == "Tempo und Genauigkeit"
+        assert "Einstellungen" in TranscriptionSection.MODEL_HINT or TranscriptionSection.MODEL_HINT
+        assert TranscriptionSection.MODEL_HINT == "Tempo und Genauigkeit"
 
 
 class TestNoLegacyGlyphs:
     #: Zeichen, die frueher als Ersatz fuer echte Icons dienten.
     GLYPHS = ["⚙", "⌄", "✕", "▾", "▼", "●", "✔"]
 
-    def test_the_download_marker_is_a_deliberate_character(self):
+    def test_the_download_marker_is_a_deliberate_character(self, live_app, monkeypatch):
         """Der Pfeil vor der Groesse ist Text, kein Icon-Ersatz — und bleibt."""
         from hams import models
-        from hams.settings_window import SettingsWindow as SW
 
-        window = object.__new__(SW)
-        window._installed_models = {"turbo"}
-        options = SW.model_options(window)
+        # Die Bestandsaufnahme im Hintergrund liest sonst den echten Modell-Cache.
+        monkeypatch.setattr(models, "installed_whisper_models", lambda: {"turbo"})
+        monkeypatch.setattr(models, "cached_whisper_models", lambda: ())
+        live_app._open_settings()
+        live_app.root.update()
+        transcription = live_app.settings_win.transcription
+        transcription.apply_inventory({"turbo"}, [])
+        options = transcription.model_select.options
         large = next(o for o in options if o.value == "large-v3")
         assert large.trailing.startswith("↓")
         assert models.find("large-v3").size_label in large.trailing

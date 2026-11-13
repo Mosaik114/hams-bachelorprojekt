@@ -14,6 +14,7 @@ import pytest
 
 from hams import models as whisper_models
 from hams import ollama as ollama_api
+from hams import settings_extras as extras_mod
 from hams import settings_models as models_mod
 from hams import settings_status as status_mod
 from hams import ui_kit as uk
@@ -41,8 +42,9 @@ def disk(monkeypatch):
 class InlineThread:
     """Fuehrt die Arbeit beim Start sofort aus, auf dem Testthread.
 
-    Die Hintergrundarbeit meldet sich per `win.after` zurueck; ohne laufende
-    Tk-Hauptschleife geht das von einem fremden Thread aus ins Leere.
+    Die Hintergrundarbeit meldet sich per `app.ui_call` zurueck; vom Testthread
+    aus landet das per `after(0)` in der Warteschlange - `root.update()` fuehrt
+    es aus.
     """
 
     def __init__(self, target, args=(), **_options):
@@ -54,9 +56,12 @@ class InlineThread:
 
 @pytest.fixture
 def open_settings(live_app, disk, monkeypatch):
-    """Oeffnet das Fenster wie ein Klick aufs Zahnrad, samt erster Ollama-Abfrage."""
+    """Oeffnet das Fenster wie ein Klick aufs Zahnrad, samt erster Ollama-Abfrage und Modellbestand.
+
+    Den Geraete-Scan macht schon die Attrappe `hams` inline (`settings_status.ScanThread`).
+    """
     inline = SimpleNamespace(Thread=InlineThread)
-    monkeypatch.setattr(status_mod, "threading", inline)
+    monkeypatch.setattr(extras_mod, "threading", inline)
     monkeypatch.setattr(models_mod, "threading", inline)
     CFG.model_size = "large-v3-turbo"
     CFG.mic_device_raw = "Headset"
@@ -79,61 +84,59 @@ def dot(row) -> str:
 
 class TestOpening:
     def test_the_microphone_list_shows_the_configured_device(self, open_settings):
-        win = open_settings()
-        values = [option.value for option in win.mic_select.options]
+        m = open_settings().recording.monitor
+        values = [option.value for option in m.mic_select.options]
         assert values == [None, "Headset"]
-        assert win.mic_select.value == "Headset"
-        assert win._device_error == ""
+        assert m.mic_select.value == "Headset"
+        assert m.device_error == ""
 
     def test_an_unplugged_device_is_named(self, open_settings):
         CFG.mic_device_raw = "Studio-Mikro"
-        win = open_settings()
-        win._tick()
-        assert dot(win.row_mic) == "error"
-        assert sub(win.row_mic) == "„Studio-Mikro“ ist nicht verbunden"
+        m = open_settings().recording.monitor
+        m.tick()
+        assert dot(m.row_mic) == "error"
+        assert sub(m.row_mic) == "„Studio-Mikro“ ist nicht verbunden"
 
     def test_without_any_microphone_nothing_is_opened(self, open_settings, hams):
         hams.devices = []
-        win = open_settings()
-        assert not win.mic_select.enabled
+        m = open_settings().recording.monitor
+        assert not m.mic_select.enabled
         assert hams.streams == []
-        assert sub(win.row_mic) == "Kein Mikrofon gefunden"
+        assert sub(m.row_mic) == "Kein Mikrofon gefunden"
 
     def test_the_scan_result_is_shown_without_waiting_for_a_level_tick(self, open_settings, hams, monkeypatch):
-        """Regression (Linux CI): the status came only from the next 60 ms tick, so a fast machine still read
+        """Regression (Linux CI): the status came only from the next level tick, so a fast machine still read
         "device unavailable" right after opening. The scan result now sets it itself."""
-        from hams.settings_window import SettingsWindow
-
-        monkeypatch.setattr(SettingsWindow, "_tick", lambda self: None)
+        monkeypatch.setattr(status_mod.LevelMonitor, "tick", lambda self: None)
         hams.devices = []
-        win = open_settings()
-        assert sub(win.row_mic) == "Kein Mikrofon gefunden"
-        assert dot(win.row_mic) == "error"
+        m = open_settings().recording.monitor
+        assert sub(m.row_mic) == "Kein Mikrofon gefunden"
+        assert dot(m.row_mic) == "error"
 
     def test_the_hardware_row_follows_the_model(self, open_settings, live_app):
-        win = open_settings()
-        assert win.row_hardware.value_label.cget("text") == "Modell wird geladen …"
+        tr = open_settings().transcription
+        assert tr.row_hardware.value_label.cget("text") == "Modell wird geladen …"
         live_app.models.active_device = "cuda"
         live_app.models.model_ready.set()
-        win._refresh_status()
-        assert win.row_hardware.value_label.cget("text") == "Automatisch · GPU"
+        tr.refresh_hardware()
+        assert tr.row_hardware.value_label.cget("text") == "Automatisch · GPU"
         live_app.models.model_error = "kaputt"
-        win._refresh_status()
-        assert win.row_hardware.value_label.cget("text") == "Nicht geladen · siehe Fehlerbehebung"
+        tr.refresh_hardware()
+        assert tr.row_hardware.value_label.cget("text") == "Nicht geladen · siehe Fehlerbehebung"
 
     def test_it_registers_as_a_microphone_user(self, open_settings, live_app):
         win = open_settings()
-        assert win in live_app.recorder.consumers
+        assert win.recording.monitor in live_app.recorder.consumers
 
     def test_the_title_names_the_product(self, open_settings):
         assert open_settings().win.title() == "Hams — Einstellungen"
 
     def test_the_general_group_puts_appearance_after_sound_and_ends_on_the_assistant(self, open_settings):
-        win = open_settings()
-        rows = win.row_sound.master.pack_slaves()
-        assert rows.index(win.row_appearance) > rows.index(win.row_sound)
-        assert rows[-1] is win.row_setup
-        assert win.row_setup.hairline is None  # the last row of a group draws no line under it
+        g = open_settings().general
+        rows = g.row_sound.master.pack_slaves()
+        assert rows.index(g.row_appearance) > rows.index(g.row_sound)
+        assert rows[-1] is g.row_setup
+        assert g.row_setup.hairline is None  # the last row of a group draws no line under it
 
 
 class TestLevel:
@@ -146,39 +149,39 @@ class TestLevel:
         ],
     )
     def test_the_live_level_is_named_not_only_coloured(self, open_settings, hams, amplitude, status, text):
-        win = open_settings()
+        m = open_settings().recording.monitor
         hams.streams[-1].feed(np.full(256, amplitude))
-        win._tick()
-        assert (dot(win.row_mic), sub(win.row_mic)) == (status, text)
+        m.tick()
+        assert (dot(m.row_mic), sub(m.row_mic)) == (status, text)
 
     def test_a_monitor_that_cannot_open_is_reported(self, open_settings, hams):
         from live_app import FakeStream
 
         FakeStream.fail_with = OSError("belegt")
-        win = open_settings()
-        win._tick()
-        assert sub(win.row_mic) == "Gerät nicht verfügbar"
+        m = open_settings().recording.monitor
+        m.tick()
+        assert sub(m.row_mic) == "Gerät nicht verfügbar"
 
     def test_a_recording_takes_the_microphone_and_gives_it_back(self, open_settings, live_app, hams, monkeypatch):
         monkeypatch.setattr(live_app.pipeline, "transcribe", lambda audio, **_job: None)
-        win = open_settings()
+        m = open_settings().recording.monitor
         monitor = hams.streams[-1]
         live_app.start_recording()
-        assert monitor.closed and win._mon_stream is None
+        assert monitor.closed and m.stream is None
         recording = hams.streams[-1]
         recording.feed(np.full(256, 0.3))
-        win._tick()
-        assert win.meter._level > 0, "waehrend der Aufnahme zeigt es deren Pegel"
+        m.tick()
+        assert m.meter._level > 0, "waehrend der Aufnahme zeigt es deren Pegel"
         live_app.stop_recording_and_transcribe()
-        assert win._mon_stream is not None and win._mon_stream is not monitor
+        assert m.stream is not None and m.stream is not monitor
 
     def test_a_new_device_reopens_the_monitor(self, open_settings, hams):
-        win = open_settings()
+        m = open_settings().recording.monitor
         first = hams.streams[-1]
-        win._select_device("Headset")
+        m.select_device("Headset")
         assert first.closed and hams.streams[-1] is not first
         assert ("audio", "device", "Headset") in hams.saved
-        win._select_device(None)
+        m.select_device(None)
         assert CFG.mic_device_raw == "default" and CFG.mic_device is None
         assert ("audio", "device", "default") in hams.saved
 
@@ -186,66 +189,66 @@ class TestLevel:
 class TestOllama:
     def test_an_unreachable_service_is_shown_everywhere_it_matters(self, open_settings, live_app):
         CFG.ollama_cleanup_enabled = True
-        win = open_settings()
+        ai = open_settings().ai
         assert live_app.ollama_checked
-        assert (dot(win.row_cleanup_model), sub(win.row_cleanup_model)) == ("error", "aus")
-        assert sub(win.row_prompt_model) == "Ollama nicht erreichbar"
-        assert sub(win.row_cleanup) == "Ollama ist nicht erreichbar — Rohtext wird eingefügt"
-        assert not win.row_cleanup_model.enabled
+        assert (dot(ai.row_cleanup_model), sub(ai.row_cleanup_model)) == ("error", "aus")
+        assert sub(ai.row_prompt_model) == "Ollama nicht erreichbar"
+        assert sub(ai.row_cleanup) == "Ollama ist nicht erreichbar — Rohtext wird eingefügt"
+        assert not ai.row_cleanup_model.enabled
 
     def test_a_running_service_fills_both_lists(self, open_settings, hams, live_app):
         hams.probe = ollama_api.OllamaState(
             True, models=[ollama_api.OllamaModel("qwen3:8b"), ollama_api.OllamaModel("gemma3:4b")], warm=["qwen3:8b"]
         )
         CFG.ollama_model_cleanup = "qwen3:8b"
-        win = open_settings()
-        names = [o.value for o in win.select_cleanup_model.options if o.value]
+        ai = open_settings().ai
+        names = [o.value for o in ai.select_cleanup_model.options if o.value]
         assert names == ["qwen3:8b", "gemma3:4b"]
         assert live_app.ollama_state is hams.probe
-        assert sub(win.row_cleanup_model) == "Ollama erreichbar"
-        assert win.row_prompt_model.enabled
+        assert sub(ai.row_cleanup_model) == "Ollama erreichbar"
+        assert ai.row_prompt_model.enabled
 
     def test_the_first_answer_before_any_check_says_checking(self, open_settings, live_app):
-        win = open_settings()
+        ai = open_settings().ai
         live_app.ollama_checked = False
-        win._show_ollama_status()
-        assert (dot(win.row_cleanup_model), sub(win.row_cleanup_model)) == ("idle", "Ollama wird geprüft …")
+        ai.show_status()
+        assert (dot(ai.row_cleanup_model), sub(ai.row_cleanup_model)) == ("idle", "Ollama wird geprüft …")
 
     def test_each_list_writes_only_its_own_key(self, open_settings, hams):
-        win = open_settings()
+        ai = open_settings().ai
         CFG.ollama_model_cleanup, CFG.ollama_model_prompt = "a", "b"
-        win._select_cleanup_model("c")
-        win._select_prompt_model("d")
-        win._select_cleanup_model("c")  # schon gewaehlt
-        win._select_prompt_model("")  # Platzhalter
+        ai.select_cleanup_model_name("c")
+        ai.select_prompt_model_name("d")
+        ai.select_cleanup_model_name("c")  # schon gewaehlt
+        ai.select_prompt_model_name("")  # Platzhalter
         assert hams.saved == [("ollama", "model_transcript_cleanup", "c"), ("ollama", "model_prompt_generate", "d")]
 
 
 class TestSwitches:
     def test_cleanup_is_saved_and_updates_its_dependants(self, open_settings, hams):
         CFG.ollama_cleanup_enabled = False
-        win = open_settings()
-        win._toggle_cleanup()
+        ai = open_settings().ai
+        ai.switch_cleanup.toggle()
         assert CFG.ollama_cleanup_enabled is True
         assert ("ollama", "cleanup_enabled", True) in hams.saved
-        assert "Rohtext" in sub(win.row_cleanup)
+        assert "Rohtext" in sub(ai.row_cleanup)
 
     def test_the_signal_tone_is_saved(self, open_settings, hams):
         CFG.sound_feedback = True
-        win = open_settings()
-        win._toggle_sound()
+        g = open_settings().general
+        g.switch_sound.toggle()
         assert CFG.sound_feedback is False
         assert ("ui", "sound_feedback", False) in hams.saved
 
     def test_choosing_the_current_appearance_writes_nothing(self, open_settings, hams):
-        win = open_settings()
-        win._select_appearance(uk.Theme.mode)
+        g = open_settings().general
+        g.select_appearance_mode(uk.Theme.mode)
         assert not [s for s in hams.saved if s[1] == "appearance"]
 
     def test_a_new_appearance_is_saved_and_applied(self, open_settings, hams):
         win = open_settings()
         other = uk.Theme.LIGHT if uk.Theme.mode == uk.Theme.DARK else uk.Theme.DARK
-        win._select_appearance(other)
+        win.general.select_appearance_mode(other)
         assert ("ui", "appearance", other) in hams.saved
         assert uk.Theme.mode == other
         assert win.win.cget("bg") == uk.Theme.WINDOW_BG
@@ -253,47 +256,47 @@ class TestSwitches:
 
 class TestWhisperModel:
     def test_the_current_model_only_refreshes_the_hint(self, open_settings, live_app, monkeypatch):
-        win = open_settings()
+        tr = open_settings().transcription
         monkeypatch.setattr(live_app, "switch_model", lambda m: pytest.fail("gewechselt"))
-        win._select_model("large-v3-turbo")
-        assert sub(win.row_model) == win.model_hint("large-v3-turbo")
+        tr.select_model("large-v3-turbo")
+        assert sub(tr.row_model) == tr.model_hint("large-v3-turbo")
 
     def test_an_installed_model_is_switched_to(self, open_settings, live_app, disk, monkeypatch):
         disk.installed.add("tiny")
-        win = open_settings()
-        win._refresh_models()
+        tr = open_settings().transcription
+        assert "tiny" in tr.installed, "der Bestand kommt aus dem Hintergrund-Scan"
         monkeypatch.setattr(live_app, "switch_model", lambda m: True)
-        win._select_model("tiny")
-        assert not win.model_select.enabled
-        assert sub(win.row_model) == "Modell wird geladen …"
+        tr.select_model("tiny")
+        assert not tr.model_select.enabled
+        assert sub(tr.row_model) == "Modell wird geladen …"
 
     def test_a_refused_switch_keeps_the_old_choice(self, open_settings, live_app, disk, monkeypatch):
         disk.installed.add("tiny")
-        win = open_settings()
-        win._refresh_models()
+        tr = open_settings().transcription
         monkeypatch.setattr(live_app, "switch_model", lambda m: False)
-        win._select_model("tiny")
-        assert win.model_select.value == "large-v3-turbo"
-        assert sub(win.row_model) == "Während einer Aufnahme nicht wechselbar"
+        tr.select_model("tiny")
+        assert tr.model_select.value == "large-v3-turbo"
+        assert sub(tr.row_model) == "Während einer Aufnahme nicht wechselbar"
 
     def test_a_missing_model_is_downloaded_not_saved(self, open_settings, live_app, hams, monkeypatch):
         win = open_settings()
+        tr = win.transcription
         started = []
         monkeypatch.setattr(live_app.models, "start_download", lambda m: started.append(m) or "")
-        win._select_model("tiny")
+        tr.select_model("tiny")
         assert started == ["tiny"]
-        assert win.row_model._control is win.cancel_button
-        assert win.model_select.value == "large-v3-turbo"
+        assert tr.row_model._control is tr.cancel_button
+        assert tr.model_select.value == "large-v3-turbo"
         assert not [s for s in hams.saved if s[1] == "model_size"]
-        win.on_download_progress(50, 100, 50)
-        assert "50 %" in sub(win.row_model)
+        win.on_download_progress(50, 100, 50)  # die App meldet ans Fenster, das reicht es weiter
+        assert "50 %" in sub(tr.row_model)
 
     def test_a_refused_download_says_why(self, open_settings, live_app, monkeypatch):
-        win = open_settings()
+        tr = open_settings().transcription
         monkeypatch.setattr(live_app.models, "start_download", lambda m: "Kein Speicherplatz")
-        win._select_model("tiny")
-        assert sub(win.row_model) == "Kein Speicherplatz"
-        assert win.row_model._control is win.model_select
+        tr.select_model("tiny")
+        assert sub(tr.row_model) == "Kein Speicherplatz"
+        assert tr.row_model._control is tr.model_select
 
     @pytest.mark.parametrize(
         "error, switching, text, enabled",
@@ -305,87 +308,110 @@ class TestWhisperModel:
     )
     def test_the_end_of_a_download(self, open_settings, live_app, monkeypatch, error, switching, text, enabled):
         win = open_settings()
+        tr = win.transcription
         monkeypatch.setattr(live_app.models, "start_download", lambda m: "")
-        win._select_model("tiny")
+        tr.select_model("tiny")
         win.on_download_finished("tiny", error, switching)
-        assert win.row_model._control is win.model_select
-        assert sub(win.row_model) == text
-        assert win.model_select.enabled is enabled
+        assert tr.row_model._control is tr.model_select
+        assert sub(tr.row_model) == text
+        assert tr.model_select.enabled is enabled
 
     def test_cancelling_asks_the_app(self, open_settings, live_app, monkeypatch):
-        win = open_settings()
+        tr = open_settings().transcription
         cancelled = []
         monkeypatch.setattr(live_app.models, "cancel_download", lambda: cancelled.append(1))
-        win._cancel_download()
+        tr.cancel_download()
         assert cancelled == [1]
-        assert sub(win.row_model) == "Wird abgebrochen …"
+        assert sub(tr.row_model) == "Wird abgebrochen …"
 
     def test_a_running_download_is_shown_when_the_window_opens(self, open_settings, live_app):
         live_app.models.downloader = SimpleNamespace(active=True, model_id="tiny", cancel=lambda: None)
         live_app.models.download_done, live_app.models.download_total = 0, 0
-        win = open_settings()
-        assert win.row_model._control is win.cancel_button
-        assert sub(win.row_model).startswith("Tiny · ")
+        tr = open_settings().transcription
+        assert tr.row_model._control is tr.cancel_button
+        assert sub(tr.row_model).startswith("Tiny · ")
 
 
 class TestDeleting:
     def test_nothing_to_delete_shows_no_control(self, open_settings, disk):
         disk.cached = [CachedModel("large-v3-turbo", "Turbo", 1_600_000_000, True, ("a",))]
-        win = open_settings()
-        assert win.row_storage._control is None
-        assert sub(win.row_storage).startswith("1 Modell · ")
+        tr = open_settings().transcription
+        assert tr.row_storage._control is None
+        assert sub(tr.row_storage).startswith("1 Modell · ")
 
     def test_delete_asks_first_then_deletes_in_the_background(self, open_settings, disk, live_app):
         disk.cached = [CachedModel("tiny", "Tiny", 78_000_000, True, ("a",))]
-        win = open_settings()
-        assert win.row_storage._control is win.select_delete
-        win._choose_delete("tiny")
-        assert win.row_storage._control is win._delete_box
-        assert sub(win.row_storage).startswith("Tiny löschen?")
+        tr = open_settings().transcription
+        assert tr.row_storage._control is tr.select_delete
+        tr.choose_delete("tiny")
+        assert tr.row_storage._control is tr.delete_box
+        assert sub(tr.row_storage).startswith("Tiny löschen?")
         assert disk.deleted == []
-        win._confirm_delete()
+        tr.confirm_delete()
         live_app.root.update()
         assert disk.deleted == ["tiny"]
-        assert sub(win.row_storage) == "Tiny gelöscht · 75 MB frei"
-        win._clear_storage_note()
-        assert sub(win.row_storage) == "Noch nichts gespeichert"
+        assert sub(tr.row_storage) == "Tiny gelöscht · 75 MB frei"
+        assert tr.pending("storage_note"), "die Meldung steht nur kurz"
+        tr._clear_storage_note()
+        assert sub(tr.row_storage) == "Noch nichts gespeichert"
 
     def test_aborting_leaves_the_model(self, open_settings, disk):
         disk.cached = [CachedModel("tiny", "Tiny", 78_000_000, True, ("a",))]
-        win = open_settings()
-        win._choose_delete("tiny")
-        win._abort_delete()
-        win._confirm_delete()  # nichts mehr vorgemerkt
+        tr = open_settings().transcription
+        tr.choose_delete("tiny")
+        tr.abort_delete()
+        tr.confirm_delete()  # nichts mehr vorgemerkt
         assert disk.deleted == []
-        assert win.row_storage._control is win.select_delete
+        assert tr.row_storage._control is tr.select_delete
 
     def test_an_unknown_choice_only_refreshes(self, open_settings, disk):
-        win = open_settings()
-        win._choose_delete("gibt-es-nicht")
-        assert win._delete_target == ""
+        tr = open_settings().transcription
+        tr.choose_delete("gibt-es-nicht")
+        assert tr.delete_target == ""
 
 
 class TestWindow:
-    def test_closing_releases_everything(self, open_settings, live_app, hams):
+    def test_closing_hides_and_releases_everything(self, open_settings, live_app, hams):
         win = open_settings()
-        monitor = hams.streams[-1]
-        window = win.win
+        m = win.recording.monitor
+        stream = hams.streams[-1]
+        assert win.ai.pending("ollama") and win.transcription.pending("hardware")
         win.close()
         live_app.root.update()
-        assert monitor.closed
-        assert win not in live_app.recorder.consumers
-        assert live_app.settings_win is None
-        assert not window.winfo_exists()
+        assert stream.closed and m.stream is None
+        assert m not in live_app.recorder.consumers
         assert not win.alive()
+        assert not win.ai.pending("ollama"), "Ollama wird nicht mehr gefragt"
+        assert not win.transcription.pending("hardware")
+        assert win.win.state() == "withdrawn"
+        # versteckt, nicht zerstoert: die Widgets bleiben fuers naechste Oeffnen
+        assert live_app.settings_win is win
+        assert win.win.winfo_exists() and win.reusable()
 
-    def test_a_closed_window_ignores_late_answers(self, open_settings):
+    def test_opening_again_reuses_the_hidden_window(self, open_settings, live_app, hams):
+        win = open_settings()
+        first = hams.streams[-1]
+        win.close()
+        live_app.root.update()
+        assert open_settings() is win
+        assert win.alive() and win.win.state() == "normal"
+        assert win.recording.monitor in live_app.recorder.consumers
+        assert hams.streams[-1] is not first and not hams.streams[-1].closed
+        assert win.ai.pending("ollama")
+
+    def test_a_closed_window_ignores_late_answers(self, open_settings, live_app):
         win = open_settings()
         win.close()
-        win._apply_ollama_state(ollama_api.OllamaState(True))
-        win._refresh_status()
-        win._tick()
+        before = live_app.ollama_state
+        win.ai.apply_state(ollama_api.OllamaState(True))
+        assert live_app.ollama_state is before
+        win.transcription.refresh_hardware()
+        assert not win.transcription.pending("hardware")
+        win.recording.monitor.tick()
+        assert win.recording.monitor.stream is None
         win._on_scale_change(1.5)
         win.on_download_progress(1, 2, 50)
+        assert not win.alive()
 
     def test_dragging_moves_the_window(self, open_settings, live_app, monkeypatch):
         # wie unter Windows: randlos, gezogen wird am eigenen Kopf

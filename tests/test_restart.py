@@ -13,12 +13,13 @@ from ctypes import wintypes
 from pathlib import Path
 
 import pytest
+from test_settings_window_live import disk, open_settings  # noqa: F401 - Fixtures
 
 from hams import app as app_mod
 from hams import config as config_mod
 from hams import instance as instance_mod
 from hams.app import FloatingTranscriberApp
-from hams.settings_window import SettingsWindow
+from hams.settings_shortcuts import ShortcutsSection
 
 App = FloatingTranscriberApp
 
@@ -375,58 +376,38 @@ class TestRestartApp:
 # ------------------------------------------------------------ Einstellungszeile
 
 
-class _Row:
-    def __init__(self):
-        self.text = ""
+@pytest.fixture
+def restart_row(open_settings, live_app, monkeypatch):  # noqa: F811
+    """The shortcuts group of the real settings window; the app's restart only answers with a refusal."""
+    sections = open_settings().shortcuts
+    sections.refusal, sections.calls = "", []
 
-    def set_description(self, text):
-        self.text = text
+    def restart_app():
+        sections.calls.append(1)
+        return sections.refusal
 
-
-class _Button:
-    def __init__(self):
-        self.enabled = True
-
-    def set_enabled(self, value):
-        self.enabled = value
-
-
-class _AppStub:
-    def __init__(self, refusal=""):
-        self.refusal = refusal
-        self.calls = 0
-
-    def restart_app(self):
-        self.calls += 1
-        return self.refusal
-
-
-def _window(refusal=""):
-    window = SettingsWindow.__new__(SettingsWindow)
-    window.app = _AppStub(refusal)
-    window.row_restart = _Row()
-    window.restart_button = _Button()
-    return window
+    monkeypatch.setattr(live_app, "restart_app", restart_app)
+    return sections
 
 
 class TestRestartRow:
-    def test_a_refusal_names_the_reason_and_gives_the_button_back(self):
-        window = _window("Läuft gerade eine Aufnahme")
-        SettingsWindow._restart_app(window)
-        assert window.row_restart.text == "Läuft gerade eine Aufnahme"
-        assert window.restart_button.enabled is True
+    def test_a_refusal_names_the_reason_and_gives_the_button_back(self, restart_row):
+        restart_row.refusal = "Läuft gerade eine Aufnahme"
+        restart_row.restart_app()
+        assert restart_row.row_restart.sub_text == "Läuft gerade eine Aufnahme"
+        assert restart_row.restart_button.enabled is True
 
-    def test_a_successful_restart_leaves_the_button_disabled(self):
+    def test_a_successful_restart_leaves_the_button_disabled(self, restart_row):
         """Danach verschwindet das Fenster ohnehin — ein zweiter Klick waere
         nur eine Einladung, zwei Nachfolger zu starten."""
-        window = _window("")
-        SettingsWindow._restart_app(window)
-        assert window.restart_button.enabled is False
-        assert window.row_restart.text == "Wird neu gestartet …"
-        assert window.app.calls == 1
+        restart_row.restart_app()
+        assert restart_row.restart_button.enabled is False
+        assert restart_row.row_restart.sub_text == "Wird neu gestartet …"
+        assert restart_row.calls == [1]
 
-    def test_the_hint_names_the_situation_it_is_for(self):
-        assert "Kurzbefehle" in SettingsWindow.RESTART_HINT
+    def test_the_hint_names_the_situation_it_is_for(self, restart_row):
+        assert "Kurzbefehle" in ShortcutsSection.RESTART_HINT
+        assert restart_row.row_restart.sub_text == ShortcutsSection.RESTART_HINT
 
 
 # ------------------------------------------------- Die Annahme dahinter

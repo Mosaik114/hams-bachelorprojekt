@@ -12,11 +12,14 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from setup_fakes import InlineThread
 
 from hams import ollama
-from hams.settings_window import SettingsWindow as SW
+from hams import settings_extras as extras
+from hams.config import CFG
 
 TAGS = {
     "models": [
@@ -283,234 +286,204 @@ def state_with(names=("a:1b", "b:2b"), warm=(), online=True):
 
 class TestOllamaOptions:
     def test_installed_models_are_listed(self):
-        options = SW.ollama_options(state_with(), "a:1b")
+        options = extras.ollama_options(state_with(), "a:1b")
         assert [o.value for o in options if o.enabled] == ["a:1b", "b:2b"]
 
     def test_every_entry_has_a_group(self):
-        options = SW.ollama_options(state_with(), "a:1b")
+        options = extras.ollama_options(state_with(), "a:1b")
         assert all(o.group == "Installierte Modelle" for o in options if o.enabled)
 
     def test_meta_comes_from_the_api(self):
-        options = SW.ollama_options(state_with(), "a:1b")
+        options = extras.ollama_options(state_with(), "a:1b")
         assert options[0].meta == "7,6B · 1,0 GB"
 
     def test_warm_model_is_marked(self):
-        options = SW.ollama_options(state_with(warm=("b:2b",)), "a:1b")
+        options = extras.ollama_options(state_with(warm=("b:2b",)), "a:1b")
         marks = {o.value: o.trailing for o in options}
         assert marks["b:2b"] == "im Speicher" and marks["a:1b"] == ""
 
     def test_several_warm_models(self):
-        options = SW.ollama_options(state_with(warm=("a:1b", "b:2b")), "a:1b")
+        options = extras.ollama_options(state_with(warm=("a:1b", "b:2b")), "a:1b")
         assert all(o.trailing == "im Speicher" for o in options if o.enabled)
 
     def test_pull_hint_is_present_but_not_selectable(self):
-        options = SW.ollama_options(state_with(), "a:1b")
+        options = extras.ollama_options(state_with(), "a:1b")
         hint = options[-1]
         assert hint.label == ollama.pull_hint()
         assert hint.enabled is False and hint.value == ""
 
     def test_no_hint_without_a_service(self):
-        options = SW.ollama_options(state_with(online=False, names=()), "a:1b")
+        options = extras.ollama_options(state_with(online=False, names=()), "a:1b")
         assert all(o.label != ollama.pull_hint() for o in options)
 
     def test_no_invented_catalog(self):
         """Ollama kennt ueber diese API keine entfernten Modelle."""
-        options = SW.ollama_options(state_with(names=("a:1b",)), "a:1b")
+        options = extras.ollama_options(state_with(names=("a:1b",)), "a:1b")
         assert [o.value for o in options if o.enabled] == ["a:1b"]
 
     def test_a_missing_configured_model_stays_visible(self):
-        options = SW.ollama_options(state_with(), "weg:9b")
+        options = extras.ollama_options(state_with(), "weg:9b")
         first = options[0]
         assert first.value == "weg:9b" and first.enabled is False
         assert first.meta == "Nicht installiert"
 
     def test_a_missing_model_is_not_replaced(self):
-        options = SW.ollama_options(state_with(), "weg:9b")
+        options = extras.ollama_options(state_with(), "weg:9b")
         assert [o.value for o in options if o.enabled] == ["a:1b", "b:2b"]
 
     def test_an_unchecked_service_claims_nothing(self):
         """Vor der ersten Antwort steht keine Aussage ueber den Dienst da."""
-        options = SW.ollama_options(ollama.OllamaState(False), "a:1b")
+        options = extras.ollama_options(ollama.OllamaState(False), "a:1b")
         assert options[0].value == "a:1b" and options[0].meta == ""
 
     def test_offline_keeps_the_configured_name_readable(self):
-        options = SW.ollama_options(state_with(online=False, names=()), "a:1b")
+        options = extras.ollama_options(state_with(online=False, names=()), "a:1b")
         assert options[0].value == "a:1b"
         assert "nicht erreichbar" in options[0].meta
 
     def test_empty_service_and_empty_config(self):
-        assert SW.ollama_options(state_with(online=False, names=()), "") == []
+        assert extras.ollama_options(state_with(online=False, names=()), "") == []
 
 
 # ------------------------------------------------------------- Persistenz
 
 
-class _Row:
-    def __init__(self):
-        self.enabled = True
-        self.description = ""
-        self.status = None
-        self.text = ""
-
-    def set_enabled(self, value):
-        self.enabled = value
-
-    def set_description(self, text):
-        self.description = text
-
-    def set_status(self, status, text):
-        self.status, self.text = status, text
-
-
-class _Select:
-    def __init__(self, value=""):
-        self.value = value
-        self.options = []
-
-    def set_value(self, value, notify=False):
-        self.value = value
-
-    def set_options(self, options):
-        self.options = options
+def status(row):
+    """(Punkt, Text) einer Statuszeile - der Text steht immer neben dem Punkt."""
+    return row.status_dot._status, row.sub_text
 
 
 @pytest.fixture
-def window(monkeypatch):
-    win = SW.__new__(SW)
-    win.pull_row = win.pull_task = None  # the Ollama section of a window that never built it
-    win._alive = True
-    win.win = type("W", (), {"winfo_exists": lambda self: True})()
-    win.app = type("A", (), {"ollama_state": state_with(), "ollama_checked": True})()
-    win._ollama_online = True
-    win._ollama_state = state_with()
-    win._ollama_signature = win._ollama_state.signature()
-    win.row_cleanup = _Row()
-    win.row_cleanup_model = _Row()
-    win.row_prompt_model = _Row()
-    win.select_cleanup_model = _Select("a:1b")
-    win.select_prompt_model = _Select("b:2b")
-    monkeypatch.setattr("hams.config.CFG.ollama_model_cleanup", "a:1b")
-    monkeypatch.setattr("hams.config.CFG.ollama_model_prompt", "b:2b")
-    win.written = []
-    monkeypatch.setattr(
-        "hams.settings_status._persist_config_value",
-        lambda section, key, value: win.written.append((section, key, value)),
-    )
-    return win
+def window(live_app, hams, monkeypatch):
+    """Der KI-Abschnitt des echten, gezeigten Einstellungsfensters mit einer bekannten Antwort des Dienstes."""
+    monkeypatch.setattr(extras, "threading", SimpleNamespace(Thread=InlineThread))
+    CFG.ollama_model_cleanup = "a:1b"
+    CFG.ollama_model_prompt = "b:2b"
+    CFG.ollama_cleanup_enabled = True
+    hams.probe = state_with()
+    live_app.ollama_state = state_with()
+    live_app.ollama_checked = True
+    live_app._open_settings()
+    live_app.root.update()
+    hams.saved.clear()
+    return live_app.settings_win.ai
+
+
+@pytest.fixture
+def written(hams):
+    """Was gespeichert wurde: (Abschnitt, Schlüssel, Wert)."""
+    return hams.saved
 
 
 class TestSelection:
-    def test_cleanup_writes_only_its_own_key(self, window):
-        from hams.config import CFG
-
-        window._select_cleanup_model("b:2b")
-        assert window.written == [("ollama", "model_transcript_cleanup", "b:2b")]
+    def test_cleanup_writes_only_its_own_key(self, window, written):
+        window.select_cleanup_model_name("b:2b")
+        assert written == [("ollama", "model_transcript_cleanup", "b:2b")]
         assert CFG.ollama_model_cleanup == "b:2b"
 
-    def test_cleanup_does_not_touch_the_prompt_model(self, window):
-        from hams.config import CFG
-
+    def test_cleanup_does_not_touch_the_prompt_model(self, window, written):
         before = CFG.ollama_model_prompt
-        window._select_cleanup_model("b:2b")
+        window.select_cleanup_model_name("b:2b")
         assert CFG.ollama_model_prompt == before
-        assert all(key != "model_prompt_generate" for _s, key, _v in window.written)
+        assert all(key != "model_prompt_generate" for _s, key, _v in written)
 
-    def test_prompt_writes_only_its_own_key(self, window):
-        from hams.config import CFG
-
-        window._select_prompt_model("a:1b")
-        assert window.written == [("ollama", "model_prompt_generate", "a:1b")]
+    def test_prompt_writes_only_its_own_key(self, window, written):
+        window.select_prompt_model_name("a:1b")
+        assert written == [("ollama", "model_prompt_generate", "a:1b")]
         assert CFG.ollama_model_prompt == "a:1b"
 
-    def test_prompt_does_not_touch_the_cleanup_model(self, window):
-        from hams.config import CFG
-
+    def test_prompt_does_not_touch_the_cleanup_model(self, window, written):
         before = CFG.ollama_model_cleanup
-        window._select_prompt_model("a:1b")
+        window.select_prompt_model_name("a:1b")
         assert CFG.ollama_model_cleanup == before
-        assert all(key != "model_transcript_cleanup" for _s, key, _v in window.written)
+        assert all(key != "model_transcript_cleanup" for _s, key, _v in written)
 
-    def test_the_two_stay_different(self, window):
-        from hams.config import CFG
-
-        window._select_cleanup_model("a:1b")  # bereits gesetzt -> nichts
-        window._select_prompt_model("b:2b")  # bereits gesetzt -> nichts
-        assert window.written == []
-        window._select_cleanup_model("b:2b")
-        window._select_prompt_model("a:1b")
+    def test_the_two_stay_different(self, window, written):
+        window.select_cleanup_model_name("a:1b")  # bereits gesetzt -> nichts
+        window.select_prompt_model_name("b:2b")  # bereits gesetzt -> nichts
+        assert written == []
+        window.select_cleanup_model_name("b:2b")
+        window.select_prompt_model_name("a:1b")
         assert CFG.ollama_model_cleanup == "b:2b"
         assert CFG.ollama_model_prompt == "a:1b"
+        assert window.select_cleanup_model.value == "b:2b"
+        assert window.select_prompt_model.value == "a:1b"
 
-    def test_choosing_the_same_value_writes_nothing(self, window):
-        window._select_cleanup_model("a:1b")
-        window._select_prompt_model("b:2b")
-        assert window.written == []
+    def test_choosing_the_same_value_writes_nothing(self, window, written):
+        window.select_cleanup_model_name("a:1b")
+        window.select_prompt_model_name("b:2b")
+        assert written == []
 
-    def test_the_hint_cannot_be_chosen(self, window):
-        window._select_cleanup_model("")
-        window._select_prompt_model("")
-        assert window.written == []
+    def test_the_hint_cannot_be_chosen(self, window, written):
+        window.select_cleanup_model_name("")
+        window.select_prompt_model_name("")
+        assert written == []
 
 
 class TestApplyState:
     def test_online_state_reaches_the_row(self, window):
-        SW._apply_ollama_state(window, state_with(names=("a:1b", "c:3b")))
-        assert window._ollama_online
-        assert window.row_cleanup_model.status == "ready"
+        window.apply_state(state_with(names=("a:1b", "c:3b")))
+        assert window.ollama_online
+        assert status(window.row_cleanup_model)[0] == "ready"
 
     def test_offline_state_is_named(self, window):
-        SW._apply_ollama_state(window, state_with(online=False, names=()))
-        assert not window._ollama_online
-        assert window.row_cleanup_model.status == "error"
-        assert "nicht erreichbar" in window.row_cleanup_model.text
+        window.apply_state(state_with(online=False, names=()))
+        assert not window.ollama_online
+        dot, text = status(window.row_cleanup_model)
+        assert dot == "error"
+        assert "nicht erreichbar" in text
 
     def test_the_state_is_kept_by_the_application(self, window):
         """Ein neu geoeffnetes Fenster soll nicht bei null anfangen."""
         state = state_with(names=("a:1b", "neu:1b"))
-        SW._apply_ollama_state(window, state)
+        window.apply_state(state)
         assert window.app.ollama_state is state
         assert window.app.ollama_checked is True
 
     def test_nothing_is_claimed_before_the_first_answer(self, window):
         """ "Nicht erreichbar" waere eine Behauptung ohne Messung."""
         window.app.ollama_checked = False
-        SW._show_ollama_status(window)
-        assert window.row_cleanup_model.status == "idle"
-        assert "geprüft" in window.row_cleanup_model.text
+        window.show_status()
+        dot, text = status(window.row_cleanup_model)
+        assert dot == "idle"
+        assert "geprüft" in text
 
     def test_a_known_state_is_shown_again(self, window):
         window.app.ollama_checked = True
-        window._ollama_state = state_with(online=False, names=())
-        SW._show_ollama_status(window)
-        assert window.row_cleanup_model.status == "error"
+        window.ollama_state = state_with(online=False, names=())
+        window.show_status()
+        assert status(window.row_cleanup_model)[0] == "error"
 
-    def test_unchanged_answer_does_not_rebuild(self, window):
+    def test_unchanged_answer_does_not_rebuild(self, window, monkeypatch):
         """Sonst faellt alle fuenf Sekunden das Popover zu."""
         rebuilt = []
-        window._refresh_ollama_models = lambda: rebuilt.append(1)
-        SW._apply_ollama_state(window, state_with())
+        monkeypatch.setattr(window, "refresh_models", lambda: rebuilt.append(1))
+        window.apply_state(state_with())
         assert rebuilt == []
 
-    def test_a_changed_answer_rebuilds(self, window):
+    def test_a_changed_answer_rebuilds(self, window, monkeypatch):
         rebuilt = []
-        window._refresh_ollama_models = lambda: rebuilt.append(1)
-        SW._apply_ollama_state(window, state_with(names=("a:1b", "b:2b", "neu:1b")))
+        monkeypatch.setattr(window, "refresh_models", lambda: rebuilt.append(1))
+        window.apply_state(state_with(names=("a:1b", "b:2b", "neu:1b")))
         assert rebuilt == [1]
 
-    def test_a_warm_model_alone_rebuilds(self, window):
+    def test_a_warm_model_alone_rebuilds(self, window, monkeypatch):
         rebuilt = []
-        window._refresh_ollama_models = lambda: rebuilt.append(1)
-        SW._apply_ollama_state(window, state_with(warm=("a:1b",)))
+        monkeypatch.setattr(window, "refresh_models", lambda: rebuilt.append(1))
+        window.apply_state(state_with(warm=("a:1b",)))
         assert rebuilt == [1]
 
-    def test_a_dead_window_is_left_alone(self, window):
-        window._alive = False
-        SW._apply_ollama_state(window, state_with(names=("x:1b",)))
-        assert window.select_cleanup_model.options == []
+    def test_a_hidden_window_is_left_alone(self, window):
+        before = window.select_cleanup_model.options
+        known = window.app.ollama_state
+        window.window.close()
+        window.apply_state(state_with(names=("x:1b",)))
+        assert [o.value for o in window.select_cleanup_model.options] == [o.value for o in before]
+        assert window.app.ollama_state is known
 
     def test_refresh_fills_both_selects(self, window):
-        window._ollama_state = state_with(names=("a:1b", "b:2b"), warm=("a:1b",))
-        SW._refresh_ollama_models(window)
+        window.ollama_state = state_with(names=("a:1b", "b:2b"), warm=("a:1b",))
+        window.refresh_models()
         chosen = [o.value for o in window.select_cleanup_model.options if o.enabled]
         assert chosen == ["a:1b", "b:2b"]
         assert window.select_cleanup_model.value == "a:1b"
@@ -538,13 +511,13 @@ class TestDisplayName:
 
     def test_options_show_the_readable_name_but_keep_the_raw_value(self):
         state = ollama.OllamaState(True, models=[ollama.OllamaModel("qwen2.5:7b")])
-        option = SW.ollama_options(state, "qwen2.5:7b")[0]
+        option = extras.ollama_options(state, "qwen2.5:7b")[0]
         assert option.value == "qwen2.5:7b"
         assert option.label == "Qwen 2.5 · 7B"
 
     def test_a_missing_model_is_shown_readably_too(self):
         state = ollama.OllamaState(True, models=[])
-        option = SW.ollama_options(state, "llama3.2:3b")[0]
+        option = extras.ollama_options(state, "llama3.2:3b")[0]
         assert (option.value, option.label) == ("llama3.2:3b", "Llama 3.2 · 3B")
 
 

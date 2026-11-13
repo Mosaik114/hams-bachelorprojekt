@@ -120,7 +120,7 @@ class Text:
     """Class attribute that is translated on every access.
 
     Class constants such as a hint text are evaluated at import time, before the language is known. As a
-    descriptor, `SettingsWindow.MODEL_HINT` stays a plain attribute for callers but always returns the text in the
+    descriptor, `TranscriptionSection.MODEL_HINT` stays a plain attribute for callers but always returns the text in the
     active language. A callable instead of a key builds a derived value (e.g. a table) the same way.
     """
 

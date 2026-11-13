@@ -1,78 +1,131 @@
-"""Einstellungen: Mikrofon, Live-Pegel und Ollama."""
+"""Microphone choice with live level: the `LevelMonitor` shared by the settings and the setup assistant, and the
+settings group "Recording" that holds it."""
+
+from __future__ import annotations
 
 import contextlib
 import threading
+import tkinter as tk
+from collections.abc import Callable
 
 import numpy as np
 import sounddevice as sd
 
-from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.audio_devices import list_input_devices, resolve_mic_device
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.recording import CHANNELS, SAMPLE_RATE, reinitialise_portaudio
+from hams.settings_sections import CONTROL_WIDTH, Section, group
 from hams.ui_kit import Theme
 
 #: Thread class for the device scan; the tests run it inline.
 ScanThread = threading.Thread
 
 
-class StatusSectionMixin:
-    """Einstellungen: Mikrofon, Live-Pegel und Ollama-Status."""
+class LevelMonitor:
+    """Microphone select, status row and level meter, with the stream that feeds them.
 
-    #: True while the device list is being re-read in the background; the level meter waits for it.
-    _scanning = False
+    `host` is the window part it lives in: it has `app`, `win` and `alive()`. The monitor runs between
+    `start()` and `stop()` (the settings window while shown, the setup assistant on its microphone page) and
+    registers with the recorder as a microphone consumer meanwhile: a recording needs the device, so it suspends
+    the monitor and resumes it afterwards. `on_level` sees every measured level (the assistant notes whether the
+    microphone was heard).
+    """
 
-    def device_options(self) -> list:
-        """(Anzeigename, Wert) je Eingabegerät — Logik ohne Widget."""
-        options = [(t("settings.mic.system_default"), None)]
-        options += [(pretty, pretty) for pretty, _full in self._devices]
-        return options
+    #: How often the meter is redrawn, in ms: about 60 times a second, smooth to the eye. One tick costs about
+    #: 0.4 ms on the Tk thread, and it only runs while the window is visible.
+    TICK_MS = 16
 
-    def refresh_device_state(self, devices: list | None = None) -> None:
-        """Den Zustand aus der Geräteliste ableiten; ohne `devices` wird sie neu abgefragt."""
-        self._devices = list_input_devices() if devices is None else devices
-        selected = CFG.mic_device_raw
-        if not self._devices:
-            self._device_error = t("settings.mic.none")
-        elif isinstance(selected, str) and selected.strip().lower() not in ("", "default"):
-            # Die Config speichert einen Teilstring des Geraetenamens, keinen
-            # exakten Namen - genau so sucht auch resolve_mic_device().
-            needle = selected.strip().lower()
-            found = any(needle in pretty.lower() or needle in full.lower() for pretty, full in self._devices)
-            self._device_error = "" if found else t("settings.mic.disconnected", device=selected)
-        else:
-            self._device_error = ""
+    def __init__(
+        self,
+        host,
+        body: tk.Misc,
+        *,
+        level_hairline: bool,
+        on_level: Callable[[float], None] | None = None,
+    ) -> None:
+        self.host = host
+        self.app = host.app
+        self.on_level = on_level
+        #: The open level stream, or None.
+        self.stream: sd.InputStream | None = None
+        self.rms = 0.0
+        #: True between `start()` and `stop()`.
+        self.active = False
+        #: True while a recording holds the device.
+        self.suspended = False
+        #: True while the device list is being re-read in the background; the stream waits for it.
+        self.scanning = False
+        self.devices: list = []
+        self.device_error = ""
+        self._tick_job: str | None = None
 
-    def _build_microphone_rows(self, body, *, level_hairline: bool) -> None:
-        """Microphone select with status and the level meter; the settings and the setup assistant share them.
-
-        Device names are long, so the select sits under its title at full width.
-        """
+        # Device names are long, so the select sits under its title at full width.
         self.row_mic = uk.SettingRow(body, t("settings.mic.title"), variant="status", stacked=True)
         self.row_mic.pack(fill="x")
         self.mic_select = uk.Select(
-            body, bg_under=Theme.GROUP_SURFACE, on_change=self._select_device, placeholder=t("settings.mic.none")
+            body, bg_under=Theme.GROUP_SURFACE, on_change=self.select_device, placeholder=t("settings.mic.none")
         )
         self.row_mic.set_control(self.mic_select)
         self.row_level = uk.SettingRow(body, t("settings.level.title"), hairline=level_hairline)
         self.row_level.pack(fill="x")
         self.meter = uk.SignalMeter(body, bg_under=Theme.GROUP_SURFACE)
-        uk.keep_logical_width(self.meter, self.CONTROL_WIDTH)
+        uk.keep_logical_width(self.meter, CONTROL_WIDTH)
         self.row_level.set_control(self.meter)
-        self._refresh_devices()
 
-    def _refresh_devices(self) -> None:
+    # ---------------------------------------------------------- lifecycle
+
+    def start(self) -> None:
+        """Re-reads the devices, then opens the stream and starts the meter."""
+        self.active = True
+        self.suspended = self.app.is_recording
+        self.app.recorder.register_consumer(self)
+        self.refresh_devices()
+        self.tick()
+
+    def stop(self) -> None:
+        self.active = False
+        if self._tick_job is not None:
+            with contextlib.suppress(ValueError, tk.TclError):
+                self.host.win.after_cancel(self._tick_job)
+            self._tick_job = None
+        self.stop_stream()
+        self.app.recorder.unregister_consumer(self)
+
+    # ---------------------------------------------------------- devices
+
+    def device_options(self) -> list:
+        """(display name, value) per input device - logic without a widget."""
+        options = [(t("settings.mic.system_default"), None)]
+        options += [(pretty, pretty) for pretty, _full in self.devices]
+        return options
+
+    def refresh_device_state(self, devices: list | None = None) -> None:
+        """Derives the state from the device list; without `devices` the list is queried again."""
+        self.devices = list_input_devices() if devices is None else devices
+        selected = CFG.mic_device_raw
+        if not self.devices:
+            self.device_error = t("settings.mic.none")
+        elif isinstance(selected, str) and selected.strip().lower() not in ("", "default"):
+            # The config stores a substring of the device name, not an exact name - exactly how
+            # resolve_mic_device() searches as well.
+            needle = selected.strip().lower()
+            found = any(needle in pretty.lower() or needle in full.lower() for pretty, full in self.devices)
+            self.device_error = "" if found else t("settings.mic.disconnected", device=selected)
+        else:
+            self.device_error = ""
+
+    def refresh_devices(self) -> None:
         """Re-reads the input devices in the background (audit finding H18) and then fills the select.
 
         PortAudio is re-initialised first, so a microphone plugged in after the start is listed. That closes every
         open stream, so the level meter stops for the scan and starts again afterwards.
         """
-        if self._scanning:
+        if self.scanning:
             return
-        self._scanning = True
-        self._stop_monitor()
+        self.scanning = True
+        self.stop_stream()
         ScanThread(target=self._scan_devices, daemon=True, name="mic-scan").start()
 
     def _audio_busy(self) -> bool:
@@ -80,8 +133,8 @@ class StatusSectionMixin:
         recorder = self.app.recorder
         if recorder.busy():
             return True
-        # Every consumer is a window with this mixin's level meter (settings, setup assistant).
-        return any(consumer._mon_stream is not None for consumer in recorder.consumers)
+        # Every consumer is a level monitor (settings, setup assistant).
+        return any(getattr(consumer, "stream", None) is not None for consumer in recorder.consumers)
 
     def _scan_devices(self) -> None:
         """Thread entry: re-initialise, list, hand the result to the Tk thread."""
@@ -91,36 +144,36 @@ class StatusSectionMixin:
         except Exception:  # noqa: BLE001 - boundary of the thread
             logger.exception("Microphone scan failed")
             devices = []
-        self.app.ui_call(lambda: self._show_devices(devices))
+        self.app.ui_call(lambda: self.show_devices(devices))
 
-    def _show_devices(self, devices: list) -> None:
+    def show_devices(self, devices: list) -> None:
         """On the Tk thread: the scanned list into the select, then the level meter again."""
-        self._scanning = False
-        if not self.alive():
+        self.scanning = False
+        if not (self.active and self.host.alive()):
             return
         self.refresh_device_state(devices)
         options = [uk.Option(value, label) for label, value in self.device_options()]
         self.mic_select.set_options(options)
-        self.mic_select.set_value(self._selected_device_value())
-        self.mic_select.set_enabled(bool(self._devices))
-        self._start_monitor()
-        if self._device_error:
+        self.mic_select.set_value(self.selected_device_value())
+        self.mic_select.set_enabled(bool(self.devices))
+        self.start_stream()
+        if self.device_error:
             # At once, not with the next level tick: until then the row would still say "device unavailable",
             # and on a fast machine a test (or a glance) sees that instead of the real reason.
-            self.row_mic.set_status("error", self._device_error)
+            self.row_mic.set_status("error", self.device_error)
 
-    def _selected_device_value(self):
-        """Der Config-Wert als Optionswert — Teilstring auf Anzeigename gemappt."""
+    def selected_device_value(self):
+        """The config value as option value - a substring mapped onto the display name."""
         raw = CFG.mic_device_raw
         if not (isinstance(raw, str) and raw.strip() and raw.strip().lower() != "default"):
             return None
         needle = raw.strip().lower()
-        for pretty, full in self._devices:
+        for pretty, full in self.devices:
             if needle in pretty.lower() or needle in full.lower():
                 return pretty
         return raw
 
-    def _select_device(self, pretty: str | None) -> None:
+    def select_device(self, pretty: str | None) -> None:
         if pretty is None:
             CFG.mic_device_raw = "default"
             CFG.mic_device = None
@@ -130,80 +183,79 @@ class StatusSectionMixin:
             CFG.mic_device = resolve_mic_device(pretty)
             _persist_config_value("audio", "device", pretty)
         logger.info("Microphone chosen: %r -> %r", CFG.mic_device_raw, CFG.mic_device)
-        self.refresh_device_state(self._devices)
-        self._restart_monitor()
+        self.refresh_device_state(self.devices)
+        self.restart_stream()
 
-    # ---------------------------------------------------------- monitor stream
+    # ---------------------------------------------------------- stream
 
-    def _start_monitor(self) -> None:
-        if self._suspended or self._scanning or self.app.is_recording or self._mon_stream is not None:
+    def start_stream(self) -> None:
+        if not self.active or self.suspended or self.scanning or self.app.is_recording or self.stream is not None:
             return
-        if not self._devices and self._device_error:
-            return  # kein Eingabegerät — gar nicht erst versuchen
+        if not self.devices and self.device_error:
+            return  # no input device - do not even try
         try:
-            dev = resolve_mic_device(CFG.mic_device_raw)
+            device = resolve_mic_device(CFG.mic_device_raw)
 
-            def cb(indata: np.ndarray, _frames: int, _time, _status) -> None:
-                self._mon_rms = float(np.mean(indata.astype(np.float32) ** 2))
+            def callback(indata: np.ndarray, _frames: int, _time, _status) -> None:
+                self.rms = float(np.mean(indata.astype(np.float32) ** 2))
 
-            self._mon_stream = sd.InputStream(
-                samplerate=SAMPLE_RATE,
-                channels=CHANNELS,
-                device=dev,
-                dtype="float32",
-                callback=cb,
+            self.stream = sd.InputStream(
+                samplerate=SAMPLE_RATE, channels=CHANNELS, device=device, dtype="float32", callback=callback
             )
-            self._mon_stream.start()
+            self.stream.start()
         except Exception as exc:
             logger.warning("Level monitor stream failed: %s", exc)
-            self._mon_stream = None
+            self.stream = None
 
-    def _stop_monitor(self) -> None:
-        if self._mon_stream is not None:
-            with contextlib.suppress(Exception):  # Strom ist schon zu oder das Gerät weg
-                self._mon_stream.stop()
-                self._mon_stream.close()
-            self._mon_stream = None
-        self._mon_rms = 0.0
+    def stop_stream(self) -> None:
+        if self.stream is not None:
+            with contextlib.suppress(Exception):  # stream already closed or the device gone
+                self.stream.stop()
+                self.stream.close()
+            self.stream = None
+        self.rms = 0.0
 
-    def _restart_monitor(self) -> None:
-        self._stop_monitor()
-        self._start_monitor()
+    def restart_stream(self) -> None:
+        self.stop_stream()
+        self.start_stream()
 
-    # ---------------------------------------------------------- Mikrofon-Teilhabe
+    # ---------------------------------------------------------- sharing the microphone with the recorder
 
     def suspend_microphone(self) -> None:
-        """Die Aufnahme braucht das Gerät — Monitor anhalten."""
-        self._suspended = True
-        self._stop_monitor()
+        """The recording needs the device - pause the monitor."""
+        self.suspended = True
+        self.stop_stream()
 
     def resume_microphone(self) -> None:
-        """Aufnahme vorbei — Monitor darf zurückkehren, sofern noch offen."""
-        self._suspended = False
-        if self.alive() and not self.app.is_recording:
-            self._start_monitor()
+        """Recording over - the monitor may come back if it still runs."""
+        self.suspended = False
+        if self.active and self.host.alive() and not self.app.is_recording:
+            self.start_stream()
 
-    # ---------------------------------------------------------- ticks / status
+    # ---------------------------------------------------------- meter
 
-    def _tick(self) -> None:
-        if not self.alive():
+    def tick(self) -> None:
+        self._tick_job = None
+        if not (self.active and self.host.alive()):
             return
         if self.app.is_recording:
             rms = self.app.recorder.level
         else:
-            if self._mon_stream is None and not self._suspended:
-                self._start_monitor()
-            rms = self._mon_rms
+            if self.stream is None and not self.suspended:
+                self.start_stream()
+            rms = self.rms
         level = min(1.0, (rms**0.5) * 1.5)
         self.meter.set_level(level)
-        self._update_mic_status(level)
-        self._tick_job = self.win.after(60, self._tick)
+        self.update_status(level)
+        if self.on_level is not None:
+            self.on_level(level)
+        self._tick_job = self.host.win.after(self.TICK_MS, self.tick)
 
-    def _update_mic_status(self, level: float) -> None:
-        """Mikrofonstatus als Punkt *und* Text — nie allein über die Farbe."""
-        if self._device_error:
-            self.row_mic.set_status("error", self._device_error)
-        elif self._mon_stream is None and not self.app.is_recording:
+    def update_status(self, level: float) -> None:
+        """Microphone state as a dot *and* text - never by colour alone."""
+        if self.device_error:
+            self.row_mic.set_status("error", self.device_error)
+        elif self.stream is None and not self.app.is_recording:
             self.row_mic.set_status("warning", t("settings.mic.unavailable"))
         elif level < 0.015:
             self.row_mic.set_status("error", t("settings.mic.no_signal"))
@@ -212,140 +264,18 @@ class StatusSectionMixin:
         else:
             self.row_mic.set_status("ready", t("settings.mic.good"))
 
-    def _refresh_status(self) -> None:
-        if not self.alive():
-            return
-        app = self.app
-        if app.models.model_error:
-            self.row_hardware.set_value(t("settings.hardware.error"))
-        elif app.models.model_ready.is_set():
-            device = app.models.active_device or "?"
-            label = "GPU" if device == "cuda" else device.upper()
-            self.row_hardware.set_value(t("settings.hardware.auto", device=label))
-        else:
-            self.row_hardware.set_value(t("status.model_loading"))
-            self.win.after(800, self._refresh_status)
 
-    def _schedule_ollama_check(self) -> None:
-        """Alle paar Sekunden nachsehen — sparsam, aber nicht nur einmal.
+class RecordingSection(Section):
+    """The group "Recording": microphone, its state and the live level."""
 
-        Nur beim Öffnen zu prüfen hiesse: startet Ollama danach, bleibt die
-        Anzeige dauerhaft falsch.
-        """
-        if not self.alive():
-            return
-        threading.Thread(target=self._check_ollama, daemon=True, name="ollama-check").start()
-        self._ollama_job = self.win.after(self.OLLAMA_INTERVAL_MS, self._schedule_ollama_check)
+    def __init__(self, window, master: tk.Misc) -> None:
+        super().__init__(window)
+        self.group = group(master, t("settings.section.recording"), first=True)
+        self.monitor = LevelMonitor(self, self.group.body, level_hairline=False)
 
-    def _check_ollama(self) -> None:
-        """Laeuft im Hintergrundthread — hier nur fragen, nichts zeichnen."""
-        state = ollama_api.probe_or_offline(self.app.ollama.probe)
-        self.app.ui_call(lambda: self._apply_ollama_state(state))
+    def on_show(self) -> None:
+        self.monitor.start()
 
-    def _show_ollama_status(self) -> None:
-        """Statuszeile aus dem bekannten Stand — ohne selbst zu fragen.
-
-        Solange in dieser Sitzung noch nie geantwortet wurde, steht dort
-        "wird geprüft". Einen Ausfall zu behaupten, den niemand gemessen hat,
-        waere schlicht falsch.
-        """
-        if not self.app.ollama_checked:
-            self.row_cleanup_model.set_status("idle", t("settings.ollama.checking"))
-            return
-        state = self._ollama_state
-        if not state.online and not CFG.ollama_cleanup_enabled:
-            # Ohne Bereinigung ist ein fehlendes Ollama kein Fehler, nur eine Auskunft.
-            self.row_cleanup_model.set_status("idle", t("settings.ollama.optional"))
-            return
-        self.row_cleanup_model.set_status(
-            "ready" if state.online else "error",
-            t("settings.ollama.online") if state.online else state.error or t("ollama.unreachable"),
-        )
-
-    def _apply_ollama_state(self, state) -> None:
-        """Uebernimmt eine Antwort — auf dem Tk-Thread."""
-        if not self.alive():
-            return
-        self.app.ollama_state = state
-        self.app.ollama_checked = True
-        self._ollama_online = state.online
-        if state.signature() != self._ollama_signature:
-            popover = uk.Popover.current
-            if popover is not None and popover.trigger in (self.select_cleanup_model, self.select_prompt_model):
-                self._show_ollama_status()
-                return  # geoeffnete Auswahl nicht unter den Fingern austauschen
-            self._ollama_state = state
-            self._ollama_signature = state.signature()
-            self._refresh_ollama_models()
-        self._show_ollama_status()
-        self._sync_cleanup_dependency()
-
-    # ---------------------------------------------------------- Ollama-Modelle
-
-    @staticmethod
-    def ollama_options(state, current: str) -> list:
-        """Auswahlliste aus einer Dienstantwort — Logik ohne Widget.
-
-        Nur installierte Modelle. Ollama kennt ueber diese API keinen Katalog
-        entfernter Modelle, also wird auch keiner erfunden.
-        """
-        options = [
-            uk.Option(
-                model.name,
-                ollama_api.display_name(model.name),
-                meta=model.meta,
-                group=t("settings.ollama.group_installed"),
-                trailing=t("settings.ollama.in_memory") if model.name in state.warm else "",
-            )
-            for model in state.models
-        ]
-        if current and current not in state.names:
-            # Das konfigurierte Modell fehlt. Es bleibt sichtbar und bleibt
-            # gespeichert: stillschweigend ein anderes zu waehlen waere eine
-            # Entscheidung, die dem Nutzer gehoert.
-            if state.online:
-                meta = t("settings.ollama.not_installed")
-            elif state.error:
-                meta = state.error
-            else:
-                meta = ""  # noch nie gefragt — nichts behaupten
-            options.insert(
-                0,
-                uk.Option(
-                    current,
-                    ollama_api.display_name(current),
-                    meta=meta,
-                    group=t("settings.ollama.group_installed"),
-                    enabled=False,
-                ),
-            )
-        if state.online and options:
-            options.append(uk.Option("", ollama_api.pull_hint(), enabled=False))
-        return options
-
-    def _refresh_ollama_models(self) -> None:
-        if not self.alive():
-            return
-        state = self._ollama_state
-        self.select_cleanup_model.set_options(self.ollama_options(state, CFG.ollama_model_cleanup))
-        self.select_cleanup_model.set_value(CFG.ollama_model_cleanup)
-        self.select_prompt_model.set_options(self.ollama_options(state, CFG.ollama_model_prompt))
-        self.select_prompt_model.set_value(CFG.ollama_model_prompt)
-
-    def _select_cleanup_model(self, name: str) -> None:
-        """Schreibt ausschliesslich den Cleanup-Schluessel."""
-        if not name or name == CFG.ollama_model_cleanup:
-            return
-        CFG.ollama_model_cleanup = name
-        _persist_config_value("ollama", "model_transcript_cleanup", name)
-        logger.info("Cleanup model: %s", name)
-        self.select_cleanup_model.set_value(name)
-
-    def _select_prompt_model(self, name: str) -> None:
-        """Schreibt ausschliesslich den Prompt-Schluessel."""
-        if not name or name == CFG.ollama_model_prompt:
-            return
-        CFG.ollama_model_prompt = name
-        _persist_config_value("ollama", "model_prompt_generate", name)
-        logger.info("Prompt model: %s", name)
-        self.select_prompt_model.set_value(name)
+    def on_hide(self) -> None:
+        super().on_hide()
+        self.monitor.stop()

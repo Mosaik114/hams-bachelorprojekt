@@ -16,8 +16,42 @@ from hams.ui_kit.surfaces import _hex_to_rgb
 SPI_GETCLIENTAREAANIMATION = 0x1042
 """Windows-Systemeinstellung „Animationen in Windows anzeigen“."""
 
-#: Ein Bild alle 16 ms — etwa 60 pro Sekunde. Feiner lohnt sich in Tk nicht.
-FRAME_MS = 16
+#: One frame every 8 ms - about 120 per second, for 120 Hz displays. Windows rounds timers to its timer
+#: resolution (15.6 ms by default, measured: `after(8)` fired every 15.5 ms); while an animation runs the resolution
+#: is raised to 1 ms (`HighResolutionTimer`), then `after(8)` fires every 8.0 ms (95 % within 8.5 ms). Tk has no
+#: vertical sync, so the frames are regular but not locked to the display's refresh.
+FRAME_MS = 8
+
+#: The frame period the timeline aims at, in ms (120 Hz). Each frame is scheduled for its slot on this timeline
+#: rather than `FRAME_MS` after the previous one: otherwise the work of every frame and the timer's lateness add up
+#: (measured: 9.4 to 9.9 ms per frame, 104 frames a second instead of 120).
+FRAME_PERIOD_MS = 1000 / 120
+
+
+class HighResolutionTimer:
+    """Windows timer resolution of 1 ms, held only while something animates.
+
+    A finer timer costs a little power, so it is not held all the time: `hold()` when the first animation starts,
+    `release()` when the last one ends. Elsewhere (Linux) the timers are fine already and this does nothing.
+    """
+
+    held = False
+
+    @classmethod
+    def hold(cls) -> None:
+        if cls.held:
+            return
+        cls.held = True
+        with contextlib.suppress(Exception):  # no Windows or no winmm: plain timers, nothing else changes
+            ctypes.windll.winmm.timeBeginPeriod(1)
+
+    @classmethod
+    def release(cls) -> None:
+        if not cls.held:
+            return
+        cls.held = False
+        with contextlib.suppress(Exception):
+            ctypes.windll.winmm.timeEndPeriod(1)
 
 
 def system_animations_enabled() -> bool:
@@ -93,29 +127,50 @@ class Animator:
 
         cls._watch(widget)
         token = (id(widget), key)
-        start = time.monotonic()
+        # perf_counter, not monotonic: on Windows monotonic advances in 15.6 ms steps, so two 8 ms frames in a
+        # row would often compute the same position - a doubled frame, seen as a stutter.
+        start = time.perf_counter()
+        frames = [0]
 
         def tick() -> None:
-            elapsed = (time.monotonic() - start) * 1000.0
+            elapsed = (time.perf_counter() - start) * 1000.0
             fraction = elapsed / duration_ms
             last = fraction >= 1.0
             try:
                 step(ease_out(fraction))
             except tk.TclError:  # Widget verschwand mitten im Lauf
                 cls._jobs.pop(token, None)
+                cls._sync_timer()
                 return
             if last:
                 cls._jobs.pop(token, None)
+                cls._sync_timer()
                 if done is not None:
                     done()
                 return
+            frames[0] += 1
+            now = (time.perf_counter() - start) * 1000.0
+            slot = frames[0] * FRAME_PERIOD_MS
+            if slot < now:  # fell behind (a busy Tk thread): continue from now, do not rush to catch up
+                frames[0] = int(now // FRAME_PERIOD_MS) + 1
+                slot = frames[0] * FRAME_PERIOD_MS
             try:
-                cls._jobs[token] = widget.after(FRAME_MS, tick)
+                cls._jobs[token] = widget.after(max(1, int(slot - now)), tick)
             except tk.TclError:  # pragma: no cover - Fenster schon weg
                 cls._jobs.pop(token, None)
+            cls._sync_timer()
 
         tick()
+        cls._sync_timer()
         return token in cls._jobs
+
+    @classmethod
+    def _sync_timer(cls) -> None:
+        """Fine timer while anything animates, the default one otherwise."""
+        if cls._jobs:
+            HighResolutionTimer.hold()
+        else:
+            HighResolutionTimer.release()
 
     @classmethod
     def cancel(cls, widget: tk.Misc, key: str) -> None:
@@ -124,6 +179,7 @@ class Animator:
             return
         with contextlib.suppress(Exception):  # Widget bereits zerstört
             widget.after_cancel(job)
+        cls._sync_timer()
 
     @classmethod
     def cancel_all(cls, widget: tk.Misc) -> None:
@@ -133,6 +189,7 @@ class Animator:
             job = cls._jobs.pop(token, None)
             with contextlib.suppress(Exception):
                 widget.after_cancel(job)
+        cls._sync_timer()
 
     @classmethod
     def pending(cls, widget: tk.Misc | None = None) -> int:

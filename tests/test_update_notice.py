@@ -155,29 +155,29 @@ class TestActions:
 
 class TestSettings:
     def test_the_switch_is_saved(self, open_settings, hams):  # noqa: F811
-        win = open_settings()
+        general = open_settings().general
         before = CFG.update_check
-        win.switch_updates.toggle()
+        general.switch_updates.toggle()
         assert CFG.update_check is (not before)
         assert ("updates", "check", not before) in hams.saved
 
     def test_no_notice_row_without_an_update(self, open_settings):  # noqa: F811
-        assert open_settings().row_update is None
+        assert open_settings().general.row_update is None
 
     def test_a_pending_update_shows_a_row_and_can_be_dismissed(self, open_settings, live_app, checker):  # noqa: F811
         live_app.updates.available = RELEASE
         live_app.updates._checker = checker
-        win = open_settings()
+        general = open_settings().general
         current = updates.app_version()
-        assert win.row_update.sub_text == f"Hams 9.0.0 ist erschienen · installiert ist {current}"
-        win._dismiss_update()
-        assert win.row_update is None
+        assert general.row_update.sub_text == f"Hams 9.0.0 ist erschienen · installiert ist {current}"
+        general._dismiss_update()
+        assert general.row_update is None
         assert checker.dismissed == ["9.0.0"]
 
     def test_an_update_found_while_the_window_is_open(self, open_settings, live_app, checker):  # noqa: F811
         CFG.update_check = True
-        win = open_settings()
+        general = open_settings().general
         start(live_app)
-        assert win.row_update is not None
-        win.show_update(Release("9.1.0", PAGE))
-        assert win.row_update.sub_text.startswith("Hams 9.1.0 ist erschienen")
+        assert general.row_update is not None
+        general.window.show_update(Release("9.1.0", PAGE))
+        assert general.row_update.sub_text.startswith("Hams 9.1.0 ist erschienen")

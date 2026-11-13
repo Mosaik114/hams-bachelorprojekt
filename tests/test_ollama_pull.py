@@ -6,10 +6,13 @@ Geprüft an einer Ersatzantwort im Format von `/api/pull`; es wird nie eine Verb
 import json
 import threading
 import urllib.error
+from types import SimpleNamespace
 
 import pytest
+from setup_fakes import InlineThread
 
 from hams import ollama
+from hams import settings_extras as extras
 
 
 class Response:
@@ -100,15 +103,18 @@ class TestPull:
 
 class TestTheOllamaPullReportsThroughTheDispatcher:
     def test_post_pull_never_calls_tk_from_the_worker(self, live_app, monkeypatch):
+        # Die Ollama-Abfrage beim Öffnen läuft inline: ihr Ergebnis darf nicht später in `queued` landen.
+        monkeypatch.setattr(extras, "threading", SimpleNamespace(Thread=InlineThread))
         live_app._open_settings()
         live_app.root.update()
         win = live_app.settings_win
+        ai = win.ai
         queued = []
         monkeypatch.setattr(live_app, "ui_call", queued.append)
         touched = []
         win.win.after = lambda *args: touched.append(args)
         try:
-            worker = threading.Thread(target=win._post_pull, args=(lambda: None,), name="pull")
+            worker = threading.Thread(target=ai._post_pull, args=(lambda: None,), name="pull")
             worker.start()
             worker.join(2)
         finally:

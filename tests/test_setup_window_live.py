@@ -394,17 +394,18 @@ class TestMicrophone:
         assert stream.running
         assert status(win.row_check) == ("idle", "Sag etwas …")
         stream.feed(np.full(1600, 0.3))
-        win._tick()
-        assert win.meter.level > 0.4
+        win.monitor.tick()
+        assert win.monitor.meter.level > 0.4
         assert status(win.row_check) == ("ready", "Gehört · das Mikrofon funktioniert")
-        assert win.row_mic.status_dot.status == "ready"
+        assert win.monitor.row_mic.status_dot.status == "ready"
         win.go_next()
         assert stream.closed, "der Pegel laeuft nur auf der Mikrofonseite"
+        assert win.monitor is None
 
     def test_choosing_a_device_saves_it(self, wizard, hams):
         win = wizard()
         go_to(win, "microphone")
-        win._select_device("Headset")
+        win.monitor.select_device("Headset")
         assert ("audio", "device", "Headset") in hams.saved
 
     def test_a_recording_borrows_the_microphone(self, wizard, hams, live_app):
@@ -614,8 +615,8 @@ class TestAppIntegration:
         live_app._open_settings()
         live_app.root.update()
         settings = live_app.settings_win
-        assert settings.row_setup._title_text == "Einrichtungsassistent"
-        settings.setup_button._invoke()
+        assert settings.general.row_setup._title_text == "Einrichtungsassistent"
+        settings.general.setup_button._invoke()
         assert opened == [1]
 
     def test_settings_call_a_missing_ollama_optional_when_cleanup_is_off(self, live_app, monkeypatch):
@@ -627,9 +628,9 @@ class TestAppIntegration:
         live_app._open_settings()
         live_app.root.update()
         settings = live_app.settings_win
-        assert status(settings.row_cleanup_model) == ("idle", "Optional · Ollama läuft nicht")
-        settings._on_cleanup(True)
-        assert status(settings.row_cleanup_model)[0] == "error", "eingeschaltet ist es wieder ein Problem"
+        assert status(settings.ai.row_cleanup_model) == ("idle", "Optional · Ollama läuft nicht")
+        settings.ai._on_cleanup(True)
+        assert status(settings.ai.row_cleanup_model)[0] == "error", "eingeschaltet ist es wieder ein Problem"
 
     def test_closing_releases_a_deferred_model(self, live_app, hams):
         before = hams.loads  # der Start der Testanwendung hat schon einmal geladen

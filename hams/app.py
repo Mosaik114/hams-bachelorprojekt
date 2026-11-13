@@ -259,12 +259,30 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
 
     def _open_settings(self, icon=None, item=None) -> None:
         def _do() -> None:
-            if self.settings_win is not None and self.settings_win.alive():
-                self.settings_win.focus()
+            win = self.settings_win
+            if win is not None and win.alive():
+                win.focus()
                 return
-            self.settings_win = SettingsWindow(self)
+            if win is None or not win.reusable():
+                win = self.settings_win = SettingsWindow(self, show=False)
+            win.show()
 
         self.ui_call(_do)  # also from the tray thread
+
+    #: How long after the start the settings window is built ahead, hidden (`prebuild_settings`).
+    PREBUILD_DELAY_MS = 3000
+
+    def prebuild_settings(self) -> None:
+        """Builds the settings window hidden, so that opening it later only has to show it (about 20 ms
+        instead of 300). Called once in a quiet moment after the start; a recording in progress waits."""
+        if self.settings_win is not None or self._shutting_down:
+            return
+        if self.is_recording:
+            self.root.after(self.PREBUILD_DELAY_MS, self.prebuild_settings)
+            return
+        self.settings_win = SettingsWindow(self, show=False)
+        self.settings_win.lay_out_hidden()
+        logger.info("Settings window built ahead")
 
     def _open_setup(self, icon=None, item=None) -> None:
         """The setup assistant: at the first start, from the settings and from the tray."""

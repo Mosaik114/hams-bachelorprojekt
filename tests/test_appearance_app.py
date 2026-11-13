@@ -25,11 +25,11 @@ from appearance_support import (  # noqa: F401 – Fixtures, pytest findet sie �
 )
 
 from hams import config as config_mod
-from hams import settings_window as settings_window_mod
+from hams import settings_sections as sections_mod
 from hams import tray as tray_mod
 from hams import ui_kit as uk
 from hams.app import FloatingTranscriberApp
-from hams.settings_window import SettingsWindow
+from hams.settings_sections import GeneralSection
 from hams.ui_kit import (
     Option,
     Popover,
@@ -157,33 +157,34 @@ class TestApplicationWiring:
         assert Theme.mode == Theme.LIGHT  # normalised to light
 
     def test_the_settings_window_offers_the_two_labels(self):
-        assert SettingsWindow.APPEARANCE_LABELS == {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
+        assert GeneralSection.APPEARANCE_LABELS == {Theme.LIGHT: "Hell", Theme.DARK: "Dunkel"}
 
-    def test_choosing_persists_before_it_switches(self, monkeypatch):
+    def test_choosing_persists_before_it_switches(self, live_app, monkeypatch):
         """Erst schreiben, dann umschalten — sonst fiele ein Schreibfehler
         mitten in einen halb neu gezeichneten Baum."""
+        Theme.apply(Theme.LIGHT)
+        live_app._open_settings()
+        live_app.root.update()
         sequence = []
         monkeypatch.setattr(
-            settings_window_mod, "_persist_config_value", lambda *a: sequence.append(("schreiben", a[2])) or True
+            sections_mod, "_persist_config_value", lambda *a: sequence.append(("schreiben", a[2])) or True
         )
-
-        class _App:
-            def set_appearance(self, mode):
-                sequence.append(("umschalten", mode))
-
-        widget_window = SettingsWindow.__new__(SettingsWindow)
-        widget_window.app = _App()
-        Theme.apply(Theme.LIGHT)
-        SettingsWindow._select_appearance(widget_window, Theme.DARK)
+        switch = live_app.set_appearance
+        monkeypatch.setattr(
+            live_app, "set_appearance", lambda mode: sequence.append(("umschalten", mode)) or switch(mode)
+        )
+        live_app.settings_win.general.select_appearance_mode(Theme.DARK)
         assert sequence == [("schreiben", "dark"), ("umschalten", "dark")]
+        assert Theme.mode == Theme.DARK
 
-    def test_choosing_the_current_mode_does_nothing(self, monkeypatch):
-        sequence = []
-        monkeypatch.setattr(settings_window_mod, "_persist_config_value", lambda *a: sequence.append(a) or True)
-        widget_window = SettingsWindow.__new__(SettingsWindow)
-        widget_window.app = None
+    def test_choosing_the_current_mode_does_nothing(self, live_app, monkeypatch):
         Theme.apply(Theme.LIGHT)
-        SettingsWindow._select_appearance(widget_window, Theme.LIGHT)
+        live_app._open_settings()
+        live_app.root.update()
+        sequence = []
+        monkeypatch.setattr(sections_mod, "_persist_config_value", lambda *a: sequence.append(a) or True)
+        monkeypatch.setattr(live_app, "set_appearance", lambda mode: sequence.append(mode))
+        live_app.settings_win.general.select_appearance_mode(Theme.LIGHT)
         assert sequence == []
 
 

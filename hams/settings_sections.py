@@ -1,16 +1,32 @@
-"""Die Gruppen des Einstellungsfensters: Aufnahme, Transkription, KI, Allgemein (Kurzbefehle: settings_shortcuts.py).
+"""The building blocks of the settings window: the `Section` base class, the shared helpers and the group
+"General" (sound, transcripts, appearance, language, updates, glossary, setup assistant).
 
-Lebenszyklus, Ziehen und Schalter stehen in settings_window.py, ebenso Konstanten wie CONTROL_WIDTH an der
-Klasse SettingsWindow.
+Every group of the window is a `Section` object that owns its widgets and its state (audit finding 11: before,
+six mixins shared undeclared attributes on one window object). A section builds its rows once; `sync()` fills
+them from the current state each time the window is shown, `on_hide()` stops whatever the section runs (timers,
+streams, a capture). The other sections live in settings_status.py (recording), settings_models.py
+(transcription), settings_extras.py (AI), settings_shortcuts.py and settings_about.py.
 """
 
-import tkinter as tk
+from __future__ import annotations
 
-from hams import branding, dictation_language, i18n, updates
+import contextlib
+import tkinter as tk
+from typing import TYPE_CHECKING
+
+from hams import branding, dictation_language, glossary, i18n, updates
 from hams import ui_kit as uk
 from hams.config import CFG, _persist_config_value, logger
-from hams.i18n import t
+from hams.i18n import Text, t
 from hams.ui_kit import Theme
+
+if TYPE_CHECKING:
+    from hams.app import FloatingTranscriberApp
+    from hams.settings_window import SettingsWindow
+
+#: Width of the controls that stand *beside* their text (level, appearance, delete choice); selects with long
+#: values stand stacked below their title. Logical pixels, like all widths here.
+CONTROL_WIDTH = 160
 
 
 def choose_ui_language(setting) -> str | None:
@@ -42,252 +58,168 @@ def dictation_options() -> list:
     return [uk.Option(value, t(f"dictation.{value}")) for value in dictation_language.SETTINGS]
 
 
-class SectionsMixin:
-    """Baut die Gruppen in den Scrollbereich (braucht die Attribute von SettingsWindow)."""
+def group(master: tk.Misc, title: str, *, first: bool = False) -> uk.GroupSurface:
+    """Section header plus its group surface.
 
-    def _group(self, master: tk.Misc, title: str, *, first: bool = False) -> uk.GroupSurface:
-        """Abschnittsüberschrift plus zugehörige Gruppenfläche.
+    The header is flush with the row text below it (group inset plus row padding), not with the group edge. On
+    the right the group ends one scroll gutter earlier, so both window margins are equally wide.
+    """
+    text_x = uk.Space.GROUP_INSET + uk.Space.ROW_X
+    right = uk.Space.WINDOW - uk.ScrollArea.gutter_width()
+    top = uk.Space.MD if first else uk.Space.SECTION_GAP
+    uk.SectionHeader(master, title, bg_under=Theme.WINDOW_BG).pack(
+        fill="x", padx=(uk.px(text_x), uk.px(right)), pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP))
+    )
+    surface = uk.GroupSurface(master, bg_under=Theme.WINDOW_BG)
+    surface.pack(fill="x", padx=(0, uk.px(right)))
+    return surface
 
-        Die Überschrift steht bündig mit dem Zeilentext darunter (Gruppeneinzug
-        plus Zeilenabstand), nicht mit der Gruppenkante. Rechts endet die Gruppe
-        um die Scroll-Rinne früher, damit beide Fensterränder gleich breit sind.
-        """
-        text_x = uk.Space.GROUP_INSET + uk.Space.ROW_X
-        right = uk.Space.WINDOW - uk.ScrollArea.gutter_width()
-        top = uk.Space.MD if first else uk.Space.SECTION_GAP
-        uk.SectionHeader(master, title, bg_under=Theme.WINDOW_BG).pack(
-            fill="x", padx=(uk.px(text_x), uk.px(right)), pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP))
-        )
-        group = uk.GroupSurface(master, bg_under=Theme.WINDOW_BG)
-        group.pack(fill="x", padx=(0, uk.px(right)))
-        return group
 
-    def _build_recording(self, master: tk.Misc) -> None:
-        group = self._group(master, t("settings.section.recording"), first=True)
+class Section:
+    """One group of the settings window. Subclasses build their rows in `__init__`."""
 
-        self._build_microphone_rows(group.body, level_hairline=False)
+    def __init__(self, window: SettingsWindow) -> None:
+        self.window = window
+        self.app: FloatingTranscriberApp = window.app
+        #: Timer jobs of this section by name; `on_hide` cancels them all.
+        self._jobs: dict[str, str] = {}
 
-    def _build_transcription(self, master: tk.Misc) -> None:
-        group = self._group(master, t("settings.section.transcription"))
+    @property
+    def win(self) -> tk.Toplevel:
+        return self.window.win
 
-        self.row_model = uk.SettingRow(
-            group.body, t("settings.model.title"), variant="description", description=self.MODEL_HINT, stacked=True
-        )
-        self.row_model.pack(fill="x")
-        self.model_select = uk.Select(group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._select_model)
-        self.row_model.set_control(self.model_select)
-        # Waehrend eines Downloads tritt dieses Kreuz an die Stelle des
-        # Auswahlfeldes; es wird erst dann eingehaengt. Bewusst nur ein Icon:
-        # eine beschriftete Schaltflaeche nimmt der Fortschrittszeile die
-        # Breite, und die Zeile ist die eigentliche Rueckmeldung.
-        self.cancel_button = uk.IconButton(
-            group.body,
-            "close",
-            self._cancel_download,
-            bg_under=Theme.GROUP_SURFACE,
-            tooltip=t("settings.download.cancel_tooltip"),
-        )
-        self.cancel_button.set_hover_colour(Theme.ERROR)
-        self._refresh_models()
+    def alive(self) -> bool:
+        """Whether the window is shown; a hidden window keeps its widgets but ignores late results."""
+        return self.window.alive()
 
-        self._build_dictation_language(group)
+    def sync(self) -> None:
+        """Fills the rows from the current state. Runs before the window is shown, every time."""
 
-        # Eine eigene Zeile fuer den Bestand auf der Platte. Bewusst nicht als
-        # Papierkorb neben dem Auswahlfeld: das zeigt immer das *eingestellte*
-        # Modell, und genau das darf man nicht loeschen. Eine Loeschung braucht
-        # deshalb eine eigene Auswahl — und die erscheint nur, wenn es etwas zu
-        # loeschen gibt.
-        self.row_storage = uk.SettingRow(
-            group.body, t("settings.storage.title"), variant="description", description="—"
-        )
-        self.row_storage.pack(fill="x")
-        self.select_delete = uk.Select(
-            group.body, bg_under=Theme.GROUP_SURFACE, on_change=self._choose_delete, placeholder=self.DELETE_PLACEHOLDER
-        )
-        uk.keep_logical_width(self.select_delete, self.CONTROL_WIDTH)
-        self.row_storage.set_control(self.select_delete)
+    def on_show(self) -> None:
+        """Starts what runs while the window is visible (after `sync`)."""
 
-        # Die Rueckfrage tritt an die Stelle des Auswahlfeldes — derselbe
-        # Kniff wie beim Download-Abbruch. Zwei Schaltflaechen nebeneinander
-        # brauchen einen Rahmen, weil eine Zeile nur ein Control aufnimmt.
-        self._delete_box = tk.Frame(group.body, bg=Theme.GROUP_SURFACE)
-        self._delete_box.focus_ring = True  # die Knoepfe darin tragen ihn
-        self.delete_button = uk.SecondaryButton(
-            self._delete_box,
-            t("settings.storage.delete"),
-            self._confirm_delete,
-            bg_under=Theme.GROUP_SURFACE,
-            role="recording",
-            height=uk.Height.STANDARD,
-        )
-        uk.keep_logical_width(self.delete_button, self.DELETE_WIDTH)
-        self.delete_button.pack(side="left")
-        self.delete_cancel = uk.IconButton(
-            self._delete_box,
-            "close",
-            self._abort_delete,
-            bg_under=Theme.GROUP_SURFACE,
-            tooltip=t("settings.storage.delete_cancel_tooltip"),
-        )
-        self.delete_cancel.pack(side="left", padx=(uk.px(uk.Space.XS), 0))
-        self._refresh_storage()
+    def on_hide(self) -> None:
+        """Stops what the section runs; the window is being hidden."""
+        self.cancel_jobs()
 
-        self.row_hardware = uk.SettingRow(
-            group.body, t("settings.hardware.title"), variant="display", value="—", hairline=False
-        )
-        self.row_hardware.pack(fill="x")
+    def after(self, name: str, delay_ms: int, callback) -> None:
+        """A named timer; a second one with the same name replaces the first."""
+        self.cancel_job(name)
+        self._jobs[name] = self.win.after(delay_ms, lambda: self._run_job(name, callback))
 
-    def _build_dictation_language(self, group: uk.GroupSurface) -> None:
-        """Die Diktiersprache. Gilt ab der naechsten Aufnahme, ohne Neustart: das Modell ist mehrsprachig,
-        es aendern sich nur die Sprachangabe an Whisper und die Anweisungen an Ollama."""
-        self.row_dictation = uk.SettingRow(
-            group.body,
-            t("settings.dictation.title"),
-            variant="description",
-            description=self.dictation_hint(CFG.transcription_language),
-        )
-        self.row_dictation.pack(fill="x")
-        self.select_dictation = uk.Select(
-            group.body,
-            bg_under=Theme.GROUP_SURFACE,
-            options=dictation_options(),
-            value=CFG.transcription_language,
-            on_change=self._select_dictation_language,
-        )
-        uk.keep_logical_width(self.select_dictation, self.CONTROL_WIDTH)
-        self.row_dictation.set_control(self.select_dictation)
+    def _run_job(self, name: str, callback) -> None:
+        self._jobs.pop(name, None)
+        callback()
 
-    @staticmethod
-    def dictation_hint(setting: str) -> str:
-        """Unterzeile der Diktiersprache: bei "auto" der Hinweis, dass jede Aufnahme neu erkannt wird."""
-        if setting == dictation_language.AUTO:
-            return t("settings.dictation.auto_hint")
-        return t("settings.dictation.hint")
+    def cancel_job(self, name: str) -> None:
+        job = self._jobs.pop(name, None)
+        if job is not None:
+            with contextlib.suppress(ValueError, tk.TclError):
+                self.win.after_cancel(job)
 
-    def _build_ai(self, master: tk.Misc) -> None:
-        group = self._group(master, t("settings.section.ai"))
+    def cancel_jobs(self) -> None:
+        for name in list(self._jobs):
+            self.cancel_job(name)
 
-        self.row_cleanup = uk.SettingRow(
-            group.body,
-            t("settings.cleanup.title"),
-            variant="description",
-            description=t("settings.cleanup.hint"),
-            interactive=True,
-            command=self._toggle_cleanup,
-        )
-        self.row_cleanup.pack(fill="x")
-        self.switch_cleanup = uk.Switch(
-            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.ollama_cleanup_enabled, command=self._on_cleanup
-        )
-        self.row_cleanup.set_control(self.switch_cleanup)
+    def pending(self, name: str) -> bool:
+        return name in self._jobs
 
-        # Zwei getrennte Auswahlfelder, kein gemeinsames "KI-Modell": Cleanup
-        # laeuft oft mit einem kleinen schnellen Modell, der Prompt-Modus mit
-        # einem groesseren. Gleiches Bedienelement, getrennte Werte.
-        self.row_cleanup_model = uk.SettingRow(
-            group.body, t("settings.cleanup_model.title"), variant="status", stacked=True
-        )
-        self.row_cleanup_model.pack(fill="x")
-        self.select_cleanup_model = uk.Select(
-            group.body,
-            bg_under=Theme.GROUP_SURFACE,
-            value=CFG.ollama_model_cleanup,
-            on_change=self._select_cleanup_model,
-            placeholder=t("settings.ollama.no_model"),
-        )
-        self.row_cleanup_model.set_control(self.select_cleanup_model)
-        # Fehlt das eingestellte Modell, laedt es diese Zeile per Knopf nach — ohne Terminal.
-        self._build_pull_row(group)
 
-        self.row_prompt_model = uk.SettingRow(
-            group.body,
-            t("settings.prompt_model.title"),
-            variant="description",
-            description=t("settings.prompt_model.hint"),
-            hairline=False,
-            stacked=True,
-        )
-        self.row_prompt_model.pack(fill="x")
-        self.select_prompt_model = uk.Select(
-            group.body,
-            bg_under=Theme.GROUP_SURFACE,
-            value=CFG.ollama_model_prompt,
-            on_change=self._select_prompt_model,
-            placeholder=t("settings.ollama.no_model"),
-        )
-        self.row_prompt_model.set_control(self.select_prompt_model)
-        self._refresh_ollama_models()
-        self._show_ollama_status()
+class GeneralSection(Section):
+    """Sound, transcripts, appearance, interface language, updates, glossary and the setup assistant."""
 
-    def _build_general(self, master: tk.Misc) -> None:
-        group = self._group(master, t("settings.section.general"))
+    APPEARANCE_LABELS = Text(
+        lambda: {Theme.LIGHT: t("settings.appearance.light"), Theme.DARK: t("settings.appearance.dark")}
+    )
+    UPDATE_WIDTH = 96  # logical; "Ansehen" plus air
+    GLOSSARY_WIDTH = 124  # logical, like "Erneut starten"
+    SETUP_WIDTH = 124  # logical; "Erneut starten" plus air
+
+    def __init__(self, window: SettingsWindow, master: tk.Misc) -> None:
+        super().__init__(window)
+        self.group = group(master, t("settings.section.general"))
+        body = self.group.body
 
         self.row_sound = uk.SettingRow(
-            group.body,
+            body,
             t("settings.sound.title"),
             variant="description",
             description=t("settings.sound.hint"),
             interactive=True,
-            command=self._toggle_sound,
+            command=lambda: self.switch_sound.toggle(),
         )
         self.row_sound.pack(fill="x")
         self.switch_sound = uk.Switch(
-            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.sound_feedback, command=self._on_sound
+            body, bg_under=Theme.GROUP_SURFACE, value=CFG.sound_feedback, command=self._on_sound
         )
         self.row_sound.set_control(self.switch_sound)
-        self._build_transcripts_row(group)
+        self._build_transcripts_row(body)
 
-        # Zwei Entscheidungen an dieser Zeile:
-        #
-        # Ein Auswahlfeld, kein Schalter. „Dunkel an/aus" hiesse, Hell sei die
-        # Abwesenheit von Dunkel; „Darstellung -> Hell/Dunkel" benennt beide
-        # Modi gleichrangig — und laesst spaeter Platz fuer ein drittes
-        # „System", ohne die Zeile umzubauen.
-        #
-        # Einzeilig, ohne Unterzeile: „Hell“ und „Dunkel“ sind kurz, das Feld
-        # darf neben dem Titel stehen und sagt selbst, worum es geht.
-        self.row_appearance = uk.SettingRow(group.body, t("settings.appearance.title"))
+        # A select, not a switch: "dark on/off" would make light the absence of dark; "Appearance -> Light/Dark"
+        # names both modes as equals and leaves room for a third "System". Single line, without a description:
+        # "Hell" and "Dunkel" are short, the field may stand beside the title.
+        self.row_appearance = uk.SettingRow(body, t("settings.appearance.title"))
         self.row_appearance.pack(fill="x")
         self.select_appearance = uk.Select(
-            group.body,
+            body,
             bg_under=Theme.GROUP_SURFACE,
             options=[
                 uk.Option(Theme.LIGHT, self.APPEARANCE_LABELS[Theme.LIGHT]),
                 uk.Option(Theme.DARK, self.APPEARANCE_LABELS[Theme.DARK]),
             ],
             value=Theme.mode,
-            on_change=self._select_appearance,
+            on_change=self.select_appearance_mode,
         )
-        uk.keep_logical_width(self.select_appearance, self.CONTROL_WIDTH)
+        uk.keep_logical_width(self.select_appearance, CONTROL_WIDTH)
         self.row_appearance.set_control(self.select_appearance)
 
-        # Die Sprache gilt erst nach einem Neustart: jedes offene Fenster neu
-        # aufzubauen waere viel Aufwand fuer eine seltene Wahl. Die Unterzeile
-        # sagt das, sobald die Wahl von der laufenden Sprache abweicht.
+        # The language applies after a restart: rebuilding every open window would be a lot of work for a rare
+        # choice. The description says so as soon as the choice differs from the running language.
         self.row_language = uk.SettingRow(
-            group.body,
+            body,
             t("settings.language.title"),
             variant="description",
             description=self.language_hint(CFG.ui_language),
         )
         self.row_language.pack(fill="x")
         self.select_language = uk.Select(
-            group.body,
+            body,
             bg_under=Theme.GROUP_SURFACE,
             options=language_options(),
             value=CFG.ui_language,
-            on_change=self._select_language,
+            on_change=self.select_ui_language,
         )
-        uk.keep_logical_width(self.select_language, self.CONTROL_WIDTH)
+        uk.keep_logical_width(self.select_language, CONTROL_WIDTH)
         self.row_language.set_control(self.select_language)
-        self._build_update_rows(group)
-        self._build_glossary_row(group)
-        self._build_setup_row(group)
+        self._build_update_rows(body)
+        self._build_glossary_row(body)
+        self._build_setup_row(body)
 
-    def _build_transcripts_row(self, group: uk.GroupSurface) -> None:
+    def sync(self) -> None:
+        self.switch_sound.set(CFG.sound_feedback, animate=False)
+        self.switch_transcripts.set(CFG.save_transcripts, animate=False)
+        self.row_transcripts.set_description(self.transcripts_hint(CFG.transcripts_keep_days))
+        self.select_appearance.set_value(Theme.mode)
+        self.select_language.set_value(CFG.ui_language)
+        self.row_language.set_description(self.language_hint(CFG.ui_language))
+        self.switch_updates.set(CFG.update_check, animate=False)
+        release = self.app.updates.available
+        if release is not None:
+            self.show_update(release)
+        else:
+            self._remove_update_row()
+        self.row_glossary.set_description(t("settings.glossary.hint"))
+
+    # ---------------------------------------------------------- sound, transcripts
+
+    def _on_sound(self, value: bool) -> None:
+        CFG.sound_feedback = value
+        _persist_config_value("ui", "sound_feedback", value)
+
+    def _build_transcripts_row(self, body: tk.Misc) -> None:
         """Whether each pasted text is also kept as a file (`[output] save_transcripts`), and for how long."""
         self.row_transcripts = uk.SettingRow(
-            group.body,
+            body,
             t("settings.transcripts.title"),
             variant="description",
             description=self.transcripts_hint(CFG.transcripts_keep_days),
@@ -296,7 +228,7 @@ class SectionsMixin:
         )
         self.row_transcripts.pack(fill="x")
         self.switch_transcripts = uk.Switch(
-            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.save_transcripts, command=self._on_transcripts
+            body, bg_under=Theme.GROUP_SURFACE, value=CFG.save_transcripts, command=self._on_transcripts
         )
         self.row_transcripts.set_control(self.switch_transcripts)
 
@@ -310,12 +242,40 @@ class SectionsMixin:
         CFG.save_transcripts = value
         _persist_config_value("output", "save_transcripts", value)
 
-    def _build_update_rows(self, group: uk.GroupSurface) -> None:
-        """Der Schalter fuer die taegliche Update-Abfrage; darueber, falls eine aussteht, der Hinweis."""
-        self._general_group = group
+    # ---------------------------------------------------------- appearance, language
+
+    def select_appearance_mode(self, mode) -> None:
+        """Stores the choice and applies it at once.
+
+        Store first, then switch: the recolouring touches this window itself, and a failed write should not
+        surface in the middle of a half-repainted tree.
+        """
+        mode = Theme.normalise(mode)
+        if mode == Theme.mode:
+            return
+        _persist_config_value("ui", "appearance", mode)
+        self.app.set_appearance(mode)
+
+    def select_ui_language(self, setting) -> None:
+        """Stores the language; it applies from the next start (see `language_hint`)."""
+        setting = choose_ui_language(setting)
+        if setting is not None:
+            self.row_language.set_description(self.language_hint(setting))
+
+    @staticmethod
+    def language_hint(setting: str) -> str:
+        """Description of the language row: the restart notice while the choice does not apply yet."""
+        if i18n.resolve_language(setting) != i18n.language():
+            return t("settings.language.restart")
+        return t("settings.language.hint")
+
+    # ---------------------------------------------------------- updates
+
+    def _build_update_rows(self, body: tk.Misc) -> None:
+        """The switch for the daily update check; above it, if one is waiting, the notice."""
         self.row_update: uk.SettingRow | None = None
         self.row_updates = uk.SettingRow(
-            group.body,
+            body,
             t("settings.updates.title"),
             variant="description",
             description=t("settings.updates.hint"),
@@ -324,29 +284,29 @@ class SectionsMixin:
         )
         self.row_updates.pack(fill="x")
         self.switch_updates = uk.Switch(
-            group.body, bg_under=Theme.GROUP_SURFACE, value=CFG.update_check, command=self._on_updates
+            body, bg_under=Theme.GROUP_SURFACE, value=CFG.update_check, command=self._on_updates
         )
         self.row_updates.set_control(self.switch_updates)
         if self.app.updates.available is not None:
             self.show_update(self.app.updates.available)
 
     def _on_updates(self, value: bool) -> None:
-        """Gilt ab dem naechsten Start: dann fragt Hams wieder (oder nicht mehr)."""
+        """Applies from the next start: then Hams asks again (or no longer)."""
         CFG.update_check = value
         _persist_config_value("updates", "check", value)
 
     def show_update(self, release) -> None:
-        """Ruhiger Hinweis auf eine neue Version: ansehen oder fuer diese Version ausblenden."""
+        """A calm notice of a new version: view it, or hide it for this version."""
         if self.row_update is not None:
             self.row_update.set_description(self.update_hint(release.version))
             return
-        body = self._general_group.body
+        body = self.group.body
         self.row_update = uk.SettingRow(
             body, t("settings.update.title"), variant="description", description=self.update_hint(release.version)
         )
         self.row_update.pack(fill="x", before=self.row_updates)
         box = tk.Frame(body, bg=Theme.GROUP_SURFACE)
-        box.focus_ring = True  # die Knoepfe darin tragen ihn
+        box.focus_ring = True  # the buttons inside carry it
         view = uk.SecondaryButton(
             box,
             t("settings.update.open"),
@@ -372,14 +332,43 @@ class SectionsMixin:
 
     def _dismiss_update(self) -> None:
         self.app.updates.dismiss()
+        self._remove_update_row()
+
+    def _remove_update_row(self) -> None:
         if self.row_update is not None:
             self.row_update.destroy()
             self.row_update = None
 
-    def _build_setup_row(self, group: uk.GroupSurface) -> None:
-        """Der Einrichtungsassistent, noch einmal: neues Mikrofon, GPU nachgeruestet, Ollama installiert."""
+    # ---------------------------------------------------------- glossary, setup
+
+    def _build_glossary_row(self, body: tk.Misc) -> None:
+        self.row_glossary = uk.SettingRow(
+            body, t("settings.glossary.title"), variant="description", description=t("settings.glossary.hint")
+        )
+        self.row_glossary.pack(fill="x")
+        self.glossary_button = uk.SecondaryButton(
+            body,
+            t("settings.glossary.button"),
+            self.edit_glossary,
+            bg_under=Theme.GROUP_SURFACE,
+            height=uk.Height.STANDARD,
+        )
+        uk.keep_logical_width(self.glossary_button, self.GLOSSARY_WIDTH)
+        self.row_glossary.set_control(self.glossary_button)
+
+    def edit_glossary(self) -> None:
+        try:
+            glossary.open_in_editor()
+        except OSError as exc:
+            logger.warning("Glossary could not be opened: %s", type(exc).__name__)
+            self.row_glossary.set_description(t("settings.glossary.failed", path=glossary.glossary_path()))
+            return
+        self.row_glossary.set_description(t("settings.glossary.opened"))
+
+    def _build_setup_row(self, body: tk.Misc) -> None:
+        """The setup assistant, once more: a new microphone, a GPU added, Ollama installed."""
         self.row_setup = uk.SettingRow(
-            group.body,
+            body,
             t("settings.setup.title"),
             variant="description",
             description=t("settings.setup.hint"),
@@ -387,7 +376,7 @@ class SectionsMixin:
         )
         self.row_setup.pack(fill="x")
         self.setup_button = uk.SecondaryButton(
-            group.body,
+            body,
             t("settings.setup.button"),
             self.app._open_setup,
             bg_under=Theme.GROUP_SURFACE,
@@ -395,10 +384,3 @@ class SectionsMixin:
         )
         uk.keep_logical_width(self.setup_button, self.SETUP_WIDTH)
         self.row_setup.set_control(self.setup_button)
-
-    @staticmethod
-    def language_hint(setting: str) -> str:
-        """Unterzeile der Sprachzeile: Hinweis auf den Neustart, wenn die Wahl noch nicht gilt."""
-        if i18n.resolve_language(setting) != i18n.language():
-            return t("settings.language.restart")
-        return t("settings.language.hint")

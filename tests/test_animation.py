@@ -6,6 +6,7 @@ Animation — die autouse-Sperre aus conftest wird hier bewusst aufgehoben.
 
 import time
 import tkinter as tk
+from types import SimpleNamespace
 
 import kit as uk
 import pytest
@@ -418,3 +419,56 @@ class TestIdle:
         root.update()
         switch.set(True)  # gleicher Wert
         assert Animator.pending(switch) == 0
+
+
+class TestFrameTiming:
+    """120 frames a second, with the fine Windows timer only while something moves."""
+
+    def test_frames_aim_at_120_a_second(self):
+        assert uk.FRAME_MS == 8
+        assert pytest.approx(8.333, abs=0.01) == uk.FRAME_PERIOD_MS
+
+    def test_frames_keep_to_the_timeline(self, animated, window, root):
+        """Frame work does not add up: over a longer run the average stays near the 120 Hz period."""
+        stamps = []
+
+        def step(_fraction):
+            stamps.append(time.perf_counter())
+            time.sleep(0.002)  # 2 ms of work per frame
+
+        Animator.run(window, "timeline", 300, step)
+        assert settle(root)
+        intervals = [(b - a) * 1000 for a, b in zip(stamps, stamps[1:], strict=False)]
+        assert len(intervals) >= 10
+        average = sum(intervals) / len(intervals)
+        assert average < uk.FRAME_PERIOD_MS + 2.0, f"frames drift: {average:.2f} ms on average"
+
+    def test_the_fine_timer_is_held_only_while_animating(self, animated, window, root, monkeypatch):
+        calls = []
+        monkeypatch.setattr(uk.HighResolutionTimer, "held", False)
+        winmm = SimpleNamespace(
+            timeBeginPeriod=lambda ms: calls.append(("begin", ms)),
+            timeEndPeriod=lambda ms: calls.append(("end", ms)),
+        )
+        monkeypatch.setattr("hams.ui_kit.animation.ctypes", SimpleNamespace(windll=SimpleNamespace(winmm=winmm)))
+        Animator.run(window, "a", 60, lambda fraction: None)
+        Animator.run(window, "b", 60, lambda fraction: None)
+        assert uk.HighResolutionTimer.held
+        assert settle(root)
+        assert not uk.HighResolutionTimer.held
+        assert calls == [("begin", 1), ("end", 1)]
+
+    def test_cancelling_the_last_animation_releases_the_timer(self, animated, window, monkeypatch):
+        monkeypatch.setattr(uk.HighResolutionTimer, "held", False)
+        Animator.run(window, "a", 500, lambda fraction: None)
+        assert uk.HighResolutionTimer.held
+        Animator.cancel(window, "a")
+        assert not uk.HighResolutionTimer.held
+
+    def test_the_position_follows_the_fine_clock(self, animated, window, root):
+        """Every frame computes a new position: no two frames with the same value (a doubled frame)."""
+        fractions = []
+        Animator.run(window, "fine", 120, fractions.append)
+        assert settle(root)
+        assert len(fractions) >= 3
+        assert len(set(fractions)) == len(fractions)

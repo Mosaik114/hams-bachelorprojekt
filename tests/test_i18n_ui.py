@@ -133,50 +133,49 @@ class TestGerman:
 
 class TestLanguageRow:
     def test_offers_the_three_settings(self, open_settings):
-        win = open_settings()
-        assert [option.value for option in win.select_language.options] == ["auto", "de", "en"]
-        assert win.select_language.value == CFG.ui_language
+        general = open_settings().general
+        assert [option.value for option in general.select_language.options] == ["auto", "de", "en"]
+        assert general.select_language.value == CFG.ui_language
 
     def test_a_new_language_is_saved_and_asks_for_a_restart(self, open_settings, hams, monkeypatch):
         monkeypatch.setattr(CFG, "ui_language", "de")
-        win = open_settings()
-        assert win.row_language.sub_text == "Sprache der Oberfläche"
-        win._select_language("en")
+        general = open_settings().general
+        assert general.row_language.sub_text == "Sprache der Oberfläche"
+        general.select_ui_language("en")
         assert ("ui", "language", "en") in hams.saved
         assert CFG.ui_language == "en"
-        assert win.row_language.sub_text == "Gilt nach einem Neustart"
+        assert general.row_language.sub_text == "Gilt nach einem Neustart"
         assert i18n.language() == "de", "switches only after a restart"
 
     def test_back_to_the_running_language_drops_the_hint(self, open_settings, monkeypatch):
         monkeypatch.setattr(CFG, "ui_language", "de")
-        win = open_settings()
-        win._select_language("en")
-        win._select_language("de")
-        assert win.row_language.sub_text == "Sprache der Oberfläche"
+        general = open_settings().general
+        general.select_ui_language("en")
+        general.select_ui_language("de")
+        assert general.row_language.sub_text == "Sprache der Oberfläche"
 
     def test_the_same_choice_writes_nothing(self, open_settings, hams, monkeypatch):
         monkeypatch.setattr(CFG, "ui_language", "de")
-        win = open_settings()
-        win._select_language("de")
+        open_settings().general.select_ui_language("de")
         assert not [s for s in hams.saved if s[1] == "language"]
 
     def test_auto_counts_as_the_system_language(self, monkeypatch):
-        from hams.settings_window import SettingsWindow
+        from hams.settings_sections import GeneralSection
 
         monkeypatch.setattr(i18n, "detect_system_language", lambda *a: "de")
-        assert SettingsWindow.language_hint("auto") == "Sprache der Oberfläche"
+        assert GeneralSection.language_hint("auto") == "Sprache der Oberfläche"
         monkeypatch.setattr(i18n, "detect_system_language", lambda *a: "en")
-        assert SettingsWindow.language_hint("auto") == "Gilt nach einem Neustart"
+        assert GeneralSection.language_hint("auto") == "Gilt nach einem Neustart"
 
 
 class TestDictationRow:
     def test_offers_auto_and_every_supported_language(self, open_settings):
         from hams import dictation_language
 
-        win = open_settings()
-        assert [option.value for option in win.select_dictation.options] == list(dictation_language.SETTINGS)
-        assert win.select_dictation.value == CFG.transcription_language == "de"
-        assert win.row_dictation.sub_text == "Die Sprache, die du sprichst"
+        tr = open_settings().transcription
+        assert [option.value for option in tr.select_dictation.options] == list(dictation_language.SETTINGS)
+        assert tr.select_dictation.value == CFG.transcription_language == "de"
+        assert tr.row_dictation.sub_text == "Die Sprache, die du sprichst"
 
     def test_german_labels(self, open_settings):
         texts = visible_texts(open_settings().win)
@@ -187,21 +186,21 @@ class TestDictationRow:
         assert {"Dictation language", "Automatic", "The language you speak", "Português"} <= set(texts)
 
     def test_a_new_language_is_saved_and_applies_without_restart(self, open_settings, hams):
-        win = open_settings()
-        win._select_dictation_language("en")
+        tr = open_settings().transcription
+        tr.select_dictation_language("en")
         assert ("transcription", "language", "en") in hams.saved
         assert CFG.transcription_language == "en"
-        assert win.row_dictation.sub_text == "Die Sprache, die du sprichst", "no restart hint"
+        assert tr.row_dictation.sub_text == "Die Sprache, die du sprichst", "no restart hint"
 
     def test_auto_says_it_detects(self, open_settings, hams):
-        win = open_settings()
-        win._select_dictation_language("auto")
+        tr = open_settings().transcription
+        tr.select_dictation_language("auto")
         assert ("transcription", "language", "auto") in hams.saved
-        assert win.row_dictation.sub_text == "Wird bei jeder Aufnahme erkannt"
+        assert tr.row_dictation.sub_text == "Wird bei jeder Aufnahme erkannt"
 
     def test_the_same_or_an_unknown_choice_writes_nothing(self, open_settings, hams):
-        win = open_settings()
-        win._select_dictation_language("de")
-        win._select_dictation_language("klingonisch")
+        tr = open_settings().transcription
+        tr.select_dictation_language("de")
+        tr.select_dictation_language("klingonisch")
         assert not [s for s in hams.saved if s[0] == "transcription"]
         assert CFG.transcription_language == "de"

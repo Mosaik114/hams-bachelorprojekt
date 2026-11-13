@@ -10,10 +10,10 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from setup_fakes import InlineThread
 
-from hams import hub_progress, models
+from hams import hub_progress, models, settings_models
 from hams.config import CFG
-from hams.settings_window import SettingsWindow as SW
 
 TINY = models.find("tiny")
 LARGE = models.find("large-v3")
@@ -393,214 +393,183 @@ class TestAppDownload:
         app.models.downloader._thread.join(timeout=5)
         assert app.models.downloading is None
 
-    def test_dead_settings_window_is_not_touched(self, app):
-        class _Dead:
-            def alive(self):
-                return False
+    def test_a_closed_settings_window_is_not_touched(self, app, monkeypatch):
+        """Geschlossen heisst nur noch versteckt: das Fenster bleibt da, bekommt aber keine Meldungen mehr."""
+        monkeypatch.setattr(settings_models, "threading", SimpleNamespace(Thread=InlineThread))
+        app._open_settings()
+        app.root.update()
+        win = app.settings_win
+        win.close()
 
-            def on_download_finished(self, *_a):
-                raise AssertionError("Zugriff auf ein geschlossenes Fenster")
+        def touched(*_args):
+            raise AssertionError("Zugriff auf ein geschlossenes Fenster")
 
-        app.settings_win = _Dead()
+        monkeypatch.setattr(win, "on_download_finished", touched)
+        monkeypatch.setattr(win, "on_download_progress", touched)
+        app.download_progress()
         app.download_finished("tiny", "")
+        assert app.settings_win is win and not win.alive()
 
 
 # --------------------------------------------------------- Einstellungsfenster
 
 
-class _StubRow:
-    def __init__(self):
-        self.description = ""
-        self.control = None
+class FakeDownloader:
+    """`ModelDownloader` ohne Netz: merkt sich Start und Abbruch, den Rest spielt der Test."""
 
-    def set_description(self, text):
-        self.description = text
+    def __init__(self, problem=""):
+        self.problem = problem
+        self.model_id, self.active = None, False
+        self.started, self.cancelled = [], []
 
-    def set_control(self, widget):
-        self.control = widget
+    def start(self, info, on_progress, on_finished):
+        if self.problem:
+            return self.problem
+        self.started.append(info.model_id)
+        self.model_id, self.active = info.model_id, True
+        return ""
 
-
-class _StubWindow:
-    """Die Download-Logik des Einstellungsfensters ohne Tk."""
-
-    _begin_download = SW._begin_download
-    _cancel_download = SW._cancel_download
-    _attach_download = SW._attach_download
-    _update_model_hint = SW._update_model_hint
-    on_download_progress = SW.on_download_progress
-    on_download_finished = SW.on_download_finished
-    download_text = staticmethod(SW.download_text)
-    model_options = SW.model_options
-    MODEL_HINT = SW.MODEL_HINT
-
-    def _refresh_storage(self):
-        self.storage_refreshed += 1
-
-    def __init__(self, problem="", running=None):
-        self._installed_models = {"turbo"}
-        self._downloading = ""
-        #: Wie oft die Bestandszeile neu aufgebaut wurde. Sie sperrt die
-        #: Loeschauswahl waehrend eines Downloads, also muss sie an beiden
-        #: Enden mitbekommen, dass sich etwas geaendert hat.
-        self.storage_refreshed = 0
-        self.row_model = _StubRow()
-        self.selected = None
-        self.select_enabled = True
-        self.cancel_enabled = True
-        window = self
-
-        class _Select:
-            def set_value(self, value):
-                window.selected = value
-
-            def set_options(self, options):
-                window.options = options
-
-            def set_enabled(self, value):
-                window.select_enabled = value
-
-        class _Button:
-            def set_enabled(self, value):
-                window.cancel_enabled = value
-
-        class _Models:
-            active_model_size = "turbo"
-            downloading = running
-            download_done = 4_000_000
-            download_total = 10_000_000
-            download_percent = 40
-            fallback = None
-
-            def __init__(self):
-                self.started = []
-                self.cancelled = []
-
-            def start_download(self, model_id):
-                self.started.append(model_id)
-                return problem
-
-            def cancel_download(self):
-                self.cancelled.append(1)
-
-        self.app = SimpleNamespace(models=_Models())
-        self.model_select = _Select()
-        self.cancel_button = _Button()
-
-    def alive(self):
-        return True
+    def cancel(self):
+        self.cancelled.append(self.model_id)
+        self.active = False
 
 
 @pytest.fixture
-def config(monkeypatch):
-    monkeypatch.setattr("hams.config.CFG.model_size", "turbo")
+def settings(live_app, monkeypatch):
+    """Die Gruppe "Transkription" des echten Einstellungsfensters.
+
+    Turbo ist installiert, gewaehlt und geladen; der Download laeuft ueber den echten `ModelManager`, nur ohne Netz.
+    `settings.open()` oeffnet das Fenster wie ein Klick aufs Zahnrad und liefert die Gruppe.
+    """
+    disk = SimpleNamespace(installed={"turbo"})
+    monkeypatch.setattr(models, "installed_whisper_models", lambda: set(disk.installed))
+    monkeypatch.setattr(models, "cached_whisper_models", lambda: ())
+    monkeypatch.setattr(settings_models, "threading", SimpleNamespace(Thread=InlineThread))
+    monkeypatch.setattr(CFG, "model_size", "turbo")
+    live_app.models.active_model_size = "turbo"
+    live_app.models.downloader = FakeDownloader()
+
+    def _open():
+        live_app._open_settings()
+        live_app.root.update()
+        return live_app.settings_win.transcription
+
+    return SimpleNamespace(app=live_app, disk=disk, open=_open)
+
+
+def description(section) -> str:
+    return section.row_model.sub_text
 
 
 class TestSettingsDownload:
-    def test_choosing_an_uninstalled_model_starts_the_download(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        assert window.app.models.started == ["tiny"]
-        assert window._downloading == "tiny"
+    def test_choosing_an_uninstalled_model_starts_the_download(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        assert settings.app.models.downloader.started == ["tiny"]
+        assert tr.downloading == "tiny"
 
-    def test_the_selection_stays_on_the_working_model(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        assert window.selected == "turbo"
+    def test_the_selection_stays_on_the_working_model(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        assert tr.model_select.value == "turbo"
 
-    def test_the_row_offers_a_cancel(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        assert window.row_model.control is window.cancel_button
+    def test_the_row_offers_a_cancel(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        assert tr.row_model._control is tr.cancel_button
 
-    def test_a_refused_start_is_explained(self, config):
-        window = _StubWindow(problem="Es läuft bereits ein Download")
-        window._begin_download("tiny")
-        assert window.row_model.description == "Es läuft bereits ein Download"
-        assert window.row_model.control is None
-        assert window._downloading == ""
+    def test_a_refused_start_is_explained(self, settings):
+        settings.app.models.downloader = FakeDownloader(problem="Es läuft bereits ein Download")
+        tr = settings.open()
+        tr.begin_download("tiny")
+        assert description(tr) == "Es läuft bereits ein Download"
+        assert tr.row_model._control is tr.model_select
+        assert tr.downloading == ""
 
-    def test_progress_names_share_and_amount(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_progress(39_000_000, 78_000_000, 49)
-        text = window.row_model.description
+    def test_progress_names_share_and_amount(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        tr.on_download_progress(39_000_000, 78_000_000, 49)
+        text = description(tr)
         assert "Tiny" in text and "49 %" in text and "39/78 MB" in text
 
-    def test_progress_without_a_known_total(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_progress(1024**2, 0, 0)
-        assert "geladen" in window.row_model.description
+    def test_progress_without_a_known_total(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        tr.on_download_progress(1024**2, 0, 0)
+        assert "geladen" in description(tr)
 
-    def test_progress_is_ignored_without_a_download(self, config):
-        window = _StubWindow()
-        window.on_download_progress(1, 2, 50)
-        assert window.row_model.description == ""
+    def test_progress_is_ignored_without_a_download(self, settings):
+        tr = settings.open()
+        before = description(tr)
+        tr.on_download_progress(1, 2, 50)
+        assert description(tr) == before
 
-    def test_the_hint_does_not_overwrite_the_progress(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_progress(10, 100, 10)
-        before = window.row_model.description
-        window._update_model_hint()
-        assert window.row_model.description == before
+    def test_the_hint_does_not_overwrite_the_progress(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        tr.on_download_progress(10, 100, 10)
+        before = description(tr)
+        tr.update_model_hint()
+        assert description(tr) == before
 
-    def test_cancel_asks_the_app_and_says_so(self, config):
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window._cancel_download()
-        assert window.app.models.cancelled == [1]
-        assert "abgebrochen" in window.row_model.description.lower()
-        assert window.cancel_enabled is False
+    def test_cancel_asks_the_app_and_says_so(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        tr.cancel_download()
+        assert settings.app.models.downloader.cancelled == ["tiny"]
+        assert "abgebrochen" in description(tr).lower()
+        assert tr.cancel_button.enabled is False
 
-    def test_success_keeps_the_select_locked_while_loading(self, config, monkeypatch):
-        monkeypatch.setattr(models, "installed_whisper_models", lambda: {"turbo", "tiny"})
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_finished("tiny", "", True)
-        assert window.row_model.control is window.model_select
-        assert window.select_enabled is False
-        assert "wird geladen" in window.row_model.description
+    def test_success_keeps_the_select_locked_while_loading(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        settings.disk.installed.add("tiny")
+        tr.on_download_finished("tiny", "", True)
+        assert tr.row_model._control is tr.model_select
+        assert tr.model_select.enabled is False
+        assert "wird geladen" in description(tr)
 
-    def test_cancel_restores_the_select(self, config, monkeypatch):
-        monkeypatch.setattr(models, "installed_whisper_models", lambda: {"turbo"})
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_finished("tiny", models.CANCELLED, False)
-        assert window.select_enabled is True
-        assert window.cancel_enabled is True
-        assert "abgebrochen" in window.row_model.description.lower()
-        assert window._downloading == ""
+    def test_cancel_restores_the_select(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        tr.on_download_finished("tiny", models.CANCELLED, False)
+        assert tr.model_select.enabled is True
+        assert tr.cancel_button.enabled is True
+        assert "abgebrochen" in description(tr).lower()
+        assert tr.downloading == ""
 
-    def test_an_error_offers_a_retry(self, config, monkeypatch):
-        monkeypatch.setattr(models, "installed_whisper_models", lambda: {"turbo"})
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_finished("tiny", "Keine Verbindung zum Modell-Server", False)
-        assert "erneut" in window.row_model.description
-        assert window.select_enabled is True
+    def test_an_error_offers_a_retry(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        tr.on_download_finished("tiny", "Keine Verbindung zum Modell-Server", False)
+        assert "erneut" in description(tr)
+        assert tr.model_select.enabled is True
 
-    def test_a_finished_download_appears_as_installed(self, config, monkeypatch):
-        monkeypatch.setattr(models, "installed_whisper_models", lambda: {"turbo", "tiny"})
-        window = _StubWindow()
-        window._begin_download("tiny")
-        window.on_download_finished("tiny", "", True)
-        tiny = next(o for o in window.options if o.value == "tiny")
+    def test_a_finished_download_appears_as_installed(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        settings.disk.installed.add("tiny")
+        tr.on_download_finished("tiny", "", True)
+        tiny = next(o for o in tr.model_select.options if o.value == "tiny")
         assert tiny.group == "Installiert" and tiny.trailing == ""
 
-    def test_a_reopened_window_shows_the_running_download(self, config):
+    def test_a_reopened_window_shows_the_running_download(self, settings):
         """Der Download gehoert der Anwendung — das Fenster haengt sich nur an."""
-        window = _StubWindow(running="tiny")
-        window._attach_download()
-        assert window._downloading == "tiny"
-        assert window.row_model.control is window.cancel_button
-        assert "40 %" in window.row_model.description
+        settings.open()
+        settings.app.settings_win.close()
+        manager = settings.app.models
+        assert manager.start_download("tiny") == ""
+        manager.download_done, manager.download_total, manager.download_percent = 4_000_000, 10_000_000, 40
+        tr = settings.open()
+        assert tr.downloading == "tiny"
+        assert tr.row_model._control is tr.cancel_button
+        assert "40 %" in description(tr)
 
-    def test_a_fresh_window_attaches_to_nothing(self, config):
-        window = _StubWindow()
-        window._attach_download()
-        assert window._downloading == ""
-        assert window.row_model.control is None
+    def test_a_fresh_window_attaches_to_nothing(self, settings):
+        tr = settings.open()
+        assert tr.downloading == ""
+        assert tr.row_model._control is tr.model_select
 
 
 class TestTransport:
