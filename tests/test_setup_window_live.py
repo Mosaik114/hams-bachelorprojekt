@@ -6,6 +6,7 @@ die Anwendung, Mikrofon mit Pegel, Ollama an und aus, und was beim Abschluss ges
 GPU, Netz, Ollama und Mikrofon sind Attrappen (`setup_fakes`, `live_app`).
 """
 
+import sys
 import tkinter as tk
 from types import SimpleNamespace
 
@@ -503,7 +504,10 @@ class TestFinish:
         go_to(win, "finish")
         text = page_text(win)
         assert "Strg+Umschalt+Leertaste drücken" in text
-        assert "Einstellungen → Kurzbefehle ändern" in text
+        if sys.platform == "win32":
+            assert "Einstellungen → Kurzbefehle ändern" in text
+        else:  # KDE manages the portal shortcuts
+            assert "Tastatur → Kurzbefehle" in text
         assert "[hotkeys]" not in text
         live_app.status_label.config(text="Bereit · Turbo")
         win._poll_status()

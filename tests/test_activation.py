@@ -158,11 +158,22 @@ class TestStartupActivation(unittest.TestCase):
         self.main._acquire_single_instance_mutex.return_value = None
         self.main.sys.platform = "linux"
         fake = types.SimpleNamespace(request_show=Mock(return_value=True), notify=Mock())
-        with patch.dict(sys.modules, {"hams.linux": fake}), self.assertRaises(SystemExit):
+        # On Linux `hams.linux` is already an attribute of the package, so
+        # `from hams import linux` would ignore sys.modules: patch both.
+        package = sys.modules["hams"]
+        with (
+            patch.dict(sys.modules, {"hams.linux": fake}),
+            patch.object(package, "linux", fake, create=True),
+            self.assertRaises(SystemExit),
+        ):
             self.main.main()
         fake.notify.assert_not_called()
         fake.request_show.return_value = False
-        with patch.dict(sys.modules, {"hams.linux": fake}), self.assertRaises(SystemExit):
+        with (
+            patch.dict(sys.modules, {"hams.linux": fake}),
+            patch.object(package, "linux", fake, create=True),
+            self.assertRaises(SystemExit),
+        ):
             self.main.main()
         fake.notify.assert_called_once()
 
