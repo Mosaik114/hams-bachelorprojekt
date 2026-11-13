@@ -38,7 +38,7 @@ Add the `[cuda]` extra (`pip install -e ".[cuda]"`) to transcribe on an NVIDIA G
 pytest tests --cov=hams
 ```
 
-About 1,600 tests; the coverage gate is 85 %. Many tests open real Tk windows, so run them headless:
+About 3,200 tests; the coverage gate is 93 % (lines and branches together, `branch = true`). Many tests open real Tk windows, so run them headless:
 
 - **Linux:** `xvfb-run -a pytest tests` (as in CI).
 - **Windows:** run the suite on a separate, invisible desktop (for example via `CreateDesktop`), or accept that
@@ -61,8 +61,29 @@ Rules are in `ruff.toml`; the maximum cyclomatic complexity per function is 10.
 
 ## Dependencies
 
-`requirements.txt` and `requirements-dev.txt` are generated with hashes from `pyproject.toml`. After changing a
-dependency, regenerate both with the `uv pip compile` command at the top of each file and commit them together.
+`requirements.txt`, `requirements-dev.txt` (both from `pyproject.toml`) and `packaging/requirements-build.txt`
+(PyInstaller, constrained by `requirements.txt`) are locked with hashes by `uv pip compile`; the exact command is in
+line 2 of each file. Never edit them by hand. After changing a dependency in `pyproject.toml`, re-lock all three
+with uv 0.13.6 (the version CI pins) and commit them together:
+
+```bash
+bash .github/scripts/lock.sh             # keep the current pins, resolve what changed
+bash .github/scripts/lock.sh --upgrade   # move every pin to the newest allowed version
+```
+
+The CI job *Lock files match pyproject* runs the first command and fails on any difference.
+
+**Updates.** Python dependencies are not updated by Dependabot: it bumps one pin at a time and cannot re-resolve
+these files, so a bump that brings a new dependency fails `pip install --require-hashes` (that is how the first
+Dependabot pull requests broke). Instead, `.github/workflows/lock-refresh.yml` runs every Monday, re-locks all three
+files with `--upgrade` and opens or updates **one** pull request from the branch `deps/lock-refresh`. Because
+pull requests opened with `GITHUB_TOKEN` trigger no workflows, it starts CI on that branch through
+`workflow_dispatch`; the results show on the pull request's head commit. Run it by hand from the Actions tab, with
+*dry run* to only see the changes (runs from a branch other than `main` are always dry runs). Opening the pull
+request needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*; without it
+the run pushes the branch and fails with a link to open the pull request by hand. If a major upgrade breaks
+something, cap it in `pyproject.toml` and run the workflow again. Dependabot still updates the GitHub Actions
+(pinned by commit SHA), grouped into one weekly pull request.
 
 ## Commits and pull requests
 
@@ -70,8 +91,28 @@ dependency, regenerate both with the `uv pip compile` command at the top of each
   an area prefix: `Linux: bring the window to the front via SIGUSR1`, `CI: pin ruff`, `Docs: …`.
 - Add or adjust tests for behaviour you change.
 - Describe user-visible changes in `CHANGELOG.md` under an *Unreleased* heading.
-- Every pull request must pass the same checks as `main`: ruff, tests on Windows and Linux with the coverage gate,
-  `pip-audit`, and the package build.
+- Every pull request must pass the same checks as `main`: ruff, the lock check, tests on Windows and Linux with the
+  coverage gate, `pip-audit`, the package build and the Windows installer smoke test.
+
+## Release checklist
+
+A tag push is the only way a release gets its assets. Never create the release or upload the installer by hand:
+CI builds it, smoke-tests it, signs its build provenance and publishes it only when every job is green.
+
+1. Bump `version` in `pyproject.toml` and in the three templates in `packaging/winget/manifest/`
+   (`tests/test_winget.py` checks they match).
+2. In `CHANGELOG.md`, rename *Unreleased* to `## [x.y.z] – YYYY-MM-DD` and add a new empty *Unreleased* above it.
+   The CI step *Release notes for the current version* prints the section that becomes the release notes and fails
+   if it is missing or empty.
+3. Merge to `main` and wait until CI on `main` is green (all jobs).
+4. Tag that commit and push the tag: `git tag -a vx.y.z -m "Hams x.y.z" && git push origin vx.y.z`.
+5. CI runs again on the tag. The installer job checks the tag against `pyproject.toml`; the *release* job then
+   creates the release `Hams x.y.z` with the CHANGELOG section as notes (or, if it already exists, only attaches
+   the file), uploads `Hams-Setup-x.y.z.exe` and records a build provenance attestation for it.
+6. Check the download: `gh attestation verify Hams-Setup-x.y.z.exe --repo Mosaik114/hams-bachelorprojekt`.
+
+If the tag run fails, do not attach anything by hand. Fix the cause on `main` and release the next patch version;
+a published tag is not moved.
 
 ## Releasing to winget (manual)
 

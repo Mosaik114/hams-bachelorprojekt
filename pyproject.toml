@@ -64,9 +64,13 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
-# Untergrenze fuer die CI: faellt die Abdeckung darunter, schlaegt der Lauf fehl.
+# Coverage gate for CI: line and branch coverage together; the run fails below it.
+# coverage-windows.ini repeats both settings for the Windows job.
+[tool.coverage.run]
+branch = true
+
 [tool.coverage.report]
-fail_under = 85
+fail_under = 93
 
 [project.scripts]
 hams = "hams.cli:run"

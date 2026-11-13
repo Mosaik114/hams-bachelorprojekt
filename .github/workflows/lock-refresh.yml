@@ -1,0 +1,95 @@
+name: Refresh dependency locks
+
+# Replaces Dependabot for Python. Dependabot bumps one pin at a time and cannot re-resolve the hash-locked,
+# uv-compiled files (a bump that pulls in a new dependency breaks `pip install --require-hashes`). This job
+# re-locks all three files together with `--upgrade` and opens or updates one pull request.
+on:
+  schedule:
+    - cron: "23 4 * * 1"   # Mondays
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only show what would change; push nothing, open no pull request"
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: lock-refresh
+  cancel-in-progress: false
+
+env:
+  BRANCH: deps/lock-refresh
+  LOCK_FILES: requirements.txt requirements-dev.txt packaging/requirements-build.txt
+
+jobs:
+  refresh:
+    name: Re-lock with --upgrade
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write        # push the branch deps/lock-refresh
+      pull-requests: write   # open or update the pull request
+      actions: write         # start CI on the branch (pull requests opened by GITHUB_TOKEN do not trigger it)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.6"
+          enable-cache: false
+
+      - name: Re-lock all files with --upgrade
+        run: bash .github/scripts/lock.sh --upgrade
+
+      - name: Summarize the changed pins
+        id: diff
+        shell: bash
+        run: |
+          pins() { grep -hoE '^[A-Za-z0-9_.-]+==[^ ;]+' "$@" | sort -u; }
+          for file in $LOCK_FILES; do git show "HEAD:$file" > "/tmp/old-$(basename "$file")"; done
+          old=$(for file in $LOCK_FILES; do pins "/tmp/old-$(basename "$file")"; done | sort -u)
+          new=$(pins $LOCK_FILES)
+          changes=$(diff <(echo "$old") <(echo "$new") | grep -E '^[<>]' | sed 's/^</-/; s/^>/+/' || true)
+          if git diff --quiet -- $LOCK_FILES; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "All lock files are up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "Weekly re-lock of \`requirements.txt\`, \`requirements-dev.txt\` and"
+            echo "\`packaging/requirements-build.txt\` with \`.github/scripts/lock.sh --upgrade\` (uv, hashes included)."
+            echo
+            echo "Changed pins (- old, + new):"
+            echo
+            echo '```diff'
+            echo "${changes:-(only hashes or markers changed)}"
+            echo '```'
+            echo
+            echo "CI runs on this branch via workflow_dispatch; its checks show on the head commit."
+            echo "If a major upgrade breaks something, cap it in \`pyproject.toml\` and re-run this workflow."
+          } > /tmp/pr-body.md
+          cat /tmp/pr-body.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push the branch, open or update the pull request, start CI
+        # Only from main: a run on any other branch is always a dry run
+        if: steps.diff.outputs.changed == 'true' && inputs.dry_run != true && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add -- $LOCK_FILES
+          git commit -q -m "Dependencies: refresh the lock files"
+          # The branch belongs to this workflow; it is rebuilt from main every week
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+          gh workflow run ci.yml --ref "$BRANCH"
+          if [ -n "$(gh pr list --head "$BRANCH" --base main --state open --json number --jq '.[].number')" ]; then
+            gh pr edit "$BRANCH" --body-file /tmp/pr-body.md
+          elif ! gh pr create --head "$BRANCH" --base main --title "Dependencies: refresh the lock files" \
+              --body-file /tmp/pr-body.md; then
+            echo "::error::Could not open the pull request. Enable Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests', or open it by hand: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/compare/main...${BRANCH}"
+            exit 1
+          fi
