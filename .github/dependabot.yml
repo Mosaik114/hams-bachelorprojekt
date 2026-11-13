@@ -1,20 +1,13 @@
-# Proposes newer package versions and Actions once a week. Security updates arrive immediately.
+# Proposes newer GitHub Actions (pinned by commit SHA) once a week.
+# Python dependencies are not handled here: Dependabot cannot re-resolve the hash-locked, uv-compiled requirement
+# files, so a bump that adds a dependency breaks `pip install --require-hashes`. The workflow
+# .github/workflows/lock-refresh.yml re-locks all of them together instead (see CONTRIBUTING.md).
 version: 2
 updates:
-  - package-ecosystem: pip
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-    ignore:
-      # sympy requires mpmath < 1.4
-      - dependency-name: mpmath
-        versions: [">=1.4"]
-      # numpy 2.5+ drops Python 3.11
-      - dependency-name: numpy
-        versions: [">=2.5"]
-
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

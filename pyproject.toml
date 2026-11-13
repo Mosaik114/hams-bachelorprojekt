@@ -64,9 +64,14 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
-# Untergrenze fuer die CI: faellt die Abdeckung darunter, schlaegt der Lauf fehl.
+# Coverage gate for the Linux CI job: line and branch coverage together; the run fails below it.
+# It is lower than the Windows gate (93 %, coverage-windows.ini) because the Windows-only modules count here
+# but mostly cannot run on Linux (measured 89.8 % with branches).
+[tool.coverage.run]
+branch = true
+
 [tool.coverage.report]
-fail_under = 85
+fail_under = 88
 
 [project.scripts]
 hams = "hams.cli:run"
