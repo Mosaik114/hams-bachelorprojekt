@@ -84,13 +84,6 @@ _EMPHASIS_RES = (
 )
 
 
-#: Wird dem Prompt-Modus als Systemanweisung mitgegeben. Nicht in den Prompt
-#: des Nutzers hineingeschrieben: der bleibt Wort fuer Wort, wie diktiert.
-#: Ollama nimmt dafuer ein eigenes Feld entgegen.
-#: Die deutsche Fassung; alle Sprachen in `dictation_language.plain_system`.
-PROMPT_PLAIN_SYSTEM = dictation_language.plain_system("de")
-
-
 def plain_text(value: str) -> str:
     """Nimmt Markdown-Hervorhebungen aus einer Cleanup-Antwort.
 

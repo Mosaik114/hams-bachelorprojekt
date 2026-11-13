@@ -21,6 +21,11 @@ follow [Semantic Versioning](https://semver.org/).
 - A `[model] size` outside Hams' model list is still loaded as given, now with a warning in the log; the separate
   validation pass that could no longer fail is gone.
 
+### Removed
+- Unused code that only tests called (`PrimaryButton`, `rounded_image`, `separator`, `focus_chain`, `icon_names`,
+  `catalog_ids`, `i18n.placeholders`, `PROMPT_PLAIN_SYSTEM`, `PRODUCT_NAME_AR`, `IS_LINUX` and a settings helper);
+  what the tests need now lives in `tests/`.
+
 ### Fixed
 - **48 kHz or stereo in `[audio]` turned every dictation into gibberish.** Nothing converted the audio, so Whisper got
   it three times too slow or interleaved, without an error. Hams now always records 16 kHz mono, which is what

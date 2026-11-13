@@ -74,10 +74,6 @@ CATALOG: tuple[WhisperModelInfo, ...] = (
 _BY_ID = {info.model_id: info for info in CATALOG}
 
 
-def catalog_ids() -> tuple[str, ...]:
-    return tuple(info.model_id for info in CATALOG)
-
-
 def find(model_id: str) -> WhisperModelInfo | None:
     """Katalogeintrag zu einer ID, oder None bei einem eigenen Config-Wert."""
     return _BY_ID.get(model_id)

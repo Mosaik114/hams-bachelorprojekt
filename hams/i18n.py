@@ -14,7 +14,6 @@ and English share that rule, so two forms are enough.
 from __future__ import annotations
 
 import os
-import string
 import sys
 
 from hams.messages_de import MESSAGES as _DE
@@ -115,11 +114,6 @@ def tn(key: str, count: int, **values) -> str:
 def decimal(value: float, digits: int = 1) -> str:
     """A number with the decimal separator of the active language ("1,6" or "1.6")."""
     return f"{value:.{digits}f}".replace(".", t("number.decimal_separator"))
-
-
-def placeholders(text: str) -> set[str]:
-    """Names of the `str.format` fields in a message (for the catalog tests)."""
-    return {name for _literal, name, _spec, _conv in string.Formatter().parse(text) if name is not None}
 
 
 class Text:

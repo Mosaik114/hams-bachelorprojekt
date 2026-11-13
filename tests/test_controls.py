@@ -8,13 +8,13 @@ from conftest import fokus_erzwingen
 from hams import ui_kit as uk
 from hams.ui_kit import (
     IconButton,
-    PrimaryButton,
     SecondaryButton,
     SignalMeter,
     State,
     Switch,
     Theme,
 )
+from hams.ui_kit.icons import _ICON_PAINTERS
 
 BG = Theme.WINDOW_BG
 STATES = [State.HOVER, State.PRESSED, State.FOCUSED, State.SELECTED, State.DISABLED, State.LOADING, State.ERROR]
@@ -38,8 +38,12 @@ def window(root):
 def controls(window, root):
     fired = {"primary": 0, "secondary": 0, "icon": 0, "switch": []}
     made = {
-        "primary": PrimaryButton(
-            window, "Aufnahme starten", lambda: fired.__setitem__("primary", fired["primary"] + 1), bg_under=BG
+        "primary": SecondaryButton(
+            window,
+            "Aufnahme starten",
+            lambda: fired.__setitem__("primary", fired["primary"] + 1),
+            bg_under=BG,
+            role="primary",
         ),
         "secondary": SecondaryButton(
             window,
@@ -276,7 +280,7 @@ class TestDpi:
     @pytest.mark.parametrize("scale", [1.0, 1.25, 1.5, 2.0])
     def test_geometry_follows_factor(self, root, window, factor, scale):
         factor(scale)
-        button = PrimaryButton(window, "Test", lambda: None, bg_under=BG)
+        button = SecondaryButton(window, "Test", lambda: None, bg_under=BG)
         icon = IconButton(window, "close", lambda: None, bg_under=BG)
         switch = Switch(window, bg_under=BG, value=True, command=lambda _v: None)
         for widget in (button, icon, switch):
@@ -304,7 +308,7 @@ class TestDpi:
     def test_scale_callbacks_are_removed_on_destroy(self, root, window):
         before = len(uk.Scale._callbacks)
         widgets = [
-            PrimaryButton(window, "X", lambda: None, bg_under=BG),
+            SecondaryButton(window, "X", lambda: None, bg_under=BG),
             IconButton(window, "close", lambda: None, bg_under=BG),
             Switch(window, bg_under=BG, value=False, command=lambda _v: None),
             SignalMeter(window, bg_under=BG),
@@ -320,7 +324,7 @@ class TestDpi:
 
     def test_no_duplicate_callbacks(self, root, window):
         before = len(uk.Scale._callbacks)
-        button = PrimaryButton(window, "X", lambda: None, bg_under=BG)
+        button = SecondaryButton(window, "X", lambda: None, bg_under=BG)
         root.update()
         button._render()
         button._render()
@@ -337,7 +341,7 @@ class TestNoLegacyGlyphs:
                 assert glyph not in str(text), f"{name} enthält {glyph}"
 
     def test_icon_button_uses_the_icon_set(self, controls):
-        assert controls["icon"]._icon_name in uk.icon_names()
+        assert controls["icon"]._icon_name in _ICON_PAINTERS
 
     def test_secondary_icon_is_from_the_set(self, controls):
-        assert controls["secondary"]._icon_name in uk.icon_names()
+        assert controls["secondary"]._icon_name in _ICON_PAINTERS

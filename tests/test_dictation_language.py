@@ -53,7 +53,6 @@ class TestGermanIsUnchanged:
 
     def test_plain_system(self):
         assert dl.plain_system("de") == OLD_PLAIN_SYSTEM
-        assert transcription_mod.PROMPT_PLAIN_SYSTEM == OLD_PLAIN_SYSTEM
 
     def test_default_cleanup_prompt(self):
         assert config_mod.DEFAULT_CLEANUP_PROMPT == OLD_DEFAULT_CLEANUP_PROMPT

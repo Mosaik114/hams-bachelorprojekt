@@ -1,7 +1,6 @@
 """Einstellungen: Mikrofon, Live-Pegel und Ollama."""
 
 import contextlib
-import re
 import threading
 
 import numpy as np
@@ -40,12 +39,6 @@ class StatusSectionMixin:
             self._device_error = "" if found else t("settings.mic.disconnected", device=selected)
         else:
             self._device_error = ""
-
-    def _current_device_label(self) -> str:
-        raw = CFG.mic_device_raw
-        if not (isinstance(raw, str) and raw.strip() and raw.strip().lower() != "default"):
-            return t("settings.mic.system_default")
-        return re.sub(r"^\d+-\s*", "", raw)
 
     def _refresh_devices(self) -> None:
         """Geräteliste einlesen und ins Select geben — Logik bleibt getrennt."""

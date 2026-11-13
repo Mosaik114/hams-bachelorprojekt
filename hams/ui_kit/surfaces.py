@@ -285,19 +285,3 @@ def surface(
     if len(_img_cache) > CACHE_LIMIT:
         _img_cache.popitem(last=False)  # ältester Eintrag fliegt raus
     return photo
-
-
-def rounded_image(
-    w: int,
-    h: int,
-    radius: int,
-    fill: str,
-    border: str | None = None,
-    border_w: int = 0,
-    scale: int = SUPERSAMPLE,
-) -> ImageTk.PhotoImage:
-    """Schlichte abgerundete Fläche — Kurzform von `surface()`.
-
-    Bleibt erhalten, weil die vorhandenen Controls sie benutzen.
-    """
-    return surface(w, h, radius, fill, border=border, border_w=border_w)

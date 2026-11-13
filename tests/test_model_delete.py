@@ -10,6 +10,7 @@ import pytest
 from hams import models as whisper_models
 from hams import ui_kit as uk
 from hams.settings_window import SettingsWindow
+from hams.ui_kit.icons import _ICON_PAINTERS
 
 # ------------------------------------------------------------------ Attrappen
 
@@ -317,7 +318,7 @@ class TestConfirmText:
 
 class TestTrashIcon:
     def test_the_icon_exists(self):
-        assert "trash" in uk.icon_names()
+        assert "trash" in _ICON_PAINTERS
 
     def test_it_is_drawn_within_its_box(self):
         bild = uk.render_icon("trash", 32, "#1C1C1E")

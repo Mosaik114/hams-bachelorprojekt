@@ -22,10 +22,6 @@ logger = logging.getLogger("hams")
 #: Sichtbarer Produktname. Steht in Fenstertiteln, im Tray und in Meldungen.
 PRODUCT_NAME = "Hams"
 
-#: Arabische Markenform. Bestandteil der Wortmarke, nicht der deutschen
-#: Oberfläche — die bleibt von links nach rechts gesetzt.
-PRODUCT_NAME_AR = "همس"
-
 ASSET_DIR = Path(__file__).resolve().parent / "assets" / "branding"
 
 #: Für kleine Grössen gezeichnete Fassungen der Bildmarke. Sie tragen mehr

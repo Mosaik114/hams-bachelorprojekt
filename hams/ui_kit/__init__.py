@@ -18,7 +18,7 @@ Barrierefreiheit — was dieses Kit leistet und was nicht
 ------------------------------------------------------
 
 Geleistet wird die Bedienung ohne Maus: jedes Bedienelement liegt in der
-Tabulatorkette (`focus_chain`), zeigt einen sichtbaren Fokusring, reagiert auf
+Tabulatorkette, zeigt einen sichtbaren Fokusring, reagiert auf
 Enter und Leertaste, gibt den Fokus nach einem Popover an seinen Auslöser
 zurück und verlässt die Kette, sobald es deaktiviert oder ausgeblendet ist.
 Zustände sind doppelt kodiert — Farbe *und* Form oder Text —, die Kontraste
@@ -54,7 +54,6 @@ from hams.ui_kit.animation import (
 from hams.ui_kit.buttons import (
     BaseControl,
     IconButton,
-    PrimaryButton,
     SecondaryButton,
     _SurfaceControl,
 )
@@ -82,7 +81,6 @@ from hams.ui_kit.icons import (
     _icon_trash,
     _stroke,
     icon,
-    icon_names,
     render_icon,
 )
 from hams.ui_kit.keys import KEY_MESSAGES, KeyCombo, key_labels
@@ -90,7 +88,6 @@ from hams.ui_kit.layout import (
     GroupSurface,
     ScrollArea,
     SectionHeader,
-    separator,
 )
 from hams.ui_kit.monitors import (
     MONITORINFOF_PRIMARY,
@@ -126,7 +123,6 @@ from hams.ui_kit.states import (
     FocusMixin,
     State,
     StateMixin,
-    focus_chain,
     return_focus_to,
 )
 from hams.ui_kit.surfaces import (
@@ -138,7 +134,6 @@ from hams.ui_kit.surfaces import (
     _squircle_points,
     _vertical_ramp,
     render_surface,
-    rounded_image,
     surface,
 )
 from hams.ui_kit.text import (

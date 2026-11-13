@@ -15,7 +15,6 @@ import shutil
 import signal
 import struct
 import subprocess
-import sys
 import tempfile
 import threading
 import time
@@ -25,8 +24,6 @@ from pathlib import Path
 from hams.i18n import t_for
 
 logger = logging.getLogger("hams")
-
-IS_LINUX = sys.platform.startswith("linux")
 
 #: Kennung fuer Portal, Startmenue und Autostart; der Dateiname der
 #: .desktop-Datei muss genau so lauten, sonst ordnet KDE die Kurzbefehle

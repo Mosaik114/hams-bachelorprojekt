@@ -14,7 +14,6 @@ from hams.ui_kit import (
     IconButton,
     Option,
     Popover,
-    PrimaryButton,
     ScrollArea,
     SecondaryButton,
     SectionHeader,
@@ -102,7 +101,7 @@ def surface(window, root):
     select_row.set_control(select)
     teile["select"] = select
 
-    teile["primary"] = PrimaryButton(scroll.body, "Aufnahme", lambda: None, bg_under=Theme.WINDOW_BG)
+    teile["primary"] = SecondaryButton(scroll.body, "Aufnahme", lambda: None, bg_under=Theme.WINDOW_BG, role="primary")
     teile["primary"].pack(fill="x")
     teile["secondary"] = SecondaryButton(
         scroll.body, "Abbrechen", lambda: None, bg_under=Theme.WINDOW_BG, icon_name="stop"

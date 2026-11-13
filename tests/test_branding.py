@@ -26,9 +26,6 @@ class TestName:
     def test_the_visible_product_name(self):
         assert branding.PRODUCT_NAME == "Hams"
 
-    def test_the_arabic_form(self):
-        assert branding.PRODUCT_NAME_AR == "همس"
-
     def test_the_window_title_uses_it(self):
         source = inspect.getsource(app_mod)
         assert 'self.root.title(branding.PRODUCT_NAME)' in source
@@ -156,7 +153,6 @@ UI_KEYWORDS = {
 UI_CALLS = {
     "SettingRow",
     "SecondaryButton",
-    "PrimaryButton",
     "IconButton",
     "SectionHeader",
     "Option",

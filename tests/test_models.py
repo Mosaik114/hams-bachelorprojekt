@@ -5,16 +5,19 @@ import pytest
 from hams import models
 from hams.settings_window import SettingsWindow as SW
 
+#: The catalog ids in their order.
+CATALOG_IDS = tuple(info.model_id for info in models.CATALOG)
+
 
 class TestCatalog:
     def test_exactly_the_six_curated_models(self):
-        assert models.catalog_ids() == ("turbo", "large-v3", "medium", "small", "base", "tiny")
+        assert CATALOG_IDS == ("turbo", "large-v3", "medium", "small", "base", "tiny")
 
     def test_no_english_only_or_distil_variants(self):
-        for model_id in models.catalog_ids():
+        for model_id in CATALOG_IDS:
             assert not model_id.endswith(".en")
             assert not model_id.startswith("distil")
-        assert "large" not in models.catalog_ids()  # der Alias fehlt bewusst
+        assert "large" not in CATALOG_IDS  # der Alias fehlt bewusst
 
     @pytest.mark.parametrize(
         "model_id,label",
@@ -79,7 +82,7 @@ class TestCacheDetection:
         assert models.installed_whisper_models() == set()
 
     def test_returns_only_catalog_ids(self):
-        assert models.installed_whisper_models() <= set(models.catalog_ids())
+        assert models.installed_whisper_models() <= set(CATALOG_IDS)
 
     def test_broken_cache_api_is_not_fatal(self, monkeypatch):
         """Ein unbekannter Zustand darf nicht als „installiert“ erfunden werden."""
@@ -260,7 +263,7 @@ class TestOptions:
     def test_all_six_are_offered(self, config):
         config("turbo")
         values = [o.value for o in _StubWindow({"turbo"}).model_options()]
-        assert set(models.catalog_ids()) <= set(values)
+        assert set(CATALOG_IDS) <= set(values)
 
 
 class TestSelection:

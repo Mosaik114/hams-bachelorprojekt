@@ -4,6 +4,7 @@ import pytest
 
 from hams import ui_kit as uk
 from hams.ui_kit import Theme
+from hams.ui_kit.icons import _ICON_PAINTERS
 
 INK = "#F2F2F5"
 LINE_ICONS = ["settings", "close", "chevron", "check", "download"]
@@ -40,7 +41,7 @@ def factor(monkeypatch):
 
 class TestSet:
     def test_exactly_the_planned_icons(self):
-        assert set(uk.icon_names()) == {"settings", "close", "chevron", "check", "download", "stop", "trash"}
+        assert set(_ICON_PAINTERS) == {"settings", "close", "chevron", "check", "download", "stop", "trash"}
 
     def test_unknown_icon_fails_loudly(self):
         with pytest.raises(KeyError):

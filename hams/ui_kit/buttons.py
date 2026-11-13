@@ -181,23 +181,6 @@ class _SurfaceControl(BaseControl):
         )
 
 
-class PrimaryButton(_SurfaceControl):
-    """Die eine dominante Aktion eines Fensters."""
-
-    def __init__(
-        self, master: tk.Misc, text: str, command: Callable[[], None], *, bg_under: str, role: str = "primary"
-    ) -> None:
-        super().__init__(
-            master,
-            bg_under=bg_under,
-            role=role,
-            height=Height.PRIMARY,
-            radius=Radius.BUTTON,
-            command=command,
-            text=text,
-        )
-
-
 class SecondaryButton(_SurfaceControl):
     """Neutrale, materialartige Aktion — optional mit Icon links vom Text.
 

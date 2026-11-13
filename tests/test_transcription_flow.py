@@ -17,10 +17,9 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
-from hams import glossary
+from hams import dictation_language, glossary
 from hams import transcription as transcription_mod
 from hams.config import CFG
-from hams.transcription import PROMPT_PLAIN_SYSTEM
 
 AUDIO = np.full(16000, 0.2, dtype=np.float32)
 
@@ -181,7 +180,7 @@ class TestPipeline:
         run(ready, prompt_mode=True)
         body = ollama.requests[0][0]
         assert body["prompt"] == "Hallo Welt", "der diktierte Prompt bleibt Wort fuer Wort"
-        assert body["system"] == PROMPT_PLAIN_SYSTEM
+        assert body["system"] == dictation_language.plain_system("de")
         assert "options" not in body, "KI fragen sampelt mit den Vorgaben des Modells"
         assert hams.clipboard.copies == ["Die Hauptstadt ist Oslo."]
 

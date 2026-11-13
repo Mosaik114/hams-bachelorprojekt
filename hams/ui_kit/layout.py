@@ -309,8 +309,3 @@ class GroupSurface(tk.Canvas):
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:
             Scale.unregister(self._on_scale_change)
-
-
-def separator(master: tk.Misc, bg_under: str) -> tk.Frame:
-    line = tk.Frame(master, bg=Theme.HAIRLINE, height=px(1))
-    return line

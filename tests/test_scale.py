@@ -67,7 +67,7 @@ class TestScaleState:
         monkeypatch.setattr(uk.Scale, "factor", 1.0)
         monkeypatch.setattr(uk.Scale, "dpi", 96)
         uk.init_fonts(root)
-        uk.rounded_image(20, 10, 4, "#123456")
+        uk.surface(20, 10, 4, "#123456")
         assert uk._img_cache, "Cache sollte nach dem Rendern gefüllt sein"
 
         try:
@@ -111,9 +111,9 @@ class TestImageCache:
         uk._img_cache.clear()
 
         monkeypatch.setattr(uk.Scale, "factor", 1.0)
-        first = uk.rounded_image(30, 12, 4, "#0A84FF")
+        first = uk.surface(30, 12, 4, "#0A84FF")
         monkeypatch.setattr(uk.Scale, "factor", 1.5)
-        second = uk.rounded_image(30, 12, 4, "#0A84FF")
+        second = uk.surface(30, 12, 4, "#0A84FF")
 
         assert first is not second, "Bild aus 100 % darf bei 150 % nicht wiederverwendet werden"
         assert len(uk._img_cache) == 2
@@ -121,8 +121,8 @@ class TestImageCache:
     def test_same_factor_hits_cache(self, root):
         uk.init_fonts(root)
         uk._img_cache.clear()
-        first = uk.rounded_image(24, 10, 3, "#30D158")
-        second = uk.rounded_image(24, 10, 3, "#30D158")
+        first = uk.surface(24, 10, 3, "#30D158")
+        second = uk.surface(24, 10, 3, "#30D158")
         assert first is second
 
 

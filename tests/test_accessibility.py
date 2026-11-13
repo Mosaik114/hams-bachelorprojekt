@@ -13,6 +13,7 @@ import tkinter as tk
 import pytest
 from conftest import fokus_erzwingen
 from source_code import PACKAGE_DIR, module_files
+from ui_helpers import focus_chain
 
 from hams import ui_kit as uk
 from hams.ui_kit import (
@@ -20,7 +21,6 @@ from hams.ui_kit import (
     IconButton,
     Option,
     Popover,
-    PrimaryButton,
     SecondaryButton,
     Select,
     StatusDot,
@@ -71,7 +71,7 @@ class TestFocusChain:
         for widget in (first, second, third):
             widget.pack()
         root.update()
-        assert uk.focus_chain(window) == [first, second, third]
+        assert focus_chain(window) == [first, second, third]
 
     def test_packing_does_not_change_it(self, window, root):
         """Die Kette haengt an der Stapelreihenfolge, nicht an der Packung.
@@ -84,7 +84,7 @@ class TestFocusChain:
         second.pack(side="right")
         first.pack(side="right")  # sichtbar links von `second`
         root.update()
-        assert uk.focus_chain(window) == [first, second]
+        assert focus_chain(window) == [first, second]
 
     def test_lift_moves_a_widget_to_the_end(self, window, root):
         """So kommt die Kopfzeile ans Ende der Kette, ohne nach unten zu rutschen."""
@@ -95,10 +95,10 @@ class TestFocusChain:
         body = SecondaryButton(window, "Inhalt", lambda: None, bg_under=BG)
         body.pack()
         root.update()
-        assert uk.focus_chain(window) == [close, body]
+        assert focus_chain(window) == [close, body]
         head.lift()
         root.update()
-        assert uk.focus_chain(window) == [body, close]
+        assert focus_chain(window) == [body, close]
 
     def test_disabled_controls_drop_out(self, window, root):
         first = SecondaryButton(window, "Eins", lambda: None, bg_under=BG)
@@ -108,7 +108,7 @@ class TestFocusChain:
         root.update()
         second.set_enabled(False)
         root.update()
-        assert uk.focus_chain(window) == [first]
+        assert focus_chain(window) == [first]
 
     def test_hidden_controls_are_skipped(self, window, root):
         """Der Abbruchknopf wartet unsichtbar auf seinen Einsatz."""
@@ -116,10 +116,10 @@ class TestFocusChain:
         visible.pack()
         hidden = IconButton(window, "close", lambda: None, bg_under=BG)
         root.update()
-        assert uk.focus_chain(window) == [visible]
+        assert focus_chain(window) == [visible]
         hidden.pack()
         root.update()
-        assert uk.focus_chain(window) == [visible, hidden]
+        assert focus_chain(window) == [visible, hidden]
 
     def test_displays_stay_out(self, window, root):
         """Pegel und Statuspunkt sind Anzeigen, keine Bedienelemente."""
@@ -130,14 +130,14 @@ class TestFocusChain:
         button = SecondaryButton(window, "Aktion", lambda: None, bg_under=BG)
         button.pack()
         root.update()
-        assert uk.focus_chain(window) == [button]
+        assert focus_chain(window) == [button]
 
     def test_reverse_is_the_mirror_image(self, window, root):
         widgets = [SecondaryButton(window, f"B{i}", lambda: None, bg_under=BG) for i in range(4)]
         for widget in widgets:
             widget.pack()
         root.update()
-        forward = uk.focus_chain(window)
+        forward = focus_chain(window)
         current = forward[-1]
         backward = [current]
         for _ in range(len(forward) - 1):
@@ -154,7 +154,7 @@ class TestKeyboardActivation:
     @pytest.mark.parametrize("key", ["<Return>", "<space>"])
     def test_buttons_react_to_enter_and_space(self, window, root, key):
         clicks = []
-        button = PrimaryButton(window, "Start", lambda: clicks.append(1), bg_under=BG)
+        button = SecondaryButton(window, "Start", lambda: clicks.append(1), bg_under=BG, role="primary")
         button.pack()
         root.update()
         button.focus_set()
@@ -463,7 +463,6 @@ UI_KEYWORDS = {
 UI_CALLS = {
     "SettingRow",
     "SecondaryButton",
-    "PrimaryButton",
     "IconButton",
     "SectionHeader",
     "Option",

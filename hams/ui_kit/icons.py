@@ -120,15 +120,11 @@ _ICON_PAINTERS = {
 }
 
 
-def icon_names() -> list[str]:
-    return list(_ICON_PAINTERS)
-
-
 def render_icon(name: str, size: int, color: str) -> Image.Image:
     """Zeichnet ein Icon als RGBA-Bild. Reines PIL, ohne Tk und ohne Cache.
 
     Args:
-        name: Schlüssel aus `icon_names()`.
+        name: Schlüssel aus `_ICON_PAINTERS`.
         size: Kantenlänge in **physischen** Pixeln (der Aufrufer hat bereits
             `px()` angewandt).
         color: Strichfarbe. Die Geometrie ist für alle Zustände dieselbe —

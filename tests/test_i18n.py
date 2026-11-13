@@ -3,6 +3,7 @@
 import ast
 import ctypes
 import re
+import string
 import sys
 from types import SimpleNamespace
 
@@ -12,6 +13,12 @@ from source_code import PACKAGE_DIR, module_files
 from hams import i18n
 from hams.messages_de import MESSAGES as DE
 from hams.messages_en import MESSAGES as EN
+
+
+def placeholders(text: str) -> set[str]:
+    """Names of the `str.format` fields in a message."""
+    return {name for _literal, name, _spec, _conv in string.Formatter().parse(text) if name is not None}
+
 
 # ---------------------------------------------------------------- catalogs
 
@@ -23,7 +30,7 @@ class TestCatalogs:
 
     @pytest.mark.parametrize("key", sorted(EN))
     def test_placeholders_match(self, key):
-        assert i18n.placeholders(DE[key]) == i18n.placeholders(EN[key]), key
+        assert placeholders(DE[key]) == placeholders(EN[key]), key
 
     @pytest.mark.parametrize("key", sorted(EN))
     def test_no_message_is_empty(self, key):
@@ -250,7 +257,6 @@ _UI_POSITIONS = {
     "_apply_state": (1, 2),
     "SettingRow": (1,),
     "SecondaryButton": (1,),
-    "PrimaryButton": (1,),
     "SectionHeader": (1,),
     "Option": (1,),
     "title": (0,),
