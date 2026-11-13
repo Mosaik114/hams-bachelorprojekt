@@ -174,7 +174,7 @@ The most useful keys:
 |---|---|---|
 | `[model]` | `size`, `device_priority`, `compute_priority` | Whisper model (`tiny` … `large-v3`, `turbo`) and fallback chain (GPU `float16` → `int8_float16` → `int8` → CPU) |
 | `[transcription]` | `language`, `beam_size`, `vad_filter` | dictation language (see [Dictation languages](#dictation-languages)); `beam_size = 1` is greedy and fast |
-| `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `warmup_on_start`, `url`, `cleanup_prompt_file` | `cleanup_enabled = false` pastes the raw text, the fastest option |
+| `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `warmup_on_start`, `url`, `cleanup_prompt_file`, `cleanup_temperature` | `cleanup_enabled = false` pastes the raw text, the fastest option; `cleanup_temperature` (default `0`, up to `2`) only affects cleanup, not *Ask AI* |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts (dictation and *Ask AI*) |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
 | `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
@@ -261,6 +261,22 @@ To set it up, no terminal needed:
 
 Other models can be added in the Ollama app, or with `ollama pull <model>` in a terminal; Hams lists every installed
 model. Smaller models work too.
+
+**What cleanup will and won't do.** Cleanup asks the model to fix spelling, punctuation and fillers, nothing
+else, and runs it at temperature 0, so the same dictation gives the same text every time. Before pasting, Hams
+checks the answer and pastes the raw transcript instead when the answer
+
+- repeats part of the instructions (the model echoed its prompt),
+- is much longer than what you said,
+- has different digits (a phone number with an extra digit looks just as plausible as the right one; a number the
+  model spelled out, "6" → "six", also falls back), or
+- keeps less than half of your words (an answer, a translation or a rewrite instead of a cleanup).
+
+A leading "Here is the corrected text:" is removed. The log notes when this happens, with lengths only, never the
+text. Known limitation: dictation that is itself a request to the model, such as "Make this more formal: …", can
+still be carried out instead of cleaned when the result keeps enough of your words. To dictate such sentences
+safely, switch cleanup off for them, or use *Ask AI* when you do want the answer. Measurements:
+[evaluation.md](evaluation.md#llm-cleanup-quality).
 
 If Ollama is slow (more than 30 s for cleanup) or not running, Hams pastes the raw text instead and says so
 (*Pasted · without cleanup*). Hams talks to Ollama at `http://127.0.0.1:11434`. A different address can be set with

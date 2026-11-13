@@ -39,6 +39,7 @@ FIELDS = [
     ("ollama", "model_prompt_generate", "ollama_model_prompt", "text"),
     ("ollama", "timeout_cleanup", "ollama_timeout_cleanup", "int"),
     ("ollama", "timeout_prompt", "ollama_timeout_prompt", "int"),
+    ("ollama", "cleanup_temperature", "ollama_cleanup_temperature", "number"),
     ("ollama", "stream_prompt", "ollama_stream_prompt", "bool"),
     ("ollama", "cleanup_enabled", "ollama_cleanup_enabled", "bool"),
     ("ollama", "keep_alive", "ollama_keep_alive", "keep_alive"),

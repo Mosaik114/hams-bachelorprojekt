@@ -234,6 +234,11 @@ ALLOWLIST = {
     ("dictation_language.py", "Un texto en español."),
     ("dictation_language.py", "Tekst po polsku."),
     ("dictation_language.py", "Um texto em português."),
+    # Patterns the cleanup guard matches against dictated text and model answers; never shown.
+    ("cleanup_guard.py", "\\A[ \\t]*(?P<line>"),
+    ("cleanup_guard.py", "äh"),
+    ("cleanup_guard.py", "äähm"),
+    ("cleanup_guard.py", "öhm"),
     # Internal result codes, only written to the log.
     ("ui_kit/scale.py", "keine"),
     ("ui_kit/window.py", "keine"),

@@ -18,7 +18,7 @@ if sys.platform == "win32":
 else:
     from hams.linux import keyboard
 
-from hams import dictation_language, glossary
+from hams import cleanup_guard, dictation_language, glossary
 from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
 from hams.i18n import t, tn
@@ -100,6 +100,16 @@ def _prompt_language(language: str) -> str:
     return "" if language == dictation_language.AUTO else language
 
 
+def cleanup_options() -> dict:
+    """Sampling fuer die Bereinigung: Temperatur aus der Einstellung (Vorgabe 0), fester Seed.
+
+    Ohne Optionen sampelt Ollama mit den Vorgaben des Modells (qwen3.5: temperature 1). Gemessen
+    (docs/evaluation.md) erfindet die Bereinigung bei 0 seltener etwas, formuliert seltener um und liefert
+    fuer dasselbe Diktat jedes Mal denselben Text. Nur die Bereinigung; *KI fragen* bleibt bei den Vorgaben.
+    """
+    return {"temperature": CFG.ollama_cleanup_temperature, "seed": 0}
+
+
 class TranscriptionMixin:
     """Transkription, Bereinigung mit Ollama und Einfuegen des Textes."""
 
@@ -122,6 +132,7 @@ class TranscriptionMixin:
         stream: bool = False,
         progress_label: str | None = None,
         system: str | None = None,
+        options: dict | None = None,
     ) -> str:
         """Sendet den Prompt an Ollama. stream=True ist nur für lange Antworten
         sinnvoll (Prompt-Modus); für kurze Cleanup-Antworten lohnt der Overhead
@@ -129,7 +140,9 @@ class TranscriptionMixin:
         VRAM bleibt und nicht 10–30s nachgeladen werden muss.
 
         `system` geht als eigenes Feld an Ollama. So lässt sich eine Regel für
-        die Form der Antwort setzen, ohne den Prompt des Nutzers anzufassen."""
+        die Form der Antwort setzen, ohne den Prompt des Nutzers anzufassen.
+        `options` sind Ollamas Sampling-Optionen; ohne sie gelten die Vorgaben
+        des Modells."""
         body = {
             "model": model,
             "prompt": prompt,
@@ -142,6 +155,8 @@ class TranscriptionMixin:
         }
         if system:
             body["system"] = system
+        if options:
+            body["options"] = options
         payload = json.dumps(body).encode()
         # Adresse aus der Einstellung, Schema/Host geprüft in config_validation.ollama_url_problem
         req = urllib.request.Request(  # noqa: S310
@@ -214,20 +229,38 @@ class TranscriptionMixin:
         daran — und was hier durchrutscht, landet als sichtbares `**` im
         Eingabefeld des Nutzers.
 
+        Danach prueft `cleanup_guard.check` die Antwort: ein wiederholter Prompt, veraenderte Ziffern, eine
+        viel laengere Antwort oder eine, die die meisten Woerter verliert, wird durch den Rohtext ersetzt.
+
         `language` ist die diktierte Sprache (leer: die eingestellte); sie waehlt Anweisung und Glossar-Satz.
         """
         language = _prompt_language(language)
         template = dictation_language.cleanup_template(language, CFG.cleanup_prompt_template)
         prompt = template.replace("{text}", text) if "{text}" in template else f"{template}\n\nText: {text}"
+        instructions = template
         if hinweis := glossary.cleanup_hint(language):
             prompt = f"{hinweis}\n\n{prompt}"
-        answer = self._ollama_generate(
-            prompt=prompt,
-            model=CFG.ollama_model_cleanup,
-            timeout=CFG.ollama_timeout_cleanup,
-            stream=False,
+            instructions = f"{hinweis}\n\n{template}"
+        answer = plain_text(
+            self._ollama_generate(
+                prompt=prompt,
+                model=CFG.ollama_model_cleanup,
+                timeout=CFG.ollama_timeout_cleanup,
+                stream=False,
+                options=cleanup_options(),
+            )
         )
-        return plain_text(answer)
+        result = cleanup_guard.check(text, answer, instructions)
+        if result.reason:
+            # Nie den Text loggen, nur Grund und Laengen.
+            logger.warning(
+                "Cleanup answer adjusted (%s): %d chars in, %d chars out, %d chars pasted",
+                result.reason,
+                len(text),
+                len(answer),
+                len(result.text),
+            )
+        return result.text
 
     def _save_transcript_file(self, text: str) -> None:
         """Save transcript to a timestamped file in the transcripts directory."""

@@ -196,8 +196,10 @@ dictations.
 
 ## Measured results
 
-All numbers come from the thesis measurements (RTX 5070, Ryzen 7 9800X3D, Windows 11, Whisper `turbo` on CUDA,
-cleanup with `qwen2.5:7b`, the model used at the time; today's default is `qwen3.5:9b`). Methodology, limitations and raw tables: [docs/evaluation.md](docs/evaluation.md).
+The speed and memory rows come from the thesis measurements (RTX 5070, Ryzen 7 9800X3D, Windows 11, Whisper `turbo`
+on CUDA, cleanup with `qwen2.5:7b`, the model used at the time). The last two rows were measured after the thesis on
+the same machine with today's default, `qwen3.5:9b`, on synthetic speech. Methodology, limitations and raw tables:
+[docs/evaluation.md](docs/evaluation.md).
 
 | Metric | Before | After | Change |
 |---|---:|---:|---:|
@@ -207,7 +209,8 @@ cleanup with `qwen2.5:7b`, the model used at the time; today's default is `qwen3
 | App import time | 1.803 s | **0.298 s** | −83 % |
 | Memory after import | 505.9 MB | **74.8 MB** | −85 % |
 | Hotkey ready after start | ~3 s | **0.38 s** | |
-| WER without → with LLM cleanup, synthetic speech (after the thesis, `qwen3.5:9b`, n = 126 × 3) | 14.49 % | **13.32 %** | −1.2 pp |
+| WER without → with LLM cleanup (n = 126 × 3; v1.0.0 reached 13.32 %, before temperature 0 and the output guard) | 14.49 % | **12.12 %** | −2.4 pp |
+| Cleanup outputs flagged for a changed meaning (invented digits, leaked prompt …), v1.0.0 → current | 16 / 378 | **6 / 378** | −63 % |
 
 **The interesting part: the bottleneck wasn't the model.** Taking one cleanup call apart showed that about two thirds
 of the wait was a *refused IPv6 connection*. `localhost` resolved to `::1` first, Ollama only listened on IPv4, and
@@ -249,6 +252,7 @@ hams/
 ├── app.py               main window, composed from the mixins below
 ├── recording.py         microphone → audio buffer, level meter (dBFS)
 ├── transcription.py     Whisper, glossary, Ollama cleanup, paste
+├── cleanup_guard.py     checks the cleanup answer, falls back to the raw text
 ├── whisper_model.py     load, switch and download models with fallback
 ├── backend_preload.py   load CUDA libs without torch (−1.5 s per start)
 ├── gpu_support.py       on-demand CUDA download for the installed app

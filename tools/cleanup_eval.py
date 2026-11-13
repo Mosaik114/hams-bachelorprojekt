@@ -35,10 +35,12 @@ Usage
 -----
     python tools/cleanup_eval.py                         # German + English, 3 cleanup runs per text
     python tools/cleanup_eval.py --languages de --reps 1
-    python tools/cleanup_eval.py --options '{"temperature": 0}'   # what-if: extra Ollama options
+    python tools/cleanup_eval.py --options '{"temperature": 1}'   # what-if: other Ollama options
 
-`--options` is a what-if only: Hams itself sends no `options`, so Ollama uses
-the model's defaults. Results: docs/evaluation.md, "LLM cleanup".
+Hams sends `{"temperature": 0, "seed": 0}` with every cleanup
+(`transcription.cleanup_options`); `--options` is merged over that, as a
+what-if. Answers the output guard (`hams/cleanup_guard.py`) replaced by the raw
+transcript are counted per reason. Results: docs/evaluation.md, "LLM cleanup".
 """
 
 from __future__ import annotations
@@ -168,6 +170,7 @@ class Sample:
     cleaned: list[str] = field(default_factory=list)
     cleanup_s: list[float] = field(default_factory=list)
     failed: int = 0
+    guards: list[str | None] = field(default_factory=list)
 
 
 def synthesize(texts: list[str], voice: str, target: Path, prefix: str) -> None:
@@ -258,27 +261,47 @@ def use_language(language: str, workdir: Path) -> None:
 
 
 def add_ollama_options(options: dict) -> None:
-    """What-if only: adds `options` to every Ollama request of this process."""
+    """What-if only: merges `options` over the ones Hams sends, in every Ollama request of this process."""
     original = urllib.request.urlopen
 
     def patched(request, *args, **kwargs):
         if isinstance(request, urllib.request.Request) and request.data:
             body = json.loads(request.data)
-            body["options"] = options
+            body["options"] = {**body.get("options", {}), **options}
             request.data = json.dumps(body).encode()
         return original(request, *args, **kwargs)
 
     urllib.request.urlopen = patched
 
 
-def clean(pipeline, text: str, language: str) -> tuple[str, float, bool]:
-    """One cleanup through the product path. Returns (text, seconds, failed)."""
+#: Reasons the output guard gave in the current `clean()` call (None = answer kept as it was).
+GUARD_REASONS: list[str | None] = []
+
+
+def record_guard_reasons() -> None:
+    """Notes why `cleanup_guard.check` replaced or trimmed an answer; the check itself is unchanged."""
+    from hams import cleanup_guard
+
+    original = cleanup_guard.check
+
+    def recording(*args, **kwargs):
+        result = original(*args, **kwargs)
+        GUARD_REASONS.append(result.reason)
+        return result
+
+    cleanup_guard.check = recording
+
+
+def clean(pipeline, text: str, language: str) -> tuple[str, float, bool, str | None]:
+    """One cleanup through the product path. Returns (text, seconds, failed, guard reason)."""
     pipeline._cleanup_retry_at = 0.0
     pipeline._delivery_note = None
+    GUARD_REASONS.clear()
     start = time.perf_counter()
     result = pipeline._nachbearbeiten(text, False, language)
     seconds = time.perf_counter() - start
-    return result or "", seconds, pipeline._delivery_note is not None
+    guard = GUARD_REASONS[-1] if GUARD_REASONS else None
+    return result or "", seconds, pipeline._delivery_note is not None, guard
 
 
 # ---------------------------------------------------------------------- metrics
@@ -375,7 +398,8 @@ def cleanup_all(samples: list[Sample], reps: int, workdir: Path) -> None:
     for rep in range(reps):
         for sample in samples:
             use_language(sample.language, workdir)
-            text, seconds, failed = clean(pipeline, sample.raw, sample.language)
+            text, seconds, failed, guard = clean(pipeline, sample.raw, sample.language)
+            sample.guards.append(guard)
             sample.cleaned.append(text)
             sample.cleanup_s.append(seconds)
             sample.failed += failed
@@ -389,9 +413,11 @@ def run_traps(languages: list[str], reps: int, workdir: Path) -> list[dict]:
         use_language(language, workdir)
         terms = glossary_words()
         for key, text, forbidden in TRAPS[language]:
-            outputs = [clean(pipeline, text, language)[0] for _ in range(reps)]
+            runs = [clean(pipeline, text, language) for _ in range(reps)]
+            outputs = [run[0] for run in runs]
             verdicts = [trap_verdict(text, out, language, terms, forbidden) for out in outputs]
-            results.append({"language": language, "id": key, "input": text, "outputs": outputs, "verdicts": verdicts})
+            results.append({"language": language, "id": key, "input": text, "outputs": outputs,
+                            "verdicts": verdicts, "guards": [run[3] for run in runs]})  # fmt: skip
     return results
 
 
@@ -503,11 +529,27 @@ def trap_lines(traps: list[dict]) -> list[str]:
     return lines
 
 
+def guard_lines(samples: list[Sample], traps: list[dict]) -> list[str]:
+    """How often the output guard stepped in, per reason (samples and traps separately)."""
+    lines = []
+    for label, reasons in (
+        ("samples", [g for s in samples for g in s.guards]),
+        ("traps", [g for t in traps for g in t["guards"]]),
+    ):
+        counts: dict[str, int] = {}
+        for reason in reasons:
+            if reason:
+                counts[reason] = counts.get(reason, 0) + 1
+        lines.append(f"{label}: {sum(counts.values())} of {len(reasons)} answers changed by the guard {counts}")
+    return lines
+
+
 def environment(whisper: dict, model: str, options: dict | None) -> dict:
     import ctranslate2
     import faster_whisper
 
     from hams.config import CFG
+    from hams.transcription import cleanup_options
 
     try:
         version = json.loads(urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=5).read())  # noqa: S310
@@ -519,7 +561,7 @@ def environment(whisper: dict, model: str, options: dict | None) -> dict:
         "ctranslate2": ctranslate2.__version__,
         "ollama": version.get("version", "?"),
         "cleanup_model": model,
-        "ollama_options_sent": options or "none (model defaults)",
+        "ollama_options_sent": {**cleanup_options(), **(options or {})},
         "keep_alive": CFG.ollama_keep_alive,
         "timeout_cleanup": CFG.ollama_timeout_cleanup,
         **whisper,
@@ -544,6 +586,7 @@ def main() -> int:
         CFG.ollama_model_cleanup = args.model
     if args.options:
         add_ollama_options(args.options)
+    record_guard_reasons()
 
     print("Preparing corpus …")
     samples = build_samples(args.corpus, args.languages)
@@ -563,6 +606,7 @@ def main() -> int:
         "", "## WER and orthographic error rate", *wer_rows(samples),
         "", f"Per output vs. raw: {outcome_counts(samples)}",
         "", "## Content preservation", *summary,
+        "", "## Output guard", *guard_lines(samples, traps),
         "", "## Latency", *latency_lines(samples),
         "", "## Traps", *trap_lines(traps),
     ]  # fmt: skip
@@ -580,7 +624,7 @@ def main() -> int:
         "environment": env,
         "samples": [
             {k: getattr(s, k) for k in ("language", "subset", "condition", "key", "reference", "raw", "cleaned",
-                                        "cleanup_s", "whisper_s", "failed")}
+                                        "cleanup_s", "whisper_s", "failed", "guards")}
             for s in samples
         ],
         "traps": traps,

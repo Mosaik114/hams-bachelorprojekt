@@ -165,7 +165,8 @@ Ollama is optional. Without it, dictation still works and pastes the raw text (*
 - The dictation language is separate from the interface language. Changing the interface to English does not change
   what you dictate.
 - If the text comes back translated, that is the LLM cleanup, not Whisper. Hams tells Ollama to keep the spoken
-  language, but small models sometimes ignore it. Try another cleanup model or turn cleanup off.
+  language and pastes the raw text when an answer keeps less than half of the dictated words, but small models
+  sometimes slip through. Try another cleanup model or turn cleanup off.
 - Names and jargon spelled wrong: add them to the glossary ([user guide](user-guide.md#glossary-names-and-special-words)).
 
 ## The microphone is silent

@@ -65,6 +65,9 @@ url = "http://127.0.0.1:11434/api/generate"
 # model_prompt_generate = "qwen3.5:9b"
 timeout_cleanup = 30
 timeout_prompt = 60
+# Sampling-Temperatur der Bereinigung (0 bis 2). 0 liefert für dasselbe Diktat immer denselben Text
+# und erfindet gemessen seltener etwas (docs/evaluation.md). Der Prompt-Modus nutzt die Modellvorgaben.
+cleanup_temperature = 0
 # Cleanup komplett abschalten → Whisper-Rohtext wird direkt eingefügt (maximal schnell).
 cleanup_enabled = true
 # Streaming nur für Prompt-Modus sinnvoll (lange Antworten). Cleanup ist kurz → nicht-stream.

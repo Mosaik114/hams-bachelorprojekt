@@ -17,6 +17,8 @@ MAX_RECORDING_SECONDS = 3600
 MAX_BEAM_SIZE = 10
 #: Upper bound for the Ollama timeouts (seconds); a larger value is a typo, not a wish.
 MAX_OLLAMA_TIMEOUT = 3600
+#: Upper bound for `ollama.cleanup_temperature`; Ollama's useful range ends at 2.
+MAX_CLEANUP_TEMPERATURE = 2.0
 #: Upper bound for `clipboard.paste_timeout` (seconds).
 MAX_PASTE_TIMEOUT = 10.0
 

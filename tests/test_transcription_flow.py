@@ -161,8 +161,31 @@ class TestPipeline:
         body = ollama.requests[0][0]
         assert body["prompt"] == "Hallo Welt", "der diktierte Prompt bleibt Wort fuer Wort"
         assert body["system"] == PROMPT_PLAIN_SYSTEM
+        assert "options" not in body, "KI fragen sampelt mit den Vorgaben des Modells"
         assert hams.clipboard.copies == ["Die Hauptstadt ist Oslo."]
         assert not ready._prompt_mode
+
+    def test_the_cleanup_samples_deterministically(self, ready, ollama):
+        CFG.ollama_cleanup_enabled = True
+        CFG.cleanup_prompt_template = "Korrigiere: {text}"
+        ollama.answer = "Hallo Welt."
+        run(ready)
+        assert ollama.requests[0][0]["options"] == {"temperature": 0.0, "seed": 0}
+
+    def test_the_cleanup_temperature_comes_from_the_settings(self, ready, ollama):
+        CFG.ollama_cleanup_enabled = True
+        CFG.ollama_cleanup_temperature = 0.7
+        ollama.answer = "Hallo Welt."
+        run(ready)
+        assert ollama.requests[0][0]["options"] == {"temperature": 0.7, "seed": 0}
+
+    def test_a_rejected_cleanup_pastes_the_raw_text(self, ready, hams, ollama):
+        """Eine erfundene Ziffer: lieber das, was Whisper gehoert hat."""
+        CFG.ollama_cleanup_enabled = True
+        ollama.answer = "Hallo Welt 42."
+        run(ready)
+        assert hams.clipboard.copies == ["Hallo Welt"]
+        assert ready._state == "done"
 
     def test_a_failed_prompt_pastes_nothing(self, ready, hams, ollama):
         ready._prompt_mode = True

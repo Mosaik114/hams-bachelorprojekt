@@ -24,8 +24,9 @@ sequenceDiagram
   TR->>W: transcribe (VAD, glossary hotwords, batched if > 30 s)
   W-->>TR: raw text
   alt cleanup enabled and Ollama reachable
-    TR->>O: cleanup prompt (+ "keep these spellings")
+    TR->>O: cleanup prompt (+ "keep these spellings"), temperature 0
     O-->>TR: cleaned text
+    TR->>TR: output guard: leaked prompt, changed digits, too long, words dropped → raw text
   else timeout / offline
     TR->>TR: keep raw text
   end
@@ -54,7 +55,7 @@ is pasted instead.
 | App shell | `app.py`, `main_window.py`, `tray.py`, `window_position.py` | `FloatingTranscriberApp` is composed of mixins (`MainWindowMixin`, `TrayMixin`, `WhisperModelMixin`, `RecordingMixin`, `TranscriptionMixin`) |
 | Audio | `recording.py` | Level meter in dBFS (−62 … −28 dB mapped to 0 … 1), peak normalisation for quiet input, auto-stop |
 | Speech recognition | `whisper_model.py`, `models.py`, `backend.py`, `backend_preload.py` | Device and precision fallback chain (`cuda: float16 → int8_float16 → int8`, then CPU). CUDA libraries are preloaded from the NVIDIA wheels, so `torch` is never imported |
-| Post-processing | `transcription.py`, `ollama.py`, `glossary.py`, `dictation_language.py`, `prompts/cleanup*.txt` | 30 s cleanup timeout with raw-text fallback; the glossary reloads when the file changes |
+| Post-processing | `transcription.py`, `cleanup_guard.py`, `ollama.py`, `glossary.py`, `dictation_language.py`, `prompts/cleanup*.txt` | 30 s cleanup timeout with raw-text fallback; cleanup samples at temperature 0, and an answer that fails the output guard is replaced by the raw text; the glossary reloads when the file changes |
 | Hotkeys | `system_hotkeys.py`, `portal_hotkeys.py`, `hotkey_editor.py` | `RegisterHotKey` survives standby, unlike low-level keyboard hooks that Windows silently removes |
 | Linux integration | `linux.py`, `linux/*.sh` | `uinput` virtual keyboard, synthesised chime, `SIGUSR1` to bring the window to front, systemd user service |
 | Settings | `settings_window.py`, `settings_sections.py`, `settings_shortcuts.py`, `settings_status.py`, `settings_models.py` | Live microphone level, Ollama status, model download and delete |

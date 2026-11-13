@@ -42,6 +42,7 @@ from hams.config_toml import _set_toml_value, _toml_scalar, _trailing_comment, v
 from hams.config_validation import (
     CHANNELS,
     MAX_BEAM_SIZE,
+    MAX_CLEANUP_TEMPERATURE,
     MAX_OLLAMA_TIMEOUT,
     MAX_PASTE_TIMEOUT,
     MAX_RECORDING_SECONDS,
@@ -166,6 +167,8 @@ class Config:
     ollama_model_prompt: str = "qwen3.5:9b"
     ollama_timeout_cleanup: int = 30
     ollama_timeout_prompt: int = 60
+    #: Sampling-Temperatur der Bereinigung. 0 = deterministisch (gemessen besser, docs/evaluation.md).
+    ollama_cleanup_temperature: float = 0.0
     ollama_stream_prompt: bool = True
     ollama_cleanup_enabled: bool = True
     ollama_keep_alive: str = "30m"
@@ -645,6 +648,9 @@ def _apply_ollama(cfg: Config, ollama: SectionReader) -> None:
     cfg.ollama_model_prompt = ollama.text("model_prompt_generate", cfg.ollama_model_prompt)
     cfg.ollama_timeout_cleanup = ollama.integer("timeout_cleanup", cfg.ollama_timeout_cleanup, 1, MAX_OLLAMA_TIMEOUT)
     cfg.ollama_timeout_prompt = ollama.integer("timeout_prompt", cfg.ollama_timeout_prompt, 1, MAX_OLLAMA_TIMEOUT)
+    cfg.ollama_cleanup_temperature = ollama.number(
+        "cleanup_temperature", cfg.ollama_cleanup_temperature, 0.0, MAX_CLEANUP_TEMPERATURE
+    )
     # `stream` ist der alte Name des Schluessels; der neue hat Vorrang.
     stream_key = "stream" if "stream" in ollama and "stream_prompt" not in ollama else "stream_prompt"
     cfg.ollama_stream_prompt = ollama.boolean(stream_key, cfg.ollama_stream_prompt)

@@ -5,7 +5,20 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- **Cleanup no longer pastes its own prompt or invented digits.** An output guard checks every cleanup answer and
+  pastes the raw transcript instead when the answer repeats the instructions or the glossary hint, grows far beyond
+  the input, changes the digits (a phone number once gained two digits), or keeps less than half of the dictated
+  words (a dictated "Answer only yes or no: …" came back as "No"). A leading "Here is the corrected text:" is
+  stripped. The log records only the reason and lengths. Found by the new cleanup evaluation
+  (`tools/cleanup_eval.py`, docs/evaluation.md).
+
 ### Changed
+- **Cleanup samples at temperature 0** (with a fixed seed) instead of the model's defaults (temperature 1 for
+  `qwen3.5:9b`): the same dictation now gives the same text, with less rephrasing ("schick" → "schicken Sie").
+  Configurable as `[ollama] cleanup_temperature` (0–2); *Ask AI* is unchanged. Measured together with the output
+  guard on synthetic speech: WER after cleanup 13.32 → 12.12 %, outputs flagged for a changed meaning 16 → 6 of
+  378, trap inputs passed in every run 20 → 26 of 27, same latency.
 - **Starting Hams again brings the running window to the front** instead of a message box that says to look in the
   system tray. The second start asks the running instance through a named event (Windows) or `SIGUSR1` (Linux); the
   old message only appears when the running instance doesn't answer (for example an older version).
