@@ -236,8 +236,9 @@ class RecordingMixin:
             self._start_level_ticker()
             self._update_tray_tooltip()
             logger.info("Recording started (prompt_mode=%s)", self._prompt_mode)
-        except sd.PortAudioError:
-            logger.exception("PortAudio error on start_recording")
+        except (sd.PortAudioError, ValueError):
+            # ValueError: sounddevice found no device with the configured name (unplugged, renamed).
+            logger.exception("Microphone could not be opened")
             self._abandon_start()
             self._apply_state(
                 "error",

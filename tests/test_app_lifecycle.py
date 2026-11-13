@@ -429,6 +429,15 @@ class TestRecording:
         assert live_app.status_label.cget("text") == "Mikrofon nicht verfügbar"
         assert "„Headset“" in live_app.footer_label.cget("text")
 
+    def test_an_unplugged_microphone_chosen_by_name_is_named_too(self, live_app):
+        """sounddevice raises ValueError for a name it can't find (audit finding H9), not PortAudioError."""
+        FakeStream.fail_with = ValueError("No input device matching 'Headset'")
+        CFG.mic_device_raw = "Headset"
+        live_app.toggle_recording()
+        assert not live_app.is_recording
+        assert live_app.status_label.cget("text") == "Mikrofon nicht verfügbar"
+        assert "„Headset“" in live_app.footer_label.cget("text")
+
     def test_any_other_failure_still_ends_in_a_clear_state(self, live_app):
         FakeStream.fail_with = OSError("irgendwas")
         live_app.toggle_recording()

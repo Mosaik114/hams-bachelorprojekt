@@ -13,6 +13,8 @@ follow [Semantic Versioning](https://semver.org/).
 - **An older clipboard content could be pasted** when the clipboard did not confirm the new text within
   `[clipboard] paste_timeout`: Hams sent `Ctrl+V` anyway. It now pastes only a confirmed text; otherwise the window
   says *Copied, not pasted* and asks you to press `Ctrl+V`.
+- An unplugged microphone that was chosen by name showed "Recording not started" instead of *Microphone
+  unavailable* with its name.
 
 ## [1.1.2] – 2026-11-13
 
