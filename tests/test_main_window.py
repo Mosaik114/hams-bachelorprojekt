@@ -6,11 +6,11 @@ Skript `shot_states8.py`; er braucht die vollständige Anwendung mit Tray und
 Modell-Ladethread und gehört deshalb nicht in die Testsuite.
 """
 
+import kit as uk
 import pytest
+from kit import ControlStyle, StatusDot
 
-from hams import ui_kit as uk
 from hams.app import FloatingTranscriberApp as App
-from hams.ui_kit import ControlStyle, StatusDot
 
 
 class _LiveTable:

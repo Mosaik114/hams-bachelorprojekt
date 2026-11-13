@@ -7,10 +7,9 @@ Animation — die autouse-Sperre aus conftest wird hier bewusst aufgehoben.
 import time
 import tkinter as tk
 
+import kit as uk
 import pytest
-
-from hams import ui_kit as uk
-from hams.ui_kit import Animator, Popover, Select, StatusDot, Switch, Theme
+from kit import Animator, Popover, Select, StatusDot, Switch, Theme
 
 BG = Theme.GROUP_SURFACE
 

@@ -146,7 +146,7 @@ def no_animation():
     gerade ist: ein Toggle stuende mitten in der Bewegung, und die Farbe waere
     ein Zwischenwert. Die Animationen selbst pruefen `test_animation.py`.
     """
-    from hams import ui_kit as _uk
+    import kit as _uk
 
     before = _uk.Animator.enabled
     _uk.Animator.enabled = False
@@ -249,7 +249,8 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
 @pytest.fixture
 def live_app(root, hams):
     """Die echte Anwendung in einem eigenen, versteckten Fenster."""
-    from hams import ui_kit as _uk
+    import kit as _uk
+
     from hams.app import FloatingTranscriberApp as App
 
     theme = _uk.Theme.mode
@@ -287,7 +288,7 @@ def root():
     window.tk.eval("catch {tk_focusNext .}")
     # Schriftrollen bereitstellen, damit Controls unter Testbedingungen
     # dieselben Fonts benutzen wie im Programm.
-    from hams import ui_kit as _uk
+    import kit as _uk
 
     _uk.init_scale(window)
     _uk.init_fonts(window)

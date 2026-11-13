@@ -4,9 +4,8 @@ import re
 from pathlib import Path
 
 import pytest
+from kit import _FONT_ROLES, Height, Radius, Space, Theme
 from source_code import all_source, module_files
-
-from hams.ui_kit import _FONT_ROLES, Height, Radius, Space, Theme
 
 PROJECT = Path(__file__).parent.parent
 THEME = PROJECT / "hams" / "ui_kit" / "theme.py"

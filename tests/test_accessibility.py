@@ -10,13 +10,10 @@ import ast
 import inspect
 import tkinter as tk
 
+import kit as uk
 import pytest
 from conftest import fokus_erzwingen
-from source_code import PACKAGE_DIR, module_files
-from ui_helpers import focus_chain
-
-from hams import ui_kit as uk
-from hams.ui_kit import (
+from kit import (
     ControlStyle,
     IconButton,
     Option,
@@ -27,6 +24,8 @@ from hams.ui_kit import (
     Switch,
     Theme,
 )
+from source_code import PACKAGE_DIR, module_files
+from ui_helpers import focus_chain
 
 BG = Theme.GROUP_SURFACE
 

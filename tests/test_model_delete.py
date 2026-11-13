@@ -5,10 +5,10 @@ Hugging-Face-Cache anfasst, waere kein Test mehr, sondern ein Eingriff in die
 Installation des Nutzers — und beim zweiten Lauf haette er nichts mehr zu tun.
 """
 
+import kit as uk
 import pytest
 
 from hams import models as whisper_models
-from hams import ui_kit as uk
 from hams.settings_window import SettingsWindow
 from hams.ui_kit.icons import _ICON_PAINTERS
 

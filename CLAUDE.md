@@ -4,7 +4,8 @@ Context for AI coding assistants working in this repository.
 
 Press a hotkey, speak, and the corrected text appears at the cursor. faster-whisper transcribes, Ollama cleans up,
 and the text is pasted via the clipboard and Ctrl+V. On Linux, a `uinput` keyboard does the pasting. The UI is
-Tkinter with its own design system (`hams/ui_kit`).
+Tkinter with its own design system (`hams/ui_kit`). The kit is frozen: build from its existing controls, add no
+new ones; `hams.ui_kit` exports only what the app uses (tests take internals from `tests/kit.py`).
 
 - **Entry point:** `hams/main.py` → `hams/app.py` (`FloatingTranscriberApp`, composed of the mixins
   `main_window`, `tray`, `whisper_model`, `recording`, `transcription`). Settings: `hams/config.py` (+

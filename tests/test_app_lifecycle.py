@@ -11,12 +11,13 @@ import time
 import tkinter as tk
 from types import SimpleNamespace
 
+import kit as uk
 import numpy as np
 import pytest
 from live_app import FakeHotkeys, FakeStream
 
 from hams import recording as recording_mod
-from hams import ui_kit as uk
+from hams import ui_kit as hams_kit  # the package the app reads, for module-level patches
 from hams.config import CFG
 from hams.settings_window import SettingsWindow
 
@@ -222,17 +223,17 @@ class TestMicConsumers:
 
 class TestDpiChange:
     def test_an_event_from_a_child_is_ignored(self, live_app, monkeypatch):
-        monkeypatch.setattr(uk, "window_dpi", lambda _w: pytest.fail("nicht gefragt"))
+        monkeypatch.setattr(hams_kit, "window_dpi", lambda _w: pytest.fail("nicht gefragt"))
         live_app._on_root_configure(SimpleNamespace(widget=live_app.main_button))
 
     def test_the_same_dpi_changes_nothing(self, live_app, monkeypatch):
-        monkeypatch.setattr(uk, "window_dpi", lambda _w: uk.Scale.dpi)
+        monkeypatch.setattr(hams_kit, "window_dpi", lambda _w: uk.Scale.dpi)
         monkeypatch.setattr(uk.Scale, "apply", lambda *_a: pytest.fail("umskaliert"))
         live_app._on_root_configure(SimpleNamespace(widget=live_app.root))
 
     def test_a_new_dpi_rescales_and_refits(self, live_app, monkeypatch):
         applied = []
-        monkeypatch.setattr(uk, "window_dpi", lambda _w: uk.Scale.dpi + 48)
+        monkeypatch.setattr(hams_kit, "window_dpi", lambda _w: uk.Scale.dpi + 48)
         monkeypatch.setattr(uk.Scale, "apply", lambda root, dpi: applied.append(dpi))
         live_app._on_root_configure(SimpleNamespace(widget=live_app.root))
         assert applied == [uk.Scale.dpi + 48]

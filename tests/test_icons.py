@@ -1,9 +1,9 @@
 """Tests des Icon-Systems: Raster, Strichstärke, Gewichtung, Farbe, Cache, DPI."""
 
+import kit as uk
 import pytest
+from kit import Theme
 
-from hams import ui_kit as uk
-from hams.ui_kit import Theme
 from hams.ui_kit.icons import _ICON_PAINTERS
 
 INK = "#F2F2F5"

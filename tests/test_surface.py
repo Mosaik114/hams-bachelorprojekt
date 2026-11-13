@@ -1,8 +1,7 @@
 """Tests der Flächen-Renderpipeline: Geometrie, Lichtkante, Verlauf, Cache."""
 
+import kit as uk
 import pytest
-
-from hams import ui_kit as uk
 
 FILL = "#0A6FE8"
 

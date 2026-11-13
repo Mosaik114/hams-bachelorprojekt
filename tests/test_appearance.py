@@ -12,6 +12,7 @@ Bildschirm *wirken*. Das steht im Bericht unter der Sichtprüfung.
 
 import tkinter as tk
 
+import kit as uk
 import pytest
 from appearance_support import (  # noqa: F401 – Fixtures, pytest findet sie über den Namen
     restore_mode,
@@ -19,14 +20,13 @@ from appearance_support import (  # noqa: F401 – Fixtures, pytest findet sie �
     wechsel,
     window,
 )
-from source_code import all_source
-
-from hams import config as config_mod
-from hams import ui_kit as uk
-from hams.ui_kit import (
+from kit import (
     Popover,
     Theme,
 )
+from source_code import all_source
+
+from hams import config as config_mod
 
 MODES = list(Theme.MODES)
 

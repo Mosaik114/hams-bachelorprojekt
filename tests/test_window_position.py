@@ -6,9 +6,9 @@ zweiter Monitor, verschwundener Monitor und kaputte Werte prüfen, ohne
 Bildschirme umzustecken. Der Lauf gegen die echten Monitore steht daneben.
 """
 
+import kit as uk
 import pytest
 
-from hams import ui_kit as uk
 from hams.window_position import (
     MIN_VISIBLE_H,
     MIN_VISIBLE_W,

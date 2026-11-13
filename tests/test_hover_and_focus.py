@@ -13,11 +13,10 @@ Flächen deutlich schärfer.
 
 import tkinter as tk
 
+import kit as uk
 import pytest
 from conftest import fokus_erzwingen
-
-from hams import ui_kit as uk
-from hams.ui_kit import IconButton, Option, SecondaryButton, Select, SettingRow, State, StatusDot, Switch, Theme
+from kit import IconButton, Option, SecondaryButton, Select, SettingRow, State, StatusDot, Switch, Theme
 
 
 @pytest.fixture

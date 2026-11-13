@@ -2,11 +2,10 @@
 
 import tkinter as tk
 
+import kit as uk
 import pytest
 from conftest import fokus_erzwingen
-
-from hams import ui_kit as uk
-from hams.ui_kit import (
+from kit import (
     GroupSurface,
     Height,
     ScrollArea,

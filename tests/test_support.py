@@ -3,10 +3,10 @@
 from datetime import datetime
 from types import SimpleNamespace
 
+import kit as uk
 import pytest
 
 from hams import settings_about, support, updates
-from hams import ui_kit as uk
 from hams.app import FloatingTranscriberApp as App
 
 

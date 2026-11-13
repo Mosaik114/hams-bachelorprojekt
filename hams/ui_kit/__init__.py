@@ -38,129 +38,80 @@ Bordmitteln nicht zu beheben: dafür bräuchte es einen echten UIA-Provider je
 Control. Wenn das einmal gewünscht ist, ist es eine eigene
 Architekturentscheidung und kein Feinschliff.
 
-Das Kit ist nach Themen auf Module verteilt; dieses Paket bietet alle
-Namen wieder an, damit `from hams import ui_kit as uk` genuegt.
+Das Kit ist nach Themen auf Module verteilt; dieses Paket bietet die Namen an,
+die die Anwendung braucht, damit `from hams import ui_kit as uk` genuegt.
+Es ist eingefroren: keine neuen Eigenbau-Controls (siehe docs/architecture.md).
 """
 
-from hams.ui_kit.animation import (
-    FRAME_MS,
-    SPI_GETCLIENTAREAANIMATION,
-    Animator,
-    blend,
-    ease_out,
-    init_animations,
-    system_animations_enabled,
-)
-from hams.ui_kit.buttons import (
-    BaseControl,
-    IconButton,
-    SecondaryButton,
-    _SurfaceControl,
-)
-from hams.ui_kit.caches import (
-    _icon_cache,
-    _img_cache,
-)
+from hams.ui_kit.animation import init_animations
+from hams.ui_kit.buttons import IconButton, SecondaryButton
 from hams.ui_kit.controls import (
     ProgressBar,
     SignalMeter,
     StatusDot,
     Switch,
 )
-from hams.ui_kit.icons import (
-    _ICON_PAINTERS,
-    ICON_BOX,
-    ICON_CACHE_LIMIT,
-    ICON_STROKE,
-    _icon_check,
-    _icon_chevron,
-    _icon_close,
-    _icon_download,
-    _icon_settings,
-    _icon_stop,
-    _icon_trash,
-    _stroke,
-    icon,
-    render_icon,
-)
-from hams.ui_kit.keys import KEY_MESSAGES, KeyCombo, key_labels
-from hams.ui_kit.layout import (
-    GroupSurface,
-    ScrollArea,
-    SectionHeader,
-)
-from hams.ui_kit.monitors import (
-    MONITORINFOF_PRIMARY,
-    _MonitorInfo,
-    _Rect,
-    work_area,
-    work_areas,
-)
-from hams.ui_kit.popover import (
-    Option,
-    Popover,
-    _PopoverItem,
-)
+from hams.ui_kit.keys import KeyCombo, key_labels
+from hams.ui_kit.layout import GroupSurface, ScrollArea, SectionHeader
+from hams.ui_kit.monitors import work_areas
+from hams.ui_kit.popover import Option, Popover
 from hams.ui_kit.scale import (
-    _FONT_ROLES,
-    _FONTS,
-    SEMIBOLD_FAMILIES,
-    SERIF_FAMILIES,
     Scale,
     enable_dpi_awareness,
     font,
     init_fonts,
     init_scale,
     keep_logical_width,
-    points_to_px,
     px,
     window_dpi,
 )
 from hams.ui_kit.select import Select
 from hams.ui_kit.setting_row import SettingRow
-from hams.ui_kit.states import (
-    ControlStyle,
-    FocusMixin,
-    State,
-    StateMixin,
-    return_focus_to,
-)
-from hams.ui_kit.surfaces import (
-    CACHE_LIMIT,
-    SQUIRCLE_EXPONENT,
-    SUPERSAMPLE,
-    _hex_to_rgb,
-    _shape_mask,
-    _squircle_points,
-    _vertical_ramp,
-    render_surface,
-    surface,
-)
-from hams.ui_kit.text import (
-    _ellipsize,
-    _fit_text,
-    _line_height,
-    _pil_font,
-    _text_width,
-)
 from hams.ui_kit.theme import (
-    TINTED_OPTIONS,
     Height,
-    Radius,
     Space,
     Theme,
     apply_theme_tree,
-    retint,
-    set_surface_under,
 )
 from hams.ui_kit.window import (
-    _DWMWA_WINDOW_CORNER_PREFERENCE,
-    _DWMWCP_ROUND,
-    _WIN11_BUILD,
-    _window_handle,
-    _windows_build,
     bring_to_front,
     frame_window,
     round_window_corners,
     system_frame,
 )
+
+__all__ = [
+    "init_animations",
+    "IconButton",
+    "SecondaryButton",
+    "ProgressBar",
+    "SignalMeter",
+    "StatusDot",
+    "Switch",
+    "KeyCombo",
+    "key_labels",
+    "GroupSurface",
+    "ScrollArea",
+    "SectionHeader",
+    "work_areas",
+    "Option",
+    "Popover",
+    "Scale",
+    "enable_dpi_awareness",
+    "font",
+    "init_fonts",
+    "init_scale",
+    "keep_logical_width",
+    "px",
+    "window_dpi",
+    "Select",
+    "SettingRow",
+    "Height",
+    "Space",
+    "Theme",
+    "apply_theme_tree",
+    "bring_to_front",
+    "frame_window",
+    "round_window_corners",
+    "system_frame",
+]

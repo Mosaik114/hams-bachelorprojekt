@@ -2,11 +2,10 @@
 
 import tkinter as tk
 
+import kit as uk
 import pytest
 from conftest import fokus_erzwingen
-
-from hams import ui_kit as uk
-from hams.ui_kit import (
+from kit import (
     IconButton,
     SecondaryButton,
     SignalMeter,
@@ -14,6 +13,7 @@ from hams.ui_kit import (
     Switch,
     Theme,
 )
+
 from hams.ui_kit.icons import _ICON_PAINTERS
 
 BG = Theme.WINDOW_BG

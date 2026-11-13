@@ -2,9 +2,8 @@
 
 import tkinter as tk
 
+import kit as uk
 import pytest
-
-from hams import ui_kit as uk
 
 
 @pytest.fixture
