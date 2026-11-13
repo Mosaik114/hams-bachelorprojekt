@@ -4,7 +4,7 @@ import tkinter as tk
 
 import kit as uk
 import pytest
-from conftest import fokus_erzwingen
+from conftest import force_focus
 from kit import (
     GroupSurface,
     Height,
@@ -25,7 +25,7 @@ def window(root):
     win.configure(bg=BG)
     win.deiconify()
     win.lift()
-    fokus_erzwingen(win, root)  # ohne echten Fokus kommen Tastenereignisse nicht an
+    force_focus(win, root)  # ohne echten Fokus kommen Tastenereignisse nicht an
     root.update()
     yield win
     win.destroy()

@@ -15,7 +15,7 @@ import tkinter as tk
 
 import kit as uk
 import pytest
-from conftest import fokus_erzwingen
+from conftest import force_focus
 from kit import IconButton, Option, SecondaryButton, Select, SettingRow, State, StatusDot, Switch, Theme
 
 
@@ -26,14 +26,14 @@ def window(root):
     win.configure(bg=Theme.WINDOW_BG)
     win.deiconify()
     win.lift()
-    fokus_erzwingen(win, root)
+    force_focus(win, root)
     yield win
     win.destroy()
     root.update()
 
 
-def _zeile(master, root, control_bauen, **kwargs):
-    zeile = SettingRow(
+def _row(master, root, control_bauen, **kwargs):
+    row = SettingRow(
         master,
         "Text-Cleanup",
         variant="description",
@@ -42,11 +42,11 @@ def _zeile(master, root, control_bauen, **kwargs):
         command=lambda: None,
         **kwargs,
     )
-    zeile.pack(fill="x")
+    row.pack(fill="x")
     control = control_bauen(master)
-    zeile.set_control(control)
+    row.set_control(control)
     root.update()
-    return zeile, control
+    return row, control
 
 
 # ------------------------------------------------------- Das Rechteck
@@ -54,55 +54,55 @@ def _zeile(master, root, control_bauen, **kwargs):
 
 class TestTheControlFollowsTheRow:
     def test_a_switch_shares_the_hovered_surface(self, window, root):
-        zeile, schalter = _zeile(
+        row, switch = _row(
             window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
         )
-        assert schalter.cget("bg") == Theme.GROUP_SURFACE
+        assert switch.cget("bg") == Theme.GROUP_SURFACE
 
-        zeile._on_enter()
+        row._on_enter()
         root.update()
-        assert zeile._line.cget("bg") == Theme.CONTROL_SURFACE
-        assert schalter.cget("bg") == Theme.CONTROL_SURFACE, (
+        assert row._line.cget("bg") == Theme.CONTROL_SURFACE
+        assert switch.cget("bg") == Theme.CONTROL_SURFACE, (
             "sonst steht der Schalter als Rechteck der alten Farbe in der Zeile"
         )
 
     def test_the_switch_also_remembers_the_new_underground(self, window, root):
         """`_bg_under` malt die Ecken aus — ohne Nachziehen blieben sie alt."""
-        zeile, schalter = _zeile(
+        row, switch = _row(
             window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
         )
-        zeile._on_enter()
+        row._on_enter()
         root.update()
-        assert schalter._bg_under == Theme.CONTROL_SURFACE
+        assert switch._bg_under == Theme.CONTROL_SURFACE
 
     def test_leaving_puts_the_group_surface_back(self, window, root):
-        zeile, schalter = _zeile(
+        row, switch = _row(
             window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=False, command=lambda _v: None)
         )
-        zeile._on_enter()
+        row._on_enter()
         root.update()
-        zeile._on_leave()
+        row._on_leave()
         root.update()
-        assert schalter.cget("bg") == Theme.GROUP_SURFACE
-        assert schalter._bg_under == Theme.GROUP_SURFACE
+        assert switch.cget("bg") == Theme.GROUP_SURFACE
+        assert switch._bg_under == Theme.GROUP_SURFACE
 
     def test_it_works_for_a_select_too(self, window, root):
-        zeile, feld = _zeile(
+        row, feld = _row(
             window, root, lambda m: Select(m, bg_under=Theme.GROUP_SURFACE, options=[Option("a", "A")], value="a")
         )
-        zeile._on_enter()
+        row._on_enter()
         root.update()
         assert feld.cget("bg") == Theme.CONTROL_SURFACE
         assert feld._bg_under == Theme.CONTROL_SURFACE
 
     def test_a_disabled_row_keeps_its_control_on_the_group_surface(self, window, root):
-        zeile, schalter = _zeile(
+        row, switch = _row(
             window, root, lambda m: Switch(m, bg_under=Theme.GROUP_SURFACE, value=True, command=lambda _v: None)
         )
-        zeile.set_enabled(False)
-        zeile._on_enter()
+        row.set_enabled(False)
+        row._on_enter()
         root.update()
-        assert schalter.cget("bg") == Theme.GROUP_SURFACE
+        assert switch.cget("bg") == Theme.GROUP_SURFACE
 
 
 class TestSetSurfaceUnder:
@@ -110,8 +110,8 @@ class TestSetSurfaceUnder:
         """Die Löschen-Rückfrage ist ein Rahmen mit zwei Schaltflächen darin."""
         rahmen = tk.Frame(window, bg=Theme.GROUP_SURFACE)
         rahmen.pack()
-        knopf = SecondaryButton(rahmen, "Löschen", lambda: None, bg_under=Theme.GROUP_SURFACE, role="recording")
-        knopf.pack(side="left")
+        button = SecondaryButton(rahmen, "Löschen", lambda: None, bg_under=Theme.GROUP_SURFACE, role="recording")
+        button.pack(side="left")
         kreuz = IconButton(rahmen, "close", lambda: None, bg_under=Theme.GROUP_SURFACE)
         kreuz.pack(side="left")
         root.update()
@@ -119,7 +119,7 @@ class TestSetSurfaceUnder:
         uk.set_surface_under(rahmen, Theme.CONTROL_SURFACE)
         root.update()
         assert rahmen.cget("bg") == Theme.CONTROL_SURFACE
-        assert knopf._bg_under == Theme.CONTROL_SURFACE
+        assert button._bg_under == Theme.CONTROL_SURFACE
         assert kreuz._bg_under == Theme.CONTROL_SURFACE
 
     def test_a_widget_without_a_remembered_underground_is_left_alone(self, window, root):
@@ -143,71 +143,71 @@ class TestSetSurfaceUnder:
 
 
 class TestFocusRingOnlyForTheKeyboard:
-    def _schalter(self, window, root):
-        schalter = Switch(window, bg_under=Theme.WINDOW_BG, value=False, command=lambda _v: None)
-        schalter.pack(pady=10)
+    def _switch(self, window, root):
+        switch = Switch(window, bg_under=Theme.WINDOW_BG, value=False, command=lambda _v: None)
+        switch.pack(pady=10)
         root.update()
-        return schalter
+        return switch
 
     def test_a_click_does_not_draw_the_ring(self, window, root):
-        schalter = self._schalter(window, root)
-        schalter.event_generate("<ButtonPress-1>", x=10, y=10)
-        schalter.event_generate("<ButtonRelease-1>", x=10, y=10)
+        switch = self._switch(window, root)
+        switch.event_generate("<ButtonPress-1>", x=10, y=10)
+        switch.event_generate("<ButtonRelease-1>", x=10, y=10)
         root.update()
-        assert not schalter.has_state(State.FOCUSED)
-        assert schalter.ring() is None
+        assert not switch.has_state(State.FOCUSED)
+        assert switch.ring() is None
 
     def test_the_keyboard_still_draws_it(self, window, root):
         """Ohne Ring wüsste beim Tabulieren niemand, wo er steht."""
-        schalter = self._schalter(window, root)
-        schalter.focus_set()
+        switch = self._switch(window, root)
+        switch.focus_set()
         root.update()
-        assert schalter.has_state(State.FOCUSED)
-        assert schalter.ring() == Theme.ACCENT_TINT
+        assert switch.has_state(State.FOCUSED)
+        assert switch.ring() == Theme.ACCENT_TINT
 
     def test_a_click_still_gives_the_widget_the_real_focus(self, window, root):
         """Nur die Anzeige entfällt — Leertaste und Eingabe müssen wirken."""
-        schalter = self._schalter(window, root)
-        schalter.event_generate("<ButtonPress-1>", x=10, y=10)
-        schalter.event_generate("<ButtonRelease-1>", x=10, y=10)
+        switch = self._switch(window, root)
+        switch.event_generate("<ButtonPress-1>", x=10, y=10)
+        switch.event_generate("<ButtonRelease-1>", x=10, y=10)
         root.update()
-        assert schalter.focus_get() is schalter
-        vorher = schalter.value
-        schalter.event_generate("<space>")
+        assert switch.focus_get() is switch
+        before = switch.value
+        switch.event_generate("<space>")
         root.update()
-        assert schalter.value is not vorher
+        assert switch.value is not before
 
     def test_tabbing_away_and_back_shows_the_ring_again(self, window, root):
-        schalter = self._schalter(window, root)
-        anderer = self._schalter(window, root)
-        schalter.event_generate("<ButtonPress-1>", x=10, y=10)
-        schalter.event_generate("<ButtonRelease-1>", x=10, y=10)
+        switch = self._switch(window, root)
+        other = self._switch(window, root)
+        switch.event_generate("<ButtonPress-1>", x=10, y=10)
+        switch.event_generate("<ButtonRelease-1>", x=10, y=10)
         root.update()
-        assert schalter.ring() is None
-        anderer.focus_set()
+        assert switch.ring() is None
+        other.focus_set()
         root.update()
-        schalter.focus_set()
+        switch.focus_set()
         root.update()
-        assert schalter.ring() == Theme.ACCENT_TINT, "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten"
+        assert switch.ring() == Theme.ACCENT_TINT, "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten"
 
     def test_it_holds_for_buttons_as_well(self, window, root):
-        knopf = SecondaryButton(window, "Neu starten", lambda: None, bg_under=Theme.WINDOW_BG)
-        knopf.pack()
-        nachbar = self._schalter(window, root)
+        button = SecondaryButton(window, "Neu starten", lambda: None, bg_under=Theme.WINDOW_BG)
+        button.pack()
+        nachbar = self._switch(window, root)
         root.update()
 
-        knopf.event_generate("<ButtonPress-1>", x=5, y=5)
-        knopf.event_generate("<ButtonRelease-1>", x=5, y=5)
+        button.event_generate("<ButtonPress-1>", x=5, y=5)
+        button.event_generate("<ButtonRelease-1>", x=5, y=5)
         root.update()
-        assert knopf.ring() is None
+        assert button.ring() is None
 
         # Erst weg, dann wieder hin: ein `focus_set()` auf das bereits
         # fokussierte Widget erzeugt kein FocusIn und damit auch keinen Ring.
         nachbar.focus_set()
         root.update()
-        knopf.focus_set()
+        button.focus_set()
         root.update()
-        assert knopf.ring() == Theme.ACCENT_TINT
+        assert button.ring() == Theme.ACCENT_TINT
 
     def test_the_select_behaves_the_same(self, window, root):
         feld = Select(window, bg_under=Theme.WINDOW_BG, options=[Option("a", "A")], value="a")

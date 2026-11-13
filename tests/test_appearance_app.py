@@ -42,8 +42,8 @@ MODES = list(Theme.MODES)
 
 class TestDpi:
     @pytest.mark.parametrize("dpi", [96, 120, 144, 192])
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_both_modes_survive_every_scaling(self, surface, root, monkeypatch, dpi, ziel):
+    @pytest.mark.parametrize("target", MODES)
+    def test_both_modes_survive_every_scaling(self, surface, root, monkeypatch, dpi, target):
         """100 %, 125 %, 150 % und 200 % — in beiden Modi.
 
         Geprüft wird, dass Umschalten und Skalieren einander nicht in die Quere
@@ -51,18 +51,18 @@ class TestDpi:
         zeichnen dieselben Bauteile neu.
         """
         monkeypatch.setattr(uk.Scale, "dpi", uk.Scale.dpi, raising=False)
-        vorher_dpi, vorher_faktor = uk.Scale.dpi, uk.Scale.factor
+        dpi_before, factor_before = uk.Scale.dpi, uk.Scale.factor
         try:
             uk.Scale.apply(root, dpi)
-            wechsel(surface["window"], ziel, root)
-            palette = Theme.palette(ziel)
+            wechsel(surface["window"], target, root)
+            palette = Theme.palette(target)
             assert surface["group"].body.cget("bg") == palette["GROUP_SURFACE"]
             assert surface["primary"]._bg_under == palette["WINDOW_BG"]
             assert surface["select"].winfo_exists()
             assert uk.Scale.dpi == dpi
         finally:
-            uk.Scale.dpi, uk.Scale.factor = vorher_dpi, vorher_faktor
-            uk.Scale.apply(root, vorher_dpi)
+            uk.Scale.dpi, uk.Scale.factor = dpi_before, factor_before
+            uk.Scale.apply(root, dpi_before)
 
 
 # --------------------------------------------------------------- Tastatur
@@ -70,13 +70,13 @@ class TestDpi:
 
 class TestKeyboard:
     def test_the_appearance_select_is_fully_operable_by_keyboard(self, window, root):
-        gewaehlt = []
+        chosen = []
         select = Select(
             window,
             bg_under=Theme.WINDOW_BG,
             options=[Option(Theme.LIGHT, "Hell"), Option(Theme.DARK, "Dunkel")],
             value=Theme.LIGHT,
-            on_change=gewaehlt.append,
+            on_change=chosen.append,
         )
         select.pack()
         root.update()
@@ -94,18 +94,18 @@ class TestKeyboard:
         Popover.current.event_generate("<Return>")
         root.update()
 
-        assert gewaehlt == [Theme.DARK]
+        assert chosen == [Theme.DARK]
         assert select.value == Theme.DARK
         assert Popover.current is None
 
     def test_escape_closes_without_choosing(self, window, root):
-        gewaehlt = []
+        chosen = []
         select = Select(
             window,
             bg_under=Theme.WINDOW_BG,
             options=[Option(Theme.LIGHT, "Hell"), Option(Theme.DARK, "Dunkel")],
             value=Theme.LIGHT,
-            on_change=gewaehlt.append,
+            on_change=chosen.append,
         )
         select.pack()
         root.update()
@@ -115,7 +115,7 @@ class TestKeyboard:
         Popover.current.event_generate("<Escape>")
         root.update()
         assert Popover.current is None
-        assert gewaehlt == []
+        assert chosen == []
         assert select.value == Theme.LIGHT
 
     def test_the_select_takes_focus(self, window, root):
@@ -162,29 +162,29 @@ class TestApplicationWiring:
     def test_choosing_persists_before_it_switches(self, monkeypatch):
         """Erst schreiben, dann umschalten — sonst fiele ein Schreibfehler
         mitten in einen halb neu gezeichneten Baum."""
-        ablauf = []
+        sequence = []
         monkeypatch.setattr(
-            settings_window_mod, "_persist_config_value", lambda *a: ablauf.append(("schreiben", a[2])) or True
+            settings_window_mod, "_persist_config_value", lambda *a: sequence.append(("schreiben", a[2])) or True
         )
 
         class _App:
             def set_appearance(self, mode):
-                ablauf.append(("umschalten", mode))
+                sequence.append(("umschalten", mode))
 
-        fenster = SettingsWindow.__new__(SettingsWindow)
-        fenster.app = _App()
+        widget_window = SettingsWindow.__new__(SettingsWindow)
+        widget_window.app = _App()
         Theme.apply(Theme.LIGHT)
-        SettingsWindow._select_appearance(fenster, Theme.DARK)
-        assert ablauf == [("schreiben", "dark"), ("umschalten", "dark")]
+        SettingsWindow._select_appearance(widget_window, Theme.DARK)
+        assert sequence == [("schreiben", "dark"), ("umschalten", "dark")]
 
     def test_choosing_the_current_mode_does_nothing(self, monkeypatch):
-        ablauf = []
-        monkeypatch.setattr(settings_window_mod, "_persist_config_value", lambda *a: ablauf.append(a) or True)
-        fenster = SettingsWindow.__new__(SettingsWindow)
-        fenster.app = None
+        sequence = []
+        monkeypatch.setattr(settings_window_mod, "_persist_config_value", lambda *a: sequence.append(a) or True)
+        widget_window = SettingsWindow.__new__(SettingsWindow)
+        widget_window.app = None
         Theme.apply(Theme.LIGHT)
-        SettingsWindow._select_appearance(fenster, Theme.LIGHT)
-        assert ablauf == []
+        SettingsWindow._select_appearance(widget_window, Theme.LIGHT)
+        assert sequence == []
 
 
 # ---------------------------------------------------------------- Branding
@@ -196,13 +196,11 @@ class TestTrayStaysIndependent:
     def test_the_tray_colours_do_not_follow_the_app_theme(self):
         Theme.apply(Theme.LIGHT)
         hell = {
-            zustand: FloatingTranscriberApp._tray_colour(zustand)
-            for zustand in ("ready", "recording", "generating", "error")
+            state: FloatingTranscriberApp._tray_colour(state) for state in ("ready", "recording", "generating", "error")
         }
         Theme.apply(Theme.DARK)
         dunkel = {
-            zustand: FloatingTranscriberApp._tray_colour(zustand)
-            for zustand in ("ready", "recording", "generating", "error")
+            state: FloatingTranscriberApp._tray_colour(state) for state in ("ready", "recording", "generating", "error")
         }
         assert hell == dunkel
 
@@ -216,8 +214,8 @@ class TestTrayStaysIndependent:
     def test_the_tray_image_is_built_in_both_modes(self):
         for modus in MODES:
             Theme.apply(modus)
-            bild = tray_mod._create_tray_icon_image()
-            assert bild.size[0] > 0 and bild.mode == "RGBA"
+            image = tray_mod._create_tray_icon_image()
+            assert image.size[0] > 0 and image.mode == "RGBA"
 
     def test_the_tray_mask_is_untouched_by_the_theme(self):
         """Die Bildmarke bleibt dieselbe Datei — nur die Farbe kommt von aussen."""

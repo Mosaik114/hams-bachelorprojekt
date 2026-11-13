@@ -63,15 +63,15 @@ def xdg_trigger(combo: str) -> str | None:
     """„ctrl+shift+space“ -> „CTRL+SHIFT+space“ (Schreibweise der XDG-Kurzbefehle)."""
     parts = []
     key = None
-    for teil in (t.strip().lower() for t in combo.split("+")):
-        if teil in _MODS:
-            parts.append(_MODS[teil])
-        elif key is None and teil in _KEYS:
-            key = _KEYS[teil]
-        elif key is None and len(teil) == 1 and teil.isascii() and teil.isalnum():
-            key = teil
-        elif key is None and teil[:1] == "f" and teil[1:].isdigit():
-            key = teil.upper()
+    for part in (t.strip().lower() for t in combo.split("+")):
+        if part in _MODS:
+            parts.append(_MODS[part])
+        elif key is None and part in _KEYS:
+            key = _KEYS[part]
+        elif key is None and len(part) == 1 and part.isascii() and part.isalnum():
+            key = part
+        elif key is None and part[:1] == "f" and part[1:].isdigit():
+            key = part.upper()
         else:
             return None
     return "+".join(parts + [key]) if key else None
@@ -100,7 +100,7 @@ class PortalHotkeys:
             try:
                 self._run(entries, ready, result)
             except Exception:
-                logger.exception("Portal-Kurzbefehle fehlgeschlagen")
+                logger.exception("Portal shortcuts failed")
                 result["failed"] = [combo for _, _, combo, _ in entries]
                 ready.set()
 
@@ -120,12 +120,12 @@ class PortalHotkeys:
         # lokal festhalten: stop() darf self._loop leeren, während dieser Faden noch vor run() steht
         loop = self._loop = GLib.MainLoop.new(context, False)
         self._bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        self._anfragen = 0
+        self._request_count = 0
         self._entries, self._ready, self._result = entries, ready, result
-        self._anmelden()
-        self._bus.signal_subscribe(BUS, IFACE, "Activated", PATH, None, Gio.DBusSignalFlags.NONE, self._gedrueckt)
-        self._shortcuts = self._kurzbefehle(entries, result)
-        self._anfrage(
+        self._open_session()
+        self._bus.signal_subscribe(BUS, IFACE, "Activated", PATH, None, Gio.DBusSignalFlags.NONE, self._on_activated)
+        self._shortcuts = self._shortcut_list(entries, result)
+        self._call_portal(
             "CreateSession",
             lambda token: GLib.Variant(
                 "(a{sv})",
@@ -136,12 +136,12 @@ class PortalHotkeys:
                     },
                 ),
             ),
-            self._erstellt,
+            self._on_session_created,
         )
         loop.run()
         context.pop_thread_default()
 
-    def _anmelden(self) -> None:
+    def _open_session(self) -> None:
         """Ohne Anmeldung kennt das Portal das Programm nicht und KDE kann die Befehle keinem Eintrag im Startmenue
         zuordnen."""
         from gi.repository import Gio, GLib
@@ -159,14 +159,14 @@ class PortalHotkeys:
                 None,
             )
         except GLib.Error as exc:
-            logger.info("Portal-Registry: %s", exc.message)
+            logger.info("Portal registry: %s", exc.message)
 
-    def _anfrage(self, method: str, params_for, on_done) -> None:
+    def _call_portal(self, method: str, params_for, on_done) -> None:
         """Portal-Muster: erst auf `Response` am Request-Objekt lauschen, dann rufen."""
         from gi.repository import Gio
 
         bus = self._bus
-        self._anfragen += 1
+        self._request_count += 1
         token = f"hams{self._anfragen}"
         path = f"{PATH}/request/{bus.get_unique_name()[1:].replace('.', '_')}/{token}"
         sub = [0]
@@ -181,16 +181,16 @@ class PortalHotkeys:
         )
         bus.call(BUS, PATH, IFACE, method, params_for(token), None, Gio.DBusCallFlags.NONE, -1, None, None)
 
-    def _gedrueckt(self, _c, _s, _p, _i, _sig, params) -> None:
+    def _on_activated(self, _c, _s, _p, _i, _sig, params) -> None:
         _session, shortcut_id, _ts, _opts = params.unpack()
         handler = self._handlers.get(shortcut_id)
         if handler is not None:
             try:
                 handler()
             except Exception:
-                logger.exception("Kurzbefehl-Handler fehlgeschlagen")
+                logger.exception("Shortcut handler failed")
 
-    def _kurzbefehle(self, entries, result: dict) -> list:
+    def _shortcut_list(self, entries, result: dict) -> list:
         """Handler merken und die Liste für BindShortcuts bauen; unbekannte Tasten landen in result["failed"]."""
         from gi.repository import GLib
 
@@ -206,30 +206,30 @@ class PortalHotkeys:
             shortcuts.append((sid, opts))
         return shortcuts
 
-    def _erstellt(self, code: int, results: dict) -> None:
+    def _on_session_created(self, code: int, results: dict) -> None:
         from gi.repository import GLib
 
         if code != 0:
-            logger.error("Portal-Sitzung abgelehnt (Antwort %s)", code)
+            logger.error("Portal session refused (response %s)", code)
             self._result["failed"] = [combo for _, _, combo, _ in self._entries]
             self._ready.set()
             return
         session = results["session_handle"]
-        self._anfrage(
+        self._call_portal(
             "BindShortcuts",
             lambda token: GLib.Variant(
                 "(oa(sa{sv})sa{sv})", (session, self._shortcuts, "", {"handle_token": GLib.Variant("s", token)})
             ),
-            self._gebunden,
+            self._on_bound,
         )
 
-    def _gebunden(self, code: int, results: dict) -> None:
+    def _on_bound(self, code: int, results: dict) -> None:
         if code != 0:
-            logger.error("Kurzbefehle abgelehnt (Antwort %s)", code)
+            logger.error("Shortcuts refused (response %s)", code)
             self._result["failed"] = [combo for _, _, combo, _ in self._entries]
         else:
             for sid, info in results.get("shortcuts", []):
-                logger.info("Kurzbefehl %s: %s", sid, info.get("trigger_description", "?"))
+                logger.info("Shortcut %s: %s", sid, info.get("trigger_description", "?"))
         self._ready.set()
 
     def stop(self) -> None:

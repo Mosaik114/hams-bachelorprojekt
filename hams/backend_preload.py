@@ -28,26 +28,26 @@ CUDA_LIBRARY_PACKAGES = (
 )
 
 
-def _paket_verzeichnis(paket: str, unterordner: str) -> Path | None:
+def _package_dir(package: str, subfolder: str) -> Path | None:
     """Wo ein Paket liegt — ohne es zu importieren.
 
     `find_spec` liest nur die Metadaten, es laeuft kein Code des Pakets.
     """
     try:
-        spec = importlib.util.find_spec(paket)
+        spec = importlib.util.find_spec(package)
     except (ImportError, ValueError, ModuleNotFoundError):
         return None
     if spec is None:
         return None
-    wurzel = spec.origin
-    if wurzel is None:  # Namensraum-Paket wie "nvidia"
-        orte = list(getattr(spec, "submodule_search_locations", []) or [])
-        if not orte:
+    root = spec.origin
+    if root is None:  # Namensraum-Paket wie "nvidia"
+        places = list(getattr(spec, "submodule_search_locations", []) or [])
+        if not places:
             return None
-        ordner = Path(orte[0]) / unterordner
+        folder = Path(places[0]) / subfolder
     else:
-        ordner = Path(wurzel).parent / unterordner
-    return ordner if ordner.is_dir() else None
+        folder = Path(root).parent / subfolder
+    return folder if folder.is_dir() else None
 
 
 def add_cuda_libraries() -> tuple[str, ...]:
@@ -60,30 +60,29 @@ def add_cuda_libraries() -> tuple[str, ...]:
     """
     if sys.platform != "win32":
         return _preload_cuda_libraries_linux()
-    angemeldet: list[str] = []
-    for paket, unterordner in CUDA_LIBRARY_PACKAGES:
-        ordner = _paket_verzeichnis(paket, unterordner)
-        if ordner is not None and _register_dll_directory(ordner):
-            angemeldet.append(str(ordner))
-    heruntergeladen = _downloaded_cuda_dir()
-    if heruntergeladen is not None and _register_dll_directory(heruntergeladen):
-        angemeldet.append(str(heruntergeladen))
-    if not angemeldet:
+    registered: list[str] = []
+    for package, subfolder in CUDA_LIBRARY_PACKAGES:
+        folder = _package_dir(package, subfolder)
+        if folder is not None and _register_dll_directory(folder):
+            registered.append(str(folder))
+    downloaded = _downloaded_cuda_dir()
+    if downloaded is not None and _register_dll_directory(downloaded):
+        registered.append(str(downloaded))
+    if not registered:
         logger.warning(
-            "Keine CUDA-Bibliotheken gefunden — Transkription "
-            "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
-            "nvidia-cudnn-cu12 (installiert: Hams.exe --install-gpu-support)?"
+            "No CUDA libraries found - transcription runs on the CPU. Missing nvidia-cublas-cu12 / nvidia-cudnn-cu12 "
+            "(install: Hams.exe --install-gpu-support)?"
         )
     _preload_cuda_libraries_windows()
-    return tuple(angemeldet)
+    return tuple(registered)
 
 
-def _register_dll_directory(ordner: Path) -> bool:
+def _register_dll_directory(folder: Path) -> bool:
     """`os.add_dll_directory` ohne Absturz: ein verschwundener oder gesperrter Ordner kostet nur die GPU."""
     try:
-        os.add_dll_directory(str(ordner))
+        os.add_dll_directory(str(folder))
     except OSError:
-        logger.warning("CUDA-Bibliotheken unter %s nicht anmeldbar", ordner, exc_info=True)
+        logger.warning("CUDA libraries in %s could not be registered", folder, exc_info=True)
         return False
     return True
 
@@ -95,9 +94,9 @@ def _downloaded_cuda_dir() -> Path | None:
     return gpu_support.installed_dir()
 
 
-def _windows_library_dir(paket: str) -> Path | None:
+def _windows_library_dir(package: str) -> Path | None:
     """Erst das pip-Paket (Quellinstallation), dann der Download des installierten Programms."""
-    return _paket_verzeichnis(paket, "bin") or _downloaded_cuda_dir()
+    return _package_dir(package, "bin") or _downloaded_cuda_dir()
 
 
 def cuda_libraries_found() -> bool:
@@ -130,15 +129,15 @@ def _preload_cuda_libraries_windows() -> None:
     """
     import ctypes
 
-    for paket, dateien in CUDA_LIBRARIES_WINDOWS:
-        ordner = _windows_library_dir(paket)
-        if ordner is None:
+    for package, files in CUDA_LIBRARIES_WINDOWS:
+        folder = _windows_library_dir(package)
+        if folder is None:
             continue
-        for datei in dateien:
+        for file in files:
             try:
-                ctypes.WinDLL(str(ordner / datei))
+                ctypes.WinDLL(str(folder / file))
             except OSError:
-                logger.warning("CUDA-Bibliothek %s nicht ladbar", ordner / datei)
+                logger.warning("CUDA library %s could not be loaded", folder / file)
 
 
 #: Unter Linux: Paket -> Bibliotheken, in dieser Reihenfolge geladen.
@@ -158,23 +157,21 @@ def _preload_cuda_libraries_linux() -> tuple[str, ...]:
     """
     import ctypes
 
-    geladen: list[str] = []
-    for paket, dateien in CUDA_LIBRARIES_LINUX:
-        ordner = _paket_verzeichnis(paket, "lib")
-        if ordner is None:
+    loaded: list[str] = []
+    for package, files in CUDA_LIBRARIES_LINUX:
+        folder = _package_dir(package, "lib")
+        if folder is None:
             continue
-        for datei in dateien:
+        for file in files:
             try:
-                ctypes.CDLL(str(ordner / datei), mode=ctypes.RTLD_GLOBAL)
+                ctypes.CDLL(str(folder / file), mode=ctypes.RTLD_GLOBAL)
             except OSError:
-                logger.warning("CUDA-Bibliothek %s nicht ladbar", ordner / datei)
+                logger.warning("CUDA library %s could not be loaded", folder / file)
             else:
-                if str(ordner) not in geladen:
-                    geladen.append(str(ordner))
-    if not geladen:
+                if str(folder) not in loaded:
+                    loaded.append(str(folder))
+    if not loaded:
         logger.warning(
-            "Keine CUDA-Bibliotheken gefunden — Transkription "
-            "laeuft auf der CPU. Fehlt nvidia-cublas-cu12 / "
-            "nvidia-cudnn-cu12?"
+            "No CUDA libraries found - transcription runs on the CPU. Missing nvidia-cublas-cu12 / nvidia-cudnn-cu12?"
         )
-    return tuple(geladen)
+    return tuple(loaded)

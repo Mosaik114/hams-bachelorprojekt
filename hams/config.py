@@ -243,7 +243,7 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
     try:
         text = read_toml_text(CONFIG_PATH)
     except OSError:
-        logger.warning("Config schreiben fehlgeschlagen: %s nicht lesbar", CONFIG_PATH)
+        logger.warning("Config not written: %s unreadable", CONFIG_PATH)
         return False
     except TomlEncodingError as exc:
         # Nie in eine Datei schreiben, die nicht UTF-8 ist: das Beenden und Verstecken haengt daran.
@@ -274,7 +274,7 @@ def _atomic_write(text: str) -> bool:
         os.replace(tmp_path, CONFIG_PATH)
         return True
     except OSError:
-        logger.exception("Config schreiben fehlgeschlagen")
+        logger.exception("Config not written")
         with contextlib.suppress(OSError):
             tmp_path.unlink(missing_ok=True)
         return False
@@ -300,10 +300,10 @@ def migrate_legacy_user_dir(new_dir: Path, old_dir: Path | None) -> bool:
         shutil.copytree(old_dir, staging)
         os.replace(staging, new_dir)
     except (OSError, shutil.Error):
-        logger.error("Nutzerdaten aus %s liessen sich nicht nach %s kopieren", old_dir, new_dir, exc_info=True)
+        logger.error("User data could not be copied from %s to %s", old_dir, new_dir, exc_info=True)
         shutil.rmtree(staging, ignore_errors=True)
         return False
-    logger.info("Nutzerdaten aus %s nach %s kopiert (der alte Ordner bleibt unverändert)", old_dir, new_dir)
+    logger.info("User data copied from %s to %s (the old folder stays unchanged)", old_dir, new_dir)
     return True
 
 
@@ -337,15 +337,15 @@ def ensure_user_config() -> str:
         # Bewusst kein Rückfall auf die Projektdatei: persönliche Werte gehören
         # nicht in den Programmordner, auch nicht im Notfall.
         logger.error(
-            "Nutzerkonfiguration %s liess sich nicht anlegen — Einstellungen sind in dieser Sitzung nicht speicherbar",
+            "User configuration %s could not be created - settings cannot be saved in this session",
             CONFIG_PATH,
             exc_info=True,
         )
         return CONFIG_FAILED
     if source is LEGACY_CONFIG_PATH:
-        logger.info("Konfiguration aus %s nach %s übernommen", LEGACY_CONFIG_PATH, CONFIG_PATH)
+        logger.info("Configuration taken over from %s to %s", LEGACY_CONFIG_PATH, CONFIG_PATH)
         return CONFIG_MIGRATED
-    logger.info("Neue Konfiguration unter %s angelegt", CONFIG_PATH)
+    logger.info("New configuration created at %s", CONFIG_PATH)
     return CONFIG_CREATED
 
 

@@ -41,22 +41,22 @@ import keyboard._winkeyboard  # noqa: E402
 
 class TestWhyReRegisteringCannotHelp:
     def test_the_listener_only_initialises_while_it_is_not_listening(self):
-        quelle = inspect.getsource(keyboard._generic.GenericListener.start_if_necessary)
-        assert "if not self.listening:" in quelle
-        assert "self.init()" in quelle
+        source = inspect.getsource(keyboard._generic.GenericListener.start_if_necessary)
+        assert "if not self.listening:" in source
+        assert "self.init()" in source
 
     def test_unhooking_everything_leaves_the_listener_listening(self):
         """Der Kern des Problems: `unhook_all` raeumt Handler, nicht den Hook."""
-        quelle = inspect.getsource(keyboard.unhook_all)
-        assert "listening" not in quelle, (
+        source = inspect.getsource(keyboard.unhook_all)
+        assert "listening" not in source, (
             "Die Bibliothek setzt `listening` jetzt zurueck — dann liesse sich "
             "der Hook doch im Prozess erneuern und der Neustart-Knopf braeuchte "
             "eine neue Begruendung."
         )
 
     def test_adding_a_hotkey_goes_through_start_if_necessary(self):
-        quelle = inspect.getsource(keyboard.hook)
-        assert "start_if_necessary" in quelle or "add_handler" in quelle
+        source = inspect.getsource(keyboard.hook)
+        assert "start_if_necessary" in source or "add_handler" in source
 
     def test_there_is_no_public_way_to_reinstall_the_hook(self):
         oeffentlich = {name for name in dir(keyboard) if not name.startswith("_")}
@@ -71,12 +71,12 @@ class TestWhyALivenessCheckWouldMislead:
         Darum meldet die Anwendung nicht „Kurzbefehle gestoert" — sie koennte
         es nicht wissen, und eine falsche Entwarnung waere schlimmer als keine.
         """
-        quelle = inspect.getsource(keyboard._winkeyboard.listen)
-        assert "GetMessage" in quelle
-        assert "while" in quelle
+        source = inspect.getsource(keyboard._winkeyboard.listen)
+        assert "GetMessage" in source
+        assert "while" in source
         # Nichts darin prueft, ob der Hook noch steht.
-        assert "SetWindowsHookEx" not in quelle
+        assert "SetWindowsHookEx" not in source
 
     def test_the_hook_is_installed_once_per_listener_start(self):
-        quelle = inspect.getsource(keyboard._winkeyboard.prepare_intercept)
-        assert "SetWindowsHookEx" in quelle
+        source = inspect.getsource(keyboard._winkeyboard.prepare_intercept)
+        assert "SetWindowsHookEx" in source

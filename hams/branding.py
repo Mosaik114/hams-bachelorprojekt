@@ -63,7 +63,7 @@ def _load_mask(size: int) -> Image.Image | None:
         with Image.open(path) as image:
             mask = image.convert("RGBA").getchannel("A")
     except (OSError, ValueError):
-        logger.warning("Bildmarke %s nicht lesbar", path, exc_info=True)
+        logger.warning("Brand mark %s unreadable", path, exc_info=True)
         return None
     if mask.size != (size, size):
         mask = mask.resize((size, size), Image.LANCZOS)
@@ -103,5 +103,5 @@ def app_icon_image(size: int = 64) -> Image.Image | None:
         with Image.open(path) as image:
             return image.convert("RGBA").resize((size, size), Image.LANCZOS)
     except (OSError, ValueError):
-        logger.warning("App-Symbol %s nicht lesbar", path, exc_info=True)
+        logger.warning("App icon %s unreadable", path, exc_info=True)
         return None

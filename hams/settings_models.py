@@ -113,7 +113,7 @@ class ModelSectionMixin:
         if model_id not in self._installed_models:
             self._begin_download(model_id)
             return
-        logger.info("Whisper-Modell gewählt: %s", model_id)
+        logger.info("Whisper model chosen: %s", model_id)
         self.model_select.set_value(model_id)
         if self.app.switch_model(model_id):
             self.model_select.set_enabled(False)
@@ -138,66 +138,64 @@ class ModelSectionMixin:
         * **Reste abgebrochener Downloads** darf man immer wegraeumen. Sie
           belegen Platz und lassen sich ohnehin nicht laden.
         """
-        aktiv = self.app.models.active_model_size
-        eingestellt = CFG.model_size
-        erlaubt = []
-        for eintrag in whisper_models.cached_whisper_models():
-            if eintrag.model_id == aktiv:
+        active_model = self.app.models.active_model_size
+        configured = CFG.model_size
+        allowed = []
+        for entry in whisper_models.cached_whisper_models():
+            if entry.model_id == active_model:
                 continue
-            if eintrag.complete and eintrag.model_id == eingestellt:
+            if entry.complete and entry.model_id == configured:
                 continue
-            erlaubt.append(eintrag)
-        return erlaubt
+            allowed.append(entry)
+        return allowed
 
     @staticmethod
-    def storage_text(bestand: list) -> str:
+    def storage_text(cached: list) -> str:
         """Eine Zeile, die sagt, wie viel auf der Platte liegt.
 
         Anzahl und Groesse statt einer Namensliste: „Turbo, Large v3, Medium,
         Tiny" lief aus der Zeile heraus, sobald mehr als zwei Modelle lagen.
         Welche es sind, steht im Auswahlfeld darueber und in der Loeschliste.
         """
-        if not bestand:
+        if not cached:
             return t("settings.storage.empty")
-        gesamt = sum(eintrag.size_bytes for eintrag in bestand)
-        return tn("settings.storage.summary", len(bestand), size=whisper_models.format_bytes(gesamt))
+        total_bytes = sum(entry.size_bytes for entry in cached)
+        return tn("settings.storage.summary", len(cached), size=whisper_models.format_bytes(total_bytes))
 
     def _refresh_storage(self) -> None:
         """Bestandszeile und Loeschauswahl neu aufbauen."""
         if not self.alive():
             return
         self._delete_target = ""
-        bestand = list(whisper_models.cached_whisper_models())
-        loeschbar = self.deletable_models()
-        self.row_storage.set_control(self.select_delete if loeschbar else None)
-        self.select_delete.set_options(
-            [uk.Option(eintrag.model_id, eintrag.label, meta=eintrag.meta) for eintrag in loeschbar]
-        )
+        cached = list(whisper_models.cached_whisper_models())
+        deletable = self.deletable_models()
+        self.row_storage.set_control(self.select_delete if deletable else None)
+        self.select_delete.set_options([uk.Option(entry.model_id, entry.label, meta=entry.meta) for entry in deletable])
         self.select_delete.set_value(None)
-        self.select_delete.set_enabled(bool(loeschbar) and not self._downloading)
-        self.row_storage.set_description(self.storage_text(bestand))
+        self.select_delete.set_enabled(bool(deletable) and not self._downloading)
+        self.row_storage.set_description(self.storage_text(cached))
 
     def _choose_delete(self, model_id: str) -> None:
         """Aus der Auswahl wird eine Rueckfrage — geloescht wird erst danach."""
-        eintrag = next((e for e in self.deletable_models() if e.model_id == model_id), None)
-        if eintrag is None:
+        entry = next((e for e in self.deletable_models() if e.model_id == model_id), None)
+        if entry is None:
             self._refresh_storage()
             return
         self._delete_target = model_id
         self.row_storage.set_control(self._delete_box)
-        self.row_storage.set_description(self.confirm_text(eintrag))
+        self.row_storage.set_description(self.confirm_text(entry))
 
     @staticmethod
-    def confirm_text(eintrag) -> str:
+    def confirm_text(entry) -> str:
         """Die Rueckfrage — je nachdem, ob etwas Brauchbares verschwindet.
 
         Bei einem abgebrochenen Download steht oft 0 B auf der Platte; „Gibt
         0 B frei" waere dort eine sinnlose Zahl. Dann zaehlt, *was* weggeht,
         nicht wie viel.
         """
-        if not eintrag.complete:
-            return t("settings.storage.confirm_partial", model=eintrag.label)
-        return t("settings.storage.confirm", model=eintrag.label, size=whisper_models.format_bytes(eintrag.size_bytes))
+        if not entry.complete:
+            return t("settings.storage.confirm_partial", model=entry.label)
+        return t("settings.storage.confirm", model=entry.label, size=whisper_models.format_bytes(entry.size_bytes))
 
     def _abort_delete(self) -> None:
         self._refresh_storage()
@@ -215,22 +213,22 @@ class ModelSectionMixin:
 
     def _delete_worker(self, model_id: str) -> None:
         try:
-            erfolg, _frei, meldung = whisper_models.delete_whisper_model(model_id)
+            ok, _free, message = whisper_models.delete_whisper_model(model_id)
         except Exception:  # noqa: BLE001 - Grenze des Threads
-            logger.exception("Modell löschen fehlgeschlagen: %s", model_id)
+            logger.exception("Deleting the model failed: %s", model_id)
             info = whisper_models.find(model_id)
-            erfolg, meldung = False, t("model.delete.failed", model=info.label if info else model_id)
-        self.app.ui_call(lambda: self._delete_done(erfolg, meldung))
+            ok, message = False, t("model.delete.failed", model=info.label if info else model_id)
+        self.app.ui_call(lambda: self._delete_done(ok, message))
 
-    def _delete_done(self, erfolg: bool, meldung: str) -> None:
+    def _delete_done(self, ok: bool, message: str) -> None:
         if not self.alive():
             return
         self.delete_button.set_enabled(True)
         self.delete_cancel.set_enabled(True)
         self._refresh_storage()
         self._refresh_models()  # der Bestand hat sich geaendert
-        self.row_storage.set_description(meldung)
-        logger.info("Modell löschen: %s", meldung)
+        self.row_storage.set_description(message)
+        logger.info("Deleting model: %s", message)
         # Die Meldung steht kurz, dann uebernimmt wieder der Bestand. Ein
         # dauerhaft stehender Satz waere nach dem naechsten Blick ins Fenster
         # nicht mehr einzuordnen.

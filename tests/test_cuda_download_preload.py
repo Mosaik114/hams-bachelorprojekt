@@ -26,7 +26,7 @@ def downloaded(tmp_path, monkeypatch):
             files[name] = 3
     manifest = {"bundle": gpu_support.bundle_id(), "files": files}
     (folder / gpu_support.MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
-    monkeypatch.setattr(backend_preload, "_paket_verzeichnis", lambda paket, unterordner: None)
+    monkeypatch.setattr(backend_preload, "_package_dir", lambda package, subfolder: None)
     return folder
 
 

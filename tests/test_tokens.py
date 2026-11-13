@@ -93,11 +93,11 @@ class TestPalettes:
 
     def test_the_two_palettes_are_not_the_same(self):
         light, dark = Theme.palette(Theme.LIGHT), Theme.palette(Theme.DARK)
-        gleich = {n for n in light if light[n] == dark[n]}
+        same = {n for n in light if light[n] == dark[n]}
         # Ein paar Toene duerfen sich decken — die Akzentfuellung und die
         # Textfarben auf gefuellten Flaechen tragen in beiden Modi denselben
         # Wert. Der Rest muss sich unterscheiden, sonst waere es kein Theme.
-        assert len(gleich) <= 6, sorted(gleich)
+        assert len(same) <= 6, sorted(same)
 
     def test_shared_values_form_the_same_groups_in_both_palettes(self):
         """Zwei Tokens mit gleichem Wert muessen ihn in beiden Modi teilen.
@@ -110,10 +110,10 @@ class TestPalettes:
         """
 
         def gruppen(palette):
-            nach_wert = {}
+            by_value = {}
             for name, value in palette.items():
-                nach_wert.setdefault(value, set()).add(name)
-            return {frozenset(g - {"ON_SUCCESS"}) for g in nach_wert.values() if len(g - {"ON_SUCCESS"}) > 1}
+                by_value.setdefault(value, set()).add(name)
+            return {frozenset(g - {"ON_SUCCESS"}) for g in by_value.values() if len(g - {"ON_SUCCESS"}) > 1}
 
         assert gruppen(Theme.palette(Theme.LIGHT)) == gruppen(Theme.palette(Theme.DARK))
 
@@ -174,8 +174,8 @@ class TestContrast:
             ("RECORDING_SURFACE", "RECORDING_HOVER", "RECORDING_PRESSED"),
             ("AI_SURFACE", "AI_HOVER", "AI_PRESSED"),
         ):
-            werte = [luminance(palette[n]) for n in (base, hover, pressed)]
-            assert werte == sorted(werte, reverse=True), f"{mode}: {base}"
+            value_list = [luminance(palette[n]) for n in (base, hover, pressed)]
+            assert value_list == sorted(value_list, reverse=True), f"{mode}: {base}"
 
 
 class TestSurfaceLadder:
@@ -189,14 +189,14 @@ class TestSurfaceLadder:
     @staticmethod
     def _leiter(mode):
         palette = Theme.palette(mode)
-        namen = ("WINDOW_BG", "GROUP_SURFACE", "CONTROL_SURFACE", "CONTROL_HOVER")
-        return [luminance(palette[n]) for n in namen]
+        names = ("WINDOW_BG", "GROUP_SURFACE", "CONTROL_SURFACE", "CONTROL_HOVER")
+        return [luminance(palette[n]) for n in names]
 
     @pytest.mark.parametrize("mode", MODES)
     def test_four_levels_step_away_from_the_window(self, mode):
-        werte = self._leiter(mode)
-        erwartet = sorted(werte) if mode == Theme.DARK else sorted(werte, reverse=True)
-        assert werte == erwartet, f"{mode}: {werte}"
+        value_list = self._leiter(mode)
+        expected = sorted(value_list) if mode == Theme.DARK else sorted(value_list, reverse=True)
+        assert value_list == expected, f"{mode}: {value_list}"
 
     @pytest.mark.parametrize("mode", MODES)
     def test_popover_sits_above_group(self, mode):

@@ -50,7 +50,7 @@ bootstrap.load()
 _REAL_NEEDS_DOWNLOAD = None
 
 
-def fokus_erzwingen(fenster, root, frist: float = 0.5) -> bool:
+def force_focus(widget_window, root, wait_seconds: float = 0.5) -> bool:
     """Holt ein Fenster in den Vordergrund und wartet, bis der Fokus da ist.
 
     `focus_force()` allein genuegt nicht. Es *bittet* den Fenstermanager um
@@ -68,8 +68,8 @@ def fokus_erzwingen(fenster, root, frist: float = 0.5) -> bool:
     Returns:
         True, wenn der Fokus innerhalb der Frist wirklich angekommen ist.
     """
-    fenster.focus_force()
-    ende = time.monotonic() + frist
+    widget_window.focus_force()
+    ende = time.monotonic() + wait_seconds
     while time.monotonic() < ende:
         root.update()
         if root.focus_displayof() is not None:

@@ -151,7 +151,7 @@ def release_lock() -> bool:
             fcntl.flock(_LOCK_FILE, fcntl.LOCK_UN)
             _LOCK_FILE.close()
         except OSError:
-            logger.exception("Sperrdatei liess sich nicht freigeben")
+            logger.exception("Lock file could not be released")
             return False
         _LOCK_FILE = None
     return True
@@ -218,7 +218,7 @@ def beep(freq: int, duration_ms: int) -> None:
 
         sd.play(chime(freq, duration_ms), CHIME_RATE, blocking=True)
     except Exception:
-        logger.debug("Ton liess sich nicht abspielen", exc_info=True)
+        logger.debug("Sound could not be played", exc_info=True)
 
 
 # ---------------------------------------------------------------- Bildschirme
@@ -242,7 +242,7 @@ def monitor_areas() -> list:
         areas.sort(key=lambda a: not a[4])
         return [a[:4] for a in areas]
     except Exception:
-        logger.debug("XRandR nicht verfuegbar", exc_info=True)
+        logger.debug("XRandR not available", exc_info=True)
         return []
 
 
@@ -316,7 +316,7 @@ class VirtualKeyboard:
             fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
         except OSError as exc:
             self.error = f"/dev/uinput: {exc.strerror}"
-            logger.error("Virtuelle Tastatur nicht moeglich (%s) — linux/setup-system.sh ausgefuehrt?", self.error)
+            logger.error("Virtual keyboard not possible (%s) - was linux/setup-system.sh run?", self.error)
             return False
         try:
             fcntl.ioctl(fd, _UI_SET_EVBIT, _EV_KEY)
@@ -330,11 +330,11 @@ class VirtualKeyboard:
         except OSError as exc:
             os.close(fd)
             self.error = f"uinput: {exc.strerror}"
-            logger.exception("Virtuelle Tastatur liess sich nicht anlegen")
+            logger.exception("Virtual keyboard could not be created")
             return False
         self._fd = fd
         self.error = None
-        logger.info("Virtuelle Tastatur angelegt")
+        logger.info("Virtual keyboard created")
         return True
 
     def _emit(self, type_: int, code: int, value: int) -> None:
@@ -359,7 +359,7 @@ class VirtualKeyboard:
                     time.sleep(0.008)
                 return True
             except OSError:
-                logger.exception("Tastendruck fehlgeschlagen")
+                logger.exception("Key press failed")
                 return False
 
     def paste(self) -> bool:
@@ -392,7 +392,7 @@ class _KeyboardShim:
         if keys is None:
             raise ValueError(f"Unknown key combination: {combo}")
         if not KEYBOARD.press_combo(*keys):
-            logger.warning("Einfuegen nicht moeglich (%s) — Text liegt in der Zwischenablage", KEYBOARD.error)
+            logger.warning("Paste not possible (%s) - the text is on the clipboard", KEYBOARD.error)
 
     def add_hotkey(self, combo: str, _callback) -> None:
         # Nur der Rueckfall, wenn das Portal eine Kombination ablehnt; unter

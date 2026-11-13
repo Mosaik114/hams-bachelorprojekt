@@ -51,13 +51,13 @@ class TestDefault:
         config_mod._apply_toml(cfg, {})
         assert cfg.appearance == Theme.LIGHT
 
-    @pytest.mark.parametrize("wert", ["", "Hell", "system", "auto", None, 3, "  "])
-    def test_an_unknown_value_falls_back_to_light(self, wert):
+    @pytest.mark.parametrize("raw_value", ["", "Hell", "system", "auto", None, 3, "  "])
+    def test_an_unknown_value_falls_back_to_light(self, raw_value):
         """Ein Tippfehler darf nie ein Fenster ohne Farben ergeben."""
-        assert Theme.normalise(wert) == Theme.LIGHT
+        assert Theme.normalise(raw_value) == Theme.LIGHT
 
     @pytest.mark.parametrize(
-        "wert,erwartet",
+        "raw_value,expected",
         [
             ("dark", Theme.DARK),
             ("DARK", Theme.DARK),
@@ -66,8 +66,8 @@ class TestDefault:
             ("Light", Theme.LIGHT),
         ],
     )
-    def test_known_values_survive_normalisation(self, wert, erwartet):
-        assert Theme.normalise(wert) == erwartet
+    def test_known_values_survive_normalisation(self, raw_value, expected):
+        assert Theme.normalise(raw_value) == expected
 
     def test_the_repository_default_is_light(self):
         from hams.config import DEFAULT_CONFIG_PATH
@@ -82,9 +82,9 @@ class TestDefault:
 class TestPersistence:
     @pytest.fixture(autouse=True)
     def restore_file(self):
-        vorher = config_mod.CFG.appearance
+        before = config_mod.CFG.appearance
         yield
-        config_mod._persist_config_value("ui", "appearance", vorher)
+        config_mod._persist_config_value("ui", "appearance", before)
 
     def test_dark_survives_a_restart(self):
         """Hell -> Dunkel, Anwendung neu starten -> Dunkel."""
@@ -109,12 +109,12 @@ class TestPersistence:
         assert config_mod._load_config().appearance == Theme.LIGHT
 
     def test_writing_does_not_disturb_the_rest_of_the_file(self):
-        vorher = config_mod._load_config()
+        before = config_mod._load_config()
         config_mod._persist_config_value("ui", "appearance", "dark")
-        nachher = config_mod._load_config()
-        assert nachher.sound_feedback == vorher.sound_feedback
-        assert nachher.model_size == vorher.model_size
-        assert nachher.hotkey_transcript == vorher.hotkey_transcript
+        after = config_mod._load_config()
+        assert after.sound_feedback == before.sound_feedback
+        assert after.model_size == before.model_size
+        assert after.hotkey_transcript == before.hotkey_transcript
 
 
 # ----------------------------------------------------------------- Palette
@@ -145,11 +145,11 @@ class TestPaletteSwitch:
 
     def test_every_token_moves(self):
         Theme.apply(Theme.DARK)
-        for name, wert in Theme.palette(Theme.DARK).items():
-            assert getattr(Theme, name) == wert
+        for name, raw_value in Theme.palette(Theme.DARK).items():
+            assert getattr(Theme, name) == raw_value
         Theme.apply(Theme.LIGHT)
-        for name, wert in Theme.palette(Theme.LIGHT).items():
-            assert getattr(Theme, name) == wert
+        for name, raw_value in Theme.palette(Theme.LIGHT).items():
+            assert getattr(Theme, name) == raw_value
 
     def test_remap_moves_a_colour_to_the_same_token(self):
         Theme.apply(Theme.LIGHT)
@@ -163,42 +163,42 @@ class TestPaletteSwitch:
 
     def test_remap_is_repeatable(self):
         Theme.apply(Theme.DARK)
-        einmal = Theme.remap(Theme.palette(Theme.LIGHT)["CONTROL_SURFACE"])
-        assert Theme.remap(einmal) == einmal
+        once = Theme.remap(Theme.palette(Theme.LIGHT)["CONTROL_SURFACE"])
+        assert Theme.remap(once) == once
 
     @pytest.mark.parametrize("fremd", ["SystemButtonFace", "#123456", "", None, 7])
     def test_remap_leaves_unknown_values_alone(self, fremd):
         assert Theme.remap(fremd) == fremd
 
     def test_callbacks_run_and_can_be_removed(self):
-        laeufe = []
-        Theme.register(lambda: laeufe.append(1))
+        runs = []
+        Theme.register(lambda: runs.append(1))
         Theme.apply(Theme.DARK)
-        assert laeufe == [1]
+        assert runs == [1]
         Theme.unregister(Theme._callbacks[-1])
         Theme.apply(Theme.LIGHT)
-        assert laeufe == [1]
+        assert runs == [1]
 
     def test_a_broken_callback_does_not_stop_the_switch(self):
-        def kaputt():
+        def broken():
             raise RuntimeError("absichtlich")
 
-        Theme.register(kaputt)
+        Theme.register(broken)
         try:
             assert Theme.apply(Theme.DARK) is True
             assert Theme.palette(Theme.DARK)["WINDOW_BG"] == Theme.WINDOW_BG
         finally:
-            Theme.unregister(kaputt)
+            Theme.unregister(broken)
 
 
 # ------------------------------------------------------------ Bauteile
 
 
 class TestEveryComponentFollows:
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_all_parts_carry_the_new_palette(self, surface, root, ziel):
-        wechsel(surface["window"], ziel, root)
-        palette = Theme.palette(ziel)
+    @pytest.mark.parametrize("target", MODES)
+    def test_all_parts_carry_the_new_palette(self, surface, root, target):
+        wechsel(surface["window"], target, root)
+        palette = Theme.palette(target)
         assert surface["window"].cget("bg") == palette["WINDOW_BG"]
         assert surface["scroll"].cget("bg") == palette["WINDOW_BG"]
         assert surface["scroll"].canvas.cget("bg") == palette["WINDOW_BG"]
@@ -219,12 +219,12 @@ class TestEveryComponentFollows:
         assert surface["icon_button"].cget("bg") == palette["WINDOW_BG"]
         assert surface["meter"].cget("bg") == palette["WINDOW_BG"]
 
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_the_remembered_underground_moves_too(self, surface, root, ziel):
+    @pytest.mark.parametrize("target", MODES)
+    def test_the_remembered_underground_moves_too(self, surface, root, target):
         """`bg_under` ist gemerkter Zustand — ohne Umschlüsselung malten die
         Controls ihre Ecken weiter in der alten Farbe aus."""
-        wechsel(surface["window"], ziel, root)
-        palette = Theme.palette(ziel)
+        wechsel(surface["window"], target, root)
+        palette = Theme.palette(target)
         assert surface["primary"]._bg_under == palette["WINDOW_BG"]
         assert surface["select"]._bg_under == palette["GROUP_SURFACE"]
         assert surface["switch"]._bg_under == palette["GROUP_SURFACE"]
@@ -232,68 +232,69 @@ class TestEveryComponentFollows:
         assert surface["meter"]._bg_under == palette["WINDOW_BG"]
         assert surface["scroll"]._bg_under == palette["WINDOW_BG"]
 
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_state_colours_follow(self, surface, root, ziel):
-        wechsel(surface["window"], ziel, root)
-        palette = Theme.palette(ziel)
+    @pytest.mark.parametrize("target", MODES)
+    def test_state_colours_follow(self, surface, root, target):
+        wechsel(surface["window"], target, root)
+        palette = Theme.palette(target)
         assert surface["primary"].colours()[0] == palette["ACCENT_SURFACE"]
         assert surface["primary"].colours()[1] == palette["ON_ACCENT"]
         assert surface["icon_button"]._hover_colour == palette["ERROR"]
         assert surface["dot"]._colour == palette["TEXT_TERTIARY"]
 
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_status_dot_shows_the_new_semantic_colour(self, surface, root, ziel):
+    @pytest.mark.parametrize("target", MODES)
+    def test_status_dot_shows_the_new_semantic_colour(self, surface, root, target):
         surface["dot"].set_status("error")
         root.update()
-        wechsel(surface["window"], ziel, root)
-        assert surface["dot"]._colour == Theme.palette(ziel)["ERROR"]
+        wechsel(surface["window"], target, root)
+        assert surface["dot"]._colour == Theme.palette(target)["ERROR"]
 
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_a_disabled_row_keeps_its_dimmed_look(self, surface, root, ziel):
+    @pytest.mark.parametrize("target", MODES)
+    def test_a_disabled_row_keeps_its_dimmed_look(self, surface, root, target):
         surface["row"].set_enabled(False)
         root.update()
-        wechsel(surface["window"], ziel, root)
-        palette = Theme.palette(ziel)
+        wechsel(surface["window"], target, root)
+        palette = Theme.palette(target)
         assert surface["row"].title_label.cget("fg") == palette["TEXT_TERTIARY"]
         assert surface["row"].sub_label.cget("fg") == palette["CONTROL_HOVER"]
         assert surface["row"].enabled is False
 
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_a_hovered_row_keeps_its_highlight(self, surface, root, ziel):
+    @pytest.mark.parametrize("target", MODES)
+    def test_a_hovered_row_keeps_its_highlight(self, surface, root, target):
         surface["row"]._on_enter()
         root.update()
-        wechsel(surface["window"], ziel, root)
-        assert surface["row"]._line.cget("bg") == Theme.palette(ziel)["CONTROL_SURFACE"]
+        wechsel(surface["window"], target, root)
+        assert surface["row"]._line.cget("bg") == Theme.palette(target)["CONTROL_SURFACE"]
 
-    @pytest.mark.parametrize("ziel", MODES)
-    def test_the_meter_redraws_its_track(self, surface, root, ziel):
-        wechsel(surface["window"], ziel, root)
+    @pytest.mark.parametrize("target", MODES)
+    def test_the_meter_redraws_its_track(self, surface, root, target):
+        wechsel(surface["window"], target, root)
         assert surface["meter"]._images, "Pegelspur fehlt nach dem Wechsel"
 
     def test_no_widget_keeps_a_colour_of_the_other_palette(self, surface, root):
         """Die eigentliche Zusage: keine halb helle, halb dunkle Oberfläche."""
-        for ziel in (Theme.DARK, Theme.LIGHT, Theme.DARK):
-            wechsel(surface["window"], ziel, root)
+        for target in (Theme.DARK, Theme.LIGHT, Theme.DARK):
+            wechsel(surface["window"], target, root)
             fremd = {
-                wert.upper() for name, wert in Theme.palette(Theme.LIGHT if ziel == Theme.DARK else Theme.DARK).items()
+                raw_value.upper()
+                for name, raw_value in Theme.palette(Theme.LIGHT if target == Theme.DARK else Theme.DARK).items()
             }
             # Werte, die in beiden Paletten vorkommen, sind kein Befund.
-            fremd -= {w.upper() for w in Theme.palette(ziel).values()}
-            uebrig = []
+            fremd -= {w.upper() for w in Theme.palette(target).values()}
+            leftover = []
 
-            def pruefe(widget, fremd=fremd, uebrig=uebrig):
+            def pruefe(widget, fremd=fremd, leftover=leftover):
                 for option in ("bg", "fg"):
                     try:
-                        wert = str(widget.cget(option))
+                        raw_value = str(widget.cget(option))
                     except (tk.TclError, TypeError):
                         continue
-                    if wert.upper() in fremd:
-                        uebrig.append((widget, option, wert))
+                    if raw_value.upper() in fremd:
+                        leftover.append((widget, option, raw_value))
                 for kind in widget.winfo_children():
-                    pruefe(kind, fremd, uebrig)
+                    pruefe(kind, fremd, leftover)
 
             pruefe(surface["window"])
-            assert not uebrig, f"{ziel}: {uebrig}"
+            assert not leftover, f"{target}: {leftover}"
 
 
 # --------------------------------------------------------------- Popover
@@ -366,9 +367,9 @@ class TestCaches:
         assert list(hell.getdata()) != list(dunkel.getdata())
 
     def test_a_redrawn_control_uses_the_new_images(self, surface, root):
-        vorher = surface["primary"]._image
+        before = surface["primary"]._image
         wechsel(surface["window"], Theme.DARK, root)
-        assert surface["primary"]._image is not vorher
+        assert surface["primary"]._image is not before
 
 
 # ------------------------------------------------------------ Dauerbetrieb
@@ -378,18 +379,18 @@ class TestManySwitches:
     ROUNDEN = 10  # 10 Runden hell/dunkel = 20 Wechsel
 
     def test_twenty_switches_leave_nothing_behind(self, surface, root):
-        fenster = surface["window"]
-        kinder_vorher = self._zaehle(fenster)
-        scale_vorher = len(uk.Scale._callbacks)
-        theme_vorher = len(Theme._callbacks)
+        widget_window = surface["window"]
+        children_before = self._count(widget_window)
+        scale_before = len(uk.Scale._callbacks)
+        theme_before = len(Theme._callbacks)
 
         for _ in range(self.ROUNDEN):
-            wechsel(fenster, Theme.DARK, root)
-            wechsel(fenster, Theme.LIGHT, root)
+            wechsel(widget_window, Theme.DARK, root)
+            wechsel(widget_window, Theme.LIGHT, root)
 
-        assert self._zaehle(fenster) == kinder_vorher, "es sind Widgets dazugekommen"
-        assert len(uk.Scale._callbacks) == scale_vorher
-        assert len(Theme._callbacks) == theme_vorher
+        assert self._count(widget_window) == children_before, "es sind Widgets dazugekommen"
+        assert len(uk.Scale._callbacks) == scale_before
+        assert len(Theme._callbacks) == theme_before
         assert uk.Animator.pending() == 0
         assert len(uk._img_cache) <= uk.CACHE_LIMIT
 
@@ -422,30 +423,30 @@ class TestManySwitches:
         scroll.refresh()
         scroll.scroll_to(60)
         root.update()
-        gemerkt = scroll.offset
-        assert gemerkt > 0, "der Bereich muss wirklich rollbar sein"
+        remembered = scroll.offset
+        assert remembered > 0, "der Bereich muss wirklich rollbar sein"
 
         for _ in range(self.ROUNDEN):
-            for ziel in (Theme.DARK, Theme.LIGHT):
+            for target in (Theme.DARK, Theme.LIGHT):
                 Popover.dismiss_current()
-                Theme.apply(ziel)
+                Theme.apply(target)
                 offset = scroll.offset
                 uk.apply_theme_tree(surface["window"])
                 scroll.scroll_to(offset)
                 root.update()
-        assert scroll.offset == gemerkt
+        assert scroll.offset == remembered
 
     def test_the_window_does_not_resize(self, surface, root):
-        fenster = surface["window"]
-        vorher = (fenster.winfo_width(), fenster.winfo_height())
+        widget_window = surface["window"]
+        before = (widget_window.winfo_width(), widget_window.winfo_height())
         for _ in range(self.ROUNDEN):
-            wechsel(fenster, Theme.DARK, root)
-            wechsel(fenster, Theme.LIGHT, root)
-        assert (fenster.winfo_width(), fenster.winfo_height()) == vorher
+            wechsel(widget_window, Theme.DARK, root)
+            wechsel(widget_window, Theme.LIGHT, root)
+        assert (widget_window.winfo_width(), widget_window.winfo_height()) == before
 
     @staticmethod
-    def _zaehle(widget) -> int:
-        return 1 + sum(TestManySwitches._zaehle(k) for k in widget.winfo_children())
+    def _count(widget) -> int:
+        return 1 + sum(TestManySwitches._count(k) for k in widget.winfo_children())
 
 
 # ------------------------------------------------------------------- DPI

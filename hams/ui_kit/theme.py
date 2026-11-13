@@ -294,16 +294,16 @@ def set_surface_under(widget: tk.Misc, colour: str) -> None:
     if hasattr(widget, "_bg_under"):
         widget._bg_under = colour
         for name in ("_draw", "_render"):
-            zeichnen = getattr(widget, name, None)
-            if callable(zeichnen):
+            draw = getattr(widget, name, None)
+            if callable(draw):
                 with contextlib.suppress(tk.TclError):  # schon zerstoert
-                    zeichnen()
+                    draw()
                 break
     try:
-        kinder = widget.winfo_children()
+        child_widgets = widget.winfo_children()
     except tk.TclError:  # pragma: no cover
         return
-    for kind in kinder:
+    for kind in child_widgets:
         set_surface_under(kind, colour)
 
 

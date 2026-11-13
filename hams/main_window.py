@@ -37,7 +37,7 @@ class MainWindowMixin:
             return
         CFG.appearance = mode
         painted = self._retint_windows()
-        logger.info("Darstellung auf %s gewechselt (%s Widgets)", mode, painted)
+        logger.info("Appearance switched to %s (%s widgets)", mode, painted)
 
     def _retint_windows(self) -> int:
         """Faerbt alle offenen Hams-Fenster neu ein. Gibt die Widgetzahl zurueck."""
@@ -280,7 +280,7 @@ class MainWindowMixin:
         CFG.window_x, CFG.window_y = x, y
         _persist_config_value("ui", "window_x", x)
         _persist_config_value("ui", "window_y", y)
-        logger.info("Fensterposition gemerkt: %d,%d", x, y)
+        logger.info("Window position saved: %d,%d", x, y)
 
     def _flush_position(self) -> None:
         """Beim Verstecken und beim Beenden auf jeden Fall sichern.

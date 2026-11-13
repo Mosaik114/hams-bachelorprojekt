@@ -159,10 +159,10 @@ class TestPosition:
         pipeline = make_pipeline()
         pipeline.ollama = FakeOllama()
         pipeline.generate_from_prompt("Nenne die Hauptstadt von Norwegen.")
-        gesehen = pipeline.ollama.requests[0]
-        assert gesehen["prompt"] == "Nenne die Hauptstadt von Norwegen."
-        assert "Klartext" in gesehen["system"]
-        assert "Markdown" in gesehen["system"]
+        seen = pipeline.ollama.requests[0]
+        assert seen["prompt"] == "Nenne die Hauptstadt von Norwegen."
+        assert "Klartext" in seen["system"]
+        assert "Markdown" in seen["system"]
 
     def test_the_cleanup_does_not_send_a_system_instruction(self, monkeypatch):
         """Dort steht die Regel bereits im Prompt selbst."""

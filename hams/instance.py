@@ -149,7 +149,7 @@ def _release_single_instance_mutex() -> bool:
         for handle in _MUTEX_HANDLES:
             api.close(handle)
     except Exception:
-        logger.exception("Einzelinstanz-Schloss liess sich nicht freigeben")
+        logger.exception("Single-instance lock could not be released")
         return False
     _MUTEX_HANDLES = None
     return True

@@ -6,7 +6,7 @@ Nicht in conftest.py: `restore_mode` ist autouse und soll nur für diese beiden 
 import tkinter as tk
 
 import pytest
-from conftest import fokus_erzwingen
+from conftest import force_focus
 
 from hams import ui_kit as uk
 from hams.ui_kit import (
@@ -46,7 +46,7 @@ def window(root):
     win.configure(bg=Theme.WINDOW_BG)
     win.deiconify()
     win.lift()
-    fokus_erzwingen(win, root)
+    force_focus(win, root)
     yield win
     win.destroy()
     root.update()

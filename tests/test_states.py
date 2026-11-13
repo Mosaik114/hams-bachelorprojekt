@@ -4,7 +4,7 @@ import tkinter as tk
 
 import kit as uk
 import pytest
-from conftest import fokus_erzwingen
+from conftest import force_focus
 from kit import ControlStyle, FocusMixin, State, StateMixin, StatusDot, Theme
 
 
@@ -40,7 +40,7 @@ def probes(root):
         widget.pack()
     window.deiconify()
     window.lift()
-    fokus_erzwingen(window, root)
+    force_focus(window, root)
     yield made
     window.destroy()
     root.update()

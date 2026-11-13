@@ -78,20 +78,20 @@ def parse_combo(combo: str) -> tuple[int, int] | None:
     Taste zerfaellt; dann bleibt der Aufrufer bei der Bibliothek.
     """
     mods, vk = 0, None
-    for teil in (t.strip().lower() for t in combo.split("+")):
-        if not teil:
+    for part in (t.strip().lower() for t in combo.split("+")):
+        if not part:
             return None
-        if teil in _MODS:
-            mods |= _MODS[teil]
+        if part in _MODS:
+            mods |= _MODS[part]
             continue
         if vk is not None:
             return None
-        if teil in _KEYS:
-            vk = _KEYS[teil]
-        elif len(teil) == 1 and teil.isascii() and teil.isalnum():
-            vk = ord(teil.upper())
-        elif teil[0] == "f" and teil[1:].isdigit() and 1 <= int(teil[1:]) <= 24:
-            vk = 0x70 + int(teil[1:]) - 1
+        if part in _KEYS:
+            vk = _KEYS[part]
+        elif len(part) == 1 and part.isascii() and part.isalnum():
+            vk = ord(part.upper())
+        elif part[0] == "f" and part[1:].isdigit() and 1 <= int(part[1:]) <= 24:
+            vk = 0x70 + int(part[1:]) - 1
         else:
             return None
     if vk is None:
@@ -177,7 +177,7 @@ class SystemHotkeys:
         ready = threading.Event()
         result: dict = {"failed": [], "thread_id": 0}
         thread = threading.Thread(
-            target=self._schleife, args=(self._win(), wanted, ready, result), name="system-hotkeys", daemon=True
+            target=self._message_loop, args=(self._win(), wanted, ready, result), name="system-hotkeys", daemon=True
         )
         thread.start()
         if not ready.wait(5):
@@ -187,7 +187,7 @@ class SystemHotkeys:
         return failed + result["failed"]
 
     @staticmethod
-    def _schleife(api, wanted: list, ready: threading.Event, result: dict) -> None:
+    def _message_loop(api, wanted: list, ready: threading.Event, result: dict) -> None:
         """Im eigenen Thread: anmelden, auf WM_HOTKEY warten, beim Ende wieder abmelden."""
         handlers: dict[int, Callable[[], None]] = {}
         try:
@@ -201,18 +201,18 @@ class SystemHotkeys:
             ready.set()
         try:
             while (hid := api.next_hotkey()) is not None:
-                SystemHotkeys._ausloesen(handlers.get(hid))
+                SystemHotkeys._fire(handlers.get(hid))
         finally:
             for hid in handlers:
                 api.unregister(hid)
 
     @staticmethod
-    def _ausloesen(handler) -> None:
+    def _fire(handler) -> None:
         if handler is not None:
             try:
                 handler()
             except Exception:
-                logger.exception("Kurzbefehl-Handler fehlgeschlagen")
+                logger.exception("Shortcut handler failed")
 
     @staticmethod
     def available(combo: str) -> bool:

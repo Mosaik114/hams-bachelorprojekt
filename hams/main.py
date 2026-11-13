@@ -98,7 +98,7 @@ def _accept_requests(root: tk.Tk, app: FloatingTranscriberApp) -> list[SettingsR
         try:
             receivers.append(SettingsRequests(root, callback, name=name))
         except OSError:
-            logger.exception("Aktivierungs-Ereignis %s konnte nicht verbunden werden", name)
+            logger.exception("Activation event %s could not be connected", name)
     logger.info("Activation requests accepted (%d)", len(receivers))
     return receivers
 

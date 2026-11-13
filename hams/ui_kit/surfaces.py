@@ -209,8 +209,8 @@ def _add_border(body: Image.Image, radius: int, squircle: bool, border: str, bor
     draw = ImageDraw.Draw(outline)
     line = max(1, int(border_w * SUPERSAMPLE))
     if squircle:
-        punkte = _squircle_points(width, height, radius)
-        draw.line(punkte + [punkte[0]], fill=border, width=line, joint="curve")
+        outline_points = _squircle_points(width, height, radius)
+        draw.line(outline_points + [outline_points[0]], fill=border, width=line, joint="curve")
     else:
         draw.rounded_rectangle([0, 0, width - 1, height - 1], radius=radius, outline=border, width=line)
     return Image.alpha_composite(body, outline)
@@ -262,7 +262,7 @@ def surface(
     `CACHE_LIMIT` begrenzt, der älteste Eintrag fliegt heraus.
     """
     width, height = max(1, int(width)), max(1, int(height))
-    optionen = {
+    options = {
         "edge": edge,
         "gradient": gradient,
         "shadow": shadow,
@@ -274,13 +274,13 @@ def surface(
         "ring_gap": ring_gap,
         "dither": dither,
     }
-    key = (width, height, radius, fill, *optionen.values(), round(gradient, 4), Scale.factor)
+    key = (width, height, radius, fill, *options.values(), round(gradient, 4), Scale.factor)
     cached = _img_cache.get(key)
     if cached is not None:
         _img_cache.move_to_end(key)
         return cached
 
-    photo = ImageTk.PhotoImage(render_surface(width, height, radius, fill, **optionen))
+    photo = ImageTk.PhotoImage(render_surface(width, height, radius, fill, **options))
     _img_cache[key] = photo
     if len(_img_cache) > CACHE_LIMIT:
         _img_cache.popitem(last=False)  # ältester Eintrag fliegt raus

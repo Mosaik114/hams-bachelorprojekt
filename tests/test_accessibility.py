@@ -12,7 +12,7 @@ import tkinter as tk
 
 import kit as uk
 import pytest
-from conftest import fokus_erzwingen
+from conftest import force_focus
 from kit import (
     ControlStyle,
     IconButton,
@@ -52,7 +52,7 @@ def window(root):
     win.configure(bg=BG)
     win.deiconify()
     win.lift()
-    fokus_erzwingen(win, root)
+    force_focus(win, root)
     yield win
     Popover.dismiss_current()
     win.destroy()

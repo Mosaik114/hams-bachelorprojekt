@@ -92,7 +92,7 @@ def installed_whisper_models() -> set[str]:
 
         cache = scan_cache_dir()
     except Exception:  # Cache fehlt, ist beschädigt oder die API änderte sich
-        logger.warning("Hugging-Face-Cache nicht lesbar — kein Modell gilt als installiert", exc_info=True)
+        logger.warning("Hugging Face cache unreadable - no model counts as installed", exc_info=True)
         return set()
 
     by_repo = {info.repo_id: info.model_id for info in CATALOG}
@@ -134,8 +134,8 @@ class CachedModel:
     @property
     def meta(self) -> str:
         """Zweite Zeile im Auswahlfeld: Groesse, und ob es vollstaendig ist."""
-        groesse = format_bytes(self.size_bytes)
-        return groesse if self.complete else t("model.incomplete", size=groesse)
+        size_text = format_bytes(self.size_bytes)
+        return size_text if self.complete else t("model.incomplete", size=size_text)
 
 
 def cached_whisper_models() -> tuple[CachedModel, ...]:
@@ -153,30 +153,30 @@ def cached_whisper_models() -> tuple[CachedModel, ...]:
 
         cache = scan_cache_dir()
     except Exception:
-        logger.warning("Hugging-Face-Cache nicht lesbar — kein Bestand ermittelbar", exc_info=True)
+        logger.warning("Hugging Face cache unreadable - no cached models known", exc_info=True)
         return ()
 
-    nach_repo = {info.repo_id: info for info in CATALOG}
-    gefunden: dict[str, CachedModel] = {}
+    catalog_by_repo = {info.repo_id: info for info in CATALOG}
+    found_models: dict[str, CachedModel] = {}
     for repo in getattr(cache, "repos", ()):
-        info = nach_repo.get(getattr(repo, "repo_id", ""))
+        info = catalog_by_repo.get(getattr(repo, "repo_id", ""))
         if info is None:
             continue  # fremdes Repository — geht uns nichts an
-        revisionen = tuple(
+        revision_hashes = tuple(
             getattr(revision, "commit_hash", "")
             for revision in getattr(repo, "revisions", ())
             if getattr(revision, "commit_hash", "")
         )
-        if not revisionen:
+        if not revision_hashes:
             continue
-        vollstaendig = any(
-            MODEL_FILE in {getattr(datei, "file_name", "") for datei in getattr(revision, "files", ())}
+        is_complete = any(
+            MODEL_FILE in {getattr(item, "file_name", "") for item in getattr(revision, "files", ())}
             for revision in getattr(repo, "revisions", ())
         )
-        gefunden[info.model_id] = CachedModel(
-            info.model_id, info.label, int(getattr(repo, "size_on_disk", 0) or 0), vollstaendig, revisionen
+        found_models[info.model_id] = CachedModel(
+            info.model_id, info.label, int(getattr(repo, "size_on_disk", 0) or 0), is_complete, revision_hashes
         )
-    return tuple(gefunden[info.model_id] for info in CATALOG if info.model_id in gefunden)
+    return tuple(found_models[info.model_id] for info in CATALOG if info.model_id in found_models)
 
 
 def delete_whisper_model(model_id: str) -> tuple[bool, int, str]:
@@ -194,33 +194,33 @@ def delete_whisper_model(model_id: str) -> tuple[bool, int, str]:
     """
     info = find(model_id)
     label = info.label if info else model_id
-    bestand = {eintrag.model_id: eintrag for eintrag in cached_whisper_models()}
-    eintrag = bestand.get(model_id)
-    if eintrag is None:
+    cached = {entry.model_id: entry for entry in cached_whisper_models()}
+    entry = cached.get(model_id)
+    if entry is None:
         return False, 0, t("model.delete.missing", model=label)
 
     try:
         from huggingface_hub import scan_cache_dir
 
-        strategie = scan_cache_dir().delete_revisions(*eintrag.revisions)
-        erwartet = int(getattr(strategie, "expected_freed_size", 0) or 0)
-        strategie.execute()
+        strategy = scan_cache_dir().delete_revisions(*entry.revisions)
+        expected = int(getattr(strategy, "expected_freed_size", 0) or 0)
+        strategy.execute()
     except PermissionError:
         # Windows gibt eine geladene Modelldatei nicht her. Das ist der einzige
         # Fehler, der eine verstaendliche eigene Meldung verdient.
-        logger.warning("Modell %s ist in Benutzung, nicht geloescht", model_id)
+        logger.warning("Model %s is in use, not deleted", model_id)
         return False, 0, t("model.delete.in_use", model=label)
     except Exception:
-        logger.exception("Modell %s konnte nicht geloescht werden", model_id)
+        logger.exception("Model %s could not be deleted", model_id)
         return False, 0, t("model.delete.failed", model=label)
 
-    frei = erwartet or eintrag.size_bytes
-    logger.info("Modell %s geloescht, %s frei", model_id, format_bytes(frei))
+    freed = expected or entry.size_bytes
+    logger.info("Model %s deleted, %s freed", model_id, format_bytes(freed))
     # Ohne belegten Platz keine Zahl: ein abgebrochener Download hinterlaesst
     # oft nur leere Ordner, und „0 B frei" waere eine Meldung ueber nichts.
-    if frei <= 0:
+    if freed <= 0:
         return True, 0, t("model.delete.done", model=label)
-    return True, frei, t("model.delete.done_freed", model=label, size=format_bytes(frei))
+    return True, freed, t("model.delete.done_freed", model=label, size=format_bytes(freed))
 
 
 def cache_root() -> Path | None:
@@ -277,7 +277,7 @@ def disable_xet_transfer() -> bool:
         constants.HF_HUB_DISABLE_XET = True
         return True
     except Exception:  # pragma: no cover - nur bei kaputter Installation
-        logger.warning("Xet liess sich nicht abschalten", exc_info=True)
+        logger.warning("Xet could not be switched off", exc_info=True)
         return False
 
 
@@ -366,12 +366,12 @@ class ModelDownloader:
                 # unterwegs schon einmal eingepackt worden — die Ursache steht
                 # im Flag, nicht im Ausnahmetyp.
                 error = CANCELLED
-                logger.info("Download von %s abgebrochen", info.model_id)
+                logger.info("Download of %s cancelled", info.model_id)
             else:
                 error = describe_download_error(exc)
-                logger.exception("Download von %s fehlgeschlagen", info.model_id)
+                logger.exception("Download of %s failed", info.model_id)
         else:
-            logger.info("Download von %s abgeschlossen", info.model_id)
+            logger.info("Download of %s finished", info.model_id)
         finally:
             _ProgressBar.cancel_flag = None
             _ProgressBar.report = None

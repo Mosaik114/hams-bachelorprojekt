@@ -52,6 +52,6 @@ def window_position(saved_x, saved_y, width: int, height: int, areas) -> tuple[i
     if x is None or y is None:
         return fallback
     if not _visible_enough(x, y, width, height, areas):
-        logger.info("Gemerkte Fensterposition %s,%s liegt nicht mehr sichtbar", x, y)
+        logger.info("Saved window position %s,%s is no longer visible", x, y)
         return fallback
     return x, y

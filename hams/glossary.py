@@ -56,9 +56,9 @@ def _ensure_file(path: Path) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, path)
-        logger.info("Glossar angelegt: %s", path)
+        logger.info("Glossary created: %s", path)
     except OSError:
-        logger.warning("Glossar konnte nicht angelegt werden: %s", path)
+        logger.warning("Glossary could not be created: %s", path)
 
 
 def open_in_editor(*, platform: str | None = None, launch=None) -> Path:
@@ -77,7 +77,7 @@ def open_in_editor(*, platform: str | None = None, launch=None) -> Path:
     if launch is None:
         launch = os.startfile if platform == "win32" else _xdg_open  # type: ignore[attr-defined]
     launch(str(path))
-    logger.info("Glossar im Editor geöffnet")
+    logger.info("Glossary opened in the editor")
     return path
 
 
@@ -122,9 +122,9 @@ def _load() -> dict:
         except (OSError, ValueError, AttributeError) as exc:
             # ValueError: kaputtes TOML oder keine UTF-8-Datei (`TomlEncodingError`). Das leere Ergebnis
             # gilt bis zur naechsten Aenderung der Datei, die Warnung steht deshalb nur einmal im Log.
-            logger.warning("Glossar %s nicht lesbar, wird ignoriert: %s", path, exc)
+            logger.warning("Glossary %s unreadable, ignored: %s", path, exc)
     _cache.update(path=path, mtime=mtime, words=words, replacements=replacements)
-    logger.info("Glossar geladen: %d Wörter, %d Korrekturen", len(words), len(replacements))
+    logger.info("Glossary loaded: %d words, %d replacements", len(words), len(replacements))
     return _cache
 
 
@@ -142,9 +142,9 @@ def hotwords(language: str | None) -> str | None:
     None, wenn das Glossar leer ist oder es für die Sprache keinen Rahmensatz gibt (siehe
     `dictation_language.hotword_frame`).
     """
-    liste = words()
+    word_list = words()
     frame = dictation_language.hotword_frame(language)
-    return frame.format(", ".join(liste)) if liste and frame else None
+    return frame.format(", ".join(word_list)) if word_list and frame else None
 
 
 def apply_replacements(text: str) -> str:

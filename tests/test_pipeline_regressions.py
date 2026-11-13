@@ -303,7 +303,7 @@ class TestGlossaryEncodings:
             plain_pipeline.transcribe(AUDIO)
             plain_pipeline.transcribe(AUDIO)
         assert plain_pipeline.pasted == ["frau mueller", "frau mueller"], "an empty glossary, the text still comes"
-        warnings = [r for r in caplog.records if "Glossar" in r.getMessage()]
+        warnings = [r for r in caplog.records if "Glossary" in r.getMessage()]
         assert len(warnings) == 1, "cached for this file version: one warning, not one per dictation"
         assert glossary.hotwords("de") is None
 

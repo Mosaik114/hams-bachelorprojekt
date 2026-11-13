@@ -129,7 +129,7 @@ class StatusSectionMixin:
             CFG.mic_device_raw = pretty
             CFG.mic_device = resolve_mic_device(pretty)
             _persist_config_value("audio", "device", pretty)
-        logger.info("Mikrofon gewählt: %r -> %r", CFG.mic_device_raw, CFG.mic_device)
+        logger.info("Microphone chosen: %r -> %r", CFG.mic_device_raw, CFG.mic_device)
         self.refresh_device_state(self._devices)
         self._restart_monitor()
 
@@ -155,7 +155,7 @@ class StatusSectionMixin:
             )
             self._mon_stream.start()
         except Exception as exc:
-            logger.warning("Monitor-Stream fehlgeschlagen: %s", exc)
+            logger.warning("Level monitor stream failed: %s", exc)
             self._mon_stream = None
 
     def _stop_monitor(self) -> None:
@@ -338,7 +338,7 @@ class StatusSectionMixin:
             return
         CFG.ollama_model_cleanup = name
         _persist_config_value("ollama", "model_transcript_cleanup", name)
-        logger.info("Cleanup-Modell: %s", name)
+        logger.info("Cleanup model: %s", name)
         self.select_cleanup_model.set_value(name)
 
     def _select_prompt_model(self, name: str) -> None:
@@ -347,5 +347,5 @@ class StatusSectionMixin:
             return
         CFG.ollama_model_prompt = name
         _persist_config_value("ollama", "model_prompt_generate", name)
-        logger.info("Prompt-Modell: %s", name)
+        logger.info("Prompt model: %s", name)
         self.select_prompt_model.set_value(name)

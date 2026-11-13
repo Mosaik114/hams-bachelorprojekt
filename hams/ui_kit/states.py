@@ -231,9 +231,9 @@ class FocusMixin:
         unterscheidet sich. Leertaste und Eingabetaste wirken also auch nach
         einem Klick.
         """
-        vom_zeiger = self._focus_from_pointer
+        from_pointer = self._focus_from_pointer
         self._focus_from_pointer = False
-        if not vom_zeiger:
+        if not from_pointer:
             self.set_state(State.FOCUSED, True)
 
     def _on_focus_out(self, _event=None) -> None:

@@ -203,7 +203,7 @@ class TestLegacyFolderMigration:
         _fill_old_dir(paths.old_dir)
         with caplog.at_level("INFO", logger="hams"):
             config_mod.ensure_user_config()
-        assert any("kopiert" in record.getMessage() for record in caplog.records)
+        assert any("User data copied" in record.getMessage() for record in caplog.records)
 
     def test_an_existing_new_folder_wins(self, paths):
         _fill_old_dir(paths.old_dir)

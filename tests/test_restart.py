@@ -215,10 +215,10 @@ class TestLegacyInstanceName:
 
 class _Tray:
     def __init__(self):
-        self.gestoppt = 0
+        self.stopped = 0
 
     def stop(self):
-        self.gestoppt += 1
+        self.stopped += 1
 
 
 class _Root:
@@ -238,31 +238,29 @@ def app(live_app, monkeypatch):
     """The live app; only the restart's own steps are real, the rest is recorded."""
     monkeypatch.setattr(live_app, "root", _Root())
     live_app.tray_icon = _Tray()
-    live_app.freigegeben = 0
+    live_app.released = 0
     live_app._window_visible = True
     #: Shortcuts and the successor's start, in their order.
-    live_app.ablauf = []
-    live_app.gemerkt = False
-    monkeypatch.setattr(live_app, "_flush_position", lambda: setattr(live_app, "gemerkt", True))
-    monkeypatch.setattr(
-        live_app, "_release_resources", lambda: setattr(live_app, "freigegeben", live_app.freigegeben + 1)
-    )
-    monkeypatch.setattr(live_app, "suspend_hotkeys", lambda: live_app.ablauf.append("hotkeys frei"))
-    monkeypatch.setattr(live_app, "_register_hotkeys", lambda: live_app.ablauf.append("hotkeys an"))
+    live_app.sequence = []
+    live_app.remembered = False
+    monkeypatch.setattr(live_app, "_flush_position", lambda: setattr(live_app, "remembered", True))
+    monkeypatch.setattr(live_app, "_release_resources", lambda: setattr(live_app, "released", live_app.released + 1))
+    monkeypatch.setattr(live_app, "suspend_hotkeys", lambda: live_app.sequence.append("hotkeys frei"))
+    monkeypatch.setattr(live_app, "_register_hotkeys", lambda: live_app.sequence.append("hotkeys an"))
     monkeypatch.setattr(instance_mod, "_MUTEX_HANDLES", None)
     return live_app
 
 
 @pytest.fixture
 def popen(monkeypatch):
-    aufrufe = []
+    calls = []
 
-    def _fake(befehl, **kwargs):
-        aufrufe.append((befehl, kwargs))
+    def _fake(command, **kwargs):
+        calls.append((command, kwargs))
         return object()
 
     monkeypatch.setattr(subprocess, "Popen", _fake)
-    _fake.aufrufe = aufrufe
+    _fake.calls = calls
     return _fake
 
 
@@ -277,7 +275,7 @@ class TestRestartUnderTheService:
         monkeypatch.setattr(linux, "under_systemd", lambda: True)
         monkeypatch.setattr(linux, "restart_requested", False)
         assert app.restart_app() == ""
-        assert popen.aufrufe == []
+        assert popen.calls == []
         assert linux.restart_requested is True
 
     def test_the_service_restarts_on_the_agreed_code(self):
@@ -291,22 +289,22 @@ class TestRestartUnderTheService:
 class TestRestartApp:
     def test_it_starts_a_successor_and_steps_aside(self, app, popen):
         assert app.restart_app() == ""
-        assert len(popen.aufrufe) == 1
-        befehl, kwargs = popen.aufrufe[0]
-        assert befehl == instance_mod.restart_command()
-        assert app.tray_icon.gestoppt == 1
+        assert len(popen.calls) == 1
+        command, kwargs = popen.calls[0]
+        assert command == instance_mod.restart_command()
+        assert app.tray_icon.stopped == 1
         assert app._shutting_down is True
-        assert app.freigegeben == 1
+        assert app.released == 1
         assert app.root.jobs and app.root.jobs[-1] == app.root.destroy
 
     def test_the_window_position_is_saved_first(self, app, popen):
         app.restart_app()
-        assert app.gemerkt is True
+        assert app.remembered is True
 
     def test_the_successor_is_detached(self, app, popen):
         """Sonst haengt er am sterbenden Elternprozess."""
         app.restart_app()
-        _befehl, kwargs = popen.aufrufe[0]
+        _command, kwargs = popen.calls[0]
         if sys.platform != "win32":
             assert kwargs["start_new_session"] is True
             return
@@ -316,62 +314,62 @@ class TestRestartApp:
 
     def test_it_runs_from_the_project_root(self, app, popen):
         app.restart_app()
-        _befehl, kwargs = popen.aufrufe[0]
+        _command, kwargs = popen.calls[0]
         assert Path(kwargs["cwd"]) == Path(config_mod.APP_DIR).parent
 
     def test_the_lock_is_released_before_the_successor_starts(self, app, monkeypatch):
         """Sonst meldet der Nachfolger „läuft bereits" und beendet sich sofort."""
-        reihenfolge = []
-        monkeypatch.setattr(app_mod, "_release_single_instance_mutex", lambda: reihenfolge.append("frei") or True)
-        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: reihenfolge.append("start"))
+        order = []
+        monkeypatch.setattr(app_mod, "_release_single_instance_mutex", lambda: order.append("frei") or True)
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: order.append("start"))
         app.restart_app()
-        assert reihenfolge == ["frei", "start"]
+        assert order == ["frei", "start"]
 
     def test_a_recording_blocks_the_restart(self, app, popen):
         app.recorder.is_recording = True
         assert app.restart_app() == "Läuft gerade eine Aufnahme"
-        assert popen.aufrufe == []
+        assert popen.calls == []
         assert app._shutting_down is False
 
     def test_a_download_blocks_the_restart(self, app, popen, monkeypatch):
         monkeypatch.setattr(type(app.models), "downloading", property(lambda self: "turbo"))
         assert app.restart_app() == "Ein Download läuft gerade"
-        assert popen.aufrufe == []
+        assert popen.calls == []
 
     def test_an_unreleasable_lock_blocks_the_restart(self, app, popen, monkeypatch):
         monkeypatch.setattr(app_mod, "_release_single_instance_mutex", lambda: False)
         assert app.restart_app() == "Neustart nicht möglich"
-        assert popen.aufrufe == []
+        assert popen.calls == []
         assert app._shutting_down is False
 
     def test_a_failed_start_leaves_everything_running(self, app, monkeypatch):
         """Lieber eine Meldung als ein Rechner ohne laufendes Hams."""
-        wieder = []
+        again = []
         monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(OSError("nope")))
-        monkeypatch.setattr(app_mod, "_acquire_single_instance_mutex", lambda: wieder.append(1))
+        monkeypatch.setattr(app_mod, "_acquire_single_instance_mutex", lambda: again.append(1))
         assert app.restart_app() == "Neustart fehlgeschlagen"
         assert app._shutting_down is False
-        assert app.tray_icon.gestoppt == 0
-        assert wieder == [1], "das Schloss muss zurueckgenommen werden"
-        assert app.ablauf == ["hotkeys frei", "hotkeys an"], "die Kurzbefehle gelten wieder"
+        assert app.tray_icon.stopped == 0
+        assert again == [1], "das Schloss muss zurueckgenommen werden"
+        assert app.sequence == ["hotkeys frei", "hotkeys an"], "die Kurzbefehle gelten wieder"
 
     def test_the_hotkeys_are_freed_before_the_successor_starts(self, app, monkeypatch):
         """Third review: the successor registers the same shortcuts and failed while they were still held."""
-        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: app.ablauf.append("start"))
+        monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: app.sequence.append("start"))
         app.restart_app()
-        assert app.ablauf[:2] == ["hotkeys frei", "start"]
+        assert app.sequence[:2] == ["hotkeys frei", "start"]
 
     def test_a_dictation_still_in_the_pipeline_blocks_the_restart(self, app, popen):
         """Third review: restarting dropped a finished recording that was still being transcribed."""
         app.pipeline.job_running = True
         assert app.restart_app() == "Ein Diktat wird noch verarbeitet"
-        assert popen.aufrufe == []
+        assert popen.calls == []
         assert app._shutting_down is False
 
     def test_a_hidden_app_restarts_in_the_background(self, app, popen):
         app._window_visible = False
         app.restart_app()
-        assert popen.aufrufe[0][0] == [*instance_mod.restart_command(), "--background"]
+        assert popen.calls[0][0] == [*instance_mod.restart_command(), "--background"]
 
 
 # ------------------------------------------------------------ Einstellungszeile
@@ -394,38 +392,38 @@ class _Button:
 
 
 class _AppStub:
-    def __init__(self, grund=""):
-        self.grund = grund
-        self.aufrufe = 0
+    def __init__(self, refusal=""):
+        self.refusal = refusal
+        self.calls = 0
 
     def restart_app(self):
-        self.aufrufe += 1
-        return self.grund
+        self.calls += 1
+        return self.refusal
 
 
-def _fenster(grund=""):
-    fenster = SettingsWindow.__new__(SettingsWindow)
-    fenster.app = _AppStub(grund)
-    fenster.row_restart = _Row()
-    fenster.restart_button = _Button()
-    return fenster
+def _window(refusal=""):
+    window = SettingsWindow.__new__(SettingsWindow)
+    window.app = _AppStub(refusal)
+    window.row_restart = _Row()
+    window.restart_button = _Button()
+    return window
 
 
 class TestRestartRow:
     def test_a_refusal_names_the_reason_and_gives_the_button_back(self):
-        fenster = _fenster("Läuft gerade eine Aufnahme")
-        SettingsWindow._restart_app(fenster)
-        assert fenster.row_restart.text == "Läuft gerade eine Aufnahme"
-        assert fenster.restart_button.enabled is True
+        window = _window("Läuft gerade eine Aufnahme")
+        SettingsWindow._restart_app(window)
+        assert window.row_restart.text == "Läuft gerade eine Aufnahme"
+        assert window.restart_button.enabled is True
 
     def test_a_successful_restart_leaves_the_button_disabled(self):
         """Danach verschwindet das Fenster ohnehin — ein zweiter Klick waere
         nur eine Einladung, zwei Nachfolger zu starten."""
-        fenster = _fenster("")
-        SettingsWindow._restart_app(fenster)
-        assert fenster.restart_button.enabled is False
-        assert fenster.row_restart.text == "Wird neu gestartet …"
-        assert fenster.app.aufrufe == 1
+        window = _window("")
+        SettingsWindow._restart_app(window)
+        assert window.restart_button.enabled is False
+        assert window.row_restart.text == "Wird neu gestartet …"
+        assert window.app.calls == 1
 
     def test_the_hint_names_the_situation_it_is_for(self):
         assert "Kurzbefehle" in SettingsWindow.RESTART_HINT
@@ -453,10 +451,10 @@ class TestTheHandoverActuallyWorks:
     )
 
     def _zweiter_prozess(self):
-        fertig = subprocess.run(
+        done = subprocess.run(
             [sys.executable, "-c", self.FRAGT.format(name=self.NAME)], capture_output=True, text=True, timeout=60
         )
-        return fertig.stdout.strip()
+        return done.stdout.strip()
 
     def test_the_successor_gets_the_lock_once_the_handle_is_closed(self):
         kernel32 = ctypes.windll.kernel32

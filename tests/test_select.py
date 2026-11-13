@@ -4,7 +4,7 @@ import tkinter as tk
 
 import kit as uk
 import pytest
-from conftest import fokus_erzwingen
+from conftest import force_focus
 from kit import Option, Popover, Select, State, Theme
 
 from hams.ui_kit import popover as popover_mod
@@ -28,7 +28,7 @@ def window(root):
     win.configure(bg=BG)
     win.deiconify()
     win.lift()
-    fokus_erzwingen(win, root)
+    force_focus(win, root)
     yield win
     Popover.dismiss_current()
     win.destroy()
@@ -298,7 +298,7 @@ class TestClickOutside:
         """
         toplevel = select.winfo_toplevel()
         for _ in range(5):
-            fokus_erzwingen(toplevel, root)
+            force_focus(toplevel, root)
             select.open_popover()
             root.update()
             if Popover.current is not None:
@@ -384,7 +384,7 @@ class TestFocusReturn:
 
     def test_focus_lands_on_the_select_when_the_window_is_active(self, select, root):
         window = select.winfo_toplevel()
-        fokus_erzwingen(window, root)
+        force_focus(window, root)
         select.open_popover()
         root.update()
         Popover.current.dismiss()

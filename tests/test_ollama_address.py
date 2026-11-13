@@ -16,7 +16,7 @@ from hams.config import Config, _apply_toml, ipv4_loopback
 from hams.config_validation import ollama_url_problem
 
 
-class TestLocalhostWirdUmgelegt:
+class TestLocalhostIsRedirected:
     """Nur der eine Hostname, dafuer zuverlaessig."""
 
     def test_the_plain_case(self):
@@ -38,7 +38,7 @@ class TestLocalhostWirdUmgelegt:
         )
 
 
-class TestAllesAndereBleibt:
+class TestEverythingElseStays:
     """Eine Umschreibung, die mehr anfasst als noetig, waere ein neuer Fehler."""
 
     @pytest.mark.parametrize(
@@ -64,7 +64,7 @@ class TestAllesAndereBleibt:
         assert ipv4_loopback(url) == url
 
 
-class TestDieKonfigurationBenutztEs:
+class TestTheConfigurationUsesIt:
     """Der Weg, den die Anwendung tatsaechlich geht."""
 
     def test_a_user_file_with_localhost_is_corrected(self):
@@ -84,7 +84,7 @@ class TestDieKonfigurationBenutztEs:
         assert ollama_api.base_url(cfg.ollama_url) == "http://127.0.0.1:11434"
 
 
-class TestDiktateBleibenImHaus:
+class TestDictationsStayAtHome:
     """Jedes Diktat geht an diese Adresse. Unverschluesselt nur an den eigenen Rechner."""
 
     @pytest.mark.parametrize(

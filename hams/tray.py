@@ -64,7 +64,7 @@ class TrayMixin:
                 self.root.iconbitmap(default=str(icon))
                 _DEFAULT_ICON_SET.add(interpreter)
             except tk.TclError:  # pragma: no cover - ICO nicht annehmbar
-                logger.warning("Fenstersymbol %s abgelehnt", icon, exc_info=True)
+                logger.warning("Window icon %s refused", icon, exc_info=True)
         image = branding.app_icon_image(64) or _create_tray_icon_image()
         self._tk_icon = ImageTk.PhotoImage(image)
         self.root.iconphoto(True, self._tk_icon)
@@ -116,7 +116,7 @@ class TrayMixin:
                 label = f"{stamp}  —  {preview}"
             except (TypeError, ValueError):
                 # Ein unbrauchbarer Eintrag kostet seine Zeile, nicht das Menü.
-                logger.warning("Verlaufseintrag %d unlesbar: %r", idx, entry)
+                logger.warning("History entry %d unreadable: %r", idx, entry)
                 continue
             history_items.append(pystray.MenuItem(label, self._history_action(idx)))
         if not history_items:
@@ -149,7 +149,7 @@ class TrayMixin:
             self.tray_icon.menu = self._build_tray_menu()
             self.tray_icon.update_menu()
         except Exception:
-            logger.exception("Tray-Menü konnte nicht aufgebaut werden")
+            logger.exception("Tray menu could not be built")
         self._update_tray_tooltip()
 
     def _copy_history_entry(self, index: int) -> None:

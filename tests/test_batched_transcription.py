@@ -26,23 +26,23 @@ from hams import transcription as transcription_mod
 from hams.recording import SAMPLE_RATE
 
 
-class Aufzeichnung:
+class CallLog:
     """Merkt sich, welcher Weg genommen wurde."""
 
     def __init__(self):
-        self.aufrufe = []
+        self.calls = []
 
     def transcribe(self, audio, **kwargs):
-        self.aufrufe.append(("sequentiell", kwargs))
+        self.calls.append(("sequentiell", kwargs))
         return iter([type("S", (), {"text": " sequentiell"})()]), None
 
 
-class GebatchteAufzeichnung:
-    def __init__(self, protokoll):
-        self.protokoll = protokoll
+class BatchedRecorder:
+    def __init__(self, log):
+        self.log = log
 
     def transcribe(self, audio, **kwargs):
-        self.protokoll.aufrufe.append(("gebatcht", kwargs))
+        self.log.calls.append(("gebatcht", kwargs))
         return iter([type("S", (), {"text": " gebatcht"})()]), None
 
 
@@ -52,46 +52,46 @@ def pipeline():
 
 
 @pytest.fixture
-def modell(monkeypatch):
-    protokoll = Aufzeichnung()
-    monkeypatch.setattr(transcription_mod, "BatchedInferencePipeline", lambda model: GebatchteAufzeichnung(protokoll))
-    return protokoll
+def fake_model(monkeypatch):
+    log = CallLog()
+    monkeypatch.setattr(transcription_mod, "BatchedInferencePipeline", lambda model: BatchedRecorder(log))
+    return log
 
 
-def _audio(sekunden: float) -> np.ndarray:
+def _audio(seconds: float) -> np.ndarray:
     rng = np.random.default_rng(7)
-    return (0.2 * rng.standard_normal(int(sekunden * SAMPLE_RATE))).astype(np.float32)
+    return (0.2 * rng.standard_normal(int(seconds * SAMPLE_RATE))).astype(np.float32)
 
 
-class TestWelcherWegGenommenWird:
-    @pytest.mark.parametrize("sekunden", [1, 5, 12, 24, 29.9])
-    def test_short_recordings_stay_sequential(self, pipeline, modell, sekunden):
-        pipeline.run_whisper(modell, _audio(sekunden))
-        assert [weg for weg, _ in modell.aufrufe] == ["sequentiell"]
+class TestWhichPathIsTaken:
+    @pytest.mark.parametrize("seconds", [1, 5, 12, 24, 29.9])
+    def test_short_recordings_stay_sequential(self, pipeline, fake_model, seconds):
+        pipeline.run_whisper(fake_model, _audio(seconds))
+        assert [weg for weg, _ in fake_model.calls] == ["sequentiell"]
 
-    @pytest.mark.parametrize("sekunden", [30, 45, 90, 300])
-    def test_long_recordings_are_batched(self, pipeline, modell, sekunden):
-        pipeline.run_whisper(modell, _audio(sekunden))
-        assert [weg for weg, _ in modell.aufrufe] == ["gebatcht"]
+    @pytest.mark.parametrize("seconds", [30, 45, 90, 300])
+    def test_long_recordings_are_batched(self, pipeline, fake_model, seconds):
+        pipeline.run_whisper(fake_model, _audio(seconds))
+        assert [weg for weg, _ in fake_model.calls] == ["gebatcht"]
 
     def test_the_threshold_is_where_the_measurement_turns(self):
         """Unter 24 s war der Gewinn null, ab 48 s deutlich."""
         assert 24 <= transcription_mod.BATCHED_MIN_SECONDS <= 48
 
 
-class TestBeideWegeBekommenDasselbe:
+class TestBothPathsGetTheSame:
     """Ein anderer Weg darf keine anderen Einstellungen bedeuten."""
 
-    def test_the_options_are_identical(self, pipeline, modell):
-        pipeline.run_whisper(modell, _audio(5))
-        pipeline.run_whisper(modell, _audio(60))
-        (_, kurz), (_, lang) = modell.aufrufe
+    def test_the_options_are_identical(self, pipeline, fake_model):
+        pipeline.run_whisper(fake_model, _audio(5))
+        pipeline.run_whisper(fake_model, _audio(60))
+        (_, kurz), (_, lang) = fake_model.calls
         lang = dict(lang)
         assert lang.pop("batch_size") == transcription_mod.BATCH_SIZE
         assert kurz == lang
 
     @pytest.mark.parametrize(
-        "schluessel",
+        "key",
         [
             "language",
             "vad_filter",
@@ -102,20 +102,20 @@ class TestBeideWegeBekommenDasselbe:
             "hotwords",
         ],
     )
-    def test_every_configured_option_reaches_both(self, pipeline, modell, schluessel):
-        pipeline.run_whisper(modell, _audio(5))
-        pipeline.run_whisper(modell, _audio(60))
-        for _, kwargs in modell.aufrufe:
-            assert schluessel in kwargs
+    def test_every_configured_option_reaches_both(self, pipeline, fake_model, key):
+        pipeline.run_whisper(fake_model, _audio(5))
+        pipeline.run_whisper(fake_model, _audio(60))
+        for _, kwargs in fake_model.calls:
+            assert key in kwargs
 
 
-class TestDieVoraussetzungFuersBatchen:
-    def test_context_between_segments_stays_off(self, pipeline, modell):
+class TestThePreconditionForBatching:
+    def test_context_between_segments_stays_off(self, pipeline, fake_model):
         """Both paths treat every chunk on its own.
 
         The batched pipeline transcribes the chunks the VAD found independently (faster-whisper ignores
         `condition_on_previous_text` there). The sequential path must not carry text over either, or the two
         would not give the same result, and the comparison behind the threshold above would not hold.
         """
-        pipeline.run_whisper(modell, _audio(5))
-        assert modell.aufrufe[0][1]["condition_on_previous_text"] is False
+        pipeline.run_whisper(fake_model, _audio(5))
+        assert fake_model.calls[0][1]["condition_on_previous_text"] is False

@@ -43,7 +43,7 @@ def _in_a_fresh_interpreter(code: str, tmp_path: Path) -> dict:
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-class TestDerStart:
+class TestTheStart:
     @pytest.mark.skipif(importlib.util.find_spec("torch") is not None, reason="torch is installed in this environment")
     def test_importing_the_app_leaves_torch_alone(self, tmp_path):
         bericht = _in_a_fresh_interpreter(
@@ -89,24 +89,24 @@ class TestDerStart:
         assert [package for package, _ in backend_preload.CUDA_LIBRARY_PACKAGES] == ["nvidia.cublas", "nvidia.cudnn"]
 
 
-class TestDieCudaBibliothekenBleibenErreichbar:
+class TestTheCudaLibrariesStayReachable:
     def test_a_directory_is_registered(self):
         from hams.backend_preload import add_cuda_libraries
 
-        ordner = add_cuda_libraries()
-        if not ordner:
+        folder = add_cuda_libraries()
+        if not folder:
             pytest.skip("hier liegen keine CUDA-Bibliotheken")
-        assert all(Path(o).is_dir() for o in ordner), ordner
+        assert all(Path(o).is_dir() for o in folder), folder
 
     def test_the_registered_directories_hold_libraries(self):
         """Ein leeres Verzeichnis anzumelden waere ein stiller Fehlschlag."""
         from hams.backend_preload import add_cuda_libraries
 
-        ordner = add_cuda_libraries()
-        if not ordner:
+        folder = add_cuda_libraries()
+        if not folder:
             pytest.skip("hier liegen keine CUDA-Bibliotheken")
         muster = "*.dll" if sys.platform == "win32" else "*.so*"
-        for o in ordner:
+        for o in folder:
             assert list(Path(o).glob(muster)), o
 
     @pytest.mark.skipif(sys.platform != "win32", reason="nur Windows")

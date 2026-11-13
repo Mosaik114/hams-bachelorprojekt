@@ -294,11 +294,11 @@ class SettingsWindow(
         """
         self.restart_button.set_enabled(False)
         self.row_restart.set_description(t("settings.restart.running"))
-        grund = self.app.restart_app()
-        if grund:
+        reason = self.app.restart_app()
+        if reason:
             self.restart_button.set_enabled(True)
-            self.row_restart.set_description(grund)
-            logger.info("Neustart abgelehnt: %s", grund)
+            self.row_restart.set_description(reason)
+            logger.info("Restart refused: %s", reason)
 
     def _select_appearance(self, mode) -> None:
         """Schreibt die Wahl und wendet sie sofort an.

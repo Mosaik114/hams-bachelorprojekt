@@ -242,7 +242,7 @@ class TestAboutGroup:
         assert opened == [tmp_path / "r.txt"]
 
 
-class TestReportRowReview3:
+class TestReportRowDetails:
     """Third review: the row named a full path that wrapped over several lines, and "Prüfung(en)"."""
 
     def test_one_and_several_failed_checks_are_pluralised(self):
