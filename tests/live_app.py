@@ -124,4 +124,8 @@ class FakeClipboard:
 
 
 def fake_sounddevice() -> SimpleNamespace:
-    return SimpleNamespace(InputStream=FakeStream, PortAudioError=sd.PortAudioError)
+    """`sounddevice` without devices; counts how often PortAudio was re-initialised (`reinits`)."""
+    fake = SimpleNamespace(InputStream=FakeStream, PortAudioError=sd.PortAudioError, reinits=0)
+    fake._terminate = lambda: None
+    fake._initialize = lambda: setattr(fake, "reinits", fake.reinits + 1)
+    return fake

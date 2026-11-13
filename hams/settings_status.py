@@ -10,21 +10,27 @@ from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.config import CFG, _list_input_devices, _persist_config_value, _resolve_mic_device, logger
 from hams.i18n import t
-from hams.recording import CHANNELS, SAMPLE_RATE
+from hams.recording import CHANNELS, SAMPLE_RATE, reinitialise_portaudio
+
+#: Thread class for the device scan; the tests run it inline.
+ScanThread = threading.Thread
 
 
 class StatusSectionMixin:
     """Einstellungen: Mikrofon, Live-Pegel und Ollama-Status."""
 
+    #: True while the device list is being re-read in the background; the level meter waits for it.
+    _scanning = False
+
     def device_options(self) -> list:
         """(Anzeigename, Wert) je Eingabegerät — Logik ohne Widget."""
         options = [(t("settings.mic.system_default"), None)]
-        options += [(pretty, pretty) for pretty, _full in _list_input_devices()]
+        options += [(pretty, pretty) for pretty, _full in self._devices]
         return options
 
-    def refresh_device_state(self) -> None:
-        """Geräteliste neu einlesen und den Zustand daraus ableiten."""
-        self._devices = _list_input_devices()
+    def refresh_device_state(self, devices: list | None = None) -> None:
+        """Den Zustand aus der Geräteliste ableiten; ohne `devices` wird sie neu abgefragt."""
+        self._devices = _list_input_devices() if devices is None else devices
         selected = CFG.mic_device_raw
         if not self._devices:
             self._device_error = t("settings.mic.none")
@@ -38,12 +44,45 @@ class StatusSectionMixin:
             self._device_error = ""
 
     def _refresh_devices(self) -> None:
-        """Geräteliste einlesen und ins Select geben — Logik bleibt getrennt."""
-        self.refresh_device_state()
+        """Re-reads the input devices in the background (audit finding H18) and then fills the select.
+
+        PortAudio is re-initialised first, so a microphone plugged in after the start is listed. That closes every
+        open stream, so the level meter stops for the scan and starts again afterwards.
+        """
+        if self._scanning:
+            return
+        self._scanning = True
+        self._stop_monitor()
+        ScanThread(target=self._scan_devices, daemon=True, name="mic-scan").start()
+
+    def _audio_busy(self) -> bool:
+        """Whether a stream is open that a re-initialisation of PortAudio would cut off."""
+        app = self.app
+        if app.is_recording or getattr(app, "stream", None) is not None:
+            return True
+        return any(getattr(consumer, "_mon_stream", None) is not None for consumer in app._mic_consumers)
+
+    def _scan_devices(self) -> None:
+        """Thread entry: re-initialise, list, hand the result to the Tk thread."""
+        try:
+            reinitialise_portaudio(self._audio_busy)
+            devices = _list_input_devices()
+        except Exception:  # noqa: BLE001 - boundary of the thread
+            logger.exception("Microphone scan failed")
+            devices = []
+        self.app._ui_call(lambda: self._show_devices(devices))
+
+    def _show_devices(self, devices: list) -> None:
+        """On the Tk thread: the scanned list into the select, then the level meter again."""
+        self._scanning = False
+        if not self.alive():
+            return
+        self.refresh_device_state(devices)
         options = [uk.Option(value, label) for label, value in self.device_options()]
         self.mic_select.set_options(options)
         self.mic_select.set_value(self._selected_device_value())
         self.mic_select.set_enabled(bool(self._devices))
+        self._start_monitor()
 
     def _selected_device_value(self):
         """Der Config-Wert als Optionswert — Teilstring auf Anzeigename gemappt."""
@@ -66,13 +105,13 @@ class StatusSectionMixin:
             CFG.mic_device = _resolve_mic_device(pretty)
             _persist_config_value("audio", "device", pretty)
         logger.info("Mikrofon gewählt: %r -> %r", CFG.mic_device_raw, CFG.mic_device)
-        self.refresh_device_state()
+        self.refresh_device_state(self._devices)
         self._restart_monitor()
 
     # ---------------------------------------------------------- monitor stream
 
     def _start_monitor(self) -> None:
-        if self._suspended or self.app.is_recording or self._mon_stream is not None:
+        if self._suspended or self._scanning or self.app.is_recording or self._mon_stream is not None:
             return
         if not self._devices and self._device_error:
             return  # kein Eingabegerät — gar nicht erst versuchen

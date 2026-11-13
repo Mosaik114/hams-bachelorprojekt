@@ -121,15 +121,13 @@ class TestDeviceState:
         stub.refresh_device_state()
         assert stub._device_error == ""
 
-    def test_options_always_offer_the_system_default(self, monkeypatch):
-        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [("Webcam", "Webcam (USB)")])
-        options = _Stub([], None).device_options()
+    def test_options_always_offer_the_system_default(self):
+        options = _Stub([("Webcam", "Webcam (USB)")], None).device_options()
         assert options[0] == ("System-Standard", None)
         assert ("Webcam", "Webcam") in options
 
-    def test_options_are_pairs_of_label_and_value(self, monkeypatch):
-        monkeypatch.setattr("hams.settings_status._list_input_devices", lambda: [("A", "A full"), ("B", "B full")])
-        for label, value in _Stub([], None).device_options():
+    def test_options_are_pairs_of_label_and_value(self):
+        for label, value in _Stub([("A", "A full"), ("B", "B full")], None).device_options():
             assert isinstance(label, str)
             assert value is None or isinstance(value, str)
 

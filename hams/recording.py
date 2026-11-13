@@ -17,6 +17,31 @@ from hams.i18n import t
 SAMPLE_RATE = 16_000
 CHANNELS = 1
 
+#: Held while PortAudio is re-initialised (`reinitialise_portaudio`) and while a recording opens its stream, so
+#: neither happens in the middle of the other.
+PORTAUDIO_LOCK = threading.Lock()
+
+
+def reinitialise_portaudio(busy) -> bool:
+    """Makes PortAudio read the device list again, so a microphone plugged in since the start shows up.
+
+    PortAudio enumerates the devices once, when it is initialised; `query_devices` keeps returning that list.
+    Terminating and initialising again closes every open stream, so it is skipped while `busy()` says one is
+    open (recording, level meter). Call it off the Tk thread: on Windows it takes a noticeable moment.
+    Returns whether it re-initialised.
+    """
+    with PORTAUDIO_LOCK:
+        if busy():
+            return False
+        try:
+            sd._terminate()
+            sd._initialize()
+        except (sd.PortAudioError, AttributeError, OSError):
+            logger.warning("PortAudio could not be re-initialised; the device list may be out of date", exc_info=True)
+            return False
+    return True
+
+
 # Peak unterhalb dieser Schwelle gilt als "kein Signal" (Mikro stumm/falsches
 # Gerät). Sprache liegt typ. bei 0.05+, Grundrauschen bei ~0.0002 — 0.005 trennt
 # beides sauber. Wird sowohl für die Normalisierung als auch die Kein-Signal-
@@ -218,15 +243,16 @@ class RecordingMixin:
             CFG.mic_device = device
 
         try:
-            self.stream = sd.InputStream(
-                samplerate=SAMPLE_RATE,
-                channels=CHANNELS,
-                device=device,
-                dtype="float32",
-                callback=callback,
-            )
-            self.stream.start()
-            self.is_recording = True
+            with PORTAUDIO_LOCK:  # not while the device list is being re-read
+                self.stream = sd.InputStream(
+                    samplerate=SAMPLE_RATE,
+                    channels=CHANNELS,
+                    device=device,
+                    dtype="float32",
+                    callback=callback,
+                )
+                self.stream.start()
+                self.is_recording = True
             self._recording_start = time.monotonic()
             self._schedule_max_duration_stop()
             self._apply_state("recording_prompt" if self._prompt_mode else "recording")

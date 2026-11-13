@@ -179,6 +179,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     from types import SimpleNamespace
 
     from live_app import FakeClipboard, FakeHotkeys, FakeKeyboard, FakeStream, FakeTray, fake_sounddevice
+    from setup_fakes import InlineThread
 
     from hams import app as app_mod
     from hams import cursor_dot
@@ -225,7 +226,9 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", tmp_path / "transkripte")
     monkeypatch.setattr(app_mod, "winsound", SimpleNamespace(Beep=lambda f, d: fakes.beeps.append((f, d))))
     monkeypatch.setattr(cursor_dot, "notify", dot)
-    monkeypatch.setattr(recording_mod, "sd", fake_sounddevice())
+    fakes.sd = fake_sounddevice()
+    monkeypatch.setattr(recording_mod, "sd", fakes.sd)
+    monkeypatch.setattr(status_mod, "ScanThread", InlineThread)
     monkeypatch.setattr(recording_mod, "_resolve_mic_device", lambda raw: 7)
     monkeypatch.setattr(status_mod, "sd", fake_sounddevice())
     monkeypatch.setattr(status_mod, "_resolve_mic_device", lambda raw: 7)
