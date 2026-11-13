@@ -30,14 +30,13 @@ from pathlib import Path
 from typing import Any
 
 import sounddevice as sd
+from tomlkit.exceptions import TOMLKitError
 
 from hams import app_paths, branding, dictation_language, i18n
 from hams import models as whisper_models
-from hams.config_toml import (  # noqa: F401
+from hams.config_toml import (
     TomlEncodingError,
     _set_toml_value,
-    _toml_scalar,
-    _trailing_comment,
     load_toml_file,
     read_toml_text,
     verify_toml_value,
@@ -268,9 +267,7 @@ def ipv4_loopback(url: str) -> str:
 def _persist_config_value(section: str, key: str, value: Any) -> bool:
     """Schreibt `key = value` in den Abschnitt `[section]` von config.toml.
 
-    Abschnittsbewusst, weil derselbe Schlüsselname in mehreren Abschnitten
-    vorkommen darf (`[audio] device` neben einem künftigen `[model] device`).
-    Fehlt der Schlüssel, wird er am Ende seines Abschnitts ergänzt; fehlt der
+    Gesetzt wird mit tomlkit (config_toml.py). Fehlt der Schlüssel, wird er am Ende seines Abschnitts ergänzt; fehlt der
     Abschnitt, wird er am Dateiende angelegt. Kommentare, Leerzeilen,
     Reihenfolge und Zeilenenden bleiben erhalten.
 
@@ -288,7 +285,11 @@ def _persist_config_value(section: str, key: str, value: Any) -> bool:
         # Nie in eine Datei schreiben, die nicht UTF-8 ist: das Beenden und Verstecken haengt daran.
         logger.error("Config not saved (%s.%s): %s", section, key, exc)
         return False
-    new_text = _set_toml_value(text, section, key, value)
+    try:
+        new_text = _set_toml_value(text, section, key, value)
+    except (ValueError, TypeError, KeyError, TOMLKitError) as exc:
+        logger.error("Config not saved (%s.%s): %s - %s left unchanged", section, key, exc, CONFIG_PATH)
+        return False
     problem = verify_toml_value(new_text, section, key, value)
     if problem:
         # Die alte Datei bleibt, wie sie ist: lieber diese eine Aenderung

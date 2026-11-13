@@ -4,7 +4,7 @@ import tomllib
 
 import pytest
 
-from hams.config import _persist_config_value, _toml_scalar, _trailing_comment
+from hams.config import _persist_config_value
 
 SAMPLE = """# Hams-Konfiguration
 
@@ -168,20 +168,6 @@ class TestFormatPreservation:
 
 
 class TestValueFormatting:
-    @pytest.mark.parametrize(
-        "value,expected",
-        [
-            (True, "true"),
-            (False, "false"),
-            (3, "3"),
-            ("Yeti", '"Yeti"'),
-            ('Mikro "X"', '"Mikro \\"X\\""'),
-            ("C:\\Pfad", '"C:\\\\Pfad"'),
-        ],
-    )
-    def test_toml_scalar(self, value, expected):
-        assert _toml_scalar(value) == expected
-
     def test_bool_is_not_written_as_int(self, config):
         _persist_config_value("ui", "sound_feedback", False)
         assert "sound_feedback = false" in read(config)
@@ -190,22 +176,10 @@ class TestValueFormatting:
         _persist_config_value("audio", "device", 'Mikro "Alt"')
         assert tomllib.loads(read(config))["audio"]["device"] == 'Mikro "Alt"'
 
-    @pytest.mark.parametrize(
-        "rest,expected",
-        [
-            ('true  # Kommentar', '  # Kommentar'),
-            ('"wert"', ''),
-            ('"wert # kein Kommentar"', ''),
-            ('"a" # danach', ' # danach'),
-        ],
-    )
-    def test_trailing_comment(self, rest, expected):
-        assert _trailing_comment(rest) == expected
-
 
 class TestFailureModes:
     def test_a_missing_user_file_is_created(self, tmp_path, monkeypatch):
-        """Seit Phase 20 ist die fehlende Nutzerdatei der normale Erststart."""
+        """Die fehlende Nutzerdatei ist der normale Erststart."""
         target = tmp_path / "gibtsnicht.toml"
         monkeypatch.setattr("hams.config.CONFIG_PATH", target)
         assert _persist_config_value("audio", "device", "Yeti") is True

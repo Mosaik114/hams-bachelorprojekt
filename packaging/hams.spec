@@ -44,6 +44,8 @@ hiddenimports = [
     if name not in ("hams.linux", "hams.portal_hotkeys", "hams.setup_autostart")
 ]
 hiddenimports += ["pystray._win32"]
+# Imported at module level by hams.config_toml, so the analysis finds it anyway; listed so it is never dropped.
+hiddenimports += collect_submodules("tomlkit")
 
 excludes = [
     "torch",

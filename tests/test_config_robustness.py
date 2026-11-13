@@ -18,7 +18,7 @@ import pytest
 
 import hams.config as config_mod
 from hams.config import Config, _apply_toml, _load_config, _persist_config_value
-from hams.config_toml import _set_toml_value, _toml_scalar, verify_toml_value
+from hams.config_toml import _set_toml_value, verify_toml_value
 from hams.config_validation import SectionReader
 
 # (section, key, Config attribute, kind) for every key the loader reads.
@@ -368,7 +368,8 @@ class TestEscaping:
         ["x\ny", "a\r\nb", "tab\there", 'q"uote', "back\\slash", "\x00\x01\x1f\x7f", "\b\f", "Größe ✓", ""],
     )
     def test_every_string_round_trips(self, value):
-        assert tomllib.loads(f"k = {_toml_scalar(value)}\n")["k"] == value
+        out = _set_toml_value("[a]\nk = 1\n", "a", "k", value)
+        assert tomllib.loads(out)["a"]["k"] == value
 
     def test_newline_in_value_keeps_the_file_valid(self, user_file):
         user_file.write_text('[ollama]\nmodel_transcript_cleanup = "a"\n', encoding="utf-8")
@@ -376,23 +377,33 @@ class TestEscaping:
         assert tomllib.loads(user_file.read_text(encoding="utf-8"))["ollama"]["model_transcript_cleanup"] == "x\ny"
 
 
-class TestRefusedEdits:
-    """What the text edit cannot handle is refused, the old file stays."""
+class TestLayoutsTheOldTextEditorRefused:
+    """Inline tables, dotted keys and multi-line strings: tomlkit edits them (audit finding H19)."""
 
     @pytest.mark.parametrize(
         "src",
         [
             'hotkeys = { transcript = "a" }\n',
             'hotkeys.transcript = "a"\n',
-            '[hotkeys]\ntranscript = """a\n[x]\n"""\n',
+            '[hotkeys]\nnote = """a\n[x]\n"""\ntranscript = "a"\n',
         ],
     )
-    def test_unsupported_layouts_are_not_written(self, user_file, src, caplog):
+    def test_they_are_saved_now(self, user_file, src):
+        user_file.write_text(src, encoding="utf-8")
+        assert _persist_config_value("hotkeys", "transcript", "z") is True
+        assert tomllib.loads(user_file.read_text(encoding="utf-8"))["hotkeys"]["transcript"] == "z"
+
+    def test_a_section_that_is_no_table_is_refused(self, user_file, caplog):
+        src = 'hotkeys = "x"\n'
         user_file.write_text(src, encoding="utf-8")
         with caplog.at_level(logging.ERROR, logger="hams"):
             assert _persist_config_value("hotkeys", "transcript", "z") is False
         assert user_file.read_text(encoding="utf-8") == src
         assert any("Config not saved" in r.getMessage() for r in caplog.records)
+
+
+class TestRefusedEdits:
+    """What cannot be written exactly is refused, the old file stays."""
 
     def test_verify_reports_a_wrong_value(self):
         assert verify_toml_value('[a]\nk = 1\n', "a", "k", 2)

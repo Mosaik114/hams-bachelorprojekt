@@ -73,7 +73,7 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 | Settings | `settings_window.py`, `settings_sections.py`, `settings_shortcuts.py`, `settings_status.py`, `settings_models.py`, `settings_extras.py`, `settings_about.py` | Live microphone level, Ollama status, model download and delete, glossary, *About & help* |
 | Support | `support.py`, `self_test.py`, `cli.py` | `--self-test` and `--report` for the installer and CI; in the app, a diagnostic report (self-test without the Tk check, plus the end of the log) written in a worker thread and opened in the default editor; links to the docs |
 | Update notice | `updates.py`, `update_notice.py` | At most one request a day to the GitHub releases API in a background thread; only a notice with a link, never a download. `[updates] check = false` turns it off |
-| Config | `config.py`, `config_toml.py`, `config_validation.py`, `config.default.toml` | Three layers: code defaults → shipped defaults → user file. Writes keep comments and formatting |
+| Config | `config.py`, `config_toml.py`, `config_validation.py`, `config.default.toml` | Three layers: code defaults → shipped defaults → user file. Writes go through `tomlkit` and keep comments and formatting; the result is re-read with `tomllib` before it replaces the file, atomically |
 | Design system | `ui_kit/` | Theme tokens, DPI scaling, buttons, selects, popovers, icons, focus and hover states |
 
 ## Design decisions
