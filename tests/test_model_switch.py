@@ -175,7 +175,12 @@ class TestConcurrency:
         assert order == [], "Wechsel lief trotz laufender Transkription"
         order.append("transcription")
         app.models.transcribe_lock.release()
-        thread.join(timeout=5)
+        # Keep the Tk thread serving, as the real main loop does: the worker's gc.collect() can finalise Tk
+        # objects, and on Linux Tcl hands that call to this thread. A bare join() would deadlock until timeout.
+        deadline = time.monotonic() + 5
+        while thread.is_alive() and time.monotonic() < deadline:
+            app.root.update()
+            thread.join(timeout=0.01)
         assert order == ["transcription", "switch"]
 
     def test_stale_load_does_not_win(self, app, monkeypatch):
