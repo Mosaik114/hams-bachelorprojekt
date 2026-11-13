@@ -1,0 +1,3 @@
+# gitleaks false positives (reviewed). Format: commit:file:rule:line
+# A docstring with keycap names ("Strg+Umschalt+Leertaste") matched generic-api-key.
+f7b31de5c18dd64e3e34b4f72e892ea9864ac5be:hams/hotkey_editor.py:generic-api-key:166

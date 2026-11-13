@@ -163,7 +163,7 @@ def is_function_key(key: str) -> bool:
 
 
 def display(combo: str) -> str:
-    """The combination as the keys are labelled: "Strg+Umschalt+Leertaste"."""
+    """The combination as its keycaps read, joined with plus signs (e.g. Strg, Umschalt, Leertaste)."""
     return "+".join(key_labels(combo))
 
 
