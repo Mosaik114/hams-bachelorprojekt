@@ -25,6 +25,8 @@ follow [Semantic Versioning](https://semver.org/).
 - Unused code that only tests called (`PrimaryButton`, `rounded_image`, `separator`, `focus_chain`, `icon_names`,
   `catalog_ids`, `i18n.placeholders`, `PROMPT_PLAIN_SYSTEM`, `PRODUCT_NAME_AR`, `IS_LINUX` and a settings helper);
   what the tests need now lives in `tests/`.
+- The import guard that hid `torch` and `transformers` while faster-whisper loaded. It only helped environments that
+  happen to have `torch`, never the installer. Registering cuBLAS/cuDNN for the GPU stays.
 
 ### Fixed
 - **48 kHz or stereo in `[audio]` turned every dictation into gibberish.** Nothing converted the audio, so Whisper got

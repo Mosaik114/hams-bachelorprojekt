@@ -1,21 +1,14 @@
-"""Der Python-Import von torch gehoert nicht in den Start — seine DLLs schon.
+"""The CUDA libraries must be reachable once faster-whisper is imported, and the start must not pull in torch.
 
-`ctranslate2/__init__.py` importiert `converters` bedingungslos, und dort wird
-torch versucht — geschuetzt mit `try: import torch / except ImportError: pass`.
-Gemessen kostet das 943 ms fuer torch und 651 ms fuer transformers, bei jedem
-Start, fuer zwei Pakete, die in keiner Abhaengigkeitsliste dieses Projekts
-stehen und deren Python-API hier niemand aufruft.
+CTranslate2 needs cuBLAS and cuDNN for the GPU but does not bring them; `backend_preload` registers them from the
+NVIDIA wheels or the app's download before `hams.backend` imports faster-whisper. Hams' own dependencies never
+include torch: the start has to stay without it.
 
-Von torch gebraucht wird trotzdem etwas, nur auf einer Ebene, die kein Grep
-nach `import torch` findet: sein Ordner `lib` liefert cublas64_12.dll und
-cudnn64_9.dll, und ohne die faellt CUDA aus. Beides ist zu trennen — die
-Bibliotheken anmelden, den Import sparen.
-
-Gemessen werden muss das von aussen: im laufenden Testprozess ist
-faster-whisper laengst importiert, und was einmal in `sys.modules` steht,
-verraet nichts mehr ueber die Reihenfolge beim Start.
+Measured from outside: in the running test process faster-whisper is long imported, and what is in `sys.modules`
+says nothing about the order at start.
 """
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -50,7 +43,8 @@ def _in_a_fresh_interpreter(code: str, tmp_path: Path) -> dict:
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
-class TestDerStartZiehtTorchNichtMit:
+class TestDerStart:
+    @pytest.mark.skipif(importlib.util.find_spec("torch") is not None, reason="torch is installed in this environment")
     def test_importing_the_app_leaves_torch_alone(self, tmp_path):
         bericht = _in_a_fresh_interpreter(
             """
@@ -68,98 +62,34 @@ class TestDerStartZiehtTorchNichtMit:
         assert bericht["torch"] is False
         assert bericht["transformers"] is False
 
-    def test_the_backend_is_usable_afterwards(self, tmp_path):
-        """Nicht geladen zu haben nuetzt nichts, wenn danach nichts geht."""
+    def test_the_backend_is_usable(self, tmp_path):
         bericht = _in_a_fresh_interpreter(
             """
-            import json, sys
-            from hams.backend_preload import preload_backend_without_torch
-            ohne_torch = preload_backend_without_torch()
-            from faster_whisper import WhisperModel
+            import json
+            from hams.backend import BatchedInferencePipeline, WhisperModel
             print(json.dumps({
-                "ohne_torch": ohne_torch,
-                "torch": "torch" in sys.modules,
                 "klasse": WhisperModel.__name__,
                 "kann_transkribieren": callable(WhisperModel.transcribe),
+                "gebatcht": BatchedInferencePipeline.__name__,
             }))
         """,
             tmp_path,
         )
-        assert bericht["ohne_torch"] is True
-        assert bericht["torch"] is False
-        assert bericht["klasse"] == "WhisperModel"
-        assert bericht["kann_transkribieren"] is True
+        assert bericht == {
+            "klasse": "WhisperModel",
+            "kann_transkribieren": True,
+            "gebatcht": "BatchedInferencePipeline",
+        }
 
-    def test_a_second_call_changes_nothing(self, tmp_path):
-        """Zweimal aufgerufen darf die Sperre nicht erneut greifen."""
-        bericht = _in_a_fresh_interpreter(
-            """
-            import json, sys
-            from hams.backend_preload import preload_backend_without_torch
-            erst = preload_backend_without_torch()
-            dann = preload_backend_without_torch()
-            print(json.dumps({"erst": erst, "dann": dann,
-                              "sperren_uebrig": sum(
-                                  1 for f in sys.meta_path
-                                  if type(f).__name__ == "_AbgeschalteteImporte")}))
-        """,
-            tmp_path,
-        )
-        assert bericht["erst"] is True
-        assert bericht["dann"] is True
-        assert bericht["sperren_uebrig"] == 0, "Die Sperre muss abgeraeumt sein"
+    def test_the_old_import_guard_is_gone(self):
+        """Audit finding H16: hiding torch during the import only helped environments that happen to have it."""
+        from hams import backend_preload
 
-
-class TestWennDieSperreNichtTraegt:
-    """Der Rueckfall. Ein langsamer Start ist hinnehmbar, keiner nicht."""
-
-    def test_a_failing_guarded_import_is_retried_without_it(self, tmp_path):
-        """ctranslate2 ist *nicht* mit try/except geschuetzt.
-
-        Wird es mitgesperrt, scheitert der Import unter der Sperre — genau der
-        Fall, den der Rueckfall auffangen soll. Er muss dann ohne Sperre
-        erneut laden statt die Anwendung stehen zu lassen.
-        """
-        bericht = _in_a_fresh_interpreter(
-            """
-            import json, sys
-            sys.path.insert(0, ".")
-            from hams import backend_preload as models
-            models._AbgeschalteteImporte.__init__ = (
-                lambda self, *n: object.__setattr__(self, "_namen",
-                                                    frozenset(n) | {"ctranslate2"}))
-            ohne_torch = models.preload_backend_without_torch()
-            from faster_whisper import WhisperModel
-            print(json.dumps({
-                "ohne_torch": ohne_torch,
-                "backend": "faster_whisper" in sys.modules,
-                "klasse": WhisperModel.__name__,
-                "sperren_uebrig": sum(1 for f in sys.meta_path
-                                      if type(f).__name__ == "_AbgeschalteteImporte"),
-            }))
-        """,
-            tmp_path,
-        )
-        assert bericht["ohne_torch"] is False, "Der Rueckfall muss sich melden"
-        assert bericht["backend"] is True, "Die Anwendung muss trotzdem starten"
-        assert bericht["klasse"] == "WhisperModel"
-        assert bericht["sperren_uebrig"] == 0
+        assert not hasattr(backend_preload, "preload_backend_without_torch")
+        assert [package for package, _ in backend_preload.CUDA_LIBRARY_PACKAGES] == ["nvidia.cublas", "nvidia.cudnn"]
 
 
 class TestDieCudaBibliothekenBleibenErreichbar:
-    """Der Fehler, den die erste Fassung dieser Datei nicht gesehen hat.
-
-    torch ist auf einer typischen Windows-Installation die einzige Quelle von
-    cublas64_12.dll und cudnn64_9.dll. Sie kamen bisher als Nebenwirkung des
-    Imports in den DLL-Suchpfad. Wird nur der Import gespart, meldet die
-    Transkription auf der GPU
-
-        RuntimeError: Library cublas64_12.dll is not found or cannot be loaded
-
-    Die erste Fassung dieser Tests hat das nicht bemerkt, weil ihr Vergleich
-    auf der CPU lief - dort braucht ctranslate2 kein cuBLAS.
-    """
-
     def test_a_directory_is_registered(self):
         from hams.backend_preload import add_cuda_libraries
 
@@ -179,63 +109,18 @@ class TestDieCudaBibliothekenBleibenErreichbar:
         for o in ordner:
             assert list(Path(o).glob(muster)), o
 
-    def test_the_standalone_packages_come_first(self):
-        """Wer nvidia-cublas-cu12 installiert, soll nicht doch torch ziehen.
-
-        Die Reihenfolge ist der Unterschied zwischen einer 1,9 GB und einer
-        6,6 GB grossen Installation.
-        """
-        from hams.backend_preload import CUDA_LIBRARY_PACKAGES
-
-        namen = [paket for paket, _ in CUDA_LIBRARY_PACKAGES]
-        assert namen.index("nvidia.cublas") < namen.index("torch")
-        assert namen.index("nvidia.cudnn") < namen.index("torch")
-
-    def test_cublas_can_actually_be_loaded_afterwards(self, tmp_path):
-        """Nicht der Pfad zaehlt, sondern ob Windows die Bibliothek findet."""
-        bericht = _in_a_fresh_interpreter(
-            """
-            import ctypes, glob, json, os, sys
-            sys.path.insert(0, ".")
-            from hams.backend_preload import preload_backend_without_torch
-            ohne_torch = preload_backend_without_torch()
-            import importlib.util
-            spec = importlib.util.find_spec("torch")
-            treffer = glob.glob(os.path.join(
-                os.path.dirname(spec.origin), "lib", "cublas64_*.dll")) if spec else []
-            geladen = None
-            if treffer:
-                try:
-                    ctypes.WinDLL(os.path.basename(treffer[0]))
-                    geladen = True
-                except OSError:
-                    geladen = False
-            print(json.dumps({"ohne_torch": ohne_torch, "hat_cublas": bool(treffer),
-                              "geladen": geladen, "torch": "torch" in sys.modules}))
-        """,
-            tmp_path,
-        )
-        if not bericht["hat_cublas"]:
-            pytest.skip("kein cuBLAS in dieser Umgebung")
-        assert bericht["torch"] is False, "torch soll weiterhin ungeladen bleiben"
-        assert bericht["geladen"] is True, (
-            "cuBLAS ist nach dem Backend-Import nicht auffindbar — die GPU-Transkription wuerde scheitern"
-        )
-
     @pytest.mark.skipif(sys.platform != "win32", reason="nur Windows")
     def test_the_standalone_cublas_is_in_the_process_before_ctranslate2_needs_it(self, tmp_path):
         """ctranslate2 laedt cuBLAS erst beim ersten Rechnen nach, und zwar ueber
         den PATH. Ein mit add_dll_directory angemeldeter Ordner reicht dafuer nicht:
-        mit nvidia-cublas-cu12 ohne torch scheiterte die erste Transkription an
+        mit nvidia-cublas-cu12 scheiterte die erste Transkription an
 
             RuntimeError: Library cublas64_12.dll is not found or cannot be loaded
         """
         bericht = _in_a_fresh_interpreter(
             """
-            import ctypes, importlib.util, json, sys
-            sys.path.insert(0, ".")
-            from hams.backend_preload import preload_backend_without_torch
-            preload_backend_without_torch()
+            import ctypes, importlib.util, json
+            import hams.backend
             # erst das Elternpaket: find_spec("nvidia.cublas") wirft, wenn es "nvidia" gar nicht gibt
             vorhanden = importlib.util.find_spec("nvidia") is not None and (
                 importlib.util.find_spec("nvidia.cublas") is not None

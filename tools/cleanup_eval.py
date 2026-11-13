@@ -373,9 +373,9 @@ def percentile(values: list[float], q: float) -> float:
 
 
 def transcribe_all(samples: list[Sample], workdir: Path) -> dict:
-    from hams.backend_preload import preload_backend_without_torch
+    from hams.backend_preload import add_cuda_libraries
 
-    preload_backend_without_torch()
+    add_cuda_libraries()
     from faster_whisper import WhisperModel
 
     from hams.config import CFG

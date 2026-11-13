@@ -156,7 +156,7 @@ and CI as the gate, and measured numbers instead of impressions.
 
 - **`127.0.0.1` instead of a smaller model.** One timed cleanup call lost ~2 s to a refused IPv6 connection; a smaller
   model would have saved 0.38 s ([evaluation](docs/evaluation.md#where-the-time-went)).
-- **No `torch` at runtime:** preload cuBLAS/cuDNN from the NVIDIA wheels instead of paying 1.6 s per start and 4.3 GB
+- **No `torch` at all:** cuBLAS/cuDNN come from the NVIDIA wheels instead of `torch`, which cost 1.6 s per start and 4.3 GB
   on disk ([architecture](docs/architecture.md#design-decisions)).
 - **`float16` kept over `int8_float16`**, although it had the same WER and was 8 % faster: a precaution
   ([evaluation](docs/evaluation.md#recognition-quality-wer)).

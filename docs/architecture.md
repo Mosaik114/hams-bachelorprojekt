@@ -66,7 +66,7 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 | Entry and lifecycle | `main.py`, `instance.py`, `activation.py` | Single-instance mutex (Windows) or lock file (Linux); self-restart; `Hams.exe --settings` opens the settings of the running instance through a named event |
 | App shell | `app.py`, `ui_dispatch.py`, `main_window.py`, `tray.py`, `window_position.py` | `FloatingTranscriberApp` is composed of mixins (`MainWindowMixin`, `TrayMixin`, `WhisperModelMixin`, `RecordingMixin`, `TranscriptionMixin`) |
 | Audio | `recording.py` | Level meter in dBFS (−62 … −28 dB mapped to 0 … 1), peak normalisation for quiet input, auto-stop |
-| Speech recognition | `whisper_model.py`, `models.py`, `backend.py`, `backend_preload.py` | Device and precision fallback chain (`cuda: float16 → int8_float16 → int8`, then CPU). CUDA libraries are preloaded from the NVIDIA wheels, so `torch` is never imported. Every load (start, retry, switch, setup assistant, finished download) goes through one request with a generation number; phases `idle → loading`/`switching → ready`/`failed`. Loads run one after the other under the transcription lock, and only the newest generation may commit, so a late, superseded load is freed instead of replacing the newer choice |
+| Speech recognition | `whisper_model.py`, `models.py`, `backend.py`, `backend_preload.py` | Device and precision fallback chain (`cuda: float16 → int8_float16 → int8`, then CPU). CUDA libraries are preloaded from the NVIDIA wheels or the app's download; `torch` is not a dependency. Every load (start, retry, switch, setup assistant, finished download) goes through one request with a generation number; phases `idle → loading`/`switching → ready`/`failed`. Loads run one after the other under the transcription lock, and only the newest generation may commit, so a late, superseded load is freed instead of replacing the newer choice |
 | Post-processing | `transcription.py`, `cleanup_guard.py`, `ollama.py`, `glossary.py`, `dictation_language.py`, `prompts/cleanup*.txt` | 30 s cleanup timeout with raw-text fallback; cleanup samples at temperature 0, and `cleanup_guard.py` strips a "Here is the corrected text:" line and replaces an answer that leaks the prompt, grows too much, changes digits or drops most words by the raw text; the glossary reloads when the file changes |
 | Hotkeys | `system_hotkeys.py`, `portal_hotkeys.py`, `hotkey_editor.py` | `RegisterHotKey` survives standby, unlike low-level keyboard hooks that Windows silently removes |
 | Linux integration | `linux.py`, `linux/*.sh` | `uinput` virtual keyboard, synthesised chime, `SIGUSR1` to bring the window to front, systemd user service |
@@ -81,10 +81,11 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 - **`127.0.0.1` instead of `localhost`.** On Windows, `localhost` resolves to `::1` first. Ollama listened on IPv4
   only, so every request first waited about 2 s for a refused IPv6 connection. See
   [evaluation.md](evaluation.md#where-the-time-went).
-- **No `torch`.** CTranslate2 imports its converters unconditionally. With `torch` and `transformers` in the same
-  interpreter, that cost 1.6 s per start and 4.3 GB on disk. `backend_preload.py` hides `torch` and `transformers`
-  just for the duration of that import (CTranslate2 treats "torch missing" as a supported state). It then loads
-  cuBLAS/cuDNN from the `nvidia-*-cu12` wheels, which `torch` used to provide as a side effect.
+- **No `torch`.** CTranslate2 imports its converters unconditionally, and with `torch` and `transformers` in the
+  same interpreter that cost 1.6 s per start and 4.3 GB on disk. Hams depends on neither: cuBLAS/cuDNN, which
+  `torch` used to provide as a side effect, come from the `nvidia-*-cu12` wheels or the app's own download, and
+  `backend_preload.py` registers them before faster-whisper is imported. (An earlier version also hid `torch`
+  during that import for environments that happen to have it; the installer never does, so that was removed.)
 - **`RegisterHotKey` instead of a keyboard hook.** Low-level hooks are dropped by Windows after standby or under
   load, and never come back. Registered hotkeys survive.
 - **Batched inference only above 30 s.** Below that it brings no speed-up; above it, it is faster *and* more

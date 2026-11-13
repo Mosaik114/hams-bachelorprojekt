@@ -130,7 +130,7 @@ them, Hams runs on the CPU even if a GPU is present. See [troubleshooting.md](tr
    Mono)`.
 2. In a Python environment with `pip install -e ".[cuda]"`, load each model with
    `WhisperModel(model, device="cuda", compute_type="float16")` or `device="cpu", compute_type="int8"`, call
-   `hams.backend_preload.preload_backend_without_torch()` first so the CUDA libraries are found, and time
+   `hams.backend_preload.add_cuda_libraries()` first so the CUDA libraries are found, and time
    `model.transcribe(audio, language=..., beam_size=1, vad_filter=True, condition_on_previous_text=False,
    without_timestamps=True)` after one warm-up run, consuming the returned segments.
 

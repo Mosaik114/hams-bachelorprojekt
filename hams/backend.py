@@ -1,13 +1,8 @@
-"""faster-whisper ohne torch und transformers laden.
+"""faster-whisper, imported after the CUDA libraries were made reachable (see backend_preload.py)."""
 
-faster-whisper laedt sonst torch und transformers mit - 1,4 s pro Start fuer
-zwei Pakete, die dieses Projekt weder auffuehrt noch aufruft. Der Vorlauf muss
-vor dem Import stehen, sonst ist er laengst gelaufen.
-"""
+from hams.backend_preload import add_cuda_libraries
 
-from hams.backend_preload import preload_backend_without_torch
-
-preload_backend_without_torch()
+add_cuda_libraries()
 
 from faster_whisper import BatchedInferencePipeline, WhisperModel  # noqa: E402
 

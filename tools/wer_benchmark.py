@@ -57,7 +57,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from hams.backend_preload import preload_backend_without_torch
+from hams.backend_preload import add_cuda_libraries
 
 SAETZE = [
     "Bitte schick mir die Unterlagen bis Freitag an meine Geschäftsadresse.",
@@ -204,7 +204,7 @@ def main() -> int:
     stichproben = proben(args.korpus)
     print(f"{len(stichproben)} Proben ({len(SAETZE)} Sätze × {1 + len(STOERABSTAENDE)} Bedingungen)\n")
 
-    preload_backend_without_torch()
+    add_cuda_libraries()
     from faster_whisper import WhisperModel
 
     laeufe = {}

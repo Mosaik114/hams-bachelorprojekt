@@ -65,7 +65,7 @@ hams/
 ├── transcription.py     Whisper, glossary, Ollama cleanup, paste
 ├── cleanup_guard.py     checks the cleanup answer, falls back to the raw text
 ├── whisper_model.py     load, switch and download models with fallback
-├── backend_preload.py   load CUDA libs without torch (−1.5 s per start)
+├── backend_preload.py   make cuBLAS/cuDNN reachable before faster-whisper loads
 ├── gpu_support.py       on-demand CUDA download for the installed app
 ├── cli.py, self_test.py command line: --self-test, --install-gpu-support
 ├── support.py           help links, log folder, in-app diagnostic report
