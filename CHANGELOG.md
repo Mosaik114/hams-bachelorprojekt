@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.2] – 2026-11-13
+
 Fixes from the third independent review.
 
 ### Fixed
