@@ -194,9 +194,13 @@ class TestSurfaceLadder:
 
     @pytest.mark.parametrize("mode", MODES)
     def test_four_levels_step_away_from_the_window(self, mode):
-        value_list = self._leiter(mode)
-        expected = sorted(value_list) if mode == Theme.DARK else sorted(value_list, reverse=True)
-        assert value_list == expected, f"{mode}: {value_list}"
+        """Dunkel steigt jede Ebene auf. Hell liegt die Papierplatte heller auf dem Papier (Loratu), die
+        Steine darauf treten wieder Schritt fuer Schritt dunkler heraus."""
+        window, group, control, hover = self._leiter(mode)
+        if mode == Theme.DARK:
+            assert window < group < control < hover
+        else:
+            assert group > window and group > control > hover
 
     @pytest.mark.parametrize("mode", MODES)
     def test_popover_sits_above_group(self, mode):
@@ -279,21 +283,19 @@ class TestFontRoles:
     def test_all_required_roles_exist(self):
         assert set(_FONT_ROLES) >= self.REQUIRED
 
-    def test_nothing_is_bold(self):
-        """Mosaik-Design: Überschriften tragen die Serifenschrift, Schaltflächen
-        den Semibold-Schnitt. Echtes Fett wirkte in 12 pt klobig."""
+    def test_only_headings_and_buttons_are_bold(self):
+        """Tusche und Aquarell: Überschriften und Knöpfe in der runden, kräftigen Schrift, der Rest ruhig."""
         bold = {r for r, (_f, _s, w) in _FONT_ROLES.items() if w == "bold"}
-        assert bold == set()
-        assert _FONT_ROLES["button"][0] == "semibold"
+        assert bold == {"window_title", "section", "button"}
 
     def test_four_sizes_at_most(self):
         """Eine ruhige Schriftskala: 16 / 13 / 12 / 11 pt."""
         sizes = {size for _f, size, _w in _FONT_ROLES.values()}
         assert sizes <= {16, 13, 12, 11}
 
-    def test_headings_use_the_serif(self):
-        for role in ("window_title", "section"):
-            assert _FONT_ROLES[role][0] == "serif"
+    def test_headings_and_buttons_use_the_rounded_face(self):
+        for role in ("window_title", "section", "button"):
+            assert _FONT_ROLES[role][0] == "rounded"
 
     def test_small_optical_size_for_small_text(self):
         """Segoe UI Variable Small ist für 8–12 pt gezeichnet."""

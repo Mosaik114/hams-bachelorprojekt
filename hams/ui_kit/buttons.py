@@ -5,15 +5,25 @@ from __future__ import annotations
 import tkinter as tk
 from collections.abc import Callable
 
-from PIL import Image, ImageTk
+from PIL import ImageTk
 
 from hams.ui_kit.icons import ICON_BOX, render_icon
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
-from hams.ui_kit.surfaces import _hex_to_rgb, surface
-from hams.ui_kit.theme import Height, Radius, Space, Theme
+from hams.ui_kit.surfaces import surface
+from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme, ink_width
 
 # ---------------------------------------------------------------- Basis-Controls
+
+
+def on_hidden_page(widget: tk.Misc) -> bool:
+    """Ob das Widget auf einer gerade verborgenen Seite liegt (ein Vorfahr trägt `hidden_page = True`)."""
+    node = getattr(widget, "master", None)
+    while node is not None:
+        if getattr(node, "hidden_page", False):
+            return True
+        node = getattr(node, "master", None)
+    return False
 
 
 class BaseControl(tk.Label, StateMixin, FocusMixin):
@@ -110,8 +120,21 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
     # ------------------------------------------------------------ Zeichnen
 
     def _on_configure(self, event: tk.Event) -> None:
-        if event.width != self._last_width:
-            self._last_width = event.width
+        if event.width == self._last_width:
+            return
+        self._last_width = event.width
+        if not on_hidden_page(self):
+            self._render()
+        else:
+            # Auf einer verborgenen Seite (Reiter der Einstellungen) hat das Feld keinen Platz, der es begrenzt:
+            # jedes neue Bild verlangt wieder eine andere Breite, und Tk legt endlos neu aus. Gezeichnet wird,
+            # sobald die Seite gezeigt wird (`render_if_stale`).
+            self._stale = True
+
+    def render_if_stale(self) -> None:
+        """Holt ein Neuzeichnen nach, das ausfiel, solange das Control verborgen war."""
+        if getattr(self, "_stale", False):
+            self._stale = False
             self._render()
 
     def _on_scale_change(self, _factor: float) -> None:
@@ -169,15 +192,22 @@ class _SurfaceControl(BaseControl):
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:
         fill, _foreground = self.colours()
         ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
+        depth = px(Depth.CONTROL)
+        painted = fill is not None  # eine Fläche ohne Füllung (plain) bleibt ungemalt
         return surface(
             width,
-            height + 2 * (ring_w + ring_gap),
+            height + depth + 2 * (ring_w + ring_gap),
             px(self._logical_radius),
-            fill if fill is not None else self._bg_under,
+            fill if painted else self._bg_under,
             squircle=self._squircle,
+            border=Theme.INK if painted else None,
+            border_w=ink_width() if painted else 0,
             ring=self.ring(),
             ring_width=ring_w,
             ring_gap=ring_gap,
+            side=ControlStyle.side(self._role, self._states) if painted else None,
+            depth=depth if painted else 0,
+            pressed=self.has_state(State.PRESSED),
         )
 
 
@@ -268,7 +298,7 @@ class IconButton(BaseControl):
         self._hover_colour: str | None = None
         super().__init__(master, bg_under=bg_under, role="plain", height=size, radius=Radius.CONTROL, command=command)
         self._side = size
-        self.configure(width=px(size), height=px(size))
+        self.configure(width=px(size), height=px(size) + px(Depth.CONTROL))
         self._last_width = px(size)
         self._render()
 
@@ -291,43 +321,40 @@ class IconButton(BaseControl):
     def _on_scale_change(self, _factor: float) -> None:
         try:
             side = px(self._side)
-            self.configure(width=side, height=side)
+            self.configure(width=side, height=side + px(Depth.CONTROL))
             self._last_width = side
             self._render()
         except tk.TclError:  # pragma: no cover
             pass
 
     def _paint(self, _width: int, _height: int) -> ImageTk.PhotoImage:
+        """Ein gemalter Kreisstein (Loratu): Tuscherand, Seite darunter, sinkt beim Drücken ein."""
         side = px(self._side)
-        fill, foreground = self.colours()
-        if self._hover_colour and self.has_state(State.HOVER) and self.enabled:
+        depth = px(Depth.CONTROL)
+        _fill, foreground = self.colours()
+        hovered = self.enabled and (self.has_state(State.HOVER) or self.has_state(State.PRESSED))
+        if self._hover_colour and hovered:
             foreground = self._hover_colour
-        ring = self.ring()
-        if fill is None and ring is None:
-            # Im Ruhezustand gibt es nichts zu zeichnen: die Flaeche *ist* der
-            # Untergrund. Eine gerundete Platte in genau dieser Farbe waere
-            # trotzdem nicht neutral — beim Verkleinern ueberschwingt Lanczos
-            # an der Kante. Auf dunklem Grund fiel das nicht auf (4 Bildpunkte,
-            # 7 Stufen daneben), auf hellem stand dort ein sichtbarer heller
-            # Ring um jede Icon-Schaltflaeche (35 Bildpunkte, bis zu 35 Stufen).
-            # Eine glatte Flaeche hat keine Kante und damit kein Ueberschwingen.
-            plate = Image.new("RGBA", (side, side), _hex_to_rgb(self._bg_under) + (255,))
-        else:
-            ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
-            plate = ImageTk.getimage(
-                surface(
-                    side,
-                    side,
-                    px(Radius.CONTROL),
-                    fill if fill is not None else self._bg_under,
-                    squircle=True,
-                    ring=ring,
-                    ring_width=ring_w,
-                    ring_gap=ring_gap,
-                )
+        fill = Theme.CONTROL_HOVER if hovered else Theme.CONTROL_SURFACE
+        pressed = self.has_state(State.PRESSED)
+        plate = ImageTk.getimage(
+            surface(
+                side,
+                side + depth,
+                side // 2,
+                fill,
+                border=Theme.INK,
+                border_w=ink_width(),
+                ring=self.ring(),
+                ring_width=px(ControlStyle.RING_WIDTH),
+                ring_gap=px(ControlStyle.RING_GAP),
+                side=ControlStyle.side("secondary", self._states),
+                depth=depth,
+                pressed=pressed,
             )
+        ).copy()
         glyph_size = px(self._icon_size)
         glyph = render_icon(self._icon_name, glyph_size, foreground)
-        offset = ((plate.width - glyph_size) // 2, (plate.height - glyph_size) // 2)
-        plate.paste(glyph, offset, glyph)
+        top = (side - glyph_size) // 2 + (depth if pressed else 0)
+        plate.paste(glyph, ((side - glyph_size) // 2, top), glyph)
         return ImageTk.PhotoImage(plate)

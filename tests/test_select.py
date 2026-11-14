@@ -353,10 +353,24 @@ class TestClickOutside:
         """Der Eintrag verbraucht den Klick selbst — nichts darf ihn abfangen."""
         popover = self.open_popover(select, root)
         item = popover._items[2]
-        item.event_generate("<Button-1>", x=5, y=5, rootx=item.winfo_rootx() + 5, rooty=item.winfo_rooty() + 5)
+        point = dict(x=5, y=5, rootx=item.winfo_rootx() + 5, rooty=item.winfo_rooty() + 5)
+        item.event_generate("<ButtonPress-1>", **point)
+        item.event_generate("<ButtonRelease-1>", **point)
         root.update()
         assert select.value == "v2"
         assert Popover.current is None
+
+    def test_the_free_space_right_of_the_text_chooses_too(self, select, root):
+        """Not only the text: the whole entry is the target (it used to be dead beside the text)."""
+        popover = self.open_popover(select, root)
+        item = popover._items[2]
+        free = item._title.master  # the text box, wider than the title text
+        x = free.winfo_rootx() + free.winfo_width() - 3
+        point = dict(rootx=x, rooty=free.winfo_rooty() + 3)
+        free.event_generate("<ButtonPress-1>", **point)
+        free.event_generate("<ButtonRelease-1>", **point)
+        root.update()
+        assert select.value == "v2"
 
     def test_the_trigger_gets_the_focus_back(self, select, root, monkeypatch):
         returned = []

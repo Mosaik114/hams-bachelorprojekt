@@ -61,6 +61,8 @@ def _own_texts(widget) -> list:
             texts += [option.label, option.meta, option.trailing, option.group]
     if isinstance(widget, uk.KeyCombo):
         texts += widget.labels if widget.labels else [widget.EMPTY]
+    elif isinstance(widget, tk.Canvas):
+        texts += [widget.itemcget(item, "text") for item in widget.find_all() if widget.type(item) == "text"]
     return texts
 
 

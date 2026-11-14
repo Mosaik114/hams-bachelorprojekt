@@ -7,6 +7,7 @@ import tkinter as tk
 from collections.abc import Callable
 
 from hams.ui_kit.controls import StatusDot
+from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.states import ControlStyle, FocusMixin
 from hams.ui_kit.text import _fit_text, _line_height
@@ -56,6 +57,7 @@ class SettingRow(tk.Frame):
         self._enabled = True
         self._hovered = False
         self._control: tk.Misc | None = None
+        self._area: PressArea | None = None
         #: Die vollständigen Texte. Angezeigt wird, was in die Zeile passt.
         self._title_text = title
         self._sub_text = description
@@ -145,12 +147,9 @@ class SettingRow(tk.Frame):
             self.hairline.pack(fill="x", padx=px(Space.ROW_X))
 
     def _bind_interaction(self) -> None:
-        """Die ganze Zeile ist Auslöser (Schalter): Hover und Klick auf jedem Teil."""
-        for widget in self._hover_widgets():
-            widget.bind("<Enter>", self._on_enter, add="+")
-            widget.bind("<Leave>", self._on_leave, add="+")
-            widget.bind("<Button-1>", self._on_click, add="+")
-            widget.configure(cursor="hand2")
+        """Die ganze Zeile ist Auslöser (Schalter): jeder Teil, auch Rand und Trennlinie."""
+        self._area = PressArea(self, self._on_click, on_hover=self._on_hover, enabled=lambda: self._enabled)
+        self._area.set_cursor("hand2")
 
     # ------------------------------------------------------------ Aufbau
 
@@ -166,6 +165,8 @@ class SettingRow(tk.Frame):
         self._control = control
         if control is None:
             return
+        if self._area is not None:
+            self._area.watch(control)  # der Schalter klickt selbst, haelt aber die Hervorhebung der Zeile
         # Controls mit Fokusring halten dafür ringsum Platz frei; ihre sichtbare
         # Kante liegt um diesen Rand weiter innen. Die Zeile rückt sie deshalb
         # um genau so viel nach außen, damit Feld, Titel und Tasten-Chips auf
@@ -226,14 +227,6 @@ class SettingRow(tk.Frame):
             line = _line_height(font("description"), self)
             self.status_dot.pack_configure(pady=(max(0, (line - px(StatusDot.SIZE_ROW)) // 2), 0))
 
-    def _hover_widgets(self) -> list:
-        widgets = [self._line, self._text_box, self.title_label]
-        if self.sub_box is not None:
-            widgets += [self.sub_box]
-        if self.sub_label is not None:
-            widgets += [self.sub_label]
-        return widgets
-
     # ------------------------------------------------------------ Zustand
 
     def _refit(self, _event=None) -> None:
@@ -292,8 +285,8 @@ class SettingRow(tk.Frame):
             self._control.set_enabled(enabled)
         if not enabled:
             self._paint(Theme.GROUP_SURFACE)
-        for widget in self._hover_widgets() if self._interactive else []:
-            widget.configure(cursor="hand2" if enabled else "arrow")
+        if self._area is not None:
+            self._area.set_cursor("hand2" if enabled else "arrow")
 
     @property
     def enabled(self) -> bool:
@@ -324,10 +317,15 @@ class SettingRow(tk.Frame):
         self._hovered = False
         self._paint(Theme.GROUP_SURFACE)
 
-    def _on_click(self, _event=None) -> str:
+    def _on_hover(self, inside: bool) -> None:
+        if inside:
+            self._on_enter()
+        else:
+            self._on_leave()
+
+    def _on_click(self) -> None:
         if self._enabled and self._command is not None:
             self._command()
-        return "break"  # verhindert, dass der Klick zusätzlich am Control landet
 
     # ------------------------------------------------------------ Darstellung
 

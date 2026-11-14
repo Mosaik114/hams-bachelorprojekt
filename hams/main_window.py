@@ -12,6 +12,7 @@ from hams import ui_kit as uk
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.ui_kit import Theme
+from hams.window_mark import mark_label
 from hams.window_position import POSITION_SAVE_DELAY_MS
 
 
@@ -81,6 +82,7 @@ class MainWindowMixin:
         head = tk.Frame(card, bg=Theme.WINDOW_BG)
         head.pack(fill="x")
 
+        mark_label(head, bg=Theme.WINDOW_BG).pack(side="left", padx=(0, uk.px(uk.Space.MD)))
         title = tk.Label(
             head,
             text=branding.PRODUCT_NAME,
@@ -90,11 +92,6 @@ class MainWindowMixin:
             anchor="w",
         )
         title.pack(side="left")
-        # Ziehen am Kopf nur ohne Systemrahmen; unter Linux zieht man an der KDE-Titelleiste.
-        for widget in (head, title) if not uk.system_frame() else ():
-            widget.bind("<ButtonPress-1>", self._start_drag)
-            widget.bind("<B1-Motion>", self._on_drag)
-
         # Reihenfolge der Erzeugung ist die Reihenfolge der Tabulatorkette; sie
         # soll der Leserichtung folgen (Zahnrad, dann Kreuz). Gepackt wird
         # umgekehrt, weil `side="right"` das zuerst gepackte ganz aussen setzt.
@@ -209,7 +206,8 @@ class MainWindowMixin:
 
         logical = (
             uk.Space.WINDOW  # Rand oben
-            + uk.Height.STANDARD  # Kopfzeile
+            + uk.Height.STANDARD
+            + uk.Depth.CONTROL  # Kopfzeile, die Steinknöpfe mit ihrer Seite
             + uk.Space.XL
             + line
             + 2 * uk.Space.SM  # Statuszeile
@@ -217,7 +215,8 @@ class MainWindowMixin:
             + uk.SignalMeter.HEIGHT  # Pegel
             + uk.Space.LG
             + uk.Height.PRIMARY
-            + ring  # Hauptaktion
+            + uk.Depth.CONTROL
+            + ring  # Hauptaktion mit ihrer Seite
             + uk.Space.LG
             + footer  # Kurzbefehle als Tasten
             + uk.Space.WINDOW  # Rand unten
@@ -235,18 +234,6 @@ class MainWindowMixin:
         except AttributeError:  # vor init_fonts()
             pixels = uk.px(14)
         return max(1, int(round(pixels / max(uk.Scale.factor, 0.1))))
-
-    # ------------------------------------------------------------------ drag
-
-    def _start_drag(self, event: tk.Event) -> None:
-        self.drag_start_x = event.x
-        self.drag_start_y = event.y
-
-    def _on_drag(self, event: tk.Event) -> None:
-        x = self.root.winfo_x() + event.x - self.drag_start_x
-        y = self.root.winfo_y() + event.y - self.drag_start_y
-        self.root.geometry(f"+{x}+{y}")
-        self._remember_position(x, y)
 
     # ------------------------------------------------------------------ Fensterlage
 

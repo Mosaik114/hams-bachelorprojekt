@@ -9,7 +9,7 @@ from collections.abc import Callable
 from hams.ui_kit.animation import Animator
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.surfaces import surface
-from hams.ui_kit.theme import Radius, Space, Theme
+from hams.ui_kit.theme import Depth, Radius, Space, Theme, ink_width
 
 # ---------------------------------------------------------------- Einstellungs-Bausteine
 
@@ -300,7 +300,7 @@ class GroupSurface(tk.Canvas):
 
     def _sync_height(self) -> None:
         try:
-            wanted = self.body.winfo_reqheight() + 2 * self.inset
+            wanted = self.body.winfo_reqheight() + 2 * self.inset + px(Depth.GROUP)
             if wanted != int(self.cget("height")):
                 self.configure(height=wanted)
         except tk.TclError:  # pragma: no cover
@@ -332,14 +332,17 @@ class GroupSurface(tk.Canvas):
 
     def _render(self, width: int, height: int) -> None:
         self.delete("plate")
+        # Eine Papierplatte (Loratu): Tuscherand und darunter ihre Seite.
         image = surface(
             width,
             height,
             px(Radius.GROUP),
             Theme.GROUP_SURFACE,
-            border=Theme.HAIRLINE,
-            border_w=max(1, px(1)),
+            border=Theme.INK,
+            border_w=ink_width(),
             squircle=True,
+            side=Theme.GROUP_SIDE,
+            depth=px(Depth.GROUP),
         )
         self._plate = image
         self.create_image(0, 0, anchor="nw", image=image, tags="plate")

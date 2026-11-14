@@ -38,6 +38,8 @@ _TRAY_MASKS = {
 #: Fenster- und Anwendungssymbol.
 ICON_FILE = "hams.ico"
 APP_ICON_FILE = "hams_app_icon.png"
+#: Die Bildmarke in Aquarell und Tusche (Loratu-Stil), freigestellt: für den Kopf jedes Fensters.
+INK_MARK_FILE = "hams_mark_ink.png"
 
 _mask_cache: dict[int, Image.Image] = {}
 
@@ -104,4 +106,15 @@ def app_icon_image(size: int = 64) -> Image.Image | None:
             return image.convert("RGBA").resize((size, size), Image.LANCZOS)
     except (OSError, ValueError):
         logger.warning("App icon %s unreadable", path, exc_info=True)
+        return None
+
+
+def ink_mark_image(size: int) -> Image.Image | None:
+    """Die gemalte Bildmarke in `size` x `size` Pixeln, oder None, wenn die Datei fehlt."""
+    path = ASSET_DIR / INK_MARK_FILE
+    try:
+        with Image.open(path) as image:
+            return image.convert("RGBA").resize((size, size), Image.LANCZOS)
+    except (OSError, ValueError):
+        logger.warning("Ink mark %s unreadable", path, exc_info=True)
         return None

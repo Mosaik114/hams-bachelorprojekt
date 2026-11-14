@@ -44,6 +44,7 @@ Es ist eingefroren: keine neuen Eigenbau-Controls (siehe docs/architecture.md).
 """
 
 from hams.ui_kit.animation import init_animations
+from hams.ui_kit.banner import banner_image
 from hams.ui_kit.buttons import IconButton, SecondaryButton
 from hams.ui_kit.controls import (
     ProgressBar,
@@ -68,12 +69,14 @@ from hams.ui_kit.scale import (
 from hams.ui_kit.select import Select
 from hams.ui_kit.setting_row import SettingRow
 from hams.ui_kit.theme import (
+    Depth,
     Height,
     Space,
     Theme,
     apply_theme_tree,
 )
 from hams.ui_kit.window import (
+    WindowChrome,
     bring_to_front,
     frame_window,
     round_window_corners,
@@ -104,12 +107,15 @@ __all__ = [
     "keep_logical_width",
     "px",
     "window_dpi",
+    "banner_image",
     "Select",
     "SettingRow",
+    "Depth",
     "Height",
     "Space",
     "Theme",
     "apply_theme_tree",
+    "WindowChrome",
     "bring_to_front",
     "frame_window",
     "round_window_corners",

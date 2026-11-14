@@ -166,6 +166,8 @@ SERIF_FAMILIES = ("Georgia", "Cambria", "Times New Roman")
 
 #: Halbfetter Schnitt für Schaltflächen. Tk kennt nur „normal“ und „bold“;
 #: Windows legt die Zwischenschnitte als eigene Familien ab.
+#: Runde Schrift wie SF Pro Rounded in Loratu: Nunito, wenn installiert, sonst Segoe UI Variable Display.
+ROUNDED_FAMILIES = ("Nunito", "Nunito Sans", "Segoe UI Variable Display", "Segoe UI")
 SEMIBOLD_FAMILIES = ("Segoe UI Variable Text Semibold", "Segoe UI Semibold")
 
 # Rolle -> (Familienschlüssel, Punktgröße, Schnitt). Die Schlüssel werden beim
@@ -173,12 +175,13 @@ SEMIBOLD_FAMILIES = ("Segoe UI Variable Text Semibold", "Segoe UI Semibold")
 # Mosaik-Design: vier Größen (16, 13, 12, 11 pt). Überschriften tragen die
 # Serifenschrift, Schaltflächen den halbfetten Schnitt; fett ist nichts.
 _FONT_ROLES: dict[str, tuple] = {
-    "window_title": ("serif", 16, "normal"),  # Fenstertitel — Serifenschrift
-    "section": ("serif", 13, "normal"),  # Abschnittsueberschrift in den Einstellungen
+    # Tusche und Aquarell (Loratu): Überschriften und Knöpfe in einer runden, kräftigen Schrift.
+    "window_title": ("rounded", 16, "bold"),  # Fenstertitel
+    "section": ("rounded", 13, "bold"),  # Abschnittsueberschrift in den Einstellungen
     "row_title": ("text", 12, "normal"),  # Titel einer Einstellungszeile
     "description": ("small", 11, "normal"),  # Hilfstext unter einem Titel
     "status": ("text", 12, "normal"),  # die eine Statuszeile
-    "button": ("semibold", 12, "normal"),  # Beschriftung von Schaltflächen
+    "button": ("rounded", 12, "bold"),  # Beschriftung von Schaltflächen
     "shortcut": ("small", 11, "normal"),  # Tasten-Chips
     "meta": ("small", 11, "normal"),  # Zusatzangaben im Popover
     "icon": ("text", 13, "normal"),  # Glyph in Icon-Buttons
@@ -215,6 +218,7 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
         "semibold": next((f for f in SEMIBOLD_FAMILIES if f in families), "Segoe UI"),
         "mono": "Cascadia Mono" if "Cascadia Mono" in families else "Consolas",
         "serif": next((f for f in SERIF_FAMILIES if f in families), "Times New Roman"),
+        "rounded": next((f for f in ROUNDED_FAMILIES if f in families), "Segoe UI"),
     }
     if sys.platform != "win32":
         # Segoe UI und Georgia gibt es nur unter Windows.
@@ -230,6 +234,7 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
             semibold=pick("semibold"),
             mono=pick("mono"),
             serif=pick("serif"),
+            rounded=pick("rounded"),
         )
     if _FONTS and not force:
         return _FONTS

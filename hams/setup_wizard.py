@@ -287,7 +287,7 @@ def _install_gpu(progress, cancelled) -> None:
     backend_preload.add_cuda_libraries()
 
 
-def default_services() -> SetupServices:  # pragma: no cover - wiring of the real modules, used by the app
+def default_services(**overrides) -> SetupServices:  # pragma: no cover - wiring of the real modules
     import webbrowser
 
     from hams import app_paths, backend_preload, gpu_support
@@ -299,7 +299,7 @@ def default_services() -> SetupServices:  # pragma: no cover - wiring of the rea
 
     ollama = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
 
-    return SetupServices(
+    values = dict(
         gpu_present=lambda: gpu_support.nvidia_gpu_present() or (sys.platform != "win32" and _linux_nvidia_present()),
         gpu_libraries_found=backend_preload.cuda_libraries_found,
         gpu_download_supported=gpu_support.is_supported,
@@ -314,6 +314,8 @@ def default_services() -> SetupServices:  # pragma: no cover - wiring of the rea
         persist=_persist_config_value,
         open_url=webbrowser.open,
     )
+    values.update(overrides)
+    return SetupServices(**values)
 
 
 def describe_error(exc: BaseException) -> str:

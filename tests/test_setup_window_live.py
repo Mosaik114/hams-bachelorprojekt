@@ -597,11 +597,14 @@ class TestClosing:
 class TestDrag:
     def test_dragging_moves_the_window(self, wizard, live_app):
         win = wizard()
-        win._start_drag(SimpleNamespace(x=5, y=5))
+        chrome = uk.WindowChrome(win.win)
         before = win.win.winfo_x()
-        win._on_drag(SimpleNamespace(x=25, y=5))
+        start = SimpleNamespace(widget=win.win, x_root=before + 5, y_root=win.win.winfo_y() + 5)
+        chrome._on_press(start)
+        chrome._on_drag(SimpleNamespace(widget=win.win, x_root=before + 25, y_root=start.y_root))
+        chrome._on_release()
         live_app.root.update()
-        assert win.win.winfo_x() != before or win.win.winfo_x() == before + 20
+        assert win.win.winfo_x() == before + 20
 
 
 class TestAppIntegration:
@@ -739,3 +742,43 @@ class TestClosedBeforeTheModel:
     def test_finishing_loads_it_through_the_download(self, first_start, hams):
         first_start.on_setup_closed(True)
         assert hams.loads == 1, "the load itself downloads first (test_model_download_path.py)"
+
+
+class TestOneModelInventory:
+    """Settings and setup assistant ask the app which models are installed, so they cannot disagree."""
+
+    def test_a_finished_download_counts_as_installed_everywhere(self, live_app):
+        models = live_app.models
+        models.set_installed(set())
+        models._on_download_finished("turbo", "")
+        live_app.root.update()
+        assert "turbo" in models.installed_models()
+        models._on_download_finished("small", "Die Festplatte ist voll")
+        live_app.root.update()
+        assert "small" not in models.installed_models()
+
+    def test_the_assistant_lets_go_on_once_the_app_knows_the_model(self, wizard, live_app):
+        live_app.models.set_installed(set())
+        win = wizard(
+            gpu_present=lambda: True,
+            gpu_libraries_found=lambda: True,
+            installed_models=live_app.models.installed_models,
+        )
+        go_to(win, "model")
+        assert win.controller.choices.model == "turbo"
+        assert not win.next_button.enabled
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("turbo", "")
+        live_app.root.update()
+        assert status(win.model_row.row)[0] == "ready"
+        assert win.next_button.enabled, "shown as installed means: go on"
+
+    def test_a_blocked_next_is_written_to_the_log(self, wizard, live_app, caplog):
+        live_app.models.set_installed(set())
+        win = wizard(installed_models=live_app.models.installed_models)
+        go_to(win, "model")
+        with caplog.at_level("INFO", logger="hams"):
+            win.go_next()
+        assert win.controller.page == "model"
+        assert any("next blocked on model" in record.getMessage() for record in caplog.records)

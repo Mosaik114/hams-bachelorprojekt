@@ -228,7 +228,7 @@ class TestGroupSurface:
         group.pack(fill="x")
         root.update()
         assert group.inset == uk.px(uk.Space.GROUP_INSET)
-        # (4, 4) liegt innerhalb des Viertelkreises um (10, 10): die Zeile
+        # (6, 6) liegt innerhalb des Viertelkreises um (14, 14): die Zeile
         # bleibt drinnen, die Rundung sichtbar.
         corner = uk.Radius.GROUP - uk.Space.GROUP_INSET
         assert (corner**2 * 2) ** 0.5 < uk.Radius.GROUP - 1
@@ -377,17 +377,38 @@ class TestToggleRow:
         root.update()
         return row, switch, fired
 
+    @staticmethod
+    def click(widget, root, dx=2, dy=2):
+        """Press and release on `widget`, with the screen point Tk would report."""
+        x, y = widget.winfo_rootx() + dx, widget.winfo_rooty() + dy
+        widget.event_generate("<ButtonPress-1>", x=dx, y=dy, rootx=x, rooty=y)
+        widget.event_generate("<ButtonRelease-1>", x=dx, y=dy, rootx=x, rooty=y)
+        root.update()
+
     def test_click_on_title_fires_once(self, toggle_row, root):
         row, _switch, fired = toggle_row
-        row.title_label.event_generate("<Button-1>")
-        root.update()
+        self.click(row.title_label, root)
         assert fired == ["row"]
 
     def test_click_on_description_fires(self, toggle_row, root):
         row, _switch, fired = toggle_row
-        row.sub_label.event_generate("<Button-1>")
-        root.update()
+        self.click(row.sub_label, root)
         assert fired == ["row"]
+
+    def test_click_on_the_free_space_of_the_row_fires(self, toggle_row, root):
+        """The whole row is the target, also its padding beside and below the text."""
+        row, _switch, fired = toggle_row
+        self.click(row._line, root)
+        self.click(row, root, dy=row.winfo_height() - 1)
+        assert fired == ["row", "row"]
+
+    def test_pressing_and_sliding_off_does_not_fire(self, toggle_row, root):
+        row, _switch, fired = toggle_row
+        label = row.title_label
+        label.event_generate("<ButtonPress-1>", rootx=label.winfo_rootx() + 2, rooty=label.winfo_rooty() + 2)
+        label.event_generate("<ButtonRelease-1>", rootx=row.winfo_rootx() - 50, rooty=row.winfo_rooty() - 50)
+        root.update()
+        assert fired == []
 
     def test_click_on_switch_does_not_double_fire(self, toggle_row, root):
         _row, switch, fired = toggle_row
@@ -409,7 +430,12 @@ class TestToggleRow:
         row.title_label.event_generate("<Enter>")
         root.update()
         assert row.title_label.cget("bg") == Theme.CONTROL_SURFACE
-        row.title_label.event_generate("<Leave>")
+        # into the description: the Leave of the title lies on the row, the hover stays
+        inside = (row.sub_label.winfo_rootx() + 2, row.sub_label.winfo_rooty() + 2)
+        row.title_label.event_generate("<Leave>", rootx=inside[0], rooty=inside[1])
+        root.update()
+        assert row.title_label.cget("bg") == Theme.CONTROL_SURFACE
+        row.sub_label.event_generate("<Leave>", rootx=row.winfo_rootx() - 50, rooty=row.winfo_rooty() - 50)
         root.update()
         assert row.title_label.cget("bg") == Theme.GROUP_SURFACE
 

@@ -5,6 +5,24 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Moving a window works from any free area,** not only from the title: every part of the window background
+  (header, margins, text on the background) moves it, one position per idle round. One shared piece (`ui_kit.WindowChrome`) does this for the main
+  window, the settings and the setup assistant; each of them used to carry its own copy.
+- **The settings window can be resized** at every edge and corner (smallest 400 × 420 logical pixels); the content
+  follows the width, and the size is kept in `[ui] settings_width`/`settings_height`.
+
+### Fixed
+- **Entries of a selection list, and switch rows, react on their whole area.** Clicking the free space right of the
+  text in a list (the model choice, for example) did nothing, and the hover flickered between the parts of a row.
+  Rows and list entries now join all their parts through one bind tag (`ui_kit.PressArea`), and a click fires on
+  release over the area, like a button.
+- **"Next" in the setup assistant no longer stays locked after a model download.** The row said "Downloaded and
+  ready" from the download's message while "Next" asked a fresh cache scan; when the two disagreed, the page was a
+  dead end. The app now keeps one list of installed models (`ModelManager.installed_models`) for the settings and
+  the assistant, a download only counts as done when the model file is really there, and a blocked "Next" is
+  written to the log with its reason.
+
 ## [1.3.0] – 2026-11-14
 
 ### Changed

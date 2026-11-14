@@ -244,6 +244,7 @@ MESSAGES: dict[str, str] = {
     "model.delete.done_freed": "{model} deleted · {size} freed",
     "download.unknown_model": "Unknown model",
     "download.already_running": "A download is already running",
+    "download.incomplete": "The download is incomplete - please try again",
     "download.no_space": "Not enough disk space — needs {needed}, {free} free",
     "download.error.permission": "No write access to the model folder",
     "download.error.disk_full": "The disk is full",

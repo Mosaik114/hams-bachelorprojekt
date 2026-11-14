@@ -14,7 +14,7 @@ from hams.ui_kit.scale import font, px
 from hams.ui_kit.states import ControlStyle, State
 from hams.ui_kit.surfaces import surface
 from hams.ui_kit.text import _ellipsize, _pil_font
-from hams.ui_kit.theme import Height, Radius, Space
+from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme, ink_width
 
 
 class Select(BaseControl):
@@ -119,22 +119,31 @@ class Select(BaseControl):
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:
         fill, foreground = self.colours()
         ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
+        depth = px(Depth.CONTROL)
+        pressed = self.has_state(State.PRESSED)
         plate = ImageTk.getimage(
             surface(
                 width,
-                height + 2 * (ring_w + ring_gap),
+                height + depth + 2 * (ring_w + ring_gap),
                 px(self._logical_radius),
                 fill if fill is not None else self._bg_under,
                 squircle=True,
+                border=Theme.INK,
+                border_w=ink_width(),
                 ring=self.ring(),
                 ring_width=ring_w,
                 ring_gap=ring_gap,
+                side=ControlStyle.side(self._role, self._states),
+                depth=depth,
+                pressed=pressed,
             )
-        )
+        ).copy()
+        # Mitte der Fläche, nicht des Bildes: darunter liegt die Seite, beim Drücken sinkt die Fläche ein.
+        self._body_centre = (plate.height - depth) // 2 + (depth if pressed else 0)
 
         chevron_size = px(ICON_BOX)
         glyph = render_icon("chevron", chevron_size, foreground)
-        plate.paste(glyph, (plate.width - chevron_size - px(Space.MD), (plate.height - chevron_size) // 2), glyph)
+        plate.paste(glyph, (plate.width - chevron_size - px(Space.MD), self._body_centre - chevron_size // 2), glyph)
 
         selected = self._selected()
         label = selected.label if selected is not None else self._placeholder
@@ -154,4 +163,5 @@ class Select(BaseControl):
         # Nach den Oberlaengen der Schrift zentriert, nicht nach dem Text:
         # sonst saesse „Hell“ hoeher als „gut“, je nach Unterlaengen.
         ascent, descent = title_font.getmetrics()
-        draw.text((x, (plate.height - ascent - descent) // 2), text, font=title_font, fill=colour)
+        centre = getattr(self, "_body_centre", plate.height // 2)
+        draw.text((x, centre - (ascent + descent) // 2), text, font=title_font, fill=colour)

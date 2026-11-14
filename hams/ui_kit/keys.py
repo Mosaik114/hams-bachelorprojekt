@@ -9,7 +9,7 @@ from hams.i18n import Text, t
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.surfaces import surface
 from hams.ui_kit.text import _text_width
-from hams.ui_kit.theme import Height, Radius, Space, Theme
+from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme, ink_width
 
 #: Schreibweisen im Kuerzel -> Katalogschluessel der Tastenbeschriftung. Die
 #: Beschriftung selbst steht im Katalog, so wie sie auf einer Tastatur der
@@ -136,10 +136,25 @@ class KeyCombo(tk.Canvas):
         x = 0
         for label in self._labels:
             width = self._chip_width(label, tk_font)
-            chip = surface(width, height, px(Radius.KEYCAP), Theme.CONTROL_SURFACE)
+            # Ein kleiner Stein (Loratu): Tuscherand und Seite, die Schrift auf der Fläche.
+            chip = surface(
+                width,
+                height,
+                px(Radius.KEYCAP),
+                Theme.CONTROL_SURFACE,
+                border=Theme.INK,
+                border_w=ink_width(),
+                side=Theme.CONTROL_SIDE,
+                depth=px(Depth.KEYCAP),
+            )
             self._images.append(chip)
             self.create_image(x, 0, anchor="nw", image=chip)
             self.create_text(
-                x + width // 2, height // 2, anchor="center", text=label, font=tk_font, fill=Theme.TEXT_PRIMARY
+                x + width // 2,
+                (height - px(Depth.KEYCAP)) // 2,
+                anchor="center",
+                text=label,
+                font=tk_font,
+                fill=Theme.TEXT_PRIMARY,
             )
             x += width + px(Space.KEY_GAP)

@@ -30,6 +30,7 @@ from hams.settings_sections import choose_dictation_language, choose_ui_language
 from hams.settings_status import LevelMonitor
 from hams.setup_wizard import Choices, SetupController, Task, task_view
 from hams.ui_kit import Theme
+from hams.window_mark import mark_label
 
 if TYPE_CHECKING:
     from hams.app import FloatingTranscriberApp
@@ -84,7 +85,9 @@ class SetupWindow:
 
     def __init__(self, app: FloatingTranscriberApp, services: setup_wizard.SetupServices | None = None) -> None:
         self.app = app
-        self.controller = SetupController(services or setup_wizard.default_services(), self._initial_choices())
+        # The installed models come from the app, like in the settings: one answer for both windows.
+        services = services or setup_wizard.default_services(installed_models=app.models.installed_models)
+        self.controller = SetupController(services, self._initial_choices())
         self.marker = setup_wizard.marker_path(CONFIG_PATH)
         if setup_wizard.read_marker(self.marker) is None:
             # Ein Abbruch beim ersten Start soll den Assistenten beim nächsten Start wieder zeigen.
@@ -95,7 +98,6 @@ class SetupWindow:
         self.monitor: LevelMonitor | None = None
         self._status_job: str | None = None
         self._alive = True
-        self._drag = (0, 0)
         #: Rows of the pages, built when their page is shown.
         self.gpu_row = None
         self.model_row = None
@@ -105,7 +107,7 @@ class SetupWindow:
         self.status_row = None
 
         self.win = tk.Toplevel(app.root)
-        uk.frame_window(self.win)
+        self.chrome = uk.frame_window(self.win)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
         self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}+{uk.px(120)}+{uk.px(80)}")
@@ -239,16 +241,6 @@ class SetupWindow:
 
         self.app.ui_call(run)  # wartet nie auf den Tk-Thread; nach dem Schliessen faellt es weg
 
-    # ---------------------------------------------------------- drag
-
-    def _start_drag(self, event: tk.Event) -> None:
-        self._drag = (event.x, event.y)
-
-    def _on_drag(self, event: tk.Event) -> None:
-        x = self.win.winfo_x() + event.x - self._drag[0]
-        y = self.win.winfo_y() + event.y - self._drag[1]
-        self.win.geometry(f"+{x}+{y}")
-
     # ---------------------------------------------------------- frame
 
     def _build(self) -> None:
@@ -269,6 +261,7 @@ class SetupWindow:
     def _build_head(self) -> None:
         head = tk.Frame(self.win, bg=Theme.WINDOW_BG)
         head.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(uk.px(uk.Space.WINDOW), 0))
+        mark_label(head, bg=Theme.WINDOW_BG).pack(side="left", padx=(0, uk.px(uk.Space.MD)))
         title = tk.Label(
             head,
             text=t("setup.title", product=branding.PRODUCT_NAME),
@@ -278,9 +271,6 @@ class SetupWindow:
             anchor="w",
         )
         title.pack(side="left")
-        for widget in (head, title) if not uk.system_frame() else ():
-            widget.bind("<ButtonPress-1>", self._start_drag)
-            widget.bind("<B1-Motion>", self._on_drag)
         self.close_button = uk.IconButton(
             head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip=t("setup.close_tooltip")
         )
@@ -310,6 +300,14 @@ class SetupWindow:
 
     def go_next(self) -> None:
         if not self.controller.can_next(self._model_ready()):
+            controller = self.controller
+            logger.info(
+                "Setup: next blocked on %s (model %s, installed %s, download %s)",
+                controller.page,
+                controller.choices.model,
+                controller.model_installed(),
+                self.model_task.state,
+            )
             return
         if self.controller.page == "model":
             self._activate_model()

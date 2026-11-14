@@ -9,7 +9,7 @@ from hams.ui_kit.animation import Animator, blend
 from hams.ui_kit.scale import Scale, px
 from hams.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
 from hams.ui_kit.surfaces import surface
-from hams.ui_kit.theme import Radius, Theme
+from hams.ui_kit.theme import Radius, Theme, ink_width
 
 # ---------------------------------------------------------------- Statuspunkt
 
@@ -268,8 +268,8 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
             Radius.pill(height),
             self._track_colour(),
             squircle=False,
-            border=blend(Theme.CONTROL_OUTLINE, Theme.ACCENT_TINT, self._progress),
-            border_w=max(1, px(1)),
+            border=Theme.INK,
+            border_w=ink_width(),
             ring=self.ring(),
             ring_width=ring_w,
             ring_gap=ring_gap,
@@ -285,7 +285,8 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
             Radius.pill(knob_size),
             Theme.KNOB if self.enabled else Theme.TEXT_TERTIARY,
             squircle=False,
-            shadow=(1.2, 0.6, 0.35),
+            border=Theme.INK,
+            border_w=ink_width(),
         )
         self._knob_image = knob
         left = pad + inset
@@ -372,7 +373,15 @@ class SignalMeter(tk.Canvas):
             return
         height = px(self._logical_height)
         radius = Radius.pill(height)
-        track = surface(self._last_width, height, radius, Theme.CONTROL_SURFACE, squircle=False)
+        track = surface(
+            self._last_width,
+            height,
+            radius,
+            Theme.CONTROL_SURFACE,
+            squircle=False,
+            border=Theme.INK,
+            border_w=ink_width(),
+        )
         self._images.append(track)
         self.create_image(0, 0, anchor="nw", image=track)
         filled = self.filled_width

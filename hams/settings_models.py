@@ -216,6 +216,7 @@ class TranscriptionSection(Section):
         """On the Tk thread: the scan result into the model select and the storage row."""
         self._scanning = False
         self.installed, self.cached = set(installed), list(cached)
+        self.app.models.set_installed(installed)
         self._show_inventory()
 
     def _show_inventory(self) -> None:
@@ -412,6 +413,7 @@ class TranscriptionSection(Section):
         self.delete_button.set_enabled(True)
         self.delete_cancel.set_enabled(True)
         self.installed, self.cached = set(installed), list(cached)
+        self.app.models.set_installed(installed)
         self.refresh_storage()
         self.refresh_models()  # the inventory has changed
         self.row_storage.set_description(message)

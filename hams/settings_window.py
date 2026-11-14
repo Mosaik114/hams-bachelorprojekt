@@ -15,7 +15,9 @@ import tkinter as tk
 from typing import TYPE_CHECKING
 
 from hams import branding
+from hams import config as hams_config
 from hams import ui_kit as uk
+from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.settings_about import AboutSection
 from hams.settings_extras import AiSection
@@ -24,6 +26,7 @@ from hams.settings_sections import GeneralSection, Section
 from hams.settings_shortcuts import ShortcutsSection
 from hams.settings_status import RecordingSection
 from hams.ui_kit import Theme
+from hams.window_mark import mark_photo
 
 if TYPE_CHECKING:
     from hams.app import FloatingTranscriberApp
@@ -37,8 +40,8 @@ class SettingsWindow:
     visible *before* speaking.
     """
 
-    WIDTH = 440  # logical
-    HEIGHT = 680  # logical
+    #: Smallest size in logical pixels; the user's size is `CFG.settings_width/height`.
+    MIN_SIZE = (hams_config.SETTINGS_MIN_WIDTH, hams_config.SETTINGS_MIN_HEIGHT)
     #: How long the invisible first layout stays mapped (`lay_out_hidden`); the layout needs two or three idle
     #: rounds of the main loop, measured well under 100 ms.
     LAYOUT_HIDDEN_MS = 250
@@ -50,17 +53,16 @@ class SettingsWindow:
         self.win = tk.Toplevel(app.root)
         self.win.withdraw()
         self.win.title(t("settings.window_title", product=branding.PRODUCT_NAME))
-        uk.frame_window(self.win)
+        self.chrome = uk.frame_window(self.win, min_size=self.MIN_SIZE, on_resized=self._remember_size)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
-        self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}")
+        self.win.geometry(self._size())
         self.win.bind("<Escape>", lambda _e: self.close())
         self.win.bind("<Destroy>", self._on_destroy, add="+")
         self._shown = False
         self._destroyed = False
         #: The colour scheme the widgets are painted in; a switch while hidden is caught up on `show`.
         self._painted_mode = Theme.mode
-        self._drag = (0, 0)
         self._layout_job: str | None = None
 
         self._build()
@@ -184,7 +186,9 @@ class SettingsWindow:
 
     def _repaint(self) -> int:
         self._painted_mode = Theme.mode
-        return uk.apply_theme_tree(self.win)
+        changed = uk.apply_theme_tree(self.win)
+        self._paint_stage()
+        return changed
 
     def _on_scale_change(self, _factor: float) -> None:
         """Follows a new DPI with the window size.
@@ -194,7 +198,7 @@ class SettingsWindow:
         if not self.reusable():
             return
         try:
-            self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}")
+            self.win.geometry(self._size())
             uk.round_window_corners(self.win)
         except tk.TclError:  # pragma: no cover - the window is just going away
             pass
@@ -213,15 +217,23 @@ class SettingsWindow:
     def show_update(self, release) -> None:
         self.general.show_update(release)
 
-    # ---------------------------------------------------------- drag
+    # ---------------------------------------------------------- size
 
-    def _start_drag(self, e: tk.Event) -> None:
-        self._drag = (e.x, e.y)
+    @staticmethod
+    def _size() -> str:
+        """The remembered size (logical pixels) as a Tk geometry in screen pixels."""
+        return f"{uk.px(CFG.settings_width)}x{uk.px(CFG.settings_height)}"
 
-    def _on_drag(self, e: tk.Event) -> None:
-        x = self.win.winfo_x() + e.x - self._drag[0]
-        y = self.win.winfo_y() + e.y - self._drag[1]
-        self.win.geometry(f"+{x}+{y}")
+    def _remember_size(self, width: int, height: int) -> None:
+        """After a resize by edge or corner: keep the size in logical pixels, so it holds at any DPI."""
+        factor = max(uk.Scale.factor, 0.1)
+        logical = (round(width / factor), round(height / factor))
+        if logical == (CFG.settings_width, CFG.settings_height):
+            return
+        CFG.settings_width, CFG.settings_height = logical
+        _persist_config_value("ui", "settings_width", logical[0])
+        _persist_config_value("ui", "settings_height", logical[1])
+        logger.info("Settings window size saved: %dx%d", *logical)
 
     # ---------------------------------------------------------- build
 
@@ -231,45 +243,41 @@ class SettingsWindow:
         The groups are one surface each with hairlines, not one card per setting - that is the difference that
         makes the window feel calm.
         """
-        head = tk.Frame(self.win, bg=Theme.WINDOW_BG)
-        head.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(uk.px(uk.Space.WINDOW), 0))
-
-        title = tk.Label(
-            head,
-            text=t("settings.title"),
-            bg=Theme.WINDOW_BG,
-            fg=Theme.TEXT_PRIMARY,
-            font=uk.font("window_title"),
-            anchor="w",
-        )
-        title.pack(side="left")
-        # Dragging by the header only without a system frame; on Linux one drags by the KDE title bar.
-        for widget in (head, title) if not uk.system_frame() else ():
-            widget.bind("<ButtonPress-1>", self._start_drag)
-            widget.bind("<B1-Motion>", self._on_drag)
-
+        # The stage (Tusche und Aquarell): a quiet painted wash with the mark and the title on it.
+        head = tk.Canvas(self.win, bg=Theme.WINDOW_BG, bd=0, highlightthickness=0, height=uk.px(self.STAGE_HEIGHT))
+        head.pack(fill="x")
+        self._stage = head
+        self._stage_size = (0, 0)
         self._close_btn = uk.IconButton(
             head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip=t("settings.close_tooltip")
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
-        if not uk.system_frame():  # on Linux the KDE title bar has the cross
-            self._close_btn.pack(side="right")
+        head.bind("<Configure>", self._paint_stage, add="+")
+
+        # One topic at a time: a row of stones instead of six groups below each other.
+        self._tabs = tk.Frame(self.win, bg=Theme.WINDOW_BG)
+        self._tabs.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(0, uk.px(uk.Space.MD)))
+        self._tabs.bind("<Configure>", lambda _e: self._lay_out_tabs(), add="+")
+        self._tab_buttons: list[uk.SecondaryButton] = []
+        self._tab_columns = 0
 
         # The hairline appears only when content scrolls away below it.
         self._head_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
-        self._head_line.pack(fill="x", pady=(uk.px(uk.Space.LG), 0))
+        self._head_line.pack(fill="x")
 
         self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, on_scroll=self._on_scroll)
         self.scroll.pack(fill="both", expand=True, padx=(uk.px(uk.Space.WINDOW), 0), pady=(0, uk.px(uk.Space.WINDOW)))
         self.scroll.bind_keys(self.win)
 
         body = self.scroll.body
-        self.recording = RecordingSection(self, body)
-        self.transcription = TranscriptionSection(self, body)
-        self.ai = AiSection(self, body)
-        self.shortcuts = ShortcutsSection(self, body)
-        self.general = GeneralSection(self, body)
-        self.about = AboutSection(self, body)
+        #: Per section: (title, its widgets in the scroll body with their pack options).
+        self._pages: list[tuple[str, list[tuple[tk.Misc, dict]]]] = []
+        self.recording = self._page(RecordingSection, body)
+        self.transcription = self._page(TranscriptionSection, body)
+        self.ai = self._page(AiSection, body)
+        self.shortcuts = self._page(ShortcutsSection, body)
+        self.general = self._page(GeneralSection, body)
+        self.about = self._page(AboutSection, body)
         self.sections: list[Section] = [
             self.recording,
             self.transcription,
@@ -278,11 +286,120 @@ class SettingsWindow:
             self.general,
             self.about,
         ]
+        for index, (title, _widgets) in enumerate(self._pages):
+            button = uk.SecondaryButton(
+                self._tabs, title, lambda i=index: self.select_page(i), bg_under=Theme.WINDOW_BG
+            )
+            # A small fixed request; the grid stretches it. Without it every render (one image as wide as the
+            # button) would ask for that width again plus the label's padding, and the row would keep growing.
+            uk.keep_logical_width(button, self.TAB_MIN_WIDTH)
+            self._tab_buttons.append(button)
+        self.page = -1
+        self.select_page(0)
 
         # The tab order follows the stacking order, and that is the order of creation. The header is created first,
         # so the cross would come *before* all settings. `lift` moves the header to the end of the chain; it stays
         # visible on top because packing decides that.
-        head.lift()
+        tk.Misc.lift(head)  # on a Canvas `lift` would raise canvas items
+
+    # ---------------------------------------------------------- stage and pages
+
+    #: Height of the painted stage in logical pixels.
+    STAGE_HEIGHT = 76
+    #: Requested width of a tab stone (logical); the grid gives it its share of the row.
+    TAB_MIN_WIDTH = 60
+    #: From this window width (logical) all six tabs stand in one row, below it in two rows of three.
+    ONE_ROW_WIDTH = 640
+
+    def _paint_stage(self, event: tk.Event | None = None) -> None:
+        """The wash for the current width, then mark, title and cross on it."""
+        stage = self._stage
+        width, height = (event.width, event.height) if event is not None else self._stage_size
+        if width <= 1:
+            return
+        self._stage_size = (width, height)
+        stage.delete("all")
+        self._stage_image = uk.banner_image(width, height)
+        stage.create_image(0, 0, anchor="nw", image=self._stage_image)
+        margin, middle = uk.px(uk.Space.WINDOW), height // 2
+        # Mark and title are painted onto the stage, not placed as labels: a label would stand there as a box
+        # in the paper colour.
+        self._stage_mark = mark_photo()
+        x = margin
+        if self._stage_mark is not None:
+            stage.create_image(x, middle, anchor="w", image=self._stage_mark)
+            x += self._stage_mark.width() + uk.px(uk.Space.MD)
+        stage.create_text(
+            x, middle, anchor="w", text=t("settings.title"), font=uk.font("window_title"), fill=Theme.TEXT_PRIMARY
+        )
+        if not uk.system_frame():  # on Linux the KDE title bar has the cross
+            stage.create_window(width - margin, middle, anchor="e", window=self._close_btn)
+
+    def _page(self, section_class, body: tk.Frame) -> Section:
+        """Builds a section and remembers which widgets of the scroll body belong to it."""
+        before = len(body.pack_slaves())
+        section = section_class(self, body)
+        widgets = [(widget, widget.pack_info()) for widget in body.pack_slaves()[before:]]
+        headers = [widget for widget, _info in widgets if isinstance(widget, uk.SectionHeader)]
+        title = str(headers[0].cget("text")) if headers else section_class.__name__
+        self._pages.append((title, widgets))
+        return section
+
+    def select_page(self, index: int) -> None:
+        """Shows one topic. Its first heading is the tab itself, so it is not repeated above the group."""
+        if index == self.page or not 0 <= index < len(self._pages):
+            return
+        self.page = index
+        for number, (_title, widgets) in enumerate(self._pages):
+            for widget, _info in widgets:
+                widget.pack_forget()
+                widget.hidden_page = number != index  # its controls skip drawing while hidden
+        title, widgets = self._pages[index]
+        first = True
+        for widget, info in widgets:
+            if first and isinstance(widget, uk.SectionHeader) and str(widget.cget("text")) == title:
+                first = False
+                continue
+            first = False
+            options = {key: value for key, value in info.items() if key != "in"}
+            widget.pack(**options)
+        for number, button in enumerate(self._tab_buttons):
+            button.set_role("primary" if number == index else "secondary")
+        self.win.after_idle(self._render_shown_page)
+        self.scroll.scroll_to(0)
+        self._on_scroll(0)
+
+    def _render_shown_page(self) -> None:
+        """Controls that changed size while their page was hidden draw themselves now."""
+        pending = [self.scroll.body]
+        while pending:
+            widget = pending.pop()
+            render = getattr(widget, "render_if_stale", None)
+            if render is not None:
+                render()
+            try:
+                pending.extend(widget.winfo_children())
+            except tk.TclError:  # pragma: no cover - the window is going away
+                return
+
+    def _lay_out_tabs(self) -> None:
+        """Three stones per row in the narrow window, all six in one row when there is room."""
+        try:
+            width = self._tabs.winfo_width()
+        except tk.TclError:  # pragma: no cover - the window is going away
+            return
+        columns = len(self._tab_buttons) if width >= uk.px(self.ONE_ROW_WIDTH) else 3
+        if columns == self._tab_columns or not self._tab_buttons:
+            return
+        self._tab_columns = columns
+        gap = uk.px(uk.Space.SM)
+        for column in range(len(self._tab_buttons)):
+            self._tabs.grid_columnconfigure(
+                column, weight=1 if column < columns else 0, uniform="tab" if column < columns else ""
+            )
+        for number, button in enumerate(self._tab_buttons):
+            row, column = divmod(number, columns)
+            button.grid(row=row, column=column, sticky="ew", padx=(0 if column == 0 else gap, 0), pady=(0, gap))
 
     def _on_scroll(self, offset: int) -> None:
         """The line appears only when something lies under it."""

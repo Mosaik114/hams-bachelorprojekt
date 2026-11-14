@@ -114,6 +114,9 @@ def render_surface(
     ring: str | None = None,
     ring_width: int = 0,
     ring_gap: int = 0,
+    side: str | None = None,
+    depth: int = 0,
+    pressed: bool = False,
     dither: bool = True,
 ) -> Image.Image:
     """Renders a UI surface as an anti-aliased RGBA image - pixel for pixel what `_render_full` draws, but fast.
@@ -136,8 +139,11 @@ def render_surface(
         "ring": ring,
         "ring_width": ring_width,
         "ring_gap": ring_gap,
+        "side": side,
+        "depth": depth,
+        "pressed": pressed,
     }
-    core = int(radius) + int(ring_width) + int(ring_gap) + SLICE_MARGIN
+    core = int(radius) + int(ring_width) + int(ring_gap) + int(depth) + SLICE_MARGIN
     stretch_x = shadow is None and width > 2 * core + 1
     stretch_y = shadow is None and not gradient and edge is None and height > 2 * core + 1
     if not (stretch_x or stretch_y):
@@ -202,6 +208,9 @@ def _render_full(
     ring: str | None = None,
     ring_width: int = 0,
     ring_gap: int = 0,
+    side: str | None = None,
+    depth: int = 0,
+    pressed: bool = False,
     dither: bool = True,
 ) -> Image.Image:
     """Rendert eine UI-Fläche als anti-aliastes RGBA-Bild.
@@ -218,6 +227,9 @@ def _render_full(
         edge: feine Lichtkante oben (`_add_edge`). gradient: weisse Aufhellung oben, 0…1 (`_body`).
         shadow: (Weichzeichnung, Versatz nach unten, Deckkraft) (`_shadow_layer`).
         border, border_w: Kontur (`_add_border`). ring, ring_width, ring_gap: Fokusring (`_draw_ring`).
+        side, depth: die Seite unter der Fläche wie bei einem Stein (Loratu): dieselbe Form, um `depth` nach
+            unten versetzt, in `side` gefüllt und mit derselben Kontur. Die Fläche ist um `depth` niedriger.
+        pressed: die Fläche ist auf ihre Seite eingesunken, die Seite verschwindet.
         dither: feines Rauschen gegen Streifen im Verlauf (`_dithered`).
     """
     width, height = max(1, int(width)), max(1, int(height))
@@ -225,11 +237,22 @@ def _render_full(
     big = (width * scale, height * scale)
     pad = _padding(shadow, ring_width, ring_gap)
     inner = (max(1, big[0] - 2 * pad), max(1, big[1] - 2 * pad))
+    sink = int(round(depth * scale)) if side is not None else 0
+    inner = (inner[0], max(1, inner[1] - sink))
     mask = _shape_mask(inner, int(radius * scale), squircle)
 
     canvas = Image.new("RGBA", big, (0, 0, 0, 0))
     if shadow is not None:  # Schatten zuerst, damit die Fläche darüber liegt
         canvas = Image.alpha_composite(canvas, _shadow_layer(big, inner, mask, pad, shadow))
+
+    if sink and not pressed:
+        stone = _body(inner, side, 0.0)
+        if border is not None and border_w:
+            stone = _add_border(stone, int(radius * scale), squircle, border, border_w)
+        stone.putalpha(mask)
+        layer = Image.new("RGBA", big, (0, 0, 0, 0))
+        layer.paste(stone, (pad, pad + sink), stone)
+        canvas = Image.alpha_composite(canvas, layer)
 
     body = _body(inner, fill, gradient)
     if edge is not None:
@@ -239,7 +262,7 @@ def _render_full(
 
     body.putalpha(mask)
     layer = Image.new("RGBA", big, (0, 0, 0, 0))
-    layer.paste(body, (pad, pad), body)
+    layer.paste(body, (pad, pad + (sink if pressed else 0)), body)
     canvas = Image.alpha_composite(canvas, layer)
 
     if ring is not None and ring_width:
@@ -349,6 +372,9 @@ def surface(
     ring: str | None = None,
     ring_width: int = 0,
     ring_gap: int = 0,
+    side: str | None = None,
+    depth: int = 0,
+    pressed: bool = False,
     dither: bool = True,
 ) -> ImageTk.PhotoImage:
     """Wie `render_surface()`, aber als Tk-Bild und zwischengespeichert.
@@ -368,6 +394,9 @@ def surface(
         "ring": ring,
         "ring_width": ring_width,
         "ring_gap": ring_gap,
+        "side": side,
+        "depth": depth,
+        "pressed": pressed,
         "dither": dither,
     }
     key = (width, height, radius, fill, *options.values(), round(gradient, 4), Scale.factor)

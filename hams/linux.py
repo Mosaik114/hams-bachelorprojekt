@@ -256,6 +256,7 @@ FONT_SUBSTITUTES = {
     "semibold": ("Inter SemiBold", "IBM Plex Sans SmBld", "IBM Plex Sans", "Noto Sans"),
     "serif": ("Source Serif 4", "Noto Serif", "DejaVu Serif"),
     "mono": ("IBM Plex Mono", "DejaVu Sans Mono"),
+    "rounded": ("Nunito", "Quicksand", "Inter", "Noto Sans", "DejaVu Sans"),
 }
 
 #: Schnitte, die fontconfig über den Namen findet, Tk aber nicht als eigene

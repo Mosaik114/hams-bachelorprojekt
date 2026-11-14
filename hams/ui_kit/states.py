@@ -119,6 +119,15 @@ class ControlStyle:
         },
     }
 
+    #: Die Seite unter der Fläche (Tusche und Aquarell): je Rolle der dunklere Ton ihrer Füllung.
+    _SIDES: dict = {
+        "primary": "ACCENT_SIDE",
+        "secondary": "CONTROL_SIDE",
+        "recording": "RECORDING_SIDE",
+        "ai": "AI_SIDE",
+        "plain": "CONTROL_SIDE",
+    }
+
     #: Der Fokusring ist immer der Akzentton des aktiven Modus.
     FOCUS_RING_TOKEN = "ACCENT_TINT"  # noqa: S105 – Name einer Farbe, kein Passwort
     RING_WIDTH = 2  # logisch
@@ -139,6 +148,16 @@ class ControlStyle:
             raise KeyError(f"Unbekannte Control-Rolle: {role!r}")
         fill, text = table[State.surface_state(active)]
         return (None if fill is None else getattr(Theme, fill)), getattr(Theme, text)
+
+    @classmethod
+    def side(cls, role: str, active) -> str:
+        """Farbe der Seite unter der Fläche; folgt dem Zustand wie die Füllung."""
+        state = State.surface_state(active)
+        if state == State.ERROR:
+            return Theme.ERROR_SIDE
+        if state in (State.LOADING, State.DISABLED):
+            return Theme.CONTROL_SIDE
+        return getattr(Theme, cls._SIDES.get(role, "CONTROL_SIDE"))
 
     @classmethod
     def focus_ring(cls) -> str:

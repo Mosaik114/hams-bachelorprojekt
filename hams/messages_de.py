@@ -250,6 +250,7 @@ MESSAGES: dict[str, str] = {
     "model.delete.done_freed": "{model} gelöscht · {size} frei",
     "download.unknown_model": "Unbekanntes Modell",
     "download.already_running": "Es läuft bereits ein Download",
+    "download.incomplete": "Der Download ist unvollständig – bitte erneut versuchen",
     "download.no_space": "Zu wenig Speicherplatz — {needed} nötig, {free} frei",
     "download.error.permission": "Kein Schreibrecht im Modellordner",
     "download.error.disk_full": "Kein Speicherplatz mehr frei",

@@ -254,8 +254,16 @@ class TestWindow:
     def test_dragging_moves_the_window_and_saves_once_it_rests(self, live_app, hams):
         live_app._show_window()
         flush(live_app)
-        live_app._start_drag(SimpleNamespace(x=10, y=10))
-        live_app._on_drag(SimpleNamespace(x=30, y=25))
+        chrome = uk.WindowChrome(live_app.root, on_moved=live_app._remember_position)
+        root = live_app.root
+        x, y = root.winfo_x(), root.winfo_y()
+        free = SimpleNamespace(widget=root, x_root=x + 10, y_root=y + 10)
+        chrome._on_press(free)
+        chrome._on_drag(SimpleNamespace(widget=root, x_root=x + 30, y_root=y + 25))
+        chrome._on_release()
+        flush(live_app)
+        assert (root.winfo_x(), root.winfo_y()) == (x + 20, y + 15)
+        assert live_app._window_pos == (x + 20, y + 15)
         assert live_app._position_job is not None
         assert not [s for s in hams.saved if s[1] in ("window_x", "window_y")]
         live_app._save_position()

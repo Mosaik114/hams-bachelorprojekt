@@ -10,6 +10,7 @@ from hams.ui_kit.animation import Animator
 from hams.ui_kit.icons import ICON_BOX, icon
 from hams.ui_kit.layout import ScrollArea
 from hams.ui_kit.monitors import work_area
+from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import font, px
 from hams.ui_kit.states import return_focus_to
 from hams.ui_kit.text import _fit_text, _text_width
@@ -94,12 +95,10 @@ class _PopoverItem(tk.Frame):
             # Zusatzangabe sonst keinen Platz uebrig laesst.
             self._trailing.pack(side="right", before=text_box, padx=(0, px(Space.MD)))
 
-        for widget in self._parts():
-            widget.bind("<Enter>", lambda _e: self.set_hover(True), add="+")
-            widget.bind("<Leave>", lambda _e: self.set_hover(False), add="+")
-            widget.bind("<Button-1>", self._on_click, add="+")
-            if option.enabled:
-                widget.configure(cursor="hand2")
+        # Die ganze Zeile ist der Eintrag, auch die freie Fläche neben dem Text.
+        self._area = PressArea(self, self._on_click, on_hover=self.set_hover, enabled=lambda: option.enabled)
+        if option.enabled:
+            self._area.set_cursor("hand2")
 
     def _parts(self) -> list:
         parts = [self, self._check, self._title]
@@ -121,10 +120,9 @@ class _PopoverItem(tk.Frame):
     def hovered(self) -> bool:
         return self._hovered
 
-    def _on_click(self, _event=None) -> str:
+    def _on_click(self) -> None:
         if self.option.enabled:
             self._command(self.option)
-        return "break"
 
 
 class Popover(tk.Toplevel):

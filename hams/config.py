@@ -123,6 +123,10 @@ DEFAULT_CLEANUP_PROMPT = dictation_language.DEFAULT_CLEANUP_PROMPT
 #: deliberately not the Windows theme, the user chooses.
 APPEARANCES = ("light", "dark")
 DEFAULT_APPEARANCE = "light"
+#: Einstellungsfenster in logischen Pixeln: Anfangsgröße, kleinste sinnvolle Größe, Obergrenze gegen Unsinnswerte.
+SETTINGS_WIDTH, SETTINGS_HEIGHT = 440, 680
+SETTINGS_MIN_WIDTH, SETTINGS_MIN_HEIGHT = 400, 420
+SETTINGS_MAX = 4000
 
 
 def normalise_appearance(value: Any) -> str:
@@ -166,6 +170,9 @@ class Config:
     #: None heisst: noch nie gemerkt, es gilt der Rueckfall.
     window_x: int | None = None
     window_y: int | None = None
+    #: Größe des Einstellungsfensters in logischen Pixeln; der Nutzer zieht sie an Rand oder Ecke.
+    settings_width: int = SETTINGS_WIDTH
+    settings_height: int = SETTINGS_HEIGHT
     #: Ob der einmalige Hinweis "laeuft im Tray weiter" schon kam (schreibt Hams selbst, `[ui] tray_hint_shown`).
     tray_hint_shown: bool = False
     cleanup_prompt_template: str = DEFAULT_CLEANUP_PROMPT
@@ -651,6 +658,8 @@ def _apply_ui(cfg: Config, ui: SectionReader) -> None:
     if "window_y" in ui:
         cfg.window_y = clean_coordinate(ui.raw("window_y"))
     cfg.tray_hint_shown = ui.boolean("tray_hint_shown", cfg.tray_hint_shown)
+    cfg.settings_width = ui.integer("settings_width", cfg.settings_width, SETTINGS_MIN_WIDTH, SETTINGS_MAX)
+    cfg.settings_height = ui.integer("settings_height", cfg.settings_height, SETTINGS_MIN_HEIGHT, SETTINGS_MAX)
     # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
     # Nutzerdatei, und ein unbekannter Wert soll hell ergeben, keinen Fehler.
     cfg.appearance = normalise_appearance(ui.raw("appearance", cfg.appearance))

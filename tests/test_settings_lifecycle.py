@@ -83,7 +83,7 @@ class TestPrebuild:
         assert win.win.winfo_x() <= SettingsWindow.OFFSCREEN + 1
         assert not win.alive()
         # Laid out at the real size: the groups have their final width instead of Tk's 1 px or 10 cm default.
-        assert win.general.group.winfo_width() > 300
+        assert win.recording.group.winfo_width() > 300
         settle_hidden_layout(app)
         assert win.win.state() == "withdrawn"
 
@@ -166,6 +166,9 @@ class TestHideAndShowAgain:
 
     def test_reopening_scrolls_back_to_the_top(self, app):
         win = open_(app)
+        win.select_page(1)
+        win.win.geometry(f"{win.win.winfo_width()}x{uk.px(420)}")  # low enough that the page scrolls
+        app.root.update()
         win.scroll.scroll_by(200)
         app.root.update()
         assert win.scroll.offset > 0

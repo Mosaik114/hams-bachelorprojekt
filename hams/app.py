@@ -99,7 +99,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             uk.Scale.factor,
             float(self.root.tk.call("tk", "scaling")),
         )
-        uk.frame_window(self.root)  # Windows borderless in the Mosaik design, Linux with the KDE title bar
+        # Windows borderless in the Mosaik design (moved at any free area), Linux with the KDE title bar.
+        self.chrome = uk.frame_window(self.root, on_moved=self._remember_position)
         self._window_size = (uk.px(self.WINDOW_WIDTH), uk.px(self.WINDOW_MIN_HEIGHT))
         self._window_pos = window_position(CFG.window_x, CFG.window_y, *self._window_size, uk.work_areas())
         self._position_job: str | None = None
@@ -127,8 +128,6 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
 
     def _init_runtime_state(self) -> None:
         """Interface state, timers, history and shortcuts."""
-        self.drag_start_x = 0
-        self.drag_start_y = 0
         self._state = "model_loading"
         self._done_job: str | None = None
         self._elapsed_job: str | None = None

@@ -52,25 +52,33 @@ class Theme:
 
     _PALETTES: dict = {
         DARK: {
-            # --- Flaechen: warmes Dunkel, vier Ebenen mit kleinen Schritten --
-            "WINDOW_BG": "#1F1E1D",  # Fenstergrund
-            "GROUP_SURFACE": "#2A2927",  # Einstellungsgruppen, 1,15:1
-            "CONTROL_SURFACE": "#363532",  # Controls, deaktivierte Flaechen
-            "CONTROL_HOVER": "#42413D",  # Control unter dem Zeiger
-            "POPOVER_SURFACE": "#302F2C",  # schwebende Ebene
-            "HAIRLINE": "#3D3C38",  # Trennlinie und Gruppenrand
-            "CONTROL_OUTLINE": "#8C887E",  # >= 3:1 auf GROUP_SURFACE — Schalterspur
-            # --- Text: warmes Weiss, keine kalten Grautoene --------------------
-            "TEXT_PRIMARY": "#F5F4EE",
-            "TEXT_SECONDARY": "#B8B4A9",  # 8,04:1 auf WINDOW_BG
-            "TEXT_TERTIARY": "#9D998E",  # 5,85:1 auf WINDOW_BG, 5,11:1 auf Gruppe
+            # --- Flaechen: Nachthimmel wie Loratu, vier Ebenen mit kleinen Schritten --
+            "WINDOW_BG": "#0E1525",  # Fenstergrund
+            "GROUP_SURFACE": "#172036",  # Papierplatte, 1,13:1
+            "CONTROL_SURFACE": "#212C46",  # Steine, deaktivierte Flaechen
+            "CONTROL_HOVER": "#2B3857",  # Stein unter dem Zeiger
+            "POPOVER_SURFACE": "#1D2741",  # schwebende Ebene
+            "HAIRLINE": "#2E3A57",  # Trennlinie
+            "CONTROL_OUTLINE": "#8A93AA",  # >= 3:1 auf GROUP_SURFACE — Schalterspur
+            # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
+            "INK": "#070B15",  # Tuscherand
+            "GROUP_SIDE": "#090E1A",  # Seite unter einer Platte
+            "CONTROL_SIDE": "#0B1120",  # Seite unter einem Stein
+            "ACCENT_SIDE": "#06453F",
+            "RECORDING_SIDE": "#6A1E1E",
+            "ERROR_SIDE": "#5E1818",
+            "AI_SIDE": "#4E3159",
+            # --- Text: Mondweiss ----------------------------------------------
+            "TEXT_PRIMARY": "#F4F1EA",
+            "TEXT_SECONDARY": "#CDD3E0",  # 12,1:1 auf WINDOW_BG
+            "TEXT_TERTIARY": "#939CB1",  # im Grau klar von SUCCESS getrennt
             # --- Akzent: Tuerkis ---------------------------------------------
             # Markenton #0E8C80 (hell) / #2AC8A6 (dunkel). Weiss auf #0E8C80
             # ergaebe nur 4,13:1 — die Fuellung liegt deshalb etwas dunkler.
             "ACCENT_SURFACE": "#0B7D72",  # Fuellung, ON_ACCENT 5,01:1
             "ACCENT_HOVER": "#0A7167",  # ON_ACCENT 5,88:1
             "ACCENT_PRESSED": "#09635B",  # ON_ACCENT 7,12:1
-            "ACCENT_TINT": "#2AC8A6",  # Punkte, Icons, Fokusring; 7,86:1
+            "ACCENT_TINT": "#2CC4A8",  # Punkte, Icons, Fokusring; 8,3:1
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#7DBE7A",  # Salbeigruen
             "WARNING": "#E3A94B",  # Ocker
@@ -93,26 +101,29 @@ class Theme:
             "KNOB": "#FFFFFF",  # Schaltknopf des Toggles
         },
         LIGHT: {
-            # --- Flaechen: Creme statt Weiss ---------------------------------
-            # Dieselbe Bauart wie im Dunkeln, nur andersherum: der Fenstergrund
-            # ist die ruhigste Ebene, jede weitere tritt einen kleinen Schritt
-            # nach unten heraus. Alle Toene warm, wie ungebleichtes Papier.
-            "WINDOW_BG": "#FAF9F5",
-            "GROUP_SURFACE": "#F0EEE6",  # 1,10:1 gegen den Fenstergrund
-            "CONTROL_SURFACE": "#E3E0D5",  # 1,14:1 gegen die Gruppenflaeche
-            "CONTROL_HOVER": "#D6D2C5",  # dunkler, nicht heller
-            # Die schwebende Ebene ist die einzige fast weisse Flaeche; ihre
-            # Kante traegt der 1-px-Rahmen in HAIRLINE.
+            # --- Flaechen: Aquarellpapier wie Loratu ---------------------------
+            # Der Fenstergrund ist Papier; die Platten darauf sind heller (frisches
+            # Blatt), die Steine darauf wieder dunkler. Alle Toene warm.
+            "WINDOW_BG": "#F4ECD9",
+            "GROUP_SURFACE": "#FFFCF5",  # Papierplatte
+            "CONTROL_SURFACE": "#F3E9D3",  # Stein, 1,18:1 gegen die Platte
+            "CONTROL_HOVER": "#E9DCC1",  # dunkler, nicht heller
+            # Die schwebende Ebene ist die hellste Flaeche.
             "POPOVER_SURFACE": "#FFFEFB",
-            "HAIRLINE": "#DAD6CA",  # Trennlinie und Gruppenrand
-            "CONTROL_OUTLINE": "#8A857A",  # >= 3:1 auf GROUP_SURFACE
-            # --- Text: warmes Tintenschwarz ----------------------------------
-            # Einen Hauch vom dunklen WINDOW_BG (#1F1E1D) entfernt: `remap`
-            # erkennt Tokens am Wert, und ein Wert mit zwei Rollen bliebe beim
-            # Wechsel nach Dunkel stehen — dunkle Schrift auf dunklem Grund.
-            "TEXT_PRIMARY": "#1F1E1C",
-            "TEXT_SECONDARY": "#56534C",  # 7,28:1 auf WINDOW_BG
-            "TEXT_TERTIARY": "#67635A",  # 5,68:1 auf WINDOW_BG, 5,15:1 auf Gruppe
+            "HAIRLINE": "#E3D8C2",  # Trennlinie, wie Papierfasern
+            "CONTROL_OUTLINE": "#8A8170",  # >= 3:1 auf GROUP_SURFACE
+            # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
+            "INK": "#8E877F",  # Tuscherand: warmes Grau, dezent (Stufe „dezenter“)
+            "GROUP_SIDE": "#E0D2B6",  # Seite unter einer Platte
+            "CONTROL_SIDE": "#D6C7A9",  # Seite unter einem Stein
+            "ACCENT_SIDE": "#075A52",
+            "RECORDING_SIDE": "#6E1712",
+            "ERROR_SIDE": "#7A1A14",
+            "AI_SIDE": "#4A2C57",
+            # --- Text: Tinte -------------------------------------------------
+            "TEXT_PRIMARY": "#1C2B45",
+            "TEXT_SECONDARY": "#4C5568",  # 6,4:1 auf WINDOW_BG
+            "TEXT_TERTIARY": "#5A6274",  # 5,2:1 auf WINDOW_BG, 6,0:1 auf Platte
             # --- Akzent: Tuerkis ---------------------------------------------
             "ACCENT_SURFACE": "#0B7D72",  # dieselbe Fuellung wie im Dunkeln
             "ACCENT_HOVER": "#0A7167",
@@ -158,6 +169,13 @@ class Theme:
     POPOVER_SURFACE = _PALETTES[DEFAULT_MODE]["POPOVER_SURFACE"]
     HAIRLINE = _PALETTES[DEFAULT_MODE]["HAIRLINE"]
     CONTROL_OUTLINE = _PALETTES[DEFAULT_MODE]["CONTROL_OUTLINE"]
+    INK = _PALETTES[DEFAULT_MODE]["INK"]
+    GROUP_SIDE = _PALETTES[DEFAULT_MODE]["GROUP_SIDE"]
+    CONTROL_SIDE = _PALETTES[DEFAULT_MODE]["CONTROL_SIDE"]
+    ACCENT_SIDE = _PALETTES[DEFAULT_MODE]["ACCENT_SIDE"]
+    RECORDING_SIDE = _PALETTES[DEFAULT_MODE]["RECORDING_SIDE"]
+    ERROR_SIDE = _PALETTES[DEFAULT_MODE]["ERROR_SIDE"]
+    AI_SIDE = _PALETTES[DEFAULT_MODE]["AI_SIDE"]
     TEXT_PRIMARY = _PALETTES[DEFAULT_MODE]["TEXT_PRIMARY"]
     TEXT_SECONDARY = _PALETTES[DEFAULT_MODE]["TEXT_SECONDARY"]
     TEXT_TERTIARY = _PALETTES[DEFAULT_MODE]["TEXT_TERTIARY"]
@@ -383,8 +401,8 @@ class Space:
     WINDOW = 20  # Fensterrand
     SECTION_GAP = 24  # zwischen zwei Abschnitten
     GROUP_GAP = 8  # zwischen Überschrift und Gruppe
-    GROUP_INSET = 4  # Gruppenrand bis Zeile; die Zeile bleibt innerhalb der Rundung
-    ROW_X = 12  # Zeileninnenabstand waagerecht (plus Gruppeneinzug = 16)
+    GROUP_INSET = 6  # Gruppenrand bis Zeile; die Zeile bleibt innerhalb der Rundung (Radius 14)
+    ROW_X = 10  # Zeileninnenabstand waagerecht (plus Gruppeneinzug = 16)
     ROW_Y = 12  # Zeileninnenabstand senkrecht, oben und unten gleich
     CONTROL_GAP = 12  # zwischen Text und Control
     STACK_GAP = 8  # zwischen Text und einem darunter stehenden Control
@@ -396,18 +414,39 @@ class Space:
 class Radius:
     """Verwandte Radienfamilie: innen = außen − Abstand."""
 
-    WINDOW = 12
-    POPOVER = 12
-    GROUP = 10
-    CONTROL = 8
-    BUTTON = 8
-    KEYCAP = 4
+    WINDOW = 18
+    POPOVER = 18
+    GROUP = 14  # Papierplatte: weicher als ein Stein, wie in Loratu
+    CONTROL = 10
+    BUTTON = 10
+    KEYCAP = 6
     SEGMENT = 2
 
     @staticmethod
     def pill(height: int) -> int:
         """Pillenform — nur für Chip und Toggle."""
         return max(1, height // 2)
+
+
+class Depth:
+    """Tusche und Aquarell (Loratu): jede gemalte Fläche hat einen Tuscherand und eine Seite darunter.
+
+    Logische Pixel. Die Seite ist die „Dicke“ eines Steins oder einer Platte; ein gedrückter Knopf sinkt
+    genau um sie ein. `INK` ist die Breite des Tuscherands.
+    """
+
+    # Stufe „dezenter“: dieselbe Sprache wie Loratu, aber flachere Steine und eine feinere Linie.
+    CONTROL = 2  # Knopf, Auswahlfeld, Wahlstein
+    GROUP = 3  # Papierplatte
+    KEYCAP = 1  # Tasten-Stein
+    INK = 1.25  # Tuscherand
+
+
+def ink_width() -> float:
+    """Breite des Tuscherands in physischen Pixeln (bewusst nicht gerundet: der Renderer zeichnet überabgetastet)."""
+    from hams.ui_kit.scale import Scale
+
+    return max(1.0, Depth.INK * Scale.factor)
 
 
 class Height:

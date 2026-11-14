@@ -420,8 +420,10 @@ class TestWindow:
         win = open_settings()
         win.win.geometry("+100+100")
         live_app.root.update()
-        win._start_drag(SimpleNamespace(x=5, y=5))
-        win._on_drag(SimpleNamespace(x=25, y=15))
+        chrome = uk.WindowChrome(win.win, min_size=win.MIN_SIZE)
+        chrome._on_press(SimpleNamespace(widget=win.win, x_root=140, y_root=130))
+        chrome._on_drag(SimpleNamespace(widget=win.win, x_root=160, y_root=140))
+        chrome._on_release()
         live_app.root.update()
         assert (win.win.winfo_x(), win.win.winfo_y()) == (120, 110)
 

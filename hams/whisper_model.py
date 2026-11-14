@@ -88,6 +88,8 @@ class ModelManager:
         self._switching_to: str | None = None
         self._phase = "idle"
         self._closed = False
+        #: Known installed models (`installed_models`); None until first asked.
+        self._installed: set[str] | None = None
         # The download belongs to the app, not to a window: it goes on when the settings are closed meanwhile.
         self.downloader = whisper_models.ModelDownloader()
         # Before the first model access; the switch holds for the whole process.
@@ -306,6 +308,17 @@ class ModelManager:
 
     # ------------------------------------------------------------------ download
 
+    def installed_models(self) -> set[str]:
+        """The installed catalog models, one answer for every window: the last cache scan, plus each download
+        finished since. Settings and setup assistant both ask here, so they can never disagree."""
+        if self._installed is None:
+            self._installed = set(whisper_models.installed_whisper_models())
+        return set(self._installed)
+
+    def set_installed(self, installed) -> None:
+        """A fresh cache scan (after a delete, or from the settings) replaces what was known."""
+        self._installed = set(installed)
+
     def start_download(self, model_id: str) -> str:
         """Starts the download of a catalog model. Returns "" when it runs, else the reason in plain words."""
         info = whisper_models.find(model_id)
@@ -356,7 +369,13 @@ class ModelManager:
         """On the download thread."""
         if not error:
             self.download_percent = 100
-        self._post(lambda: self.events.download_finished(model_id, error))
+
+        def finished() -> None:
+            if not error and self._installed is not None:
+                self._installed.add(model_id)  # the downloader checked the model file
+            self.events.download_finished(model_id, error)
+
+        self._post(finished)
 
     def _post(self, callback) -> None:
         """Hands a callback to the Tk thread - harmless during shutdown."""

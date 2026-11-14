@@ -10,6 +10,7 @@ import types
 import pytest
 
 from hams import audio_devices
+from hams import config as hams_config
 from hams import settings_extras as extras
 from hams.recording import Recorder
 from hams.settings_extras import AiSection
@@ -270,5 +271,6 @@ class TestIntervals:
     def test_ollama_is_polled_sparingly(self):
         assert 2000 <= AiSection.OLLAMA_INTERVAL_MS <= 30000
 
-    def test_window_is_larger_than_before(self):
-        assert (SW.WIDTH, SW.HEIGHT) == (440, 680)
+    def test_window_starts_at_the_old_size_and_may_shrink_only_so_far(self):
+        assert (hams_config.SETTINGS_WIDTH, hams_config.SETTINGS_HEIGHT) == (440, 680)
+        assert SW.MIN_SIZE == (400, 420)

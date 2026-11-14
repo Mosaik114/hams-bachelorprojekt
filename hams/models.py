@@ -117,6 +117,10 @@ def installed_whisper_models() -> set[str]:
 MODEL_FILE = "model.bin"
 
 
+class IncompleteDownload(Exception):
+    """The download ended without the model file: as a failure, never as "installed"."""
+
+
 class CachedModel:
     """Ein Katalog-Modell, das im Cache liegt — vollstaendig oder als Rest."""
 
@@ -359,7 +363,13 @@ class ModelDownloader:
         try:
             from huggingface_hub import snapshot_download
 
-            snapshot_download(info.repo_id, tqdm_class=_ProgressBar, allow_patterns=list(ALLOW_PATTERNS))
+            folder = snapshot_download(info.repo_id, tqdm_class=_ProgressBar, allow_patterns=list(ALLOW_PATTERNS))
+            if not (Path(folder) / MODEL_FILE).is_file():
+                # Erfolg heisst "installiert": dieselbe Probe wie `installed_whisper_models`.
+                raise IncompleteDownload(f"{MODEL_FILE} missing in {info.repo_id}")
+        except IncompleteDownload:
+            error = t("download.incomplete")
+            logger.warning("Download of %s finished without %s", info.model_id, MODEL_FILE)
         except Exception as exc:  # noqa: BLE001 - in Klartext uebersetzen
             if self._cancel is not None and self._cancel.is_set():
                 # Der Abbruch kommt aus einem Arbeitsthread zurueck und ist

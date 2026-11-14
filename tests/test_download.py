@@ -7,6 +7,7 @@ Durchlauf mit Tiny lief als Integrationstest ausserhalb dieser Suite.
 
 import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -149,12 +150,22 @@ class TestSpace:
 # ---------------------------------------------------------------- Downloader
 
 
-def fake_hub(monkeypatch, behaviour):
-    """Ersetzt `snapshot_download`; `behaviour` bekommt die Balkenklasse."""
+def fake_hub(monkeypatch, behaviour, snapshot=None):
+    """Ersetzt `snapshot_download`; `behaviour` bekommt die Balkenklasse.
+
+    Zurueck kommt wie beim echten Hub der Snapshot-Ordner; ohne `snapshot` einer mit der Modelldatei.
+    """
+    import tempfile
+
     import huggingface_hub
 
+    if snapshot is None:
+        snapshot = Path(tempfile.mkdtemp(prefix="hams-snapshot-"))
+        (snapshot / models.MODEL_FILE).write_bytes(b"model")
+
     def _download(repo_id, **kwargs):
-        return behaviour(kwargs["tqdm_class"])
+        behaviour(kwargs["tqdm_class"])
+        return str(snapshot)
 
     monkeypatch.setattr(huggingface_hub, "snapshot_download", _download)
 
@@ -182,6 +193,16 @@ class TestDownloader:
         assert problem == ""
         assert progress[-1] == (1000, 1000)
         assert finished == [("tiny", "")]
+
+    def test_a_download_without_the_model_file_is_a_failure(self, monkeypatch, tmp_path):
+        """Success means installed: a snapshot without model.bin must not count as done."""
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
+        fake_hub(monkeypatch, lambda bar_class: None, snapshot=tmp_path)
+        finished = []
+        downloader = models.ModelDownloader()
+        downloader.start(TINY, lambda d, t: None, lambda mid, err: finished.append((mid, err)))
+        downloader._thread.join(timeout=10)
+        assert finished == [("tiny", "Der Download ist unvollständig – bitte erneut versuchen")]
 
     def test_allow_patterns_limit_the_download(self, monkeypatch):
         """Ohne diese Liste zieht der Hub das ganze Repository."""
