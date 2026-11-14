@@ -5,7 +5,28 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] – 2026-11-14
+
 ### Changed
+- **New look, "Tusche und Aquarell":** paper background, a fine ink edge and a stone side under every control,
+  calm turquoise accents, in light and dark. Headings and buttons use Nunito (SIL Open Font License, bundled and
+  loaded only for Hams). The settings and the setup assistant share one painted head with the Hams mark; its
+  wash and a calm ink line keep clear of the title and the close button at any width.
+- **All controls share one base** (`ui_kit.BaseControl`, a painted stone): the label sits on the middle of the
+  face and sinks with it when pressed, and every button is as wide as its word needs. Selection fields draw their
+  text with Tk (no more Arial), the tab row is a slim row of word-wide tabs, round buttons are larger with a real
+  gear, level meter and status dot are larger and inked, row hover has round corners, popovers have the ink edge.
+- **Resizing the settings is smooth:** while an edge is dragged, the content stays where it is and only the window
+  grows; it is laid out once on release (about 2 ms per step instead of 60–95 ms).
+- **Switching tabs is quick also the first time:** the hidden pages are laid out ahead in quiet steps after the
+  window appears and after every resize.
+- **Moving a window works from any free area,** not only from the title: every part of the window background
+  (header, margins, text on the background) moves it, one position per idle round. One shared piece (`ui_kit.WindowChrome`) does this for the main
+  window, the settings and the setup assistant; each of them used to carry its own copy.
+- **The settings window can be resized** at every edge and corner (smallest 400 × 420 logical pixels); the content
+  follows the width, and the size is kept in `[ui] settings_width`/`settings_height`.
+- **Tray icon:** colours follow the taskbar theme, errors have a colour of their own, and every drawn size is used.
+- **"Info & Hilfe"** is less crowded: the buttons measure themselves, the report buttons stand under their text.
 - **Moving a window works from any free area,** not only from the title: every part of the window background
   (header, margins, text on the background) moves it, one position per idle round. One shared piece (`ui_kit.WindowChrome`) does this for the main
   window, the settings and the setup assistant; each of them used to carry its own copy.
@@ -13,6 +34,16 @@ follow [Semantic Versioning](https://semver.org/).
   follows the width, and the size is kept in `[ui] settings_width`/`settings_height`.
 
 ### Fixed
+- **The focus ring shows only after keyboard use,** never after a mouse click (a turquoise ring stood around the
+  selected tab), and it is drawn on the control's own edge instead of around it, so no control is indented 4 px.
+- **Greyed-out rows stay readable** ("Ollama erreichbar" had a contrast of 1.3:1).
+- **Pressing works like a Windows button:** slide off to cancel, slide back to press again; rows have a pressed look.
+- **Clicking the rim of a plate no longer moves the window.**
+- **No more leak in the click areas:** every popover left 18 Tcl commands behind.
+- **Every window notices a move to a monitor with another scaling,** not only the main window.
+- **The settings window is no layered window after its hidden prebuild** any more, which made resizing dearer.
+- **Setup assistant:** Escape closes it, the close question goes away when the download it asked about ends, the
+  close button is centred, and lines mark where the page continues above or below.
 - **Entries of a selection list, and switch rows, react on their whole area.** Clicking the free space right of the
   text in a list (the model choice, for example) did nothing, and the hover flickered between the parts of a row.
   Rows and list entries now join all their parts through one bind tag (`ui_kit.PressArea`), and a click fires on
