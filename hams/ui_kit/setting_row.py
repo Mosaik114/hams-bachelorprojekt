@@ -9,7 +9,6 @@ from collections.abc import Callable
 from hams.ui_kit.controls import StatusDot
 from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import Scale, font, px
-from hams.ui_kit.states import ControlStyle, FocusMixin
 from hams.ui_kit.text import _fit_text, _line_height
 from hams.ui_kit.theme import Height, Space, Theme, set_surface_under
 
@@ -167,13 +166,8 @@ class SettingRow(tk.Frame):
             return
         if self._area is not None:
             self._area.watch(control)  # der Schalter klickt selbst, haelt aber die Hervorhebung der Zeile
-        # Controls mit Fokusring halten dafür ringsum Platz frei; ihre sichtbare
-        # Kante liegt um diesen Rand weiter innen. Die Zeile rückt sie deshalb
-        # um genau so viel nach außen, damit Feld, Titel und Tasten-Chips auf
-        # einer Linie stehen. Controls ohne Ring bekommen den Rand zurück.
-        inset = self._ring_inset()
-        ringed = isinstance(control, FocusMixin) or getattr(control, "focus_ring", False)
-        outer = 0 if ringed else inset
+        # Der Fokus liegt auf der Fläche, kein Control hält Rand für einen Ring frei: alle Kanten stehen
+        # ohne Ausgleich auf einer Linie.
         if self._stacked:
             # Auswahlfelder und Pegel nehmen die volle Breite; eine Schaltfläche,
             # die vorübergehend an ihre Stelle tritt, behält ihre eigene.
@@ -184,8 +178,7 @@ class SettingRow(tk.Frame):
                 column=0,
                 columnspan=2,
                 sticky=sticky,
-                padx=(outer, outer),
-                pady=(px(Space.STACK_GAP) - (inset if ringed else 0), 0),
+                pady=(px(Space.STACK_GAP), 0),
             )
         else:
             control.grid(
@@ -193,35 +186,27 @@ class SettingRow(tk.Frame):
                 row=0,
                 column=1,
                 sticky="e",
-                padx=(px(Space.CONTROL_GAP) - (inset if ringed else 0), outer),
+                padx=(px(Space.CONTROL_GAP), 0),
             )
         # Tk stapelt nach Erzeugungsreihenfolge; ein spaeter erzeugtes Control
         # laege sonst hinter dem Zeilengrund.
         # `tk.Misc.lift`, nicht `control.lift`: an einer Canvas hebt das Tags.
         tk.Misc.lift(control, self._line)
 
-    @staticmethod
-    def _ring_inset() -> int:
-        """Rand, den ein Control mit Fokusring um seine sichtbare Fläche lässt."""
-        return px(ControlStyle.RING_WIDTH) + px(ControlStyle.RING_GAP)
-
     def _apply_metrics(self) -> None:
         """Innenabstände und Mindesthöhe — beim Aufbau und bei jedem DPI-Wechsel.
 
-        Die Zeile selbst rückt um den Ringrand weniger ein; Text und Wert holen
-        ihn als eigenen Abstand zurück. So stehen alle sichtbaren Kanten bei
-        `Space.ROW_X`, auch die eines Controls mit Fokusring.
+        Alle sichtbaren Kanten (Text, Wert, Control) stehen bei `Space.ROW_X`.
         """
-        inset = self._ring_inset()
-        self._line.configure(padx=px(Space.ROW_X) - inset, pady=px(Space.ROW_Y))
+        self._line.configure(padx=px(Space.ROW_X), pady=px(Space.ROW_Y))
         # Gestapelt bestimmt der Text selbst die Höhe der ersten Reihe; eine
         # Mindesthöhe schöbe nur Luft zwischen Text und Feld.
         self._line.grid_rowconfigure(0, minsize=0 if self._stacked else px(Height.ROW_MIN - 2 * Space.ROW_Y))
-        self._text_box.grid_configure(padx=(inset, inset if self._stacked else 0))
+        self._text_box.grid_configure(padx=0)
         if self._control is not None:
             self.set_control(self._control)
         if self.value_label is not None:
-            self.value_label.grid_configure(padx=(px(Space.CONTROL_GAP), inset))
+            self.value_label.grid_configure(padx=(px(Space.CONTROL_GAP), 0))
         if self.status_dot is not None:
             # Mittig zur ersten Textzeile, nicht an deren Oberkante.
             line = _line_height(font("description"), self)

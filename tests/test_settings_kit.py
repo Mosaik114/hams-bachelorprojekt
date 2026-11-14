@@ -324,9 +324,8 @@ class TestSettingRow:
         for _ in range(3):
             root.update()
         assert control.winfo_y() > row._text_box.winfo_y() + row._text_box.winfo_height()
-        # volle Breite, sichtbare Kante bündig mit dem Titel
-        inset = uk.px(uk.ControlStyle.RING_WIDTH) + uk.px(uk.ControlStyle.RING_GAP)
-        assert control.winfo_x() + inset == row._text_box.winfo_x()
+        # volle Breite, die Kante bündig mit dem Titel: der Fokus liegt auf der Fläche, kein Rand drumherum
+        assert control.winfo_x() == row._text_box.winfo_x()
         assert control.winfo_width() >= row._text_box.winfo_width()
 
     def test_status_variant_has_a_dot(self, window, root):

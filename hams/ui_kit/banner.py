@@ -117,10 +117,7 @@ def render_banner(width: int, height: int, *, scale: float = 1.0) -> Image.Image
 def banner_image(width: int, height: int) -> ImageTk.PhotoImage:
     """`render_banner` as a cached Tk image (per size, colour mode and DPI)."""
     key = ("banner", int(width), int(height), Theme.mode, Theme.WINDOW_BG, Scale.factor)
-    cached = _img_cache.get(key)
+    cached = _img_cache.fetch(key)
     if cached is not None:
-        _img_cache.move_to_end(key)
         return cached
-    photo = ImageTk.PhotoImage(render_banner(width, height, scale=Scale.factor))
-    _img_cache[key] = photo
-    return photo
+    return _img_cache.store(key, ImageTk.PhotoImage(render_banner(width, height, scale=Scale.factor)))

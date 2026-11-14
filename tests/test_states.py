@@ -80,10 +80,10 @@ class TestPriority:
         with_focus = ControlStyle.resolve("primary", {State.HOVER, State.FOCUSED})
         without = ControlStyle.resolve("primary", {State.HOVER})
         assert with_focus == without
-        assert ControlStyle.ring_colour({State.HOVER, State.FOCUSED}) is not None
+        assert ControlStyle.focus_for({State.HOVER, State.FOCUSED}) is not None
 
     def test_disabled_hides_the_ring(self):
-        assert ControlStyle.ring_colour({State.FOCUSED, State.DISABLED}) is None
+        assert ControlStyle.focus_for({State.FOCUSED, State.DISABLED}) is None
 
     def test_interactivity(self):
         assert State.is_interactive(set())
@@ -114,9 +114,14 @@ class TestControlStyle:
             _fill, text = ControlStyle.resolve(role, {State.DISABLED})
             assert text == Theme.TEXT_DISABLED
 
-    def test_ring_uses_the_accent_tint(self):
-        assert ControlStyle.ring_colour({State.FOCUSED}) == Theme.ACCENT_TINT
-        assert ControlStyle.focus_ring() == Theme.ACCENT_TINT
+    def test_focus_uses_its_own_token(self):
+        assert ControlStyle.focus_for({State.FOCUSED}) == Theme.FOCUS
+        assert ControlStyle.focus_colour() == Theme.FOCUS
+
+    def test_the_focus_is_painted_on_the_surface_not_around_it(self):
+        spec = ControlStyle.surface_spec("primary", {State.FOCUSED}, 100, 30, 8, under=Theme.WINDOW_BG)
+        assert spec.focus == Theme.FOCUS and spec.width == 100
+        assert spec.options()["border"] == Theme.FOCUS
 
 
 class TestStateMixin:

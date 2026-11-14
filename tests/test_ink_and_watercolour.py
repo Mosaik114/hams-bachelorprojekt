@@ -162,3 +162,39 @@ class TestDisabledRows:
         row.set_enabled(False)
         assert row.sub_label.cget("fg") == uk.Theme.TEXT_DISABLED
         row.destroy()
+
+
+class TestOneCache:
+    def test_the_budget_holds_by_count_and_bytes(self, root):
+        from PIL import Image, ImageTk
+
+        from hams.ui_kit.caches import ImageCache
+
+        cache = ImageCache(limit=3, budget_bytes=10 * 10 * 4 * 2)
+        for number in range(5):
+            cache.store(number, ImageTk.PhotoImage(Image.new("RGBA", (10, 10))))
+        assert len(cache) == 2 and cache.bytes == 800
+        assert cache.fetch(4) is not None and cache.fetch(0) is None
+        assert (cache.hits, cache.misses) == (1, 1) and cache.evictions == 3
+        cache.clear()
+        assert cache.bytes == 0
+
+    def test_the_stage_and_the_mark_go_through_it(self, root):
+        from hams.ui_kit.caches import _img_cache
+        from hams.window_mark import mark_photo
+
+        banner.banner_image(123, 45)
+        assert any(isinstance(key, tuple) and key[:2] == ("banner", 123) for key in _img_cache)
+        assert mark_photo() is mark_photo()
+
+    def test_the_mark_fills_its_square(self):
+        image = branding.ink_mark_image(40)
+        left, top, right, bottom = image.getchannel("A").getbbox()
+        assert max(right - left, bottom - top) >= 38, "trimmed to what is painted"
+
+
+class TestSurfaceSpec:
+    def test_the_side_has_no_contour(self):
+        spec = surfaces.SurfaceSpec(60, 30, 6, "#FFFFFF", ink="#000000", ink_width=1.0, side="#888888", depth=6)
+        image = spec.render().convert("RGB")
+        assert image.getpixel((30, 27)) == (136, 136, 136), "the side below is plain, no ink line in it"

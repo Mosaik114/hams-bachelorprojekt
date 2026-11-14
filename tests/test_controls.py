@@ -181,7 +181,7 @@ class TestKeyboard:
         button.focus_set()
         root.update()
         assert button.has_state(State.FOCUSED)
-        assert button.ring() == Theme.ACCENT_TINT
+        assert button.focus_colour() == Theme.ACCENT_TINT
 
     @pytest.mark.parametrize("name", ["primary", "secondary", "icon", "switch"])
     def test_disabled_leaves_the_tab_chain(self, controls, root, name):
@@ -218,7 +218,7 @@ class TestSwitch:
     def test_track_colour_uses_accent(self, controls):
         switch = controls["switch"]
         switch.set(True)
-        assert switch._track_colour() == Theme.ACCENT_TINT
+        assert switch._track_colour() == Theme.ACCENT_SURFACE
 
     def test_track_neutral_when_off(self, controls):
         switch = controls["switch"]

@@ -128,10 +128,8 @@ class ControlStyle:
         "plain": "CONTROL_SIDE",
     }
 
-    #: Der Fokusring ist immer der Akzentton des aktiven Modus.
-    FOCUS_RING_TOKEN = "FOCUS"  # noqa: S105 – Name einer Farbe, kein Passwort
-    RING_WIDTH = 2  # logisch
-    RING_GAP = 2  # logisch
+    #: Der Tastaturfokus färbt den Tuscherand der Fläche (Token `FOCUS`); ein Ring drumherum entfällt.
+    FOCUS_TOKEN = "FOCUS"  # noqa: S105 – Name einer Farbe, kein Passwort
 
     @classmethod
     def roles(cls) -> list[str]:
@@ -160,13 +158,53 @@ class ControlStyle:
         return getattr(Theme, cls._SIDES.get(role, "CONTROL_SIDE"))
 
     @classmethod
-    def focus_ring(cls) -> str:
-        """Ringfarbe des aktiven Modus."""
-        return getattr(Theme, cls.FOCUS_RING_TOKEN)
+    def focus_colour(cls) -> str:
+        """Farbe des Tuscherands bei sichtbarem Tastaturfokus."""
+        return getattr(Theme, cls.FOCUS_TOKEN)
 
     @classmethod
-    def ring_colour(cls, active) -> str | None:
-        return cls.focus_ring() if State.shows_focus_ring(active) else None
+    def focus_for(cls, active) -> str | None:
+        return cls.focus_colour() if State.shows_focus_ring(active) else None
+
+    @classmethod
+    def surface_spec(
+        cls,
+        role: str,
+        active,
+        width: int,
+        height: int,
+        radius: int,
+        *,
+        under: str,
+        squircle: bool = True,
+        depth: int | None = None,
+    ):
+        """Die Fläche eines Controls in Rolle und Zustand — die *eine* Stelle, die das entscheidet.
+
+        `height` ist die Höhe der Fläche selbst; das Bild ist um die Seite (`depth`) höher. Ohne eigene
+        Füllung (Rolle `plain` in Ruhe) bleibt nur der Untergrund, ohne Tusche und Seite.
+        """
+        from hams.ui_kit.scale import px
+        from hams.ui_kit.surfaces import SurfaceSpec
+        from hams.ui_kit.theme import Depth, ink_width
+
+        fill, _text = cls.resolve(role, active)
+        lift = px(Depth.CONTROL) if depth is None else depth
+        if fill is None:
+            return SurfaceSpec(width, height + lift, radius, under, squircle=squircle, focus=cls.focus_for(active))
+        return SurfaceSpec(
+            width,
+            height + lift,
+            radius,
+            fill,
+            ink=Theme.INK,
+            ink_width=ink_width(),
+            side=cls.side(role, active),
+            depth=lift,
+            pressed=State.PRESSED in set(active),
+            focus=cls.focus_for(active),
+            squircle=squircle,
+        )
 
 
 class StateMixin:
@@ -206,8 +244,12 @@ class StateMixin:
     def colours(self) -> tuple[str | None, str]:
         return ControlStyle.resolve(self._role, self._states)
 
-    def ring(self) -> str | None:
-        return ControlStyle.ring_colour(self._states)
+    def focus_colour(self) -> str | None:
+        """Farbe des Tuscherands, solange der Fokus sichtbar ist, sonst None."""
+        return ControlStyle.focus_for(self._states)
+
+    def surface_spec(self, width: int, height: int, radius: int, **options):
+        return ControlStyle.surface_spec(self._role, self._states, width, height, radius, **options)
 
     def on_state_change(self) -> None:  # pragma: no cover - überschrieben
         """Wird bei jeder Zustandsänderung gerufen; Controls zeichnen hier neu."""

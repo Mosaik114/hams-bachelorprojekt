@@ -9,15 +9,20 @@ from PIL import ImageTk
 
 from hams import branding
 from hams import ui_kit as uk
+from hams.ui_kit.caches import _img_cache
 
 #: Size of the mark in logical pixels: as tall as the window title.
-MARK_SIZE = 28
+MARK_SIZE = 26
 
 
 def mark_photo(size: int = MARK_SIZE) -> ImageTk.PhotoImage | None:
-    """The mark at `size` logical pixels for the current DPI, or None when the file is missing."""
+    """The mark at `size` logical pixels for the current DPI (cached), or None when the file is missing."""
+    key = ("ink-mark", uk.px(size))
+    cached = _img_cache.fetch(key)
+    if cached is not None:
+        return cached
     image = branding.ink_mark_image(uk.px(size))
-    return ImageTk.PhotoImage(image) if image is not None else None
+    return _img_cache.store(key, ImageTk.PhotoImage(image)) if image is not None else None
 
 
 def mark_label(master: tk.Misc, *, bg: str, size: int = MARK_SIZE) -> tk.Label:

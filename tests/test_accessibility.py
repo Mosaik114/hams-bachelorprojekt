@@ -209,7 +209,7 @@ class TestKeyboardActivation:
         root.update()
         button.focus_set()
         root.update()
-        assert button.ring() == ControlStyle.focus_ring()
+        assert button.focus_colour() == ControlStyle.focus_colour()
 
     def test_a_select_opens_and_closes_by_keyboard(self, window, root):
         options = [Option(f"v{i}", f"Eintrag {i}") for i in range(4)]

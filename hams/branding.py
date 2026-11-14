@@ -114,7 +114,17 @@ def ink_mark_image(size: int) -> Image.Image | None:
     path = ASSET_DIR / INK_MARK_FILE
     try:
         with Image.open(path) as image:
-            return image.convert("RGBA").resize((size, size), Image.LANCZOS)
+            mark = image.convert("RGBA")
     except (OSError, ValueError):
         logger.warning("Ink mark %s unreadable", path, exc_info=True)
         return None
+    # Die Datei laesst rundherum Luft (fuer das App-Symbol); im Fensterkopf soll die Marke so gross wirken wie
+    # der Titel: auf das Gemalte zuschneiden und mittig ins Quadrat setzen.
+    box = mark.getchannel("A").getbbox()
+    if box:
+        mark = mark.crop(box)
+    scale = size / max(mark.size)
+    fitted = mark.resize((max(1, round(mark.width * scale)), max(1, round(mark.height * scale))), Image.LANCZOS)
+    square = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    square.paste(fitted, ((size - fitted.width) // 2, (size - fitted.height) // 2), fitted)
+    return square

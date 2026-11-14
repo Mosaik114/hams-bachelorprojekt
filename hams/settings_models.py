@@ -155,7 +155,6 @@ class TranscriptionSection(Section):
         # The question takes the place of the select - the same trick as the download cancel. Two buttons side by
         # side need a frame, because a row takes only one control.
         self.delete_box = tk.Frame(body, bg=Theme.GROUP_SURFACE)
-        self.delete_box.focus_ring = True  # the buttons inside carry it
         self.delete_button = uk.SecondaryButton(
             self.delete_box,
             t("settings.storage.delete"),

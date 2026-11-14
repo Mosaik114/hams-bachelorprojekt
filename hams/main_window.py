@@ -202,7 +202,6 @@ class MainWindowMixin:
         """
         line = self._line_height("status")
         footer = self.FOOTER_HEIGHT
-        ring = 2 * (uk.Space.XS + uk.Space.XS)  # Fokusring des Buttons
 
         logical = (
             uk.Space.WINDOW  # Rand oben
@@ -215,8 +214,7 @@ class MainWindowMixin:
             + uk.SignalMeter.HEIGHT  # Pegel
             + uk.Space.LG
             + uk.Height.PRIMARY
-            + uk.Depth.CONTROL
-            + ring  # Hauptaktion mit ihrer Seite
+            + uk.Depth.CONTROL  # Hauptaktion mit ihrer Seite
             + uk.Space.LG
             + footer  # Kurzbefehle als Tasten
             + uk.Space.WINDOW  # Rand unten

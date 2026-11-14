@@ -86,7 +86,6 @@ class ShortcutsSection(Section):
         row = uk.SettingRow(body, title, variant="description", description=self.shortcut_hint(key), stacked=True)
         row.pack(fill="x")
         box = tk.Frame(body, bg=Theme.GROUP_SURFACE, highlightthickness=0, takefocus=0)
-        box.focus_ring = True  # the buttons inside carry it
         keys = uk.KeyCombo(box, bg_under=Theme.GROUP_SURFACE, combo=combo)
         keys.pack(side="left")
         parts = SimpleNamespace(row=row, box=box, keys=keys, change=None, default=None, cancel=None)

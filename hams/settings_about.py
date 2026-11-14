@@ -101,7 +101,6 @@ class AboutSection(Section):
         )
         self.row_report.pack(fill="x")
         box = tk.Frame(body, bg=Theme.GROUP_SURFACE, highlightthickness=0, takefocus=0)
-        box.focus_ring = True  # the buttons inside carry it
         self.report_open_button = uk.SecondaryButton(
             box,
             t("settings.about.open"),

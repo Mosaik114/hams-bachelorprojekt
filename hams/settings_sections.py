@@ -306,7 +306,6 @@ class GeneralSection(Section):
         )
         self.row_update.pack(fill="x", before=self.row_updates)
         box = tk.Frame(body, bg=Theme.GROUP_SURFACE)
-        box.focus_ring = True  # the buttons inside carry it
         view = uk.SecondaryButton(
             box,
             t("settings.update.open"),

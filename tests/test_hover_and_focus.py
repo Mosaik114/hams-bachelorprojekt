@@ -155,7 +155,7 @@ class TestFocusRingOnlyForTheKeyboard:
         switch.event_generate("<ButtonRelease-1>", x=10, y=10)
         root.update()
         assert not switch.has_state(State.FOCUSED)
-        assert switch.ring() is None
+        assert switch.focus_colour() is None
 
     def test_the_keyboard_still_draws_it(self, window, root):
         """Ohne Ring wüsste beim Tabulieren niemand, wo er steht."""
@@ -163,7 +163,7 @@ class TestFocusRingOnlyForTheKeyboard:
         switch.focus_set()
         root.update()
         assert switch.has_state(State.FOCUSED)
-        assert switch.ring() == Theme.ACCENT_TINT
+        assert switch.focus_colour() == Theme.ACCENT_TINT
 
     def test_a_click_still_gives_the_widget_the_real_focus(self, window, root):
         """Nur die Anzeige entfällt — Leertaste und Eingabe müssen wirken."""
@@ -183,12 +183,14 @@ class TestFocusRingOnlyForTheKeyboard:
         switch.event_generate("<ButtonPress-1>", x=10, y=10)
         switch.event_generate("<ButtonRelease-1>", x=10, y=10)
         root.update()
-        assert switch.ring() is None
+        assert switch.focus_colour() is None
         other.focus_set()
         root.update()
         switch.focus_set()
         root.update()
-        assert switch.ring() == Theme.ACCENT_TINT, "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten"
+        assert switch.focus_colour() == Theme.ACCENT_TINT, (
+            "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten"
+        )
 
     def test_it_holds_for_buttons_as_well(self, window, root):
         button = SecondaryButton(window, "Neu starten", lambda: None, bg_under=Theme.WINDOW_BG)
@@ -199,7 +201,7 @@ class TestFocusRingOnlyForTheKeyboard:
         button.event_generate("<ButtonPress-1>", x=5, y=5)
         button.event_generate("<ButtonRelease-1>", x=5, y=5)
         root.update()
-        assert button.ring() is None
+        assert button.focus_colour() is None
 
         # Erst weg, dann wieder hin: ein `focus_set()` auf das bereits
         # fokussierte Widget erzeugt kein FocusIn und damit auch keinen Ring.
@@ -207,7 +209,7 @@ class TestFocusRingOnlyForTheKeyboard:
         root.update()
         button.focus_set()
         root.update()
-        assert button.ring() == Theme.ACCENT_TINT
+        assert button.focus_colour() == Theme.ACCENT_TINT
 
     def test_the_select_behaves_the_same(self, window, root):
         feld = Select(window, bg_under=Theme.WINDOW_BG, options=[Option("a", "A")], value="a")

@@ -7,8 +7,8 @@ from collections.abc import Callable
 
 from hams.ui_kit.animation import Animator, blend
 from hams.ui_kit.scale import Scale, px
-from hams.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
-from hams.ui_kit.surfaces import surface
+from hams.ui_kit.states import FocusMixin, State, StateMixin
+from hams.ui_kit.surfaces import SurfaceSpec, paint, surface
 from hams.ui_kit.theme import Radius, Theme, ink_width
 
 # ---------------------------------------------------------------- Statuspunkt
@@ -136,10 +136,14 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         #: Sichtbare Stellung zwischen 0 (aus) und 1 (an). Weicht während der
         #: Bewegung bewusst vom logischen Wert ab.
         self._progress = 1.0 if value else 0.0
-        side = (px(self.WIDTH), px(self.HEIGHT))
-        ring = 2 * (px(ControlStyle.RING_WIDTH) + px(ControlStyle.RING_GAP))
         super().__init__(
-            master, width=side[0] + ring, height=side[1] + ring, bg=bg_under, bd=0, highlightthickness=0, cursor="hand2"
+            master,
+            width=px(self.WIDTH),
+            height=px(self.HEIGHT),
+            bg=bg_under,
+            bd=0,
+            highlightthickness=0,
+            cursor="hand2",
         )
         self.init_states("secondary")
         self.init_focus(self.toggle)
@@ -216,8 +220,7 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
 
     def _on_scale_change(self, _factor: float) -> None:
         try:
-            ring = 2 * (px(ControlStyle.RING_WIDTH) + px(ControlStyle.RING_GAP))
-            self.configure(width=px(self.WIDTH) + ring, height=px(self.HEIGHT) + ring)
+            self.configure(width=px(self.WIDTH), height=px(self.HEIGHT))
             self._draw()
         except tk.TclError:  # pragma: no cover
             pass
@@ -255,24 +258,23 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
     def _draw(self) -> None:
         self.delete("all")
         width, height = px(self.WIDTH), px(self.HEIGHT)
-        ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
-        pad = ring_w + ring_gap
+        pad = 0
 
         # Die ausgeschaltete Spur hebt sich mit 1,16:1 kaum vom Zeilengrund ab —
         # ohne Umriss wäre nicht zu sehen, dass dort überhaupt ein Bedienelement
         # sitzt. Eingeschaltet trägt die Akzentfläche selbst mindestens 3:1,
         # dann verschwindet der Umriss in ihr.
-        track = surface(
-            width + 2 * pad,
-            height + 2 * pad,
-            Radius.pill(height),
-            self._track_colour(),
-            squircle=False,
-            border=Theme.INK,
-            border_w=ink_width(),
-            ring=self.ring(),
-            ring_width=ring_w,
-            ring_gap=ring_gap,
+        track = paint(
+            SurfaceSpec(
+                width,
+                height,
+                Radius.pill(height),
+                self._track_colour(),
+                ink=Theme.INK,
+                ink_width=ink_width(),
+                focus=self.focus_colour(),
+                squircle=False,
+            )
         )
         self._track_image = track
         self.create_image(0, 0, anchor="nw", image=track)

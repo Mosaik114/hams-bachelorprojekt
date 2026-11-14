@@ -10,8 +10,8 @@ from PIL import ImageTk
 from hams.ui_kit.icons import ICON_BOX, render_icon
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
-from hams.ui_kit.surfaces import surface
-from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme, ink_width
+from hams.ui_kit.surfaces import paint
+from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme
 
 # ---------------------------------------------------------------- Basis-Controls
 
@@ -190,25 +190,8 @@ class _SurfaceControl(BaseControl):
     stretch_stacked = False
 
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:
-        fill, _foreground = self.colours()
-        ring_w, ring_gap = px(ControlStyle.RING_WIDTH), px(ControlStyle.RING_GAP)
-        depth = px(Depth.CONTROL)
-        painted = fill is not None  # eine Fläche ohne Füllung (plain) bleibt ungemalt
-        return surface(
-            width,
-            height + depth + 2 * (ring_w + ring_gap),
-            px(self._logical_radius),
-            fill if painted else self._bg_under,
-            squircle=self._squircle,
-            border=Theme.INK if painted else None,
-            border_w=ink_width() if painted else 0,
-            ring=self.ring(),
-            ring_width=ring_w,
-            ring_gap=ring_gap,
-            side=ControlStyle.side(self._role, self._states) if painted else None,
-            depth=depth if painted else 0,
-            pressed=self.has_state(State.PRESSED),
-        )
+        spec = self.surface_spec(width, height, px(self._logical_radius), under=self._bg_under, squircle=self._squircle)
+        return paint(spec)
 
 
 class SecondaryButton(_SurfaceControl):
@@ -335,24 +318,13 @@ class IconButton(BaseControl):
         hovered = self.enabled and (self.has_state(State.HOVER) or self.has_state(State.PRESSED))
         if self._hover_colour and hovered:
             foreground = self._hover_colour
-        fill = Theme.CONTROL_HOVER if hovered else Theme.CONTROL_SURFACE
         pressed = self.has_state(State.PRESSED)
-        plate = ImageTk.getimage(
-            surface(
-                side,
-                side + depth,
-                side // 2,
-                fill,
-                border=Theme.INK,
-                border_w=ink_width(),
-                ring=self.ring(),
-                ring_width=px(ControlStyle.RING_WIDTH),
-                ring_gap=px(ControlStyle.RING_GAP),
-                side=ControlStyle.side("secondary", self._states),
-                depth=depth,
-                pressed=pressed,
-            )
-        ).copy()
+        stone = {State.HOVER} if hovered else set()
+        stone |= {state for state in self._states if state in (State.PRESSED, State.FOCUSED)}
+        spec = ControlStyle.surface_spec(
+            "secondary", stone, side, side, side // 2, under=self._bg_under, squircle=False
+        )
+        plate = ImageTk.getimage(paint(spec)).copy()
         glyph_size = px(self._icon_size)
         glyph = render_icon(self._icon_name, glyph_size, foreground)
         top = (side - glyph_size) // 2 + (depth if pressed else 0)

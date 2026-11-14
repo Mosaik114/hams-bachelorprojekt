@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageTk
 
@@ -246,9 +247,8 @@ def _render_full(
         canvas = Image.alpha_composite(canvas, _shadow_layer(big, inner, mask, pad, shadow))
 
     if sink and not pressed:
+        # Die Seite ist ein ruhiger Sockel ohne eigene Kontur: mit Tusche rundum las sie sich als Doppellinie.
         stone = _body(inner, side, 0.0)
-        if border is not None and border_w:
-            stone = _add_border(stone, int(radius * scale), squircle, border, border_w)
         stone.putalpha(mask)
         layer = Image.new("RGBA", big, (0, 0, 0, 0))
         layer.paste(stone, (pad, pad + sink), stone)
@@ -357,6 +357,63 @@ def _dithered(image: Image.Image) -> Image.Image:
     return Image.merge("RGBA", (*rgb.split(), alpha_channel))
 
 
+@dataclass(frozen=True)
+class SurfaceSpec:
+    """Eine gemalte Fläche vollständig beschrieben — physische Pixel, Farben als Werte.
+
+    Jedes Control beschreibt seine Fläche hiermit (meist über `ControlStyle.surface_spec`) statt ein Dutzend
+    Einzelparameter an `surface()` zu reichen. Die Beschreibung ist unveränderlich und hashbar und damit selbst
+    der Schlüssel im Bildspeicher.
+
+    `focus`: Farbe des Tuscherands bei sichtbarem Tastaturfokus. Der Fokus wird *auf* die Fläche gemalt, als
+    kräftigerer Rand in dieser Farbe — kein Ring drumherum, der Platz kostete und Kanten versetzte.
+    """
+
+    width: int
+    height: int
+    radius: int
+    fill: str
+    ink: str | None = None
+    ink_width: float = 0.0
+    side: str | None = None
+    depth: int = 0
+    pressed: bool = False
+    focus: str | None = None
+    squircle: bool = True
+    gradient: float = 0.0
+    edge: str | None = None
+    shadow: tuple[float, float, float] | None = None
+
+    #: Wie viel kräftiger der Rand bei Fokus ist.
+    FOCUS_WIDTH = 2.0
+
+    def options(self) -> dict:
+        if self.focus:
+            border, width = self.focus, max(self.ink_width, 1.0) * self.FOCUS_WIDTH
+        else:
+            border, width = self.ink, self.ink_width
+        return {
+            "edge": self.edge,
+            "gradient": self.gradient,
+            "shadow": self.shadow,
+            "squircle": self.squircle,
+            "border": border,
+            "border_w": width if border else 0,
+            "side": self.side,
+            "depth": self.depth if self.side else 0,
+            "pressed": self.pressed,
+        }
+
+    def render(self) -> Image.Image:
+        """Pures PIL, ohne Tk."""
+        return render_surface(self.width, self.height, self.radius, self.fill, **self.options())
+
+
+def paint(spec: SurfaceSpec) -> ImageTk.PhotoImage:
+    """Die Fläche als Tk-Bild, aus dem gemeinsamen Bildspeicher."""
+    return surface(spec.width, spec.height, spec.radius, spec.fill, **spec.options())
+
+
 def surface(
     width: int,
     height: int,
@@ -400,13 +457,7 @@ def surface(
         "dither": dither,
     }
     key = (width, height, radius, fill, *options.values(), round(gradient, 4), Scale.factor)
-    cached = _img_cache.get(key)
+    cached = _img_cache.fetch(key)
     if cached is not None:
-        _img_cache.move_to_end(key)
         return cached
-
-    photo = ImageTk.PhotoImage(render_surface(width, height, radius, fill, **options))
-    _img_cache[key] = photo
-    if len(_img_cache) > CACHE_LIMIT:
-        _img_cache.popitem(last=False)  # ältester Eintrag fliegt raus
-    return photo
+    return _img_cache.store(key, ImageTk.PhotoImage(render_surface(width, height, radius, fill, **options)))
