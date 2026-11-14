@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] – 2026-11-14
+
 ### Changed
 - **The settings window opens almost at once.** It is built once, hidden, a few seconds after the start, and from
   then on only shown and hidden; each time it is shown it first takes over the current state. Measured on the Tk

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hams"
-version = "1.2.2"
+version = "1.3.0"
 description = "Local, privacy-first voice input for Windows and Linux: faster-whisper speech recognition with optional LLM cleanup via Ollama, pasted wherever your cursor is."
 readme = "README.md"
 license = {text = "MIT"}
