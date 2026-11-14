@@ -32,6 +32,7 @@ datas = [
     (str(PACKAGE / "glossar.default.en.toml"), "hams"),
     (str(PACKAGE / "prompts"), "hams/prompts"),
     (str(PACKAGE / "assets" / "branding"), "hams/assets/branding"),
+    (str(PACKAGE / "assets" / "fonts"), "hams/assets/fonts"),  # Nunito (OFL), loaded privately at start
 ]
 datas += collect_data_files("faster_whisper")  # Silero VAD model
 for distribution in ("hams", "faster-whisper", "ctranslate2", "pystray", "sounddevice", "onnxruntime"):

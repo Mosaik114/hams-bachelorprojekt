@@ -1,5 +1,7 @@
 """The "Tusche und Aquarell" design language (as in Loratu): ink edge, stone side, painted stage, tabs, mark."""
 
+import sys
+
 import kit as uk
 import pytest
 
@@ -198,3 +200,18 @@ class TestSurfaceSpec:
         spec = surfaces.SurfaceSpec(60, 30, 6, "#FFFFFF", ink="#000000", ink_width=1.0, side="#888888", depth=6)
         image = spec.render().convert("RGB")
         assert image.getpixel((30, 27)) == (136, 136, 136), "the side below is plain, no ink line in it"
+
+
+class TestBundledFont:
+    @pytest.mark.skipif(sys.platform != "win32", reason="private font loading is a Windows path")
+    def test_nunito_is_used_for_headings_and_buttons(self, root):
+        uk.init_fonts(root, force=True)
+        assert uk.font("window_title").actual("family").startswith("Nunito")
+        assert uk.font("button").actual("weight") == "bold"
+
+    def test_the_licence_ships_with_the_font(self):
+        from pathlib import Path
+
+        folder = Path(branding.__file__).parent / "assets" / "fonts"
+        assert (folder / "Nunito-wght.ttf").is_file()
+        assert "SIL Open Font License" in (folder / "OFL.txt").read_text(encoding="utf-8")

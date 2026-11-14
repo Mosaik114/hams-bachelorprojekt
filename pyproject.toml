@@ -85,6 +85,6 @@ Documentation = "https://github.com/Mosaik114/hams-bachelorprojekt/tree/main/doc
 packages = ["hams", "hams.ui_kit", "hams.prompts"]
 
 [tool.setuptools.package-data]
-hams = ["prompts/*.txt", "*.toml", "assets/branding/*"]
+hams = ["prompts/*.txt", "*.toml", "assets/branding/*", "assets/fonts/*"]
 
 # Linter- und Formatregeln: ruff.toml

@@ -198,6 +198,35 @@ def points_to_px(points: float) -> int:
     return max(1, int(round(points * Scale.dpi / 72.0)))
 
 
+#: Schriften, die Hams mitbringt (SIL Open Font License, siehe die OFL.txt daneben).
+BUNDLED_FONTS = ("Nunito-wght.ttf",)
+_FR_PRIVATE = 0x10
+_bundled_loaded = False
+
+
+def load_bundled_fonts() -> int:
+    """Macht die mitgelieferten Schriften für Hams verfügbar, ohne sie im System zu installieren (Windows).
+
+    `AddFontResourceExW` mit `FR_PRIVATE`: nur dieser Prozess sieht sie, nichts bleibt nach dem Beenden
+    zurück. Die variable Nunito bringt ihre Schnitte (Regular, SemiBold, Bold …) als eigene Familien mit.
+    Gibt die Zahl der geladenen Schriften zurück; ohne Windows oder ohne Datei 0, dann gilt der Rückfall.
+    """
+    global _bundled_loaded
+    if _bundled_loaded or sys.platform != "win32":
+        return 0
+    _bundled_loaded = True
+    from pathlib import Path
+
+    folder = Path(__file__).resolve().parent.parent / "assets" / "fonts"
+    loaded = 0
+    for name in BUNDLED_FONTS:
+        path = folder / name
+        if path.is_file():
+            with contextlib.suppress(AttributeError, OSError):
+                loaded += int(ctypes.windll.gdi32.AddFontResourceExW(str(path), _FR_PRIVATE, 0)) > 0
+    return loaded
+
+
 def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
     """Legt die Schriftrollen als *benannte* Fonts an. Idempotent, außer `force`.
 
@@ -210,6 +239,7 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
     Die Größe wird als negativer Wert gesetzt; das ist in Tk die Angabe in
     Pixeln und macht die Umrechnung unabhängig von `tk scaling`.
     """
+    load_bundled_fonts()
     families = set(tkfont.families(root))
     resolved = {
         "display": "Segoe UI Variable Display" if "Segoe UI Variable Display" in families else "Segoe UI",
