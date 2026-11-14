@@ -93,7 +93,7 @@ class TestIconStone:
         button = uk.IconButton(root, "close", lambda: None, bg_under=uk.Theme.WINDOW_BG)
         button.pack()
         root.update()
-        assert int(button.cget("height")) == uk.px(uk.Height.STANDARD) + uk.px(uk.Depth.CONTROL)
+        assert int(button.cget("height")) == uk.px(uk.IconButton.SIZE) + uk.px(uk.Depth.CONTROL)
         button.set_state(State.HOVER, True)
         button.set_state(State.PRESSED, True)
         root.update()
@@ -133,12 +133,19 @@ class TestSettingsTabs:
         live_app.root.update()
         assert not on_hidden_page(select) and not select._stale
 
-    def test_wide_windows_put_all_tabs_in_one_row(self, settings, live_app):
-        assert settings._tab_columns == 3
+    def test_tabs_are_as_wide_as_their_word_and_wrap_when_narrow(self, settings, live_app):
         win = settings.win
-        win.geometry(f"{uk.px(settings.ONE_ROW_WIDTH + 60)}x{win.winfo_height()}")
+        win.geometry(f"{uk.px(900)}x{win.winfo_height()}")
         live_app.root.update()
-        assert settings._tab_columns == len(settings._tab_buttons)
+        rows = {button.winfo_y() for button in settings._tab_buttons}
+        assert len(rows) == 1, "a wide window holds all tabs in one row"
+        for button in settings._tab_buttons:
+            assert button.winfo_width() == button.winfo_reqwidth() == button.natural_width(), "not stretched"
+        win.geometry(f"{uk.px(400)}x{win.winfo_height()}")
+        live_app.root.update()
+        assert len({button.winfo_y() for button in settings._tab_buttons}) >= 2
+        right = settings._tabs.winfo_width()
+        assert all(b.winfo_x() + b.winfo_width() <= right for b in settings._tab_buttons), "nothing sticks out"
 
     def test_the_stage_follows_the_colour_mode(self, settings, live_app):
         before = settings._stage_image
@@ -215,3 +222,163 @@ class TestBundledFont:
         folder = Path(branding.__file__).parent / "assets" / "fonts"
         assert (folder / "Nunito-wght.ttf").is_file()
         assert "SIL Open Font License" in (folder / "OFL.txt").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def window(root):
+    import tkinter as tk
+
+    win = tk.Toplevel(root)
+    win.geometry("420x200+80+80")
+    root.update()
+    yield win
+    win.destroy()
+
+
+class TestStoneText:
+    def test_the_label_sits_on_the_middle_of_the_surface(self, window, root):
+        button = uk.SecondaryButton(window, "Überspringen", lambda: None, bg_under=uk.Theme.WINDOW_BG)
+        button.pack()
+        root.update()
+        x, y = button.coords(button.find_withtag("label")[0])
+        assert x == button.winfo_width() // 2
+        assert y == uk.px(uk.Height.PRIMARY) // 2, "centred on the surface, not on surface plus side"
+        button.destroy()
+
+    def test_a_button_is_never_narrower_than_its_word(self, window, root):
+        button = uk.SecondaryButton(window, "Erneut versuchen", lambda: None, bg_under=uk.Theme.WINDOW_BG)
+        uk.keep_logical_width(button, 40)
+        button.pack()
+        root.update()
+        text = int(button.tk.call("font", "measure", button.cget("font"), "Erneut versuchen"))
+        assert button.winfo_width() >= text + 2 * uk.px(button.TEXT_PADDING)
+        button.destroy()
+
+    def test_pressed_text_sinks_with_the_surface(self, window, root):
+        from hams.ui_kit.states import State
+
+        button = uk.SecondaryButton(window, "OK", lambda: None, bg_under=uk.Theme.WINDOW_BG)
+        button.pack()
+        root.update()
+        _x, before = button.coords(button.find_withtag("label")[0])
+        button.set_state(State.PRESSED, True)
+        _x, after = button.coords(button.find_withtag("label")[0])
+        assert after - before == uk.px(uk.Depth.CONTROL)
+        button.destroy()
+
+    def test_the_select_writes_its_value_as_text_and_shortens_it(self, window, root):
+        select = uk.Select(
+            window, bg_under=uk.Theme.WINDOW_BG, options=[uk.Option("a", "Ein sehr, sehr langer Gerätename")], value="a"
+        )
+        uk.keep_logical_width(select, 120)
+        select.pack()
+        root.update()
+        assert select.shown_text.endswith("…")
+        assert select.itemcget(select.find_withtag("label")[0], "font") == str(uk.font("row_title"))
+        select.destroy()
+
+
+class TestSmallStones:
+    def test_the_level_fill_stays_inside_the_inked_groove(self, window, root):
+        meter = uk.SignalMeter(window, bg_under=uk.Theme.WINDOW_BG)
+        meter.pack(fill="x")
+        root.update()
+        meter.set_level(1.0)
+        inset = meter.inset()
+        for item in meter.find_all()[1:]:
+            left, top, right, bottom = meter.bbox(item)
+            assert top >= inset - 1 and left >= inset - 1
+        meter.destroy()
+
+    def test_status_dot_and_icon_stone_sizes(self, root):
+        dot = uk.StatusDot(root, bg_under=uk.Theme.WINDOW_BG)
+        assert int(dot.cget("width")) == uk.px(uk.StatusDot.SIZE_MAIN) == uk.px(10)
+        icon = uk.IconButton(root, "settings", lambda: None, bg_under=uk.Theme.WINDOW_BG)
+        assert int(icon.cget("width")) == uk.px(34)
+        dot.destroy()
+        icon.destroy()
+
+
+class TestRowHoverCorners:
+    def test_the_hover_surface_is_rounded_like_the_plate(self, window, root):
+        row = uk.SettingRow(window, "Ton", interactive=True, command=lambda: None)
+        row.pack(fill="x")
+        root.update()
+        row._on_enter()
+        root.update()
+        corners = row._corner_labels
+        assert len(corners) == 4 and all(label.winfo_ismapped() for label in corners)
+        size = uk.px(uk.Radius.GROUP - uk.Space.GROUP_INSET)
+        assert int(corners[0].winfo_reqwidth()) == size
+        row._on_leave()
+        root.update()
+        assert not any(label.winfo_ismapped() for label in corners)
+
+    def test_a_corner_is_plate_outside_and_hover_inside(self):
+        from PIL import ImageTk
+
+        from hams.ui_kit.setting_row import corner_image
+
+        image = ImageTk.getimage(corner_image("nw", 16, "#000000", "#FFFFFF")).convert("RGB")
+        assert image.getpixel((0, 0)) == (255, 255, 255)
+        assert image.getpixel((15, 15)) == (0, 0, 0)
+
+
+class TestTray:
+    def test_every_size_comes_from_its_own_drawing(self, tmp_path):
+        from PIL import Image
+
+        frames = branding.tray_images("#123456")
+        assert sorted(frames) == list(branding.TRAY_SIZES)
+        path = tmp_path / "tray.ico"
+        branding.write_tray_ico(frames, path)
+        with Image.open(path) as ico:
+            assert {16, 20, 24, 32} <= {size[0] for size in ico.info["sizes"]}
+
+    def test_error_has_its_own_tone_on_both_taskbars(self, monkeypatch):
+        from hams import tray as tray_mod
+        from hams.app import FloatingTranscriberApp
+
+        for light in (False, True):
+            monkeypatch.setattr(tray_mod, "taskbar_is_light", lambda light=light: light)
+            colours = {state: FloatingTranscriberApp._tray_colour(state) for state in ("ready", "recording", "error")}
+            assert len(set(colours.values())) == 3, colours
+
+    def test_on_a_light_taskbar_the_mark_stands_out(self, monkeypatch):
+        from hams import tray as tray_mod
+
+        monkeypatch.setattr(tray_mod, "taskbar_is_light", lambda: True)
+
+        def lum(value):
+            channels = [int(value[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+            lin = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+            return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+        taskbar = lum("#F3F3F3")
+        for colour in tray_mod.tray_palette().values():
+            assert (taskbar + 0.05) / (lum(colour) + 0.05) >= 3.0, colour
+
+    def test_the_tray_image_carries_all_sizes(self):
+        from hams import tray as tray_mod
+
+        image = tray_mod._create_tray_icon_image()
+        assert sorted(image.hams_frames) == list(branding.TRAY_SIZES)
+
+    def test_reading_the_taskbar_theme_never_fails(self):
+        from hams import tray as tray_mod
+
+        assert tray_mod.taskbar_is_light() in (True, False)
+
+
+class TestPopoverEdge:
+    def test_the_popover_is_drawn_like_a_plate(self, window, root):
+        select = uk.Select(window, bg_under=uk.Theme.WINDOW_BG, options=[uk.Option("a", "A")], value="a")
+        select.pack()
+        root.update()
+        select.open_popover()
+        root.update()
+        popover = uk.Popover.current
+        assert popover.cget("bg") == uk.Theme.INK
+        assert any(str(child.cget("bg")) == uk.Theme.GROUP_SIDE for child in popover.winfo_children())
+        uk.Popover.dismiss_current()
+        root.update()

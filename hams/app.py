@@ -28,7 +28,7 @@ from hams.recording import SILENCE_PEAK_THRESHOLD, MicrophoneUnavailable, Record
 from hams.settings_window import SettingsWindow
 from hams.setup_window import SetupWindow
 from hams.transcription import Pipeline
-from hams.tray import TRAY_PALETTE, TrayMixin
+from hams.tray import TrayMixin, tray_palette
 from hams.ui_dispatch import UiDispatcher
 from hams.ui_kit import Theme
 from hams.update_notice import UpdateNotice
@@ -513,13 +513,14 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         The meaning is the same as in the window (red recording, purple AI), the tones deliberately are not: the
         icon sits on the Windows taskbar and follows its theme, not Hams'.
         """
+        palette = tray_palette()
         if state in ("recording",):
-            return TRAY_PALETTE["RECORDING"]
+            return palette["RECORDING"]
         if state in ("recording_prompt", "generating"):
-            return TRAY_PALETTE["AI"]
+            return palette["AI"]
         if state == "error":
-            return TRAY_PALETTE["ERROR"]
-        return TRAY_PALETTE["ACCENT_TINT"]
+            return palette["ERROR"]
+        return palette["ACCENT_TINT"]
 
     def _cancel_done_reset(self) -> None:
         if self._done_job is not None:

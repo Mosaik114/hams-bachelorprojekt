@@ -92,6 +92,22 @@ def tray_image(colour: str, size: int = 64) -> Image.Image:
     return image
 
 
+#: Groessen, die das Tray-Symbol mitbringt: Windows waehlt je nach Skalierung 16, 20, 24 oder 32 Pixel.
+TRAY_SIZES = (16, 20, 24, 32, 48, 64)
+
+
+def tray_images(colour: str) -> dict[int, Image.Image]:
+    """Die Bildmarke in jeder Tray-Groesse, jede aus ihrer eigens gezeichneten Vorlage (nicht heruntergerechnet)."""
+    return {size: tray_image(colour, size) for size in TRAY_SIZES}
+
+
+def write_tray_ico(frames: dict[int, Image.Image], path) -> None:
+    """Schreibt alle Groessen in eine ICO-Datei, jede als eigenes Bild."""
+    largest = max(frames)
+    others = [frames[size] for size in sorted(frames) if size != largest]
+    frames[largest].save(path, format="ICO", sizes=[(size, size) for size in sorted(frames)], append_images=others)
+
+
 def icon_path() -> Path | None:
     """Das Windows-Symbol mit allen Grössen, oder None wenn es fehlt."""
     path = ASSET_DIR / ICON_FILE

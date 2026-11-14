@@ -336,7 +336,7 @@ class TestPopover:
         root.update()
         popover = Popover.current
         try:
-            assert popover.cget("bg") == Theme.palette(Theme.DARK)["HAIRLINE"]
+            assert popover.cget("bg") == Theme.palette(Theme.DARK)["INK"]
         finally:
             Popover.dismiss_current()
             root.update()

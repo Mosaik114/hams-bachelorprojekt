@@ -205,7 +205,7 @@ class MainWindowMixin:
 
         logical = (
             uk.Space.WINDOW  # Rand oben
-            + uk.Height.STANDARD
+            + uk.IconButton.SIZE
             + uk.Depth.CONTROL  # Kopfzeile, die Steinknöpfe mit ihrer Seite
             + uk.Space.XL
             + line

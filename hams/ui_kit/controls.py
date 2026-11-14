@@ -34,8 +34,8 @@ class StatusDot(tk.Canvas):
         "error": "ERROR",
     }
 
-    SIZE_MAIN = 7  # logisch, Statuszeile im Hauptfenster
-    SIZE_ROW = 6  # logisch, Unterzeile einer Einstellungszeile
+    SIZE_MAIN = 10  # logisch, Statuszeile im Hauptfenster
+    SIZE_ROW = 9  # logisch, Unterzeile einer Einstellungszeile
 
     #: Kurzer Farbwechsel. Der Text daneben springt sofort — nur der Punkt
     #: blendet, sonst wirkte die ganze Statuszeile weich und ungenau.
@@ -107,7 +107,8 @@ class StatusDot(tk.Canvas):
     def _draw(self) -> None:
         self.delete("all")
         side = px(self._logical)
-        image = surface(side, side, Radius.pill(side), self._colour)
+        # Ein gemalter Punkt mit Tuscherand, wie ein kleiner Stein.
+        image = surface(side, side, Radius.pill(side), self._colour, border=Theme.INK, border_w=ink_width())
         self._image = image  # Referenz halten, sonst räumt Tk sie ab
         self.create_image(0, 0, anchor="nw", image=image)
 
@@ -301,7 +302,7 @@ class SignalMeter(tk.Canvas):
     Bereit-Grün, darüber Warnung, ab 82 % Fehler.
     """
 
-    HEIGHT = 6  # logisch
+    HEIGHT = 10  # logisch: eine Rinne mit Tuscherand, die Füllung liegt darin
 
     def __init__(self, master: tk.Misc, *, bg_under: str, height: int = HEIGHT) -> None:
         self._bg_under = bg_under
@@ -324,13 +325,17 @@ class SignalMeter(tk.Canvas):
     def level(self) -> float:
         return self._level
 
+    def inset(self) -> int:
+        """Abstand der Füllung zum Rand: die Tusche der Rinne bleibt rundum stehen."""
+        return max(1, int(round(ink_width()))) + 1
+
     @property
     def filled_width(self) -> int:
-        """Breite des gefüllten Teils in Pixeln — 0 im Ruhezustand."""
+        """Breite des gefüllten Teils in Pixeln (innerhalb der Rinne) — 0 im Ruhezustand."""
         if self._last_width <= 1 or self._level <= 0.0:
             return 0
-        height = px(self._logical_height)
-        return max(height, int(round(self._level * self._last_width)))
+        inner = px(self._logical_height) - 2 * self.inset()
+        return max(inner, int(round(self._level * (self._last_width - 2 * self.inset()))))
 
     def _on_configure(self, event: tk.Event) -> None:
         if event.width != self._last_width:
@@ -389,13 +394,17 @@ class SignalMeter(tk.Canvas):
             # laufend neue Eintraege in den Speicher und verdraengte die
             # wiederverwendbaren Flaechen aller anderen Controls.
             colour = self.level_colour(self._level)
-            cap = surface(height, height, radius, colour, squircle=False)
+            inset = self.inset()
+            inner = height - 2 * inset
+            cap = surface(inner, inner, Radius.pill(inner), colour, squircle=False)
             self._images.append(cap)
-            half = height / 2
-            if filled > height:
-                self.create_rectangle(half, 0, filled - half, height, fill=colour, outline="")
-            self.create_image(0, 0, anchor="nw", image=cap)
-            self.create_image(filled - height, 0, anchor="nw", image=cap)
+            half = inner / 2
+            if filled > inner:
+                self.create_rectangle(
+                    inset + half, inset, inset + filled - half, inset + inner, fill=colour, outline=""
+                )
+            self.create_image(inset, inset, anchor="nw", image=cap)
+            self.create_image(inset + filled - inner, inset, anchor="nw", image=cap)
 
 
 class ProgressBar(SignalMeter):

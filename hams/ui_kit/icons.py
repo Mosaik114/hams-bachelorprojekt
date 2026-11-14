@@ -14,8 +14,8 @@ from hams.ui_kit.theme import Theme
 ICON_BOX = 16
 """Logische Kantenlänge des Rasters, in dem alle Icons gezeichnet werden."""
 
-ICON_STROKE = 1.5
-"""Strichstärke in logischen Pixeln — für alle Motive identisch."""
+ICON_STROKE = 1.8
+"""Strichstärke in logischen Pixeln — für alle Motive identisch (kräftig genug für den Kreisstein)."""
 ICON_CACHE_LIMIT = 128
 
 
@@ -32,14 +32,20 @@ def _stroke(draw: ImageDraw.ImageDraw, points: list, width: float, color: str) -
 
 
 def _icon_settings(draw, unit: float, stroke: float, color: str) -> None:
-    """Regler statt Zahnrad — drei Linien mit versetzten Reglerpunkten."""
-    # Knopfradius und Linienlaenge bewusst knapp: mit drei vollen Linien wirkt
-    # das Motiv sonst deutlich schwerer als die uebrigen fuenf Icons.
-    knob = stroke * 1.15
-    for y, knob_x in ((4.3, 5.6), (8.0, 9.8), (11.7, 6.6)):
-        _stroke(draw, [(3.0 * unit, y * unit), (13.0 * unit, y * unit)], stroke, color)
-        cx, cy = knob_x * unit, y * unit
-        draw.ellipse([cx - knob, cy - knob, cx + knob, cy + knob], fill=color)
+    """Ein Zahnrad: Ring, acht kurze Zähne, Nabe — das Zeichen, das jeder für Einstellungen kennt."""
+    import math
+
+    cx = cy = 8.0 * unit
+    ring = 3.9 * unit
+    width = max(1, int(round(stroke)))
+    draw.ellipse([cx - ring, cy - ring, cx + ring, cy + ring], outline=color, width=width)
+    for tooth in range(8):
+        angle = tooth * math.pi / 4
+        inner = (cx + math.cos(angle) * ring, cy + math.sin(angle) * ring)
+        outer = (cx + math.cos(angle) * 5.7 * unit, cy + math.sin(angle) * 5.7 * unit)
+        _stroke(draw, [inner, outer], stroke, color)
+    hub = 1.5 * unit
+    draw.ellipse([cx - hub, cy - hub, cx + hub, cy + hub], outline=color, width=width)
 
 
 def _icon_close(draw, unit: float, stroke: float, color: str) -> None:

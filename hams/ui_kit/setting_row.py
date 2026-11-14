@@ -10,7 +10,7 @@ from hams.ui_kit.controls import StatusDot
 from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.text import _fit_text, _line_height
-from hams.ui_kit.theme import Height, Space, Theme, set_surface_under
+from hams.ui_kit.theme import Height, Radius, Space, Theme, set_surface_under
 
 
 class SettingRow(tk.Frame):
@@ -288,6 +288,7 @@ class SettingRow(tk.Frame):
     # ------------------------------------------------------------ Interaktion
 
     def _paint(self, colour: str) -> None:
+        self._round_corners(colour)
         for widget in (self._line, self._text_box, self.title_label, self.sub_box, self.sub_label, self.value_label):
             if widget is not None:
                 # Tk-Kinder erben keinen Hintergrund; jedes muss einzeln gesetzt
@@ -309,6 +310,40 @@ class SettingRow(tk.Frame):
     def _on_leave(self, _event=None) -> None:
         self._hovered = False
         self._paint(Theme.GROUP_SURFACE)
+
+    #: Ecken der Hover-Fläche: (Ecke, place-Optionen). Die Fläche ist gerundet wie die Platte innen.
+    _CORNERS = (
+        ("nw", {"x": 0, "y": 0, "anchor": "nw"}),
+        ("ne", {"relx": 1.0, "y": 0, "anchor": "ne"}),
+        ("sw", {"x": 0, "rely": 1.0, "anchor": "sw"}),
+        ("se", {"relx": 1.0, "rely": 1.0, "anchor": "se"}),
+    )
+
+    def _round_corners(self, colour: str) -> None:
+        """Rundet die farbige Hover-Fläche: vier kleine Eckbilder in Plattenfarbe mit einem Viertelkreis.
+
+        Die Zeile besteht aus rechteckigen Tk-Rahmen; ohne die Ecken stand der Hover als scharfes Rechteck in
+        der runden Platte. Radius = Platte minus Einzug, damit beide Rundungen zueinander passen.
+        """
+        corners = getattr(self, "_corner_labels", None)
+        if colour == Theme.GROUP_SURFACE:
+            for label in corners or ():
+                label.place_forget()
+            return
+        if corners is None:
+            corners = self._corner_labels = []
+            for _name, _options in self._CORNERS:
+                label = tk.Label(self._line, bd=0, highlightthickness=0, padx=0, pady=0, bg=Theme.GROUP_SURFACE)
+                if self._area is not None:
+                    self._area.join(label)
+                corners.append(label)
+        radius = px(Radius.GROUP - Space.GROUP_INSET)
+        for label, (name, options) in zip(corners, self._CORNERS, strict=True):
+            image = corner_image(name, radius, colour, Theme.GROUP_SURFACE)
+            label.configure(image=image, bg=Theme.GROUP_SURFACE)
+            label.image = image
+            label.place(**options)
+            label.lift()
 
     def _on_press_look(self, pressed: bool) -> None:
         """Gedrückt eine Stufe dunkler als im Hover, wie ein Knopf."""
@@ -361,3 +396,21 @@ class SettingRow(tk.Frame):
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:
             Scale.unregister(self._on_scale_change)
+
+
+def corner_image(corner: str, radius: int, fill: str, outside: str):
+    """Ein Eckstück: aussen die Plattenfarbe, innen ein Viertelkreis in `fill`, kantengeglättet (gecacht)."""
+    from PIL import Image, ImageDraw, ImageTk
+
+    from hams.ui_kit.caches import _img_cache
+
+    key = ("corner", corner, radius, fill, outside)
+    cached = _img_cache.fetch(key)
+    if cached is not None:
+        return cached
+    scale = 4
+    big = radius * scale
+    image = Image.new("RGB", (big, big), outside)
+    centre = {"nw": (big, big), "ne": (0, big), "sw": (big, 0), "se": (0, 0)}[corner]
+    ImageDraw.Draw(image).ellipse([centre[0] - big, centre[1] - big, centre[0] + big, centre[1] + big], fill=fill)
+    return _img_cache.store(key, ImageTk.PhotoImage(image.resize((radius, radius), Image.LANCZOS)))

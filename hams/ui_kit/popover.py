@@ -14,7 +14,7 @@ from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import font, px
 from hams.ui_kit.states import return_focus_to
 from hams.ui_kit.text import _fit_text, _text_width
-from hams.ui_kit.theme import Radius, Space, Theme
+from hams.ui_kit.theme import Depth, Radius, Space, Theme, ink_width
 from hams.ui_kit.window import round_window_corners
 
 # ---------------------------------------------------------------- Select und Popover
@@ -166,10 +166,13 @@ class Popover(tk.Toplevel):
         self.attributes("-topmost", True)
         with contextlib.suppress(tk.TclError):  # Alpha nicht verfügbar
             self.attributes("-alpha", 0.0)  # das Einblenden folgt unten
-        self.configure(bg=Theme.HAIRLINE)  # 1 px Rand als äußerer Rahmen
-
+        # Gemalt wie eine Platte: Tuscherand rundum, darunter die Seite (Tusche und Aquarell).
+        ink = max(1, round(ink_width()))
+        self.configure(bg=Theme.INK)
+        side = tk.Frame(self, bg=Theme.GROUP_SIDE, height=px(Depth.GROUP))
+        side.pack(side="bottom", fill="x", padx=ink, pady=(0, ink))
         inner = tk.Frame(self, bg=Theme.POPOVER_SURFACE)
-        inner.pack(fill="both", expand=True, padx=max(1, px(1)), pady=max(1, px(1)))
+        inner.pack(fill="both", expand=True, padx=ink, pady=(ink, 0))
 
         self._body_holder = tk.Frame(inner, bg=Theme.POPOVER_SURFACE)
         self._body_holder.pack(fill="both", expand=True, pady=px(Space.SM))

@@ -47,17 +47,17 @@ class TestSet:
         with pytest.raises(KeyError):
             uk.render_icon("zahnrad", 16, INK)
 
-    def test_settings_is_not_a_gear(self):
-        """Das Regler-Motiv besteht aus waagerechten Linien, nicht aus Zähnen."""
-        image = uk.render_icon("settings", 32, INK)
+    def test_settings_is_a_gear(self):
+        """Ein Zahnrad: Tinte in allen acht Zahnrichtungen, die Mitte (zwischen Nabe und Ring) frei."""
+        import math
+
+        image = uk.render_icon("settings", 64, INK)
         alpha = alpha_channel(image)
-        # In den drei Linienhöhen muss über die Breite durchgehend Tinte liegen.
-        rows_with_long_runs = 0
-        for y in range(32):
-            run = sum(1 for x in range(32) if alpha.getpixel((x, y)) > 128)
-            if run > 16:
-                rows_with_long_runs += 1
-        assert rows_with_long_runs >= 6, "keine drei durchgehenden Linien erkennbar"
+        for tooth in range(8):
+            angle = tooth * math.pi / 4
+            x, y = 32 + math.cos(angle) * 21, 32 + math.sin(angle) * 21
+            assert alpha.getpixel((int(x), int(y))) > 100, f"kein Zahn bei {tooth * 45} Grad"
+        assert alpha.getpixel((32 + 7, 32)) < 128, "zwischen Nabe und Ring ist Luft"
 
 
 class TestGrid:
@@ -84,13 +84,13 @@ class TestGrid:
 
 
 class TestStroke:
-    @pytest.mark.parametrize("size,expected", [(16, 1.5), (32, 3.0), (48, 4.5)])
+    @pytest.mark.parametrize("size,expected", [(16, 1.8), (32, 3.6), (48, 5.4)])
     def test_line_thickness_scales_with_size(self, size, expected):
-        """Senkrechter Schnitt durch eine Reglerlinie, abseits der Knöpfe."""
+        """Senkrechter Schnitt durch den Zahnradring, mitten zwischen zwei Zaehnen."""
         image = uk.render_icon("settings", size, INK)
         alpha = alpha_channel(image)
-        x = int(size * 3.6 / 16)  # links, vor dem ersten Knopf
-        column = [alpha.getpixel((x, y)) for y in range(size)]
+        x = int(size * 6.5 / 16)  # schneidet den Ring oben zwischen zwei Zaehnen, nicht die Nabe
+        column = [alpha.getpixel((x, y)) for y in range(int(size * 0.4))]
         runs, current = [], 0
         for value in column:
             if value > 100:

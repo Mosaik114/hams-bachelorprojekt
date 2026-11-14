@@ -254,12 +254,12 @@ class SettingsWindow:
         self._close_btn.set_hover_colour(Theme.ERROR)
         head.bind("<Configure>", self._paint_stage, add="+")
 
-        # One topic at a time: a row of stones instead of six groups below each other.
-        self._tabs = tk.Frame(self.win, bg=Theme.WINDOW_BG)
+        # One topic at a time: a slim row of tab stones, each as wide as its word, wrapping when narrow.
+        self._tabs = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=1)
         self._tabs.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(0, uk.px(uk.Space.MD)))
         self._tabs.bind("<Configure>", lambda _e: self._lay_out_tabs(), add="+")
         self._tab_buttons: list[uk.SecondaryButton] = []
-        self._tab_columns = 0
+        self._tab_places: list[tuple[int, int]] = []
 
         # The hairline appears only when content scrolls away below it.
         self._head_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
@@ -288,11 +288,12 @@ class SettingsWindow:
         ]
         for index, (title, _widgets) in enumerate(self._pages):
             button = uk.SecondaryButton(
-                self._tabs, title, lambda i=index: self.select_page(i), bg_under=Theme.WINDOW_BG
+                self._tabs,
+                title,
+                lambda i=index: self.select_page(i),
+                bg_under=Theme.WINDOW_BG,
+                height=uk.Height.STANDARD,
             )
-            # A small fixed request; the grid stretches it. Without it every render (one image as wide as the
-            # button) would ask for that width again plus the label's padding, and the row would keep growing.
-            uk.keep_logical_width(button, self.TAB_MIN_WIDTH)
             self._tab_buttons.append(button)
         self.page = -1
         self.select_page(0)
@@ -306,10 +307,6 @@ class SettingsWindow:
 
     #: Height of the painted stage in logical pixels.
     STAGE_HEIGHT = 76
-    #: Requested width of a tab stone (logical); the grid gives it its share of the row.
-    TAB_MIN_WIDTH = 60
-    #: From this window width (logical) all six tabs stand in one row, below it in two rows of three.
-    ONE_ROW_WIDTH = 640
 
     def _paint_stage(self, event: tk.Event | None = None) -> None:
         """The wash for the current width, then mark, title and cross on it."""
@@ -383,23 +380,32 @@ class SettingsWindow:
                 return
 
     def _lay_out_tabs(self) -> None:
-        """Three stones per row in the narrow window, all six in one row when there is room."""
+        """Places the tab stones left to right at their natural width; a stone that does not fit starts a new row.
+
+        Nothing is stretched: a tab is as wide as its word. The rows only change when the window width does.
+        """
         try:
             width = self._tabs.winfo_width()
         except tk.TclError:  # pragma: no cover - the window is going away
             return
-        columns = len(self._tab_buttons) if width >= uk.px(self.ONE_ROW_WIDTH) else 3
-        if columns == self._tab_columns or not self._tab_buttons:
+        if width <= 1 or not self._tab_buttons:
             return
-        self._tab_columns = columns
         gap = uk.px(uk.Space.SM)
-        for column in range(len(self._tab_buttons)):
-            self._tabs.grid_columnconfigure(
-                column, weight=1 if column < columns else 0, uniform="tab" if column < columns else ""
-            )
-        for number, button in enumerate(self._tab_buttons):
-            row, column = divmod(number, columns)
-            button.grid(row=row, column=column, sticky="ew", padx=(0 if column == 0 else gap, 0), pady=(0, gap))
+        x = y = 0
+        row_height = max(button.winfo_reqheight() for button in self._tab_buttons)
+        places = []
+        for button in self._tab_buttons:
+            wide = button.winfo_reqwidth()
+            if x > 0 and x + wide > width:
+                x, y = 0, y + row_height + gap
+            places.append((x, y))
+            x += wide + gap
+        if places == self._tab_places:
+            return
+        self._tab_places = places
+        for button, (left, top) in zip(self._tab_buttons, places, strict=True):
+            button.place(x=left, y=top)
+        self._tabs.configure(height=y + row_height)
 
     def _on_scroll(self, offset: int) -> None:
         """The line appears only when something lies under it."""

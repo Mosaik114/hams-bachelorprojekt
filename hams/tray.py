@@ -15,21 +15,91 @@ from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
 from hams.ui_kit import Theme
 
-#: Farben des Tray-Symbols — bewusst **fest**, nicht aus dem aktiven
-#: Darstellungsmodus. Das Hams-Fenster und die Windows-Taskleiste sind zwei
-#: verschiedene Oberflaechen: wer Hams hell stellt, hat deshalb noch lange
-#: keine helle Taskleiste. Ein Symbol, das seine Farbe nach dem App-Theme
-#: richtet, waere auf der Leiste mal zu blass und mal zu dunkel. Genommen sind
-#: die kraeftigen Toene, die sich auf beiden Leistenfarben behaupten.
-TRAY_PALETTE = Theme.palette(Theme.DARK)
+#: Farben des Tray-Symbols je **Taskleisten**-Thema, nicht nach dem Hams-Thema: Fenster und Taskleiste sind
+#: zwei Oberflaechen. Auf der dunklen Leiste die leuchtenden Toene, auf der hellen (#F3F3F3) die dunklen
+#: Fuellungen, damit das Symbol dort mindestens 3:1 erreicht (vorher 1,98:1). Ein Fehler hat einen eigenen
+#: Ton (Bernstein): vorher war er vom Aufnehmen nicht zu unterscheiden.
+TRAY_COLOURS = {
+    "dark": {
+        "ACCENT_TINT": Theme.palette(Theme.DARK)["ACCENT_TINT"],
+        "RECORDING": Theme.palette(Theme.DARK)["RECORDING"],
+        "AI": Theme.palette(Theme.DARK)["AI"],
+        "ERROR": Theme.palette(Theme.DARK)["WARNING"],
+    },
+    "light": {
+        "ACCENT_TINT": Theme.palette(Theme.LIGHT)["ACCENT_SURFACE"],
+        "RECORDING": Theme.palette(Theme.LIGHT)["RECORDING"],
+        "AI": Theme.palette(Theme.LIGHT)["AI"],
+        "ERROR": Theme.palette(Theme.LIGHT)["WARNING"],
+    },
+}
+
+
+def taskbar_is_light() -> bool:
+    """Ob die Windows-Taskleiste hell ist (`SystemUsesLightTheme`); sonst und ausserhalb von Windows: dunkel."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+        ) as key:
+            return bool(winreg.QueryValueEx(key, "SystemUsesLightTheme")[0])
+    except OSError:
+        return False
+
+
+def tray_palette() -> dict:
+    return TRAY_COLOURS["light" if taskbar_is_light() else "dark"]
+
+
+TRAY_PALETTE = tray_palette()
 
 
 def _create_tray_icon_image(color: str | None = None) -> Image.Image:
-    """Das Tray-Symbol im aktuellen Zustand.
+    """Das Tray-Symbol im aktuellen Zustand, in allen Groessen (`hams_frames`).
 
-    Die Form ist immer die Hams-Bildmarke, die Farbe kommt aus dem Zustand.
+    Die Form ist immer die Hams-Bildmarke, die Farbe kommt aus dem Zustand. Die kleinen Groessen kommen aus
+    ihren eigens gezeichneten Vorlagen; `_SmallIconTray` reicht sie an Windows weiter.
     """
-    return branding.tray_image(color or TRAY_PALETTE["ACCENT_TINT"])
+    frames = branding.tray_images(color or tray_palette()["ACCENT_TINT"])
+    image = frames[max(frames)]
+    image.hams_frames = frames
+    return image
+
+
+if sys.platform == "win32":  # pragma: no branch - the tray class differs per system
+
+    class _SmallIconTray(pystray.Icon):
+        """pystray laedt das Symbol in der grossen Standardgroesse; Windows rechnete die Tray-Groesse daraus
+        herunter. Hier: alle gezeichneten Groessen in die ICO-Datei und genau die Tray-Groesse laden."""
+
+        def _assert_icon_handle(self):  # pragma: no cover - needs the Windows shell
+            if self._icon_handle:
+                return
+            frames = getattr(self.icon, "hams_frames", None)
+            if not frames:
+                super()._assert_icon_handle()
+                return
+            import ctypes
+            import os
+            import tempfile
+
+            from pystray._util import win32
+
+            size = ctypes.windll.user32.GetSystemMetrics(49)  # SM_CXSMICON: 16, 20, 24 ... je Skalierung
+            handle, path = tempfile.mkstemp(".ico")
+            os.close(handle)
+            try:
+                branding.write_tray_ico(frames, path)
+                self._icon_handle = win32.LoadImage(None, path, win32.IMAGE_ICON, size, size, win32.LR_LOADFROMFILE)
+            finally:
+                os.unlink(path)
+
+    TrayIcon = _SmallIconTray
+else:  # pragma: no cover - Linux
+    TrayIcon = pystray.Icon
 
 
 #: Tk interpreters (`id(root.tk)`) whose default window icon is already set, see `_apply_window_icon`.
@@ -43,7 +113,7 @@ class TrayMixin:
 
     def _setup_tray(self) -> None:
         image = _create_tray_icon_image()
-        self.tray_icon = pystray.Icon(branding.PRODUCT_NAME, image, self._tray_tooltip(), self._build_tray_menu())
+        self.tray_icon = TrayIcon(branding.PRODUCT_NAME, image, self._tray_tooltip(), self._build_tray_menu())
         threading.Thread(target=self.tray_icon.run, daemon=True, name="tray").start()
 
     def _apply_window_icon(self) -> None:

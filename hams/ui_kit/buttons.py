@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import tkinter as tk
 from collections.abc import Callable
 
@@ -26,13 +27,24 @@ def on_hidden_page(widget: tk.Misc) -> bool:
     return False
 
 
-class BaseControl(tk.Label, StateMixin, FocusMixin, Pressable):
-    """Gemeinsame Grundlage aller neuen Controls.
+class BaseControl(tk.Canvas, StateMixin, FocusMixin, Pressable):
+    """Gemeinsame Grundlage aller gemalten Controls — ein „Stein“ auf einer Canvas.
 
-    Bündelt, was sonst jede Klasse einzeln erfände: Zustände, Tastaturfokus,
-    Maus-Rückmeldung, das Neuzeichnen bei DPI-Wechsel und das saubere Abmelden
-    beim Zerstören. Unterklassen liefern nur noch `_paint()`.
+    Bündelt, was sonst jede Klasse einzeln erfände: Zustände, Tastaturfokus, Drücken, das Neuzeichnen bei
+    DPI-Wechsel und das saubere Abmelden beim Zerstören. Unterklassen liefern nur `_paint()` (die Fläche als
+    Bild); die Beschriftung setzt die Basis als Tk-Text **auf die Mitte der Fläche** (nicht des Bildes, unter
+    dem die Seite liegt) und lässt sie beim Drücken mit einsinken.
+
+    Die Breite fragt das Control selbst an: Text plus Innenabstand (`natural_width`), mindestens eine gesetzte
+    Breite (`configure(width=...)`, `keep_logical_width`). Früher war es ein Label, das immer genau so breit
+    sein wollte wie sein letztes Bild plus Rand — Beschriftungen liefen über feste Breiten hinaus, und in
+    unbegrenzten Behältern wuchs die Breite mit jedem Neuzeichnen.
+
+    `text`, `fg` und `font` gehen wie bei einem Label über `configure`/`cget`.
     """
+
+    #: Innenabstand links und rechts der Beschriftung (logisch).
+    TEXT_PADDING = Space.XL
 
     def __init__(
         self,
@@ -47,19 +59,22 @@ class BaseControl(tk.Label, StateMixin, FocusMixin, Pressable):
         font_role: str = "button",
         **label_kwargs,
     ) -> None:
+        self._text = str(label_kwargs.pop("text", ""))
+        self._font = font(font_role)
+        self._fg = Theme.TEXT_PRIMARY
+        self._min_width = 0
+        self._logical_height = height
         super().__init__(
             master,
             bg=bg_under,
-            compound="center",
             bd=0,
             highlightthickness=0,
-            font=font(font_role),
             cursor="hand2",
-            **label_kwargs,
+            height=px(height) + px(Depth.CONTROL),
+            width=1,
         )
         self.init_states(role)
         self._bg_under = bg_under
-        self._logical_height = height
         self._logical_radius = radius
         self._squircle = squircle
         self._command = command
@@ -75,6 +90,72 @@ class BaseControl(tk.Label, StateMixin, FocusMixin, Pressable):
         self.bind("<ButtonRelease-1>", self._on_release, add="+")
         self.bind("<Destroy>", self._on_destroy, add="+")
         Scale.register(self._on_scale_change)
+        if label_kwargs:
+            self.configure(**label_kwargs)
+        self._update_request()
+
+    # ------------------------------------------------------------ wie ein Label
+
+    def configure(self, cnf=None, **kw):
+        """Wie bei einem Label: `text`, `fg`, `font` gehören dem Control, `width` ist eine Mindestbreite."""
+        if isinstance(cnf, dict):
+            kw = {**cnf, **kw}
+            cnf = None
+        if cnf is not None or not kw:
+            return super().configure(cnf)
+        redraw = False
+        if "text" in kw:
+            self._text = str(kw.pop("text"))
+            redraw = True
+        if "fg" in kw:
+            self._fg = kw.pop("fg")
+        if "font" in kw:
+            self._font = kw.pop("font")
+            redraw = True
+        for label_only in ("image", "compound", "anchor", "justify", "padx", "pady"):
+            kw.pop(label_only, None)
+        if "width" in kw:
+            self._min_width = int(kw.pop("width"))
+            redraw = True
+        if kw:
+            super().configure(**kw)
+        if redraw:
+            self._update_request()
+            self._draw_text()
+        return None
+
+    config = configure
+
+    def cget(self, key):
+        if key == "text":
+            return self._text
+        if key == "fg":
+            return self._fg
+        if key == "font":
+            return str(self._font)
+        if key == "image":
+            return str(self._image) if self._image is not None else ""
+        return super().cget(key)
+
+    def natural_width(self) -> int:
+        """So breit will das Control sein: Beschriftung plus Innenabstand (0 ohne Text)."""
+        if not self._text:
+            return 0
+        return self._measure(self._text) + 2 * px(self.TEXT_PADDING)
+
+    def _measure(self, text: str) -> int:
+        try:
+            return int(self.tk.call("font", "measure", self._font, text))
+        except tk.TclError:  # pragma: no cover - font not yet created
+            return 0
+
+    def _update_request(self) -> None:
+        """Mindestens die gesetzte Breite, nie schmaler als die Beschriftung braucht."""
+        with contextlib.suppress(tk.TclError):  # Widget bereits zerstört
+            super().configure(
+                width=max(1, self._min_width, self.natural_width()),
+                height=px(self._logical_height) + px(Depth.CONTROL),
+            )
 
     # ------------------------------------------------------------ Verhalten
 
@@ -138,6 +219,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin, Pressable):
     def _on_scale_change(self, _factor: float) -> None:
         try:
             self.configure(font=font(self._font_role_name()))
+            self._update_request()
             self._render()
         except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
@@ -174,8 +256,39 @@ class BaseControl(tk.Label, StateMixin, FocusMixin, Pressable):
         except tk.TclError:  # pragma: no cover
             return
         self._image = image
-        _fill, foreground = self.colours()
-        self.configure(image=image, fg=foreground)
+        self._fg = self.colours()[1]
+        self.delete("surface")
+        self.create_image(0, 0, anchor="nw", image=image, tags="surface")
+        self.tag_lower("surface")
+        self._draw_text()
+
+    def body_centre(self) -> tuple[int, int]:
+        """Mitte der Fläche (ohne die Seite darunter); gedrückt um die Tiefe tiefer."""
+        depth = px(Depth.CONTROL)
+        sunk = depth if self.has_state(State.PRESSED) else 0
+        return self._last_width // 2, px(self._logical_height) // 2 + sunk
+
+    def text_offset(self) -> int:
+        """Waagerechte Verschiebung der Beschriftung aus der Mitte (für ein Icon links davon)."""
+        return 0
+
+    def _draw_text(self) -> None:
+        try:
+            self.delete("label")
+            if not self._text or self._last_width <= 1:
+                return
+            x, y = self.body_centre()
+            self.create_text(
+                x + self.text_offset(),
+                y,
+                text=self._text,
+                font=self._font,
+                fill=self._fg,
+                anchor="center",
+                tags="label",
+            )
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
+            pass
 
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:  # pragma: no cover
         raise NotImplementedError
@@ -220,7 +333,15 @@ class SecondaryButton(_SurfaceControl):
 
     def set_icon(self, icon_name: str | None, colour: str | None = None) -> None:
         self._icon_name, self._icon_colour = icon_name, colour
+        self._update_request()
         self._render()
+
+    def natural_width(self) -> int:
+        width = super().natural_width()
+        return width + px(ICON_BOX) + px(Space.MD) if self._icon_name else width
+
+    def text_offset(self) -> int:
+        return (px(ICON_BOX) + px(Space.MD)) // 2 if self._icon_name else 0
 
     def _on_theme_change(self) -> None:
         if self._icon_colour is not None:
@@ -232,18 +353,14 @@ class SecondaryButton(_SurfaceControl):
         if self._icon_name is None:
             return base
 
-        pil = ImageTk.getimage(base)
+        pil = ImageTk.getimage(base).copy()
         icon_size = px(ICON_BOX)
         gap = px(Space.MD)
-        # Ueber Tk messen statt ueber das Font-Objekt: font() liefert vor
-        # init_fonts() ein Tupel, und cget("font") stimmt immer.
-        text_width = int(self.tk.call("font", "measure", self.cget("font"), self.cget("text")))
-        # Der Text steht durch compound="center" mittig; das Icon muss deshalb
-        # vom Textanfang aus nach links gesetzt werden, nicht von der Gruppe aus
-        # - sonst ueberlappt es den Text.
-        text_left = (pil.width - text_width) // 2
-        group_left = text_left - gap - icon_size
-        top = (pil.height - icon_size) // 2
+        text_width = self._measure(self._text)
+        # Icon und Text stehen als Gruppe mittig: das Icon links, der Text um seine halbe Breite nach rechts.
+        group_left = (pil.width - (icon_size + gap + text_width)) // 2
+        _x, centre = self.body_centre()
+        top = centre - icon_size // 2
 
         colour = self._icon_colour
         if colour is None or not State.is_interactive(self._states):
@@ -256,12 +373,14 @@ class SecondaryButton(_SurfaceControl):
 
 
 class IconButton(BaseControl):
-    """Quadratische Schaltfläche mit Icon — Zahnrad und Kreuz in der Kopfzeile.
+    """Runder Stein mit Icon — Zahnrad und Kreuz in der Kopfzeile.
 
     Im Ruhezustand ohne Fläche; erst der Zeiger legt eine dezente Fläche unter.
     """
 
     stretch_stacked = False
+    #: Durchmesser in logischen Pixeln.
+    SIZE = 34
 
     def __init__(
         self,
@@ -270,7 +389,7 @@ class IconButton(BaseControl):
         command: Callable[[], None],
         *,
         bg_under: str,
-        size: int = Height.STANDARD,
+        size: int = SIZE,
         icon_size: int = ICON_BOX,
         tooltip: str = "",
     ) -> None:
@@ -279,7 +398,7 @@ class IconButton(BaseControl):
         self._hover_colour: str | None = None
         super().__init__(master, bg_under=bg_under, role="plain", height=size, radius=Radius.CONTROL, command=command)
         self._side = size
-        self.configure(width=px(size), height=px(size) + px(Depth.CONTROL))
+        self.configure(width=px(size))
         self._last_width = px(size)
         self._render()
 
@@ -302,7 +421,7 @@ class IconButton(BaseControl):
     def _on_scale_change(self, _factor: float) -> None:
         try:
             side = px(self._side)
-            self.configure(width=side, height=side + px(Depth.CONTROL))
+            self.configure(width=side)
             self._last_width = side
             self._render()
         except tk.TclError:  # pragma: no cover

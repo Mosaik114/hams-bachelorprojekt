@@ -5,7 +5,7 @@ from __future__ import annotations
 import tkinter as tk
 from collections.abc import Callable
 
-from PIL import ImageDraw, ImageTk
+from PIL import ImageTk
 
 from hams.ui_kit.buttons import BaseControl
 from hams.ui_kit.caches import _img_cache
@@ -14,8 +14,7 @@ from hams.ui_kit.popover import Option, Popover
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.states import State
 from hams.ui_kit.surfaces import paint
-from hams.ui_kit.text import _ellipsize, _pil_font
-from hams.ui_kit.theme import Depth, Height, Radius, Space
+from hams.ui_kit.theme import Height, Radius, Space
 
 
 class Select(BaseControl):
@@ -118,40 +117,51 @@ class Select(BaseControl):
     # ------------------------------------------------------------ Zeichnen
 
     def _paint(self, width: int, height: int) -> ImageTk.PhotoImage:
+        """Fläche und Chevron als ein Bild (zwischengespeichert); der Wert steht als Tk-Text darauf."""
         _fill, foreground = self.colours()
-        depth = px(Depth.CONTROL)
-        pressed = self.has_state(State.PRESSED)
         spec = self.surface_spec(width, height, px(self._logical_radius), under=self._bg_under)
-        selected = self._selected()
-        label = selected.label if selected is not None else self._placeholder
-        self.configure(text="")
-        key = ("select", spec, label, foreground, str(font("row_title").cget("family")), Scale.factor)
+        key = ("select", spec, foreground, Scale.factor)
         cached = _img_cache.fetch(key)
         if cached is not None:
-            self._composed = cached
             return cached
         plate = ImageTk.getimage(paint(spec)).copy()
-        # Mitte der Fläche, nicht des Bildes: darunter liegt die Seite, beim Drücken sinkt die Fläche ein.
-        self._body_centre = (plate.height - depth) // 2 + (depth if pressed else 0)
+        _x, centre = self.body_centre()
+        chevron = px(ICON_BOX)
+        glyph = render_icon("chevron", chevron, foreground)
+        plate.paste(glyph, (plate.width - chevron - px(Space.MD), centre - chevron // 2), glyph)
+        return _img_cache.store(key, ImageTk.PhotoImage(plate))
 
-        chevron_size = px(ICON_BOX)
-        glyph = render_icon("chevron", chevron_size, foreground)
-        plate.paste(glyph, (plate.width - chevron_size - px(Space.MD), self._body_centre - chevron_size // 2), glyph)
+    def natural_width(self) -> int:
+        return 0  # ein Auswahlfeld nimmt die Breite, die ihm gegeben wird, und kürzt den Wert
 
-        self._draw_text(plate, label, foreground, chevron_size)
-        composed = _img_cache.store(key, ImageTk.PhotoImage(plate))
-        self._composed = composed
-        return composed
+    def _draw_text(self) -> None:
+        """Der Wert links, in der Schrift der Zeilentitel, gekürzt vor dem Chevron — als Tk-Text, nie als Bild."""
+        try:
+            self.delete("label")
+            if self._last_width <= 1:
+                return
+            selected = self._selected()
+            label = selected.label if selected is not None else self._placeholder
+            left = px(Space.LG)
+            available = self._last_width - px(ICON_BOX) - px(Space.MD) - left - px(Space.MD)
+            title_font = font("row_title")
+            text = _fit(title_font, label, available)
+            _x, centre = self.body_centre()
+            self.create_text(left, centre, text=text, font=title_font, fill=self._fg, anchor="w", tags="label")
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
+            pass
 
-    def _draw_text(self, plate, label: str, colour: str, chevron: int) -> None:
-        """Beschriftung ins Bild setzen — so bleibt der Chevron rechtsbündig."""
-        x = px(Space.LG)
-        available = plate.width - chevron - px(Space.MD) - x - px(Space.MD)
-        draw = ImageDraw.Draw(plate)
-        title_font = _pil_font(font("row_title"))
-        text = _ellipsize(draw, label, title_font, available)
-        # Nach den Oberlaengen der Schrift zentriert, nicht nach dem Text:
-        # sonst saesse „Hell“ hoeher als „gut“, je nach Unterlaengen.
-        ascent, descent = title_font.getmetrics()
-        centre = getattr(self, "_body_centre", plate.height // 2)
-        draw.text((x, centre - (ascent + descent) // 2), text, font=title_font, fill=colour)
+    @property
+    def shown_text(self) -> str:
+        """Der Wert, wie er im Feld steht (womöglich gekürzt)."""
+        items = self.find_withtag("label")
+        return str(self.itemcget(items[0], "text")) if items else ""
+
+
+def _fit(tk_font, text: str, available: int) -> str:
+    """`text`, mit … gekürzt, bis es in `available` Pixel passt."""
+    if available <= 0 or tk_font.measure(text) <= available:
+        return text
+    while text and tk_font.measure(text + "…") > available:
+        text = text[:-1]
+    return text.rstrip() + "…"
