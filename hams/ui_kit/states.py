@@ -74,16 +74,16 @@ class ControlStyle:
             State.PRESSED: ("ACCENT_PRESSED", "ON_ACCENT"),
             State.SELECTED: ("ACCENT_SURFACE", "ON_ACCENT"),
             State.LOADING: ("CONTROL_SURFACE", "TEXT_SECONDARY"),
-            State.DISABLED: ("CONTROL_SURFACE", "TEXT_TERTIARY"),
+            State.DISABLED: ("CONTROL_SURFACE", "TEXT_DISABLED"),
             State.ERROR: ("ERROR_SURFACE", "ON_FILL"),
         },
         "secondary": {
             State.DEFAULT: ("CONTROL_SURFACE", "TEXT_PRIMARY"),
             State.HOVER: ("CONTROL_HOVER", "TEXT_PRIMARY"),
-            State.PRESSED: ("GROUP_SURFACE", "TEXT_PRIMARY"),
+            State.PRESSED: ("CONTROL_PRESSED", "TEXT_PRIMARY"),
             State.SELECTED: ("CONTROL_HOVER", "TEXT_PRIMARY"),
             State.LOADING: ("CONTROL_SURFACE", "TEXT_SECONDARY"),
-            State.DISABLED: ("CONTROL_SURFACE", "TEXT_TERTIARY"),
+            State.DISABLED: ("CONTROL_SURFACE", "TEXT_DISABLED"),
             # Gefuellt statt nur rot beschriftet: `ERROR` auf `CONTROL_SURFACE`
             # ergibt dunkel 3,97:1 und hell 3,94:1 und faellt damit als Text
             # durch. Dieselbe Loesung wie bei den anderen Rollen — die Flaeche
@@ -93,10 +93,10 @@ class ControlStyle:
         "plain": {  # Icon-Buttons und Zeilen: ohne Flaeche im Ruhezustand
             State.DEFAULT: (None, "TEXT_SECONDARY"),
             State.HOVER: ("CONTROL_SURFACE", "TEXT_PRIMARY"),
-            State.PRESSED: ("GROUP_SURFACE", "TEXT_PRIMARY"),
+            State.PRESSED: ("CONTROL_PRESSED", "TEXT_PRIMARY"),
             State.SELECTED: ("CONTROL_SURFACE", "TEXT_PRIMARY"),
             State.LOADING: (None, "TEXT_TERTIARY"),
-            State.DISABLED: (None, "TEXT_TERTIARY"),
+            State.DISABLED: (None, "TEXT_DISABLED"),
             State.ERROR: (None, "ERROR"),
         },
         "recording": {
@@ -105,7 +105,7 @@ class ControlStyle:
             State.PRESSED: ("RECORDING_PRESSED", "ON_FILL"),
             State.SELECTED: ("RECORDING_SURFACE", "ON_FILL"),
             State.LOADING: ("CONTROL_SURFACE", "TEXT_SECONDARY"),
-            State.DISABLED: ("CONTROL_SURFACE", "TEXT_TERTIARY"),
+            State.DISABLED: ("CONTROL_SURFACE", "TEXT_DISABLED"),
             State.ERROR: ("ERROR_SURFACE", "ON_FILL"),
         },
         "ai": {
@@ -114,7 +114,7 @@ class ControlStyle:
             State.PRESSED: ("AI_PRESSED", "ON_FILL"),
             State.SELECTED: ("AI_SURFACE", "ON_FILL"),
             State.LOADING: ("CONTROL_SURFACE", "TEXT_SECONDARY"),
-            State.DISABLED: ("CONTROL_SURFACE", "TEXT_TERTIARY"),
+            State.DISABLED: ("CONTROL_SURFACE", "TEXT_DISABLED"),
             State.ERROR: ("ERROR_SURFACE", "ON_FILL"),
         },
     }
@@ -129,7 +129,7 @@ class ControlStyle:
     }
 
     #: Der Fokusring ist immer der Akzentton des aktiven Modus.
-    FOCUS_RING_TOKEN = "ACCENT_TINT"  # noqa: S105 – Name einer Farbe, kein Passwort
+    FOCUS_RING_TOKEN = "FOCUS"  # noqa: S105 – Name einer Farbe, kein Passwort
     RING_WIDTH = 2  # logisch
     RING_GAP = 2  # logisch
 

@@ -43,6 +43,9 @@ TEXT_ON_SURFACE = [
     ("TEXT_SECONDARY", "POPOVER_SURFACE"),
     ("TEXT_TERTIARY", "WINDOW_BG"),
     ("TEXT_TERTIARY", "GROUP_SURFACE"),
+    # ausgegraut heisst nicht unlesbar: Zeilen ausgeschalteter Funktionen stehen auf der Platte
+    ("TEXT_DISABLED", "GROUP_SURFACE"),
+    ("TEXT_PRIMARY", "CONTROL_PRESSED"),
     ("ACCENT_TINT", "WINDOW_BG"),
     ("AI", "WINDOW_BG"),
     ("ERROR", "WINDOW_BG"),
@@ -176,6 +179,29 @@ class TestContrast:
         ):
             value_list = [luminance(palette[n]) for n in (base, hover, pressed)]
             assert value_list == sorted(value_list, reverse=True), f"{mode}: {base}"
+
+
+class TestInk:
+    """Tusche und Aquarell: Rand und Seite der gemalten Flaechen muessen in beiden Modi zu sehen sein."""
+
+    @pytest.mark.parametrize("mode", MODES)
+    def test_ink_and_sides_stand_out(self, mode):
+        palette = Theme.palette(mode)
+        for name in ("INK", "GROUP_SIDE", "CONTROL_SIDE"):
+            for ground in ("WINDOW_BG", "GROUP_SURFACE"):
+                ratio = contrast(palette[name], palette[ground])
+                assert ratio >= 1.3, f"{mode}: {name} auf {ground} nur {ratio:.2f}:1"
+
+    @pytest.mark.parametrize("mode", MODES)
+    def test_pressed_sinks_darker_than_the_stone(self, mode):
+        palette = Theme.palette(mode)
+        assert luminance(palette["CONTROL_PRESSED"]) < luminance(palette["CONTROL_SURFACE"])
+
+    @pytest.mark.parametrize("mode", MODES)
+    def test_disabled_text_is_quieter_than_tertiary(self, mode):
+        palette = Theme.palette(mode)
+        ground = palette["GROUP_SURFACE"]
+        assert contrast(palette["TEXT_DISABLED"], ground) < contrast(palette["TEXT_TERTIARY"], ground)
 
 
 class TestSurfaceLadder:

@@ -147,3 +147,18 @@ class TestSettingsTabs:
         finally:
             uk.Theme.apply("light")
             settings._repaint()
+
+
+class TestDisabledRows:
+    def test_a_status_stays_readable_when_the_row_is_off(self, root):
+        row = uk.SettingRow(root, "Modell", variant="status", description="Ollama erreichbar")
+        row.set_enabled(False)
+        assert row.sub_label.cget("fg") == uk.Theme.TEXT_TERTIARY
+        assert row.title_label.cget("fg") == uk.Theme.TEXT_DISABLED
+        row.destroy()
+
+    def test_a_description_greys_out_readably(self, root):
+        row = uk.SettingRow(root, "Ton", variant="description", description="Ein leises Klicken")
+        row.set_enabled(False)
+        assert row.sub_label.cget("fg") == uk.Theme.TEXT_DISABLED
+        row.destroy()

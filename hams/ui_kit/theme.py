@@ -57,13 +57,14 @@ class Theme:
             "GROUP_SURFACE": "#172036",  # Papierplatte, 1,13:1
             "CONTROL_SURFACE": "#212C46",  # Steine, deaktivierte Flaechen
             "CONTROL_HOVER": "#2B3857",  # Stein unter dem Zeiger
+            "CONTROL_PRESSED": "#1C263F",  # gedrückt: sinkt ein, wird dunkler
             "POPOVER_SURFACE": "#1D2741",  # schwebende Ebene
             "HAIRLINE": "#2E3A57",  # Trennlinie
             "CONTROL_OUTLINE": "#8A93AA",  # >= 3:1 auf GROUP_SURFACE — Schalterspur
             # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
-            "INK": "#070B15",  # Tuscherand
-            "GROUP_SIDE": "#090E1A",  # Seite unter einer Platte
-            "CONTROL_SIDE": "#0B1120",  # Seite unter einem Stein
+            "INK": "#3A4666",  # Tuscherand: Mondlicht-Kante, 1,95:1 zum Grund
+            "GROUP_SIDE": "#2A3552",  # Seite unter einer Platte, 1,5:1 zum Grund
+            "CONTROL_SIDE": "#303C5C",  # Seite unter einem Stein
             "ACCENT_SIDE": "#06453F",
             "RECORDING_SIDE": "#6A1E1E",
             "ERROR_SIDE": "#5E1818",
@@ -72,13 +73,15 @@ class Theme:
             "TEXT_PRIMARY": "#F4F1EA",
             "TEXT_SECONDARY": "#CDD3E0",  # 12,1:1 auf WINDOW_BG
             "TEXT_TERTIARY": "#939CB1",  # im Grau klar von SUCCESS getrennt
+            "TEXT_DISABLED": "#8890A6",  # ausgegraut, aber lesbar: 5,1:1 auf der Platte
             # --- Akzent: Tuerkis ---------------------------------------------
             # Markenton #0E8C80 (hell) / #2AC8A6 (dunkel). Weiss auf #0E8C80
             # ergaebe nur 4,13:1 — die Fuellung liegt deshalb etwas dunkler.
             "ACCENT_SURFACE": "#0B7D72",  # Fuellung, ON_ACCENT 5,01:1
             "ACCENT_HOVER": "#0A7167",  # ON_ACCENT 5,88:1
             "ACCENT_PRESSED": "#09635B",  # ON_ACCENT 7,12:1
-            "ACCENT_TINT": "#2CC4A8",  # Punkte, Icons, Fokusring; 8,3:1
+            "ACCENT_TINT": "#2CC4A8",  # Punkte, Icons; 8,3:1
+            "FOCUS": "#2CC4A8",  # Tuscherand eines Controls mit Tastaturfokus
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#7DBE7A",  # Salbeigruen
             "WARNING": "#E3A94B",  # Ocker
@@ -108,13 +111,14 @@ class Theme:
             "GROUP_SURFACE": "#FFFCF5",  # Papierplatte
             "CONTROL_SURFACE": "#F3E9D3",  # Stein, 1,18:1 gegen die Platte
             "CONTROL_HOVER": "#E9DCC1",  # dunkler, nicht heller
+            "CONTROL_PRESSED": "#DCCBA9",  # gedrückt: noch dunkler, Text 8,9:1
             # Die schwebende Ebene ist die hellste Flaeche.
             "POPOVER_SURFACE": "#FFFEFB",
             "HAIRLINE": "#E3D8C2",  # Trennlinie, wie Papierfasern
             "CONTROL_OUTLINE": "#8A8170",  # >= 3:1 auf GROUP_SURFACE
             # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
             "INK": "#8E877F",  # Tuscherand: warmes Grau, dezent (Stufe „dezenter“)
-            "GROUP_SIDE": "#E0D2B6",  # Seite unter einer Platte
+            "GROUP_SIDE": "#D2C2A3",  # Seite unter einer Platte, 1,3:1 zum Papier
             "CONTROL_SIDE": "#D6C7A9",  # Seite unter einem Stein
             "ACCENT_SIDE": "#075A52",
             "RECORDING_SIDE": "#6E1712",
@@ -124,6 +128,7 @@ class Theme:
             "TEXT_PRIMARY": "#1C2B45",
             "TEXT_SECONDARY": "#4C5568",  # 6,4:1 auf WINDOW_BG
             "TEXT_TERTIARY": "#5A6274",  # 5,2:1 auf WINDOW_BG, 6,0:1 auf Platte
+            "TEXT_DISABLED": "#6B7180",  # ausgegraut, aber lesbar: 4,8:1 auf der Platte
             # --- Akzent: Tuerkis ---------------------------------------------
             "ACCENT_SURFACE": "#0B7D72",  # dieselbe Fuellung wie im Dunkeln
             "ACCENT_HOVER": "#0A7167",
@@ -131,6 +136,7 @@ class Theme:
             # Dunkler als der Markenton: #0E8C80 erreicht auf Creme nur 3,92:1,
             # auf der Hoverflaeche 2,73:1.
             "ACCENT_TINT": "#0A786E",  # 5,08:1 auf WINDOW_BG, 3,54:1 auf CONTROL_HOVER
+            "FOCUS": "#0A786E",  # Tuscherand eines Controls mit Tastaturfokus
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#3B7A3E",
             "WARNING": "#8F5B12",
@@ -169,6 +175,9 @@ class Theme:
     POPOVER_SURFACE = _PALETTES[DEFAULT_MODE]["POPOVER_SURFACE"]
     HAIRLINE = _PALETTES[DEFAULT_MODE]["HAIRLINE"]
     CONTROL_OUTLINE = _PALETTES[DEFAULT_MODE]["CONTROL_OUTLINE"]
+    CONTROL_PRESSED = _PALETTES[DEFAULT_MODE]["CONTROL_PRESSED"]
+    TEXT_DISABLED = _PALETTES[DEFAULT_MODE]["TEXT_DISABLED"]
+    FOCUS = _PALETTES[DEFAULT_MODE]["FOCUS"]
     INK = _PALETTES[DEFAULT_MODE]["INK"]
     GROUP_SIDE = _PALETTES[DEFAULT_MODE]["GROUP_SIDE"]
     CONTROL_SIDE = _PALETTES[DEFAULT_MODE]["CONTROL_SIDE"]

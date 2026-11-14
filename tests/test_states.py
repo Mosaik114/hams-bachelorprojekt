@@ -112,7 +112,7 @@ class TestControlStyle:
     def test_disabled_text_is_muted_everywhere(self):
         for role in ("primary", "secondary", "recording", "ai"):
             _fill, text = ControlStyle.resolve(role, {State.DISABLED})
-            assert text == Theme.TEXT_TERTIARY
+            assert text == Theme.TEXT_DISABLED
 
     def test_ring_uses_the_accent_tint(self):
         assert ControlStyle.ring_colour({State.FOCUSED}) == Theme.ACCENT_TINT

@@ -178,7 +178,7 @@ _FONT_ROLES: dict[str, tuple] = {
     # Tusche und Aquarell (Loratu): Überschriften und Knöpfe in einer runden, kräftigen Schrift.
     "window_title": ("rounded", 16, "bold"),  # Fenstertitel
     "section": ("rounded", 13, "bold"),  # Abschnittsueberschrift in den Einstellungen
-    "row_title": ("text", 12, "normal"),  # Titel einer Einstellungszeile
+    "row_title": ("semibold", 12, "normal"),  # Titel einer Einstellungszeile
     "description": ("small", 11, "normal"),  # Hilfstext unter einem Titel
     "status": ("text", 12, "normal"),  # die eine Statuszeile
     "button": ("rounded", 12, "bold"),  # Beschriftung von Schaltflächen

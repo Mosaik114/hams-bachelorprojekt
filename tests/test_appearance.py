@@ -254,8 +254,9 @@ class TestEveryComponentFollows:
         root.update()
         wechsel(surface["window"], target, root)
         palette = Theme.palette(target)
-        assert surface["row"].title_label.cget("fg") == palette["TEXT_TERTIARY"]
-        assert surface["row"].sub_label.cget("fg") == palette["CONTROL_HOVER"]
+        assert surface["row"].title_label.cget("fg") == palette["TEXT_DISABLED"]
+        informs = surface["row"].status_dot is not None  # a status stays readable when its row is off
+        assert surface["row"].sub_label.cget("fg") == palette["TEXT_TERTIARY" if informs else "TEXT_DISABLED"]
         assert surface["row"].enabled is False
 
     @pytest.mark.parametrize("target", MODES)

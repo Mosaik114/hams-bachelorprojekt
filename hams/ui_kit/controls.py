@@ -250,7 +250,7 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         if not self.enabled:
             return Theme.CONTROL_SURFACE
         off = Theme.CONTROL_HOVER if self.has_state(State.HOVER) else Theme.CONTROL_SURFACE
-        return blend(off, Theme.ACCENT_TINT, self._progress)
+        return blend(off, Theme.ACCENT_SURFACE, self._progress)
 
     def _draw(self) -> None:
         self.delete("all")

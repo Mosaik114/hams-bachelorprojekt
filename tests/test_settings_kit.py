@@ -455,7 +455,7 @@ class TestDisabledRow:
         row.pack(fill="x")
         root.update()
         row.set_enabled(False)
-        assert row.title_label.cget("fg") == Theme.TEXT_TERTIARY
+        assert row.title_label.cget("fg") == Theme.TEXT_DISABLED
 
     def test_control_is_disabled_too(self, window, root):
         row = SettingRow(window, "Cleanup-Modell", interactive=True, command=lambda: None)

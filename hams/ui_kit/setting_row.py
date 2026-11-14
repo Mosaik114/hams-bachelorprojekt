@@ -276,11 +276,13 @@ class SettingRow(tk.Frame):
     def set_enabled(self, enabled: bool) -> None:
         """Deaktiviert die Zeile — die Höhe bleibt, damit nichts springt."""
         self._enabled = enabled
-        self.title_label.configure(fg=Theme.TEXT_PRIMARY if enabled else Theme.TEXT_TERTIARY)
+        self.title_label.configure(fg=Theme.TEXT_PRIMARY if enabled else Theme.TEXT_DISABLED)
         if self.sub_label is not None:
-            self.sub_label.configure(fg=Theme.TEXT_TERTIARY if enabled else Theme.CONTROL_HOVER)
+            # Ein Status („Ollama erreichbar“) ist Auskunft, keine Bedienung: er bleibt lesbar wie er ist.
+            informs = self.status_dot is not None
+            self.sub_label.configure(fg=Theme.TEXT_TERTIARY if enabled or informs else Theme.TEXT_DISABLED)
         if self.value_label is not None:
-            self.value_label.configure(fg=Theme.TEXT_SECONDARY if enabled else Theme.TEXT_TERTIARY)
+            self.value_label.configure(fg=Theme.TEXT_SECONDARY if enabled else Theme.TEXT_DISABLED)
         if self._control is not None and hasattr(self._control, "set_enabled"):
             self._control.set_enabled(enabled)
         if not enabled:
