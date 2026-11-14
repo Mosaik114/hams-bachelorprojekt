@@ -31,21 +31,51 @@ def _stroke(draw: ImageDraw.ImageDraw, points: list, width: float, color: str) -
         draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=color)
 
 
-def _icon_settings(draw, unit: float, stroke: float, color: str) -> None:
-    """Ein Zahnrad: Ring, acht kurze Zähne, Nabe — das Zeichen, das jeder für Einstellungen kennt."""
+#: Zahnrad: sechs breite Zähne mit weichen Flanken, ein Ring als Nabe (Rasterpixel).
+GEAR_TEETH = 6
+GEAR_ROOT = 4.3
+GEAR_TIP = 6.0
+GEAR_HOLE = 2.0
+
+
+def gear_outline(cx: float, cy: float, unit: float, *, steps: int = 360) -> list[tuple[float, float]]:
+    """Umriss des Zahnrads: Zahnköpfe auf `GEAR_TIP`, Zahnfüße auf `GEAR_ROOT`, dazwischen weiche Flanken.
+
+    Ein Zahn nimmt die halbe Teilung ein und ist oben um ein Viertel schmaler als unten; die Flanke folgt einem
+    Smoothstep. So bleibt das Rad bei 16 px ein ruhiges Zahnrad statt eines Sterns oder einer Sonne, wie es die
+    früheren acht Striche um einen Ring waren.
+    """
     import math
 
-    cx = cy = 8.0 * unit
-    ring = 3.9 * unit
+    period = 2 * math.pi / GEAR_TEETH
+    base, top = 0.5, 0.5 * 0.75
+    root, tip = GEAR_ROOT * unit, GEAR_TIP * unit
+    points = []
+    for step in range(steps):
+        angle = step / steps * 2 * math.pi
+        # 0 mitten im Zahn, 1 mitten in der Lücke; ein Zahn steht oben
+        offset = abs(((angle + math.pi / 2 + period / 2) % period) / period - 0.5) * 2
+        if offset <= top:
+            radius = tip
+        elif offset >= base:
+            radius = root
+        else:
+            k = (offset - top) / (base - top)
+            radius = tip + (root - tip) * k * k * (3 - 2 * k)
+        points.append((cx + radius * math.cos(angle), cy + radius * math.sin(angle)))
+    return points
+
+
+def _icon_settings(draw, unit: float, stroke: float, color: str) -> None:
+    """Ein Zahnrad als Tuschestrich: sechs breite Zähne und ein deutliches Loch in der Mitte."""
+    centre = 8.0 * unit
     width = max(1, int(round(stroke)))
-    draw.ellipse([cx - ring, cy - ring, cx + ring, cy + ring], outline=color, width=width)
-    for tooth in range(8):
-        angle = tooth * math.pi / 4
-        inner = (cx + math.cos(angle) * ring, cy + math.sin(angle) * ring)
-        outer = (cx + math.cos(angle) * 5.7 * unit, cy + math.sin(angle) * 5.7 * unit)
-        _stroke(draw, [inner, outer], stroke, color)
-    hub = 1.5 * unit
-    draw.ellipse([cx - hub, cy - hub, cx + hub, cy + hub], outline=color, width=width)
+    outline = gear_outline(centre, centre, unit)
+    draw.line([*outline, outline[0]], fill=color, width=width, joint="curve")
+    # PIL malt einen Umriss nach innen; der Strich soll aber auf dem Lochrand *mittig* liegen, sonst schließt er
+    # das Loch bei 16 px zu einem Punkt.
+    hole = GEAR_HOLE * unit + stroke / 2
+    draw.ellipse([centre - hole, centre - hole, centre + hole, centre + hole], outline=color, width=width)
 
 
 def _icon_close(draw, unit: float, stroke: float, color: str) -> None:

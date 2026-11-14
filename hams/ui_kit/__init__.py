@@ -1,9 +1,8 @@
 """Hams UI-Kit — das Mosaik-Design für tkinter.
 
-Ziel ist das Mosaik-Design (siehe `Mosaik-Design.md` im Projektordner): warmes
-Creme oder warmes Dunkel, Terrakotta als einziger Akzent, Überschriften in
-Serifenschrift, flache Flächen mit feinem Rand, viel Luft und wenig Fettung.
-tkinter kann das nicht von Haus aus, daher:
+Die Designsprache ist „Tusche und Aquarell“ (Loratu, Stufe „dezenter“): Papiergrund, Flächen mit
+Tuscherand und einer Steinseite darunter, Türkis als einziger Akzent, Überschriften und Knöpfe in der
+runden Nunito, viel Luft. tkinter kann das nicht von Haus aus, daher:
 
 * Runde Ecken für Controls werden als anti-aliaste PIL-Bilder gerendert und auf
   einen *soliden* Hintergrund gelegt — so verschmelzen die Ecken sauber mit der
@@ -18,7 +17,7 @@ Barrierefreiheit — was dieses Kit leistet und was nicht
 ------------------------------------------------------
 
 Geleistet wird die Bedienung ohne Maus: jedes Bedienelement liegt in der
-Tabulatorkette, zeigt einen sichtbaren Fokusring, reagiert auf
+Tabulatorkette, zeigt nach Tastaturbedienung einen kräftigen Fokusrand, reagiert auf
 Enter und Leertaste, gibt den Fokus nach einem Popover an seinen Auslöser
 zurück und verlässt die Kette, sobald es deaktiviert oder ausgeblendet ist.
 Zustände sind doppelt kodiert — Farbe *und* Form oder Text —, die Kontraste
@@ -68,6 +67,7 @@ from hams.ui_kit.scale import (
 )
 from hams.ui_kit.select import Select
 from hams.ui_kit.setting_row import SettingRow
+from hams.ui_kit.tabs import TabBar
 from hams.ui_kit.theme import (
     Depth,
     Height,
@@ -76,7 +76,7 @@ from hams.ui_kit.theme import (
     apply_theme_tree,
 )
 from hams.ui_kit.window import (
-    ContentFreeze,
+    LiveResize,
     WindowChrome,
     bring_to_front,
     clear_layered,
@@ -98,6 +98,7 @@ __all__ = [
     "key_labels",
     "GroupSurface",
     "ScrollArea",
+    "TabBar",
     "SectionHeader",
     "work_areas",
     "Option",
@@ -118,7 +119,7 @@ __all__ = [
     "Space",
     "Theme",
     "apply_theme_tree",
-    "ContentFreeze",
+    "LiveResize",
     "WindowChrome",
     "bring_to_front",
     "clear_layered",

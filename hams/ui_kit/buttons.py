@@ -8,11 +8,13 @@ from collections.abc import Callable
 
 from PIL import ImageTk
 
+from hams.ui_kit.caches import _img_cache
 from hams.ui_kit.icons import ICON_BOX, render_icon
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.states import ControlStyle, FocusMixin, Pressable, State, StateMixin
 from hams.ui_kit.surfaces import paint
 from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme
+from hams.ui_kit.tooltip import Tooltip
 
 # ---------------------------------------------------------------- Basis-Controls
 
@@ -60,6 +62,7 @@ class BaseControl(tk.Canvas, StateMixin, FocusMixin, Pressable):
         **label_kwargs,
     ) -> None:
         self._text = str(label_kwargs.pop("text", ""))
+        self._font_role = font_role
         self._font = font(font_role)
         self._fg = Theme.TEXT_PRIMARY
         self._min_width = 0
@@ -243,7 +246,8 @@ class BaseControl(tk.Canvas, StateMixin, FocusMixin, Pressable):
         self._render()
 
     def _font_role_name(self) -> str:
-        return "button"
+        """The font role given at creation; a DPI change takes the font of this role again (not always "button")."""
+        return self._font_role
 
     def on_state_change(self) -> None:
         self._render()
@@ -295,7 +299,7 @@ class BaseControl(tk.Canvas, StateMixin, FocusMixin, Pressable):
 
 
 class _SurfaceControl(BaseControl):
-    """Control mit flacher, gefüllter Fläche und Fokusring."""
+    """Control mit gemalter Fläche (Tuscherand, Seite) und Fokusrand."""
 
     #: In einer gestapelten Zeile nicht auf volle Breite ziehen.
     stretch_stacked = False
@@ -353,23 +357,25 @@ class SecondaryButton(_SurfaceControl):
         if self._icon_name is None:
             return base
 
-        pil = ImageTk.getimage(base).copy()
         icon_size = px(ICON_BOX)
         gap = px(Space.MD)
         text_width = self._measure(self._text)
         # Icon und Text stehen als Gruppe mittig: das Icon links, der Text um seine halbe Breite nach rechts.
-        group_left = (pil.width - (icon_size + gap + text_width)) // 2
+        group_left = (base.width() - (icon_size + gap + text_width)) // 2
         _x, centre = self.body_centre()
         top = centre - icon_size // 2
-
         colour = self._icon_colour
         if colour is None or not State.is_interactive(self._states):
             _fill, colour = self.colours()
+        # One picture per look, from the shared store: hover and press used to build a new image every time.
+        key = ("icon-button", str(base), self._icon_name, colour, group_left, top)
+        cached = _img_cache.fetch(key)
+        if cached is not None:
+            return cached
+        pil = ImageTk.getimage(base).copy()
         glyph = render_icon(self._icon_name, icon_size, colour)
         pil.paste(glyph, (max(0, group_left), max(0, top)), glyph)
-        composed = ImageTk.PhotoImage(pil)
-        self._composed = composed  # Referenz halten
-        return composed
+        return _img_cache.store(key, ImageTk.PhotoImage(pil))
 
 
 class IconButton(BaseControl):
@@ -401,6 +407,8 @@ class IconButton(BaseControl):
         self.configure(width=px(size))
         self._last_width = px(size)
         self._render()
+        #: The icon has no word of its own; the tip names it (pointer rest or keyboard focus).
+        self.tooltip = Tooltip(self, tooltip) if tooltip else None
 
     def set_hover_colour(self, colour: str | None) -> None:
         """Eigene Icon-Farbe im Hover — etwa Rot für das Schliessen-Kreuz."""
@@ -441,9 +449,13 @@ class IconButton(BaseControl):
         spec = ControlStyle.surface_spec(
             "secondary", stone, side, side, side // 2, under=self._bg_under, squircle=False
         )
-        plate = ImageTk.getimage(paint(spec)).copy()
         glyph_size = px(self._icon_size)
-        glyph = render_icon(self._icon_name, glyph_size, foreground)
         top = (side - glyph_size) // 2 + (depth if pressed else 0)
+        key = ("icon-stone", spec, self._icon_name, glyph_size, foreground, top)
+        cached = _img_cache.fetch(key)
+        if cached is not None:
+            return cached
+        plate = ImageTk.getimage(paint(spec)).copy()
+        glyph = render_icon(self._icon_name, glyph_size, foreground)
         plate.paste(glyph, ((side - glyph_size) // 2, top), glyph)
-        return ImageTk.PhotoImage(plate)
+        return _img_cache.store(key, ImageTk.PhotoImage(plate))

@@ -63,6 +63,7 @@ class Theme:
             "CONTROL_OUTLINE": "#8A93AA",  # >= 3:1 auf GROUP_SURFACE — Schalterspur
             # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
             "INK": "#3A4666",  # Tuscherand: Mondlicht-Kante, 1,95:1 zum Grund
+            "SCROLL_THUMB": "#6A7390",  # Daumen der Bildlaufleiste, 3,9:1 zum Grund
             "GROUP_SIDE": "#2A3552",  # Seite unter einer Platte, 1,5:1 zum Grund
             "CONTROL_SIDE": "#303C5C",  # Seite unter einem Stein
             "ACCENT_SIDE": "#06453F",
@@ -118,6 +119,7 @@ class Theme:
             "CONTROL_OUTLINE": "#8A8170",  # >= 3:1 auf GROUP_SURFACE
             # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
             "INK": "#8E877F",  # Tuscherand: warmes Grau, dezent (Stufe „dezenter“)
+            "SCROLL_THUMB": "#857D70",  # Daumen der Bildlaufleiste, 3,5:1 zum Papier
             "GROUP_SIDE": "#D2C2A3",  # Seite unter einer Platte, 1,3:1 zum Papier
             "CONTROL_SIDE": "#D6C7A9",  # Seite unter einem Stein
             "ACCENT_SIDE": "#075A52",
@@ -179,6 +181,7 @@ class Theme:
     TEXT_DISABLED = _PALETTES[DEFAULT_MODE]["TEXT_DISABLED"]
     FOCUS = _PALETTES[DEFAULT_MODE]["FOCUS"]
     INK = _PALETTES[DEFAULT_MODE]["INK"]
+    SCROLL_THUMB = _PALETTES[DEFAULT_MODE]["SCROLL_THUMB"]
     GROUP_SIDE = _PALETTES[DEFAULT_MODE]["GROUP_SIDE"]
     CONTROL_SIDE = _PALETTES[DEFAULT_MODE]["CONTROL_SIDE"]
     ACCENT_SIDE = _PALETTES[DEFAULT_MODE]["ACCENT_SIDE"]
@@ -469,8 +472,8 @@ class Height:
 
     #: Mindesthöhe einer einzeiligen Einstellungszeile: Titel plus einzeilige
     #: Beschreibung (21 + 2 + 20 = 43 px bei 100 %, gerundet auf 44) plus
-    #: `Space.ROW_Y` oben und unten. Das Standard-Control mit Fokusring-Rand
-    #: (32 + 2·4 = 40) passt darunter. So sind Zeilen mit und ohne
+    #: `Space.ROW_Y` oben und unten. Das Standard-Control mit seiner Seite
+    #: (32 + 2 = 34) passt darunter. So sind Zeilen mit und ohne
     #: Beschreibung, mit Schalter, Auswahl oder Tasten gleich hoch. Mehr
     #: Inhalt macht die Zeile höher, nie enger.
     ROW_MIN = 68

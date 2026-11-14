@@ -93,7 +93,7 @@ def _vertical_ramp(size: tuple[int, int], top: int, stop: float) -> Image.Image:
 
 
 SLICE_MARGIN = 8
-"""Pixels beyond radius and ring that a stretched template keeps on each side.
+"""Pixels beyond the radius that a stretched template keeps on each side.
 
 Lanczos at `SUPERSAMPLE` 4 reaches 3 output pixels into its neighbours; beyond that every column (or row) of
 the straight middle part is identical, so it can be stretched instead of rendered.
@@ -112,9 +112,6 @@ def render_surface(
     squircle: bool = False,
     border: str | None = None,
     border_w: int = 0,
-    ring: str | None = None,
-    ring_width: int = 0,
-    ring_gap: int = 0,
     side: str | None = None,
     depth: int = 0,
     pressed: bool = False,
@@ -123,7 +120,7 @@ def render_surface(
     """Renders a UI surface as an anti-aliased RGBA image - pixel for pixel what `_render_full` draws, but fast.
 
     The expensive part (shape at `SUPERSAMPLE` times the size, then Lanczos) only runs on a small template of
-    about 2 * (radius + ring + `SLICE_MARGIN`) pixels; its straight middle column and row are then stretched to
+    about 2 * (radius + `SLICE_MARGIN`) pixels; its straight middle column and row are then stretched to
     the requested size (nine-slice). A 400 x 500 group surface took 55 ms, now under 2 ms. Stretching is exact
     because the middle of a surface is uniform along the stretched axis: horizontally always, vertically only
     without a gradient or light edge (both run from top to bottom over the full height). Shadows keep the
@@ -137,14 +134,11 @@ def render_surface(
         "squircle": squircle,
         "border": border,
         "border_w": border_w,
-        "ring": ring,
-        "ring_width": ring_width,
-        "ring_gap": ring_gap,
         "side": side,
         "depth": depth,
         "pressed": pressed,
     }
-    core = int(radius) + int(ring_width) + int(ring_gap) + int(depth) + SLICE_MARGIN
+    core = int(radius) + int(depth) + SLICE_MARGIN
     stretch_x = shadow is None and width > 2 * core + 1
     stretch_y = shadow is None and not gradient and edge is None and height > 2 * core + 1
     if not (stretch_x or stretch_y):
@@ -206,9 +200,6 @@ def _render_full(
     squircle: bool = False,
     border: str | None = None,
     border_w: int = 0,
-    ring: str | None = None,
-    ring_width: int = 0,
-    ring_gap: int = 0,
     side: str | None = None,
     depth: int = 0,
     pressed: bool = False,
@@ -227,7 +218,7 @@ def _render_full(
         radius: Eckenradius. Bei `squircle=True` Superellipsen-Ecken.
         edge: feine Lichtkante oben (`_add_edge`). gradient: weisse Aufhellung oben, 0…1 (`_body`).
         shadow: (Weichzeichnung, Versatz nach unten, Deckkraft) (`_shadow_layer`).
-        border, border_w: Kontur (`_add_border`). ring, ring_width, ring_gap: Fokusring (`_draw_ring`).
+        border, border_w: Kontur (`_add_border`).
         side, depth: die Seite unter der Fläche wie bei einem Stein (Loratu): dieselbe Form, um `depth` nach
             unten versetzt, in `side` gefüllt und mit derselben Kontur. Die Fläche ist um `depth` niedriger.
         pressed: die Fläche ist auf ihre Seite eingesunken, die Seite verschwindet.
@@ -236,7 +227,7 @@ def _render_full(
     width, height = max(1, int(width)), max(1, int(height))
     scale = SUPERSAMPLE
     big = (width * scale, height * scale)
-    pad = _padding(shadow, ring_width, ring_gap)
+    pad = _padding(shadow)
     inner = (max(1, big[0] - 2 * pad), max(1, big[1] - 2 * pad))
     sink = int(round(depth * scale)) if side is not None else 0
     inner = (inner[0], max(1, inner[1] - sink))
@@ -265,16 +256,13 @@ def _render_full(
     layer.paste(body, (pad, pad + (sink if pressed else 0)), body)
     canvas = Image.alpha_composite(canvas, layer)
 
-    if ring is not None and ring_width:
-        _draw_ring(canvas, radius, ring, ring_width, ring_gap)
-
     image = canvas.resize((width, height), Image.LANCZOS)
     return _dithered(image) if dither and gradient > 0 else image
 
 
-def _padding(shadow: tuple[float, float, float] | None, ring_width: int, ring_gap: int) -> int:
-    """Rand um die Form (hochgerechnet): Platz für Fokusring und Schatten."""
-    pad = int((ring_width + ring_gap) * SUPERSAMPLE)
+def _padding(shadow: tuple[float, float, float] | None) -> int:
+    """Rand um die Form (hochgerechnet): Platz für den Schatten."""
+    pad = 0
     if shadow is not None:
         blur, offset, _alpha = shadow
         pad += int(math.ceil((blur + abs(offset)) * SUPERSAMPLE))
@@ -333,18 +321,6 @@ def _add_border(body: Image.Image, radius: int, squircle: bool, border: str, bor
     else:
         draw.rounded_rectangle([0, 0, width - 1, height - 1], radius=radius, outline=border, width=line)
     return Image.alpha_composite(body, outline)
-
-
-def _draw_ring(canvas: Image.Image, radius: int, ring: str, ring_width: int, ring_gap: int) -> None:
-    """Fokusring am äussersten Rand des reservierten Platzes.
-
-    `ring_width` und `ring_gap` reservieren den Platz *immer*, auch ohne Ring – sonst spränge die Fläche in dem
-    Moment, in dem sie den Fokus bekommt."""
-    line = max(1, int(ring_width * SUPERSAMPLE))
-    big = canvas.size
-    outer = [line // 2, line // 2, big[0] - 1 - line // 2, big[1] - 1 - line // 2]
-    outer_radius = int((radius + ring_gap + ring_width) * SUPERSAMPLE)
-    ImageDraw.Draw(canvas).rounded_rectangle(outer, radius=outer_radius, outline=ring, width=line)
 
 
 def _dithered(image: Image.Image) -> Image.Image:
@@ -426,9 +402,6 @@ def surface(
     squircle: bool = False,
     border: str | None = None,
     border_w: int = 0,
-    ring: str | None = None,
-    ring_width: int = 0,
-    ring_gap: int = 0,
     side: str | None = None,
     depth: int = 0,
     pressed: bool = False,
@@ -448,9 +421,6 @@ def surface(
         "squircle": squircle,
         "border": border,
         "border_w": border_w,
-        "ring": ring,
-        "ring_width": ring_width,
-        "ring_gap": ring_gap,
         "side": side,
         "depth": depth,
         "pressed": pressed,

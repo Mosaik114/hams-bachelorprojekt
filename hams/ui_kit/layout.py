@@ -7,6 +7,7 @@ import tkinter as tk
 from collections.abc import Callable
 
 from hams.ui_kit.animation import Animator
+from hams.ui_kit.resizing import Resizing
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.surfaces import surface
 from hams.ui_kit.theme import Depth, Radius, Space, Theme, ink_width
@@ -15,26 +16,54 @@ from hams.ui_kit.theme import Depth, Radius, Space, Theme, ink_width
 
 
 class ScrollArea(tk.Frame):
-    """Scrollbarer Bereich mit schlanker eigener Leiste.
+    """Scrollbarer Bereich mit schlanker eigener Leiste und Kanten oben und unten.
 
     Tk bringt keinen scrollbaren Container mit; der übliche Weg ist ein Canvas
     mit einem Fenster darin. Die Leiste ist ein selbst gezeichneter Balken statt
     einer klassischen Tk-Scrollbar, und sie erscheint nur, wenn der Inhalt
     tatsächlich höher ist als der Ausschnitt.
+
+    Die Leiste ist sichtbar (`SCROLL_THUMB`, mindestens 3:1 zum Papier) und bedienbar: der Daumen lässt sich
+    ziehen, ein Klick in die Rinne blättert eine Seite. Unter dem Zeiger wird er breiter. Früher war er im
+    Hellen mit 1,15:1 kaum zu sehen und reagierte auf keinen Klick.
+
+    Mit `edges=True` zeigt der Bereich eine feine Linie oben, sobald Inhalt nach oben weggerollt ist, und unten,
+    solange darunter noch Inhalt folgt: die Seite endet an einer gezeichneten Kante statt an einer mitten in der
+    Zeile abgeschnittenen Schrift.
     """
 
     BAR_WIDTH = 4  # logisch
+    BAR_HOVER_WIDTH = 6  # logisch, unter dem Zeiger
     BAR_INSET = 3  # logisch
+    #: Distance of the bar from the window edge (logical): the edge grip for resizing lies there.
+    EDGE_GAP = Space.SM
     STEP = 40  # logisch, eine Tastenstufe
     #: Wheel and keys glide to their target in this time instead of jumping (only with animations on). A new
     #: notch during the glide extends the target, so a fast spin stays one continuous movement.
     GLIDE_MS = 140
 
-    def __init__(self, master: tk.Misc, *, bg_under: str, on_scroll: Callable[[float], None] | None = None) -> None:
+    def __init__(
+        self,
+        master: tk.Misc,
+        *,
+        bg_under: str,
+        on_scroll: Callable[[float], None] | None = None,
+        edges: bool = False,
+    ) -> None:
         super().__init__(master, bg=bg_under)
         self._bg_under = bg_under
         self._on_scroll = on_scroll
         self._offset = 0
+        self._bar_hover = False
+        #: While the thumb is dragged: (pointer y at the press, offset at the press).
+        self._bar_drag: tuple[int, int] | None = None
+        self.top_edge: tk.Frame | None = None
+        self.bottom_edge: tk.Frame | None = None
+        if edges:
+            self.top_edge = tk.Frame(self, bg=bg_under, height=max(1, px(1)))
+            self.top_edge.pack(side="top", fill="x")
+            self.bottom_edge = tk.Frame(self, bg=bg_under, height=max(1, px(1)))
+            self.bottom_edge.pack(side="bottom", fill="x")
         #: Where the running glide ends, or None.
         self._target: int | None = None
         self._bar_item: int | None = None
@@ -48,6 +77,12 @@ class ScrollArea(tk.Frame):
         self.bar = tk.Canvas(
             self, width=px(self.BAR_WIDTH + 2 * self.BAR_INSET), bg=bg_under, bd=0, highlightthickness=0, takefocus=0
         )
+        self.bar.drag_surface = False  # the bar scrolls; pressing it must not move the window
+        self.bar.bind("<Enter>", lambda _e: self._set_bar_hover(True), add="+")
+        self.bar.bind("<Leave>", lambda _e: self._set_bar_hover(self._bar_drag is not None), add="+")
+        self.bar.bind("<ButtonPress-1>", self._on_bar_press, add="+")
+        self.bar.bind("<B1-Motion>", self._on_bar_drag, add="+")
+        self.bar.bind("<ButtonRelease-1>", self._on_bar_release, add="+")
         # Platzhalter in Leistenbreite: ohne ihn wuerde der Inhalt breiter,
         # sobald die Leiste verschwindet, und der rechte Rand waere ein anderer
         # als der linke.
@@ -87,10 +122,67 @@ class ScrollArea(tk.Frame):
             self._offset = offset
             self.canvas.yview_moveto(offset / max(1, self.body.winfo_reqheight()))
             self._draw_bar()
+            self._update_edges()
             if self._on_scroll is not None:
                 self._on_scroll(offset)
         elif self._offset == 0:
             self.canvas.yview_moveto(0)
+
+    # ------------------------------------------------------------ edges and bar
+
+    def _update_edges(self) -> None:
+        """A line above where content scrolled away, a line below where more content follows."""
+        if self.top_edge is None or self.bottom_edge is None:
+            return
+        try:
+            rest = self.scrollable
+            self.top_edge.configure(bg=Theme.HAIRLINE if self._offset > 0 else self._bg_under)
+            self.bottom_edge.configure(bg=Theme.HAIRLINE if self._offset < rest else self._bg_under)
+        except tk.TclError:  # pragma: no cover - the window is going away
+            pass
+
+    @property
+    def more_below(self) -> bool:
+        return self._offset < self.scrollable
+
+    def _thumb(self) -> tuple[int, int] | None:
+        """(top, length) of the thumb in pixels, or None without a bar."""
+        span = self.body.winfo_reqheight()
+        view = self.canvas.winfo_height()
+        if span <= view or view <= 1:
+            return None
+        length = max(px(20), int(view * view / span))
+        top = int((view - length) * (self._offset / max(1, self.scrollable)))
+        return top, length
+
+    def _set_bar_hover(self, hover: bool) -> None:
+        if hover != self._bar_hover:
+            self._bar_hover = hover
+            self._draw_bar()
+
+    def _on_bar_press(self, event: tk.Event) -> str:
+        thumb = self._thumb()
+        if thumb is not None:
+            top, length = thumb
+            if top <= event.y < top + length:
+                self._bar_drag = (event.y, self._offset)
+            else:
+                self.scroll_page(-1 if event.y < top else 1)
+        return "break"
+
+    def _on_bar_drag(self, event: tk.Event) -> str:
+        thumb = self._thumb()
+        if self._bar_drag is not None and thumb is not None:
+            start_y, start_offset = self._bar_drag
+            room = max(1, self.canvas.winfo_height() - thumb[1])
+            self.scroll_to(start_offset + round((event.y - start_y) * self.scrollable / room))
+        return "break"
+
+    def _on_bar_release(self, event: tk.Event) -> str:
+        self._bar_drag = None
+        inside = 0 <= event.x < self.bar.winfo_width() and 0 <= event.y < self.bar.winfo_height()
+        self._set_bar_hover(inside)
+        return "break"
 
     def scroll_by(self, delta: int, *, glide: bool = False) -> None:
         """Moves by `delta` px; `glide` lets wheel and keys ease out instead of jumping."""
@@ -131,6 +223,7 @@ class ScrollArea(tk.Frame):
         self.canvas.configure(scrollregion=(0, 0, 0, self.body.winfo_reqheight()))
         self.scroll_to(self._offset)
         self._draw_bar()
+        self._update_edges()
 
     def bind_keys(self, widget: tk.Misc) -> None:
         """Tastaturscrollen an ein Fenster hängen (Pfeile, Bild auf/ab, Pos1/Ende)."""
@@ -179,11 +272,13 @@ class ScrollArea(tk.Frame):
     def _on_body_configure(self, _event=None) -> None:
         self.canvas.configure(scrollregion=(0, 0, 0, self.body.winfo_reqheight()))
         self._draw_bar()
+        self._update_edges()
 
     def _on_canvas_configure(self, event: tk.Event) -> None:
         self.canvas.itemconfigure(self._window, width=event.width)
         self.scroll_to(self._offset)  # Position halten, Grenzen neu prüfen
         self._draw_bar()
+        self._update_edges()
 
     def _show_bar(self, visible: bool) -> None:
         """Sichtbarkeit an genau einer Stelle — konsistent mit dem Gezeichneten."""
@@ -198,28 +293,27 @@ class ScrollArea(tk.Frame):
 
     def _draw_bar(self) -> None:
         """The thumb. While scrolling only its position changes, so the item is moved, not drawn anew."""
-        span = self.body.winfo_reqheight()
-        view = self.canvas.winfo_height()
-        if span <= view or view <= 1:
+        thumb = self._thumb()
+        if thumb is None:
             self.bar.delete("all")
             self._bar_item = self._bar_key = None
             self._show_bar(False)
             return
         self._show_bar(True)
-        track = view
-        length = max(px(20), int(track * view / span))
-        top = int((track - length) * (self._offset / max(1, self.scrollable)))
-        key = (length, Theme.CONTROL_HOVER, px(self.BAR_WIDTH), px(self.BAR_INSET))
+        top, length = thumb
+        wide = self._bar_hover or self._bar_drag is not None
+        width = px(self.BAR_HOVER_WIDTH if wide else self.BAR_WIDTH)
+        colour = Theme.TEXT_TERTIARY if wide else Theme.SCROLL_THUMB
+        left = (px(self.gutter_width()) - width) // 2
+        key = (length, colour, width, left)
         if self._bar_item is not None and key == self._bar_key:
-            self.bar.coords(self._bar_item, px(self.BAR_INSET), top)
+            self.bar.coords(self._bar_item, left, top)
             return
         self.bar.delete("all")
-        image = surface(
-            px(self.BAR_WIDTH), length, Radius.pill(px(self.BAR_WIDTH)), Theme.CONTROL_HOVER, squircle=False
-        )
+        image = surface(width, length, Radius.pill(width), colour, squircle=False)
         self._bar_image = image
         self._bar_key = key
-        self._bar_item = self.bar.create_image(px(self.BAR_INSET), top, anchor="nw", image=image)
+        self._bar_item = self.bar.create_image(left, top, anchor="nw", image=image)
 
     def _on_scale_change(self, _factor: float) -> None:
         try:
@@ -239,6 +333,7 @@ class ScrollArea(tk.Frame):
         self._bg_under = Theme.remap(self._bg_under)
         with contextlib.suppress(tk.TclError):  # Widget bereits zerstört
             self._draw_bar()
+            self._update_edges()
 
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:
@@ -326,6 +421,14 @@ class GroupSurface(tk.Canvas):
         While a window is being built, a group grows row by row and reports a new height each time (measured: 44
         renders for the six groups of the settings window). Only the last size is ever seen.
         """
+        if Resizing.active():
+            # While a window is resized the size *is* settled for this frame: an idle render would leave the old
+            # picture on screen for a frame, too small or cut off.
+            if self._render_job is not None:
+                with contextlib.suppress(tk.TclError, ValueError):
+                    self.after_cancel(self._render_job)
+            self._render_settled()
+            return
         if self._render_job is None:
             self._render_job = self.after_idle(self._render_settled)
 

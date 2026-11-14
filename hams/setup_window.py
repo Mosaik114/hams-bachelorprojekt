@@ -78,7 +78,10 @@ class SetupWindow:
     """Randloses Fenster im Mosaik-Design, eine Seite zur Zeit."""
 
     WIDTH = 460  # logisch
-    HEIGHT = 680  # logisch, wie das Einstellungsfenster
+    #: Tall enough for the longest page (the last one: two groups and two paragraphs). Before, at 680, its last
+    #: paragraph was cut in the middle of a line; the window can also be pulled larger now (`MIN_SIZE`).
+    HEIGHT = 720  # logisch
+    MIN_SIZE = (420, 520)  # logisch
     BUTTON_WIDTH = 104  # logisch; „Überspringen“ plus Luft
     CONTROL_WIDTH = 160  # logisch, wie in den Einstellungen
     STATUS_INTERVAL_MS = 500
@@ -107,7 +110,9 @@ class SetupWindow:
         self.status_row = None
 
         self.win = tk.Toplevel(app.root)
-        self.chrome = uk.frame_window(self.win)
+        self.chrome = uk.frame_window(self.win, min_size=self.MIN_SIZE)
+        #: Paragraphs that wrap; they follow the width of the page (`_rewrap`).
+        self._paragraphs: list[tk.Label] = []
         app.watch_dpi(self.win)
         # Escape closes, like the settings (a running download still asks first).
         self.win.bind("<Escape>", lambda _e: self.close(), add="+")
@@ -205,7 +210,7 @@ class SetupWindow:
             wraplength=self._text_width(),
             justify="left",
             anchor="w",
-        ).pack(fill="x", pady=(0, uk.px(uk.Space.MD)))
+        ).pack(fill="x", pady=(0, uk.px(uk.Space.MD)))  # in the footer: the window's width, not the page's
         self.close_anyway_button = uk.SecondaryButton(
             box, t("setup.close_anyway"), lambda: self.close(confirmed=True), bg_under=Theme.WINDOW_BG
         )
@@ -258,25 +263,21 @@ class SetupWindow:
         self.skip_button = self._footer_button(t("setup.skip"), self.skip, "secondary", "right")
         # Hairlines at both ends of the scroll area, shown only while content lies beyond them: the page then
         # ends at a drawn edge instead of text cut off in the middle of a line.
-        self._bottom_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
-        self._bottom_line.pack(side="bottom", fill="x")
-        self._top_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
-        self._top_line.pack(fill="x")
-        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, on_scroll=lambda _o: self._update_edges())
-        self.scroll.pack(fill="both", expand=True, padx=(uk.px(uk.Space.WINDOW), 0))
+        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, edges=True)
+        self.scroll.pack(fill="both", expand=True, padx=(uk.px(uk.Space.WINDOW), uk.px(uk.ScrollArea.EDGE_GAP)))
         self.scroll.bind_keys(self.win)
-        self.scroll.body.bind("<Configure>", lambda _e: self._update_edges(), add="+")
-        self.scroll.canvas.bind("<Configure>", lambda _e: self._update_edges(), add="+")
+        self.scroll.canvas.bind("<Configure>", lambda _e: self._rewrap(), add="+")
         self.show_page()
 
-    def _update_edges(self) -> None:
-        """A line above where content scrolled away, a line below where more content follows."""
-        try:
-            offset, rest = self.scroll.offset, self.scroll.scrollable
-            self._top_line.configure(bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
-            self._bottom_line.configure(bg=Theme.HAIRLINE if offset < rest else Theme.WINDOW_BG)
-        except tk.TclError:  # pragma: no cover - the window is being rebuilt
-            pass
+    def _rewrap(self) -> None:
+        """Paragraphs wrap at the width the page has now, so a wider window gets longer lines, not a gap."""
+        width = self._text_width()
+        for label in list(self._paragraphs):
+            try:
+                if int(label.cget("wraplength")) != width:
+                    label.configure(wraplength=width)
+            except tk.TclError:  # the page was rebuilt; the label is gone
+                self._paragraphs.remove(label)
 
     def _build_head(self) -> None:
         """The same painted stage as the settings: mark, title and cross, the cross centred on its face."""
@@ -391,12 +392,26 @@ class SetupWindow:
 
     # ---------------------------------------------------------- building blocks
 
+    @staticmethod
+    def _group_right() -> int:
+        """Right margin of a group inside the page (logical), so it ends as far from the edge as it starts."""
+        return uk.Space.WINDOW - uk.ScrollArea.gutter_width() - uk.ScrollArea.EDGE_GAP
+
     def _text_width(self) -> int:
+        """Width of a paragraph: the page as wide as it is now (before it is laid out, as wide as planned)."""
+        try:
+            shown = self.scroll.canvas.winfo_width()
+        except (AttributeError, tk.TclError):
+            shown = 1
+        if shown > 1:
+            return max(uk.px(120), shown - uk.px(self._group_right()) - uk.px(8))
         return uk.px(self.WIDTH - 2 * uk.Space.WINDOW - uk.ScrollArea.gutter_width() - 8)
 
     def _heading(self, master: tk.Misc, text: str) -> tk.Label:
+        # Page title clearly above the text: larger and bold; the text below is regular (it was semibold and
+        # only 1 pt smaller, so the whole page read bold).
         label = tk.Label(
-            master, text=text, bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY, font=uk.font("section"), anchor="w"
+            master, text=text, bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY, font=uk.font("page_title"), anchor="w"
         )
         label.pack(fill="x", pady=(0, uk.px(uk.Space.MD)))
         return label
@@ -407,17 +422,18 @@ class SetupWindow:
             text=text,
             bg=Theme.WINDOW_BG,
             fg=Theme.TEXT_TERTIARY if tertiary else Theme.TEXT_SECONDARY,
-            font=uk.font("description" if tertiary else "row_title"),
+            font=uk.font("description" if tertiary else "status"),
             anchor="w",
             justify="left",
             wraplength=self._text_width(),
         )
         label.pack(fill="x", pady=(0, uk.px(uk.Space.LG)))
+        self._paragraphs.append(label)
         return label
 
     def _group(self, master: tk.Misc) -> uk.GroupSurface:
         group = uk.GroupSurface(master, bg_under=Theme.WINDOW_BG)
-        group.pack(fill="x", padx=(0, uk.px(uk.Space.WINDOW - uk.ScrollArea.gutter_width())), pady=(0, uk.px(16)))
+        group.pack(fill="x", padx=(0, uk.px(self._group_right())), pady=(0, uk.px(16)))
         return group
 
     def _select_row(self, group, title: str, description: str, options, value, on_change, *, hairline=True):

@@ -39,6 +39,7 @@ MESSAGES: dict[str, str] = {
     "status.copied_from_history": "Copied from history",
     "status.setup_pending": "Finish setup to download a speech model",
     "status.no_signal": "No microphone signal",
+    "status.error": "Error – details in the log",
     "status.no_recording": "Nothing recorded",
     "status.no_speech": "No speech detected",
     "status.model_still_loading": "Model is still loading …",

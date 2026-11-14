@@ -1,10 +1,14 @@
-"""The painted head of the settings and the setup assistant: wash, mark, title and close button on one canvas.
+"""The painted head of the settings and the setup assistant: track, mark, title and close button on one canvas.
 
 Both windows had a head of their own: the settings a painted stage, the assistant a row of labels. Now they share
 `Stage`. Mark and title are canvas items, not labels, so nothing stands there as a box in the paper colour. The
-wash and its ink line keep clear of mark, title and cross at any width (`banner_image` with free areas). The
-cross stands with the middle of its *face* on the middle of the stage: a stone is taller than its face by its
+painted voice track (`banner_image`) fills the free stretch between title and cross and stands against the cross.
+The cross stands with the middle of its *face* on the middle of the stage: a stone is taller than its face by its
 side, and centring the whole widget put the cross visibly higher than the title.
+
+A new width only *moves* the track and the cross. The track's own width comes in steps, so while the window is
+resized a new picture is painted only when the free stretch crosses a step; everything else is two `coords` calls.
+Before, every pixel of a resize painted the whole stage anew (3-6 ms a step).
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from collections.abc import Callable
 
 from hams import ui_kit as uk
 from hams.ui_kit import Theme
+from hams.ui_kit.banner import track_width
 from hams.window_mark import mark_photo
 
 
@@ -34,6 +39,7 @@ class Stage(tk.Canvas):
         self._title = title
         self._size = (0, 0)
         self._images: list = []  # Tk keeps no reference of its own
+        self._track_width = -1
         self.close_button = uk.IconButton(self, "close", on_close, bg_under=Theme.WINDOW_BG, tooltip=close_tooltip)
         self.close_button.set_hover_colour(Theme.ERROR)
         self.bind("<Configure>", self._on_configure, add="+")
@@ -56,12 +62,18 @@ class Stage(tk.Canvas):
     # ---------------------------------------------------------- painting
 
     def _on_configure(self, event: tk.Event) -> None:
-        if (event.width, event.height) != self._size:
-            self._size = (event.width, event.height)
+        size = (event.width, event.height)
+        if size == self._size:
+            return
+        same_height = size[1] == self._size[1] and self.find_withtag("title")
+        self._size = size
+        if same_height:
+            self.place_items()
+        else:
             self.paint()
 
     def free_areas(self, width: int) -> tuple[int, int]:
-        """Where the wash may begin and must end (pixels): after the title, before the cross."""
+        """Where the track may begin and must end (pixels): after the title, before the cross."""
         margin = uk.px(uk.Space.WINDOW)
         left = margin
         mark = mark_photo()
@@ -76,20 +88,19 @@ class Stage(tk.Canvas):
         return left, max(left, right)
 
     def paint(self) -> None:
-        """The wash for the current width, then mark, title and cross on it."""
+        """Mark, title, cross and the track for the current size, from scratch."""
         width, height = self._size
         if width <= 1 or height <= 1:
             return
         self.delete("all")
-        clear_left, clear_right = self.free_areas(width)
-        wash = uk.banner_image(width, height, clear_left=clear_left, clear_right=clear_right)
+        self._track_width = -1
         mark = mark_photo()
-        self._images = [wash, mark]
-        self.create_image(0, 0, anchor="nw", image=wash)
+        self._images = [mark]
+        self.create_image(0, 0, anchor="ne", tags="track")
         margin, middle = uk.px(uk.Space.WINDOW), height // 2
         x = margin
         if mark is not None:
-            self.create_image(x, middle, anchor="w", image=mark)
+            self.create_image(x, middle, anchor="w", image=mark, tags="mark")
             x += mark.width() + uk.px(uk.Space.MD)
         self.create_text(
             x, middle, anchor="w", text=self._title, font=uk.font("window_title"), fill=Theme.TEXT_PRIMARY, tags="title"
@@ -97,8 +108,24 @@ class Stage(tk.Canvas):
         if self.has_close:
             # The face of the stone on the middle line, its side hangs below it.
             self.create_window(
-                width - margin, middle + uk.px(uk.Depth.CONTROL) // 2, anchor="e", window=self.close_button
+                0, middle + uk.px(uk.Depth.CONTROL) // 2, anchor="e", window=self.close_button, tags="close"
             )
+        self.place_items()
+
+    def place_items(self) -> None:
+        """Puts track and cross where the current width wants them; paints a track only for a new step."""
+        width, height = self._size
+        if width <= 1 or height <= 1:
+            return
+        left, right = self.free_areas(width)
+        track = track_width(right - left, uk.Scale.factor)
+        if track != self._track_width:
+            self._track_width = track
+            image = uk.banner_image(track, height) if track else ""
+            self._images[1:] = [image]
+            self.itemconfigure("track", image=image)
+        self.coords("track", right, 0)
+        self.coords("close", width - uk.px(uk.Space.WINDOW), height // 2 + uk.px(uk.Depth.CONTROL) // 2)
 
     def _on_theme_change(self) -> None:
         self.configure(bg=Theme.WINDOW_BG)

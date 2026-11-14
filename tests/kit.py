@@ -70,7 +70,7 @@ from hams.ui_kit.surfaces import (  # noqa: F401
     render_surface,
     surface,
 )
-from hams.ui_kit.text import _ellipsize, _fit_text, _line_height, _pil_font, _pil_font_for, _text_width  # noqa: F401
+from hams.ui_kit.text import _fit_text, _line_height, _text_width  # noqa: F401
 from hams.ui_kit.theme import (  # noqa: F401
     TINTED_OPTIONS,
     Height,

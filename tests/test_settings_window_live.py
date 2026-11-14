@@ -427,12 +427,20 @@ class TestWindow:
         live_app.root.update()
         assert (win.win.winfo_x(), win.win.winfo_y()) == (120, 110)
 
-    def test_the_header_line_appears_only_when_scrolled(self, open_settings):
+    def test_the_edges_show_where_content_lies_beyond(self, open_settings, live_app):
+        """A line above once content scrolled away, a line below while more follows - the page never just ends."""
         win = open_settings()
-        win._on_scroll(0)
-        assert win._head_line.cget("bg") == uk.Theme.WINDOW_BG
-        win._on_scroll(40)
-        assert win._head_line.cget("bg") == uk.Theme.HAIRLINE
+        win.win.geometry("440x500")
+        win.select_page(4)
+        live_app.root.update()
+        assert win.scroll.scrollable > 40, "the page is longer than the window"
+        win.scroll.scroll_to(0)
+        assert win.scroll.top_edge.cget("bg") == uk.Theme.WINDOW_BG
+        assert win.scroll.bottom_edge.cget("bg") == uk.Theme.HAIRLINE
+        win.scroll.scroll_to(40)
+        assert win.scroll.top_edge.cget("bg") == uk.Theme.HAIRLINE
+        win.scroll.scroll_to(win.scroll.scrollable)
+        assert win.scroll.bottom_edge.cget("bg") == uk.Theme.WINDOW_BG
 
     def test_repainting_keeps_the_scroll_position(self, open_settings, live_app):
         win = open_settings()

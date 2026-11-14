@@ -288,6 +288,16 @@ def live_app(root, hams):
     root.update()
 
 
+@pytest.fixture(autouse=True)
+def no_physical_mouse(monkeypatch):
+    """Gestures in the tests are simulated: the real mouse button is never down, and the guard of a gesture
+    (`WindowChrome._watch`) would end every simulated drag that lasts longer than its interval. Tests of the guard
+    set the button state themselves."""
+    from hams.ui_kit import window as window_module
+
+    monkeypatch.setattr(window_module, "primary_button_down", lambda: None)
+
+
 @pytest.fixture(scope="session")
 def root():
     """Eine einzige Tk-Wurzel fuer die gesamte Testsitzung.

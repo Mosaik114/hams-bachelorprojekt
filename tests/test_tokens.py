@@ -312,7 +312,7 @@ class TestFontRoles:
     def test_only_headings_and_buttons_are_bold(self):
         """Tusche und Aquarell: Überschriften und Knöpfe in der runden, kräftigen Schrift, der Rest ruhig."""
         bold = {r for r, (_f, _s, w) in _FONT_ROLES.items() if w == "bold"}
-        assert bold == {"window_title", "section", "button"}
+        assert bold == {"window_title", "section", "page_title", "button"}
 
     def test_four_sizes_at_most(self):
         """Eine ruhige Schriftskala: 16 / 13 / 12 / 11 pt."""

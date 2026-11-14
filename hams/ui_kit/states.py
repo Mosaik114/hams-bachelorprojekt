@@ -17,7 +17,7 @@ class State:
 
     * **Fläche** — genau ein Zustand bestimmt Füllung und Textfarbe. Die
       Rangfolge in `SURFACE_ORDER` entscheidet, welcher das ist.
-    * **Fokus** — liegt als Ring *über* der Fläche und übersteuert nichts.
+    * **Fokus** — ein kräftiger Rand *auf* der Fläche (nach Tastaturbedienung); er übersteuert nichts.
       Ein fokussierter Schalter, über dem die Maus steht, zeigt beides.
 
     Damit gilt: `disabled` sieht nie aus wie `hover`, `pressed` übersteuert
@@ -108,6 +108,26 @@ class ControlStyle:
             State.DISABLED: ("CONTROL_SURFACE", "TEXT_DISABLED"),
             State.ERROR: ("ERROR_SURFACE", "ON_FILL"),
         },
+        # A tab is a word on the paper; the chosen one lies on a sheet of its own, its word in the accent colour.
+        # Not filled like the main action: the chosen tab is where you are, not something to press.
+        "tab": {
+            State.DEFAULT: (None, "TEXT_SECONDARY"),
+            State.HOVER: ("CONTROL_SURFACE", "TEXT_PRIMARY"),
+            State.PRESSED: ("CONTROL_PRESSED", "TEXT_PRIMARY"),
+            State.SELECTED: ("CONTROL_SURFACE", "TEXT_PRIMARY"),
+            State.LOADING: (None, "TEXT_TERTIARY"),
+            State.DISABLED: (None, "TEXT_DISABLED"),
+            State.ERROR: (None, "ERROR"),
+        },
+        "tab_selected": {
+            State.DEFAULT: ("GROUP_SURFACE", "ACCENT_TINT"),
+            State.HOVER: ("GROUP_SURFACE", "ACCENT_TINT"),
+            State.PRESSED: ("GROUP_SURFACE", "ACCENT_TINT"),
+            State.SELECTED: ("GROUP_SURFACE", "ACCENT_TINT"),
+            State.LOADING: ("GROUP_SURFACE", "TEXT_SECONDARY"),
+            State.DISABLED: ("GROUP_SURFACE", "TEXT_DISABLED"),
+            State.ERROR: ("ERROR_SURFACE", "ON_FILL"),
+        },
         "ai": {
             State.DEFAULT: ("AI_SURFACE", "ON_FILL"),
             State.HOVER: ("AI_HOVER", "ON_FILL"),
@@ -126,7 +146,14 @@ class ControlStyle:
         "recording": "RECORDING_SIDE",
         "ai": "AI_SIDE",
         "plain": "CONTROL_SIDE",
+        # Tabs lie flat on the paper: their side has the colour of the paper, so no stone edge shows.
+        "tab": "WINDOW_BG",
+        "tab_selected": "WINDOW_BG",
     }
+
+    #: Text colours of filled roles. On such a fill the focus colour (turquoise) would not show (1,07:1 on the
+    #: accent fill); the focus edge takes the text colour instead (5:1 and more).
+    _ON_FILLS = ("ON_ACCENT", "ON_FILL")
 
     #: Der Tastaturfokus färbt den Tuscherand der Fläche (Token `FOCUS`); ein Ring drumherum entfällt.
     FOCUS_TOKEN = "FOCUS"  # noqa: S105 – Name einer Farbe, kein Passwort
@@ -188,10 +215,13 @@ class ControlStyle:
         from hams.ui_kit.surfaces import SurfaceSpec
         from hams.ui_kit.theme import Depth, ink_width
 
-        fill, _text = cls.resolve(role, active)
+        fill, text = cls.resolve(role, active)
         lift = px(Depth.CONTROL) if depth is None else depth
+        focus = cls.focus_for(active)
+        if focus and fill is not None and text in {getattr(Theme, name) for name in cls._ON_FILLS}:
+            focus = text
         if fill is None:
-            return SurfaceSpec(width, height + lift, radius, under, squircle=squircle, focus=cls.focus_for(active))
+            return SurfaceSpec(width, height + lift, radius, under, squircle=squircle, focus=focus)
         return SurfaceSpec(
             width,
             height + lift,
@@ -202,7 +232,7 @@ class ControlStyle:
             side=cls.side(role, active),
             depth=lift,
             pressed=State.PRESSED in set(active),
-            focus=cls.focus_for(active),
+            focus=focus,
             squircle=squircle,
         )
 

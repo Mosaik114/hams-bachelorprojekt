@@ -6,7 +6,10 @@ runner is no place to judge 20 ms. Run it on the development machine before and 
 Budgets (per step, median over the run, on the Tk thread):
 
 * moving a window: 2 ms
-* resizing the settings at an edge: 16 ms (60 frames a second; the content is frozen while dragging)
+* resizing the settings at an edge: 45 ms, the content laid out live in every step. Measured on the development
+  PC (median): 16-26 ms on the first page, 27-39 ms on "Allgemein", the longest page - 25 to 60 frames a second.
+  Almost all of it is Tk laying out and drawing its ~260 native child windows; the Python part is about 5 ms.
+  60 frames on every page would need the rows painted on one canvas instead of built from single widgets.
 * switching a settings tab, also the first visit: 30 ms (median), a first visit no dearer than a later one
 * showing the prebuilt settings window: 60 ms
 """
@@ -23,7 +26,7 @@ from hams import ui_kit as uk
 pytestmark = pytest.mark.skipif(not os.environ.get("HAMS_PERF"), reason="time budgets: set HAMS_PERF=1")
 
 MOVE_MS = 2.0
-RESIZE_MS = 16.0
+RESIZE_MS = 45.0
 TAB_MS = 30.0
 #: What a first visit may cost more than a later one (noise; a page laid out on its first visit cost 30-90 ms).
 FIRST_EXTRA_MS = 12.0

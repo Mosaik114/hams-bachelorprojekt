@@ -462,7 +462,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         "cleaning": ("processing", "status.cleaning", "secondary", "button.start_recording", False),
         "generating": ("ai", "status.generating", "secondary", "button.start_recording", False),
         "done": ("ready", "status.done", "primary", "button.start_recording", True),
-        "error": ("error", None, "secondary", "button.retry", True),
+        "error": ("error", "status.error", "secondary", "button.retry", True),  # a detail replaces the text
         "no_signal": ("warning", "status.no_signal", "primary", "button.start_recording", True),
     }
 

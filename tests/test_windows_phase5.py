@@ -1,6 +1,6 @@
 """Phase 5 of the rebuild: windows that stay calm while they change.
 
-* resizing freezes the content and lays it out once on release (`ContentFreeze`);
+* resizing lays the content out live, once a frame, with nothing stale on screen (`LiveResize`, `Resizing`);
 * the settings lay out their hidden pages ahead, so even the first visit of a tab is quick (`warm_pages`);
 * after the invisible prebuild the settings are no layered window any more (`clear_layered`);
 * every window notices a move to a monitor with another scaling, not only the main window (`check_dpi`);
@@ -23,7 +23,11 @@ from hams.settings_window import _pad_pair
 from hams.setup_window import SetupWindow
 from hams.ui_kit import banner as banner_mod
 from hams.ui_kit import window as window_mod
+from hams.ui_kit.resizing import Resizing
 from hams.window_stage import Stage
+
+#: Taken before the autouse fixture replaces it for the simulated gestures.
+REAL_BUTTON_DOWN = window_mod.primary_button_down
 
 
 def event(widget, x, y):
@@ -40,80 +44,57 @@ def window(root):
     win.destroy()
 
 
-# ---------------------------------------------------------------- freezing while resizing
+# ---------------------------------------------------------------- live resizing
 
 
-class TestContentFreeze:
+class TestLiveResize:
     def build(self, win, root):
         top = tk.Frame(win, bg="red", height=20)
         top.pack(fill="x", padx=4)
         middle = tk.Frame(win, bg="green")
         middle.pack(fill="both", expand=True)
-        bottom = tk.Frame(win, bg="blue", height=10)
-        bottom.pack(side="bottom", fill="x", before=middle)
         root.update()
-        return top, middle, bottom
+        return top, middle
 
-    def test_the_content_keeps_its_place_while_frozen(self, window, root):
-        top, middle, bottom = self.build(window, root)
-        before = [(w.winfo_x(), w.winfo_y(), w.winfo_width(), w.winfo_height()) for w in (top, middle, bottom)]
-        freeze = uk.ContentFreeze(window)
-        freeze.freeze()
-        assert freeze.active
-        window.geometry("420x320")
-        root.update()
-        after = [(w.winfo_x(), w.winfo_y(), w.winfo_width(), w.winfo_height()) for w in (top, middle, bottom)]
-        assert after == before, "nothing inside follows the window while frozen"
-        assert {w.winfo_manager() for w in (top, middle, bottom)} == {"place"}
-
-    def test_thaw_gives_everything_back_in_its_order(self, window, root):
-        top, middle, bottom = self.build(window, root)
-        order = window.pack_slaves()
-        options = [w.pack_info() for w in order]
-        freeze = uk.ContentFreeze(window)
-        freeze.freeze()
-        window.geometry("420x320")
-        root.update()
-        freeze.thaw()
-        root.update()
-        assert not freeze.active
-        assert window.pack_slaves() == order
-        assert [w.pack_info() for w in order] == options
-        assert middle.winfo_width() == 420, "laid out once for the new size"
-
-    def test_grid_children_come_back_to_their_cells(self, window, root):
-        cell = tk.Frame(window, bg="red", width=30, height=30)
-        cell.grid(row=1, column=2, padx=3)
-        root.update()
-        freeze = uk.ContentFreeze(window)
-        freeze.freeze()
-        assert cell.winfo_manager() == "place"
-        freeze.thaw()
-        info = cell.grid_info()
-        assert (int(info["row"]), int(info["column"]), int(info["padx"])) == (1, 2, 3)
-
-    def test_freezing_twice_is_one_freeze(self, window, root):
-        self.build(window, root)
-        freeze = uk.ContentFreeze(window)
-        freeze.freeze()
-        freeze.freeze()
-        assert len(freeze._frozen) == 3
-
-    def test_a_resize_gesture_freezes_and_thaws(self, window, root):
-        _top, middle, _bottom = self.build(window, root)
+    def test_the_content_follows_while_dragging_not_after(self, window, root):
+        _top, middle = self.build(window, root)
         chrome = uk.WindowChrome(window, min_size=(200, 120))
         chrome._on_press(event(window, 499, 250))
-        assert chrome.freeze.active
+        assert chrome.live.active and Resizing.active()
         chrome._on_drag(event(window, 539, 250))
         root.update()
-        assert middle.winfo_width() == 300, "the content waits for the release"
+        assert middle.winfo_width() == 340, "laid out during the drag"
+        chrome._on_drag(event(window, 519, 250))
+        root.update()
+        assert middle.winfo_width() == 320
         chrome._on_release()
         root.update()
-        assert not chrome.freeze.active
-        assert middle.winfo_width() == 340
+        assert not chrome.live.active and not Resizing.active()
+        assert window.pack_slaves() and middle.winfo_manager() == "pack"
+
+    def test_a_plate_paints_its_new_size_at_once_while_resizing(self, window, root):
+        plate = uk.GroupSurface(window, bg_under=uk.Theme.WINDOW_BG)
+        plate.pack(fill="x")
+        tk.Frame(plate.body, height=40).pack(fill="x")
+        root.update()
+        Resizing.enter()
+        try:
+            window.geometry("360x200")
+            window.update_idletasks()
+            assert plate._plate.width() == plate.winfo_width(), "no frame with the old picture"
+        finally:
+            Resizing.leave()
+
+    def test_outside_a_resize_the_plate_waits_for_the_layout_to_settle(self, window, root):
+        plate = uk.GroupSurface(window, bg_under=uk.Theme.WINDOW_BG)
+        plate.pack(fill="x")
+        root.update()
+        plate.event_generate("<Configure>", width=250, height=60)
+        assert plate._render_job is not None
+        root.update()
 
     @pytest.mark.skipif(sys.platform != "win32", reason="window classes are a Windows matter")
-    def test_while_frozen_windows_does_not_redraw_the_whole_window(self, window, root):
+    def test_while_resizing_windows_does_not_redraw_the_whole_window(self, window, root):
         import ctypes
 
         self.build(window, root)
@@ -121,17 +102,58 @@ class TestContentFreeze:
         inner = window.winfo_id()
         handles = (user32.GetParent(inner), inner)
         before = [user32.GetClassLongW(hwnd, -26) for hwnd in handles]
-        freeze = uk.ContentFreeze(window)
-        freeze.freeze()
+        live = uk.LiveResize(window)
+        live.begin()
+        live.begin()
         assert all(not user32.GetClassLongW(hwnd, -26) & 0x3 for hwnd in handles)
-        freeze.thaw()
+        live.end()
+        live.end()
         assert [user32.GetClassLongW(hwnd, -26) for hwnd in handles] == before
+        assert not Resizing.active()
 
-    def test_moving_does_not_freeze(self, window, root):
+    def test_a_lost_release_ends_the_gesture(self, window, root, monkeypatch):
+        """Win+D or the lock screen swallow the release; the guard sees the button is up and ends the gesture."""
+        self.build(window, root)
+        chrome = uk.WindowChrome(window, min_size=(200, 120))
+        monkeypatch.setattr(window_mod, "primary_button_down", lambda: True)
+        chrome._on_press(event(window, 499, 250))
+        assert chrome._watch_job is not None
+        chrome._watch()
+        assert chrome.live.active, "still held: the gesture goes on"
+        monkeypatch.setattr(window_mod, "primary_button_down", lambda: False)
+        chrome._watch()
+        assert chrome._gesture is None and not chrome.live.active and not Resizing.active()
+
+    def test_where_nobody_can_tell_the_guard_waits_for_the_release(self, window, root, monkeypatch):
+        self.build(window, root)
+        chrome = uk.WindowChrome(window, min_size=(200, 120))
+        monkeypatch.setattr(window_mod, "primary_button_down", lambda: None)
+        chrome._on_press(event(window, 499, 250))
+        chrome._watch()
+        assert chrome.live.active
+        chrome._on_release()
+        assert chrome._watch_job is None and not chrome.live.active
+
+    def test_a_window_that_goes_away_mid_gesture_ends_it(self, root):
+        win = tk.Toplevel(root)
+        win.overrideredirect(True)
+        win.geometry("300x200+200+150")
+        root.update()
+        chrome = uk.WindowChrome(win, min_size=(200, 120))
+        chrome._on_press(event(win, 499, 250))
+        assert Resizing.active()
+        win.destroy()
+        assert not chrome.live.active and not Resizing.active()
+
+    def test_the_button_state_is_read(self):
+        expected = (True, False) if sys.platform == "win32" else (None,)
+        assert REAL_BUTTON_DOWN() in expected
+
+    def test_moving_does_not_resize(self, window, root):
         self.build(window, root)
         chrome = uk.WindowChrome(window, min_size=(200, 120))
         chrome._on_press(event(window, 350, 250))
-        assert not chrome.freeze.active
+        assert not chrome.live.active
         chrome._on_release()
 
 
@@ -338,26 +360,72 @@ class TestBannerAreas:
         part = np.asarray(image, np.float32)[:, x0:x1]
         return float(np.abs(part - paper).mean())
 
-    def test_nothing_is_painted_in_the_free_areas(self):
-        image = banner_mod.render_banner(600, 76, clear_left=220, clear_right=520)
-        assert self.deviation(image, 0, 215) < 2.5, "only paper grain left of the wash"
-        assert self.deviation(image, 525, 600) < 2.5, "only paper grain at the cross"
-        assert self.deviation(image, 300, 500) > self.deviation(image, 0, 215) + 1
+    def test_both_ends_fade_into_the_paper(self):
+        image = banner_mod.render_banner(300, 76)
+        assert self.deviation(image, 0, 3) < 1.5, "the start towards the title is paper"
+        assert self.deviation(image, 297, 300) < 1.5, "the end at the cross is paper"
+        assert self.deviation(image, 100, 200) > 4, "the voice is there in between"
 
-    def test_a_short_stretch_has_no_line(self):
-        mask = banner_mod._ink_wave(200, 76, 1.0, 100, 140)
-        assert np.asarray(mask).max() == 0
+    def test_a_pause_between_two_words_shows_only_the_zero_line(self):
+        image = banner_mod.render_banner(400, 76)
+        word, pause = (banner_mod.WORDS[1][0] + banner_mod.WORDS[1][1]) / 2, banner_mod.WORDS[0][1] + 0.025
+        assert self.deviation(image, int(word * 400) - 3, int(word * 400) + 3) > 2 * self.deviation(
+            image, int(pause * 400) - 2, int(pause * 400) + 2
+        )
 
-    def test_a_longer_phrase_has_more_swells_not_a_denser_line(self):
-        short = np.asarray(banner_mod._ink_wave(600, 76, 1.0, 100, 250))
-        long = np.asarray(banner_mod._ink_wave(600, 76, 1.0, 100, 500))
-        assert short.any() and long.any()
+    def test_the_swings_are_symmetric_around_the_middle(self):
+        image = np.asarray(banner_mod.render_banner(400, 76), np.float32)
+        paper = np.array([int(uk.Theme.WINDOW_BG[i : i + 2], 16) for i in (1, 3, 5)], np.float32)
+        ink = np.abs(image - paper).sum(axis=2).sum(axis=1)
+        upper, lower = ink[: 76 // 2].sum(), ink[76 // 2 + 1 :].sum()
+        assert abs(upper - lower) / max(upper, lower) < 0.2
 
-    def test_free_areas_are_part_of_the_cache_key(self, root):
-        a = uk.banner_image(300, 76, clear_left=50, clear_right=250)
-        b = uk.banner_image(300, 76, clear_left=120, clear_right=250)
-        assert a is not b
-        assert uk.banner_image(300, 76, clear_left=50, clear_right=250) is a
+    def test_too_short_a_stretch_is_plain_paper(self):
+        image = banner_mod.render_banner(40, 76)
+        assert self.deviation(image, 0, 40) == 0
+
+    def test_the_width_comes_in_steps_and_is_capped(self):
+        step = banner_mod.STEP
+        assert banner_mod.track_width(banner_mod.MIN_LINE - 1, 1.0) == 0
+        assert banner_mod.track_width(10 * step + 5, 1.0) == 10 * step
+        assert banner_mod.track_width(10 * step + 5, 1.0) == banner_mod.track_width(10 * step + 1, 1.0)
+        assert banner_mod.track_width(5000, 1.0) <= banner_mod.MAX_LINE
+        assert banner_mod.track_width(10 * 2 * step + 7, 2.0) == 10 * 2 * step
+
+    def test_the_tk_image_is_cached_per_size(self, root):
+        a = uk.banner_image(160, 76)
+        assert uk.banner_image(160, 76) is a
+        assert uk.banner_image(176, 76) is not a
+
+
+class TestStageTrack:
+    def test_the_track_stands_against_the_cross_inside_the_free_stretch(self, window, root, monkeypatch):
+        monkeypatch.setattr(uk, "system_frame", lambda: False)
+        window.geometry("480x200")
+        stage = Stage(window, "Einstellungen", lambda: None, close_tooltip="x")
+        stage.pack(fill="x")
+        root.update()
+        left, right = stage.free_areas(stage.winfo_width())
+        x0, _y0, x1, _y1 = stage.bbox("track")
+        assert x1 == right and x0 >= left
+        stage.destroy()
+
+    def test_a_small_resize_moves_the_track_without_a_new_picture(self, window, root, monkeypatch):
+        monkeypatch.setattr(uk, "system_frame", lambda: False)
+        window.geometry("480x200")
+        stage = Stage(window, "Einstellungen", lambda: None, close_tooltip="x")
+        stage.pack(fill="x")
+        root.update()
+        before = stage.itemcget("track", "image")
+        left, right = stage.free_areas(stage.winfo_width())
+        step = round(banner_mod.STEP * uk.Scale.factor)
+        delta = 1 if (right - left) % step < step - 1 else -1  # stay inside the same step
+        window.geometry(f"{480 + delta}x200")
+        root.update()
+        assert stage.itemcget("track", "image") == before
+        assert stage.bbox("track")[2] == stage.free_areas(stage.winfo_width())[1], "moved with the cross"
+        assert stage.coords("close")[0] == stage.winfo_width() - uk.px(uk.Space.WINDOW)
+        stage.destroy()
 
 
 # ---------------------------------------------------------------- the assistant
@@ -399,11 +467,26 @@ class TestAssistant:
     def test_lines_mark_content_beyond_the_edges(self, wizard, live_app):
         wizard.win.geometry(f"{uk.px(wizard.WIDTH)}x{uk.px(360)}")
         live_app.root.update()
-        wizard._update_edges()
         if wizard.scroll.scrollable == 0:
             pytest.skip("the page fits even at this height")
-        assert wizard._bottom_line.cget("bg") == uk.Theme.HAIRLINE
-        assert wizard._top_line.cget("bg") == uk.Theme.WINDOW_BG
+        assert wizard.scroll.bottom_edge.cget("bg") == uk.Theme.HAIRLINE
+        assert wizard.scroll.top_edge.cget("bg") == uk.Theme.WINDOW_BG
         wizard.scroll.scroll_to(wizard.scroll.scrollable)
-        assert wizard._top_line.cget("bg") == uk.Theme.HAIRLINE
-        assert wizard._bottom_line.cget("bg") == uk.Theme.WINDOW_BG
+        assert wizard.scroll.top_edge.cget("bg") == uk.Theme.HAIRLINE
+        assert wizard.scroll.bottom_edge.cget("bg") == uk.Theme.WINDOW_BG
+
+    def test_every_page_fits_its_window(self, wizard, live_app):
+        """At its own size the assistant shows every page whole: nothing cut in the middle of a line."""
+        for index in range(wizard.controller.count):
+            wizard.controller.index = index
+            wizard.show_page()
+            live_app.root.update()
+            assert wizard.scroll.scrollable == 0, f"page {wizard.controller.page} does not fit"
+
+    def test_it_can_be_resized_and_the_text_follows(self, wizard, live_app):
+        assert wizard.chrome is None or wizard.chrome.resizable
+        before = wizard._text_width()
+        wizard.win.geometry(f"{uk.px(wizard.WIDTH + 80)}x{uk.px(wizard.HEIGHT)}")
+        live_app.root.update()
+        assert wizard._text_width() > before
+        assert all(int(label.cget("wraplength")) == wizard._text_width() for label in wizard._paragraphs)

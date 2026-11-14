@@ -48,16 +48,26 @@ class TestSet:
             uk.render_icon("zahnrad", 16, INK)
 
     def test_settings_is_a_gear(self):
-        """Ein Zahnrad: Tinte in allen acht Zahnrichtungen, die Mitte (zwischen Nabe und Ring) frei."""
+        """A gear, not a sun: six broad teeth with gaps between them, a hole in the middle with air around it."""
         import math
+
+        from hams.ui_kit.icons import GEAR_HOLE, GEAR_ROOT, GEAR_TEETH, GEAR_TIP
 
         image = uk.render_icon("settings", 64, INK)
         alpha = alpha_channel(image)
-        for tooth in range(8):
-            angle = tooth * math.pi / 4
-            x, y = 32 + math.cos(angle) * 21, 32 + math.sin(angle) * 21
-            assert alpha.getpixel((int(x), int(y))) > 100, f"kein Zahn bei {tooth * 45} Grad"
-        assert alpha.getpixel((32 + 7, 32)) < 128, "zwischen Nabe und Ring ist Luft"
+        unit = 64 / 16
+        period = 2 * math.pi / GEAR_TEETH
+
+        def ink(angle, radius):
+            return alpha.getpixel((int(32 + math.cos(angle) * radius), int(32 + math.sin(angle) * radius)))
+
+        for tooth in range(GEAR_TEETH):
+            middle = -math.pi / 2 + tooth * period
+            assert ink(middle, GEAR_TIP * unit) > 100, f"no tooth at {math.degrees(middle):.0f} degrees"
+            assert ink(middle + period / 2, GEAR_TIP * unit) < 60, "a gap between two teeth"
+            assert ink(middle + period / 2, GEAR_ROOT * unit) > 100, "the root circle closes the gap"
+        assert ink(0.3, GEAR_HOLE * unit) > 100, "the hole has an ink ring"
+        assert ink(0.3, (GEAR_HOLE + GEAR_ROOT) / 2 * unit) < 60, "air between hole and teeth"
 
 
 class TestGrid:
@@ -86,11 +96,11 @@ class TestGrid:
 class TestStroke:
     @pytest.mark.parametrize("size,expected", [(16, 1.8), (32, 3.6), (48, 5.4)])
     def test_line_thickness_scales_with_size(self, size, expected):
-        """Senkrechter Schnitt durch den Zahnradring, mitten zwischen zwei Zaehnen."""
+        """Vertical cut through the ring around the hole of the gear, above its middle."""
         image = uk.render_icon("settings", size, INK)
         alpha = alpha_channel(image)
-        x = int(size * 6.5 / 16)  # schneidet den Ring oben zwischen zwei Zaehnen, nicht die Nabe
-        column = [alpha.getpixel((x, y)) for y in range(int(size * 0.4))]
+        x = size // 2
+        column = [alpha.getpixel((x, y)) for y in range(int(size * 0.25), size // 2)]
         runs, current = [], 0
         for value in column:
             if value > 100:

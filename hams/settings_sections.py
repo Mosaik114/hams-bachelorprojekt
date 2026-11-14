@@ -65,7 +65,7 @@ def group(master: tk.Misc, title: str, *, first: bool = False) -> uk.GroupSurfac
     the right the group ends one scroll gutter earlier, so both window margins are equally wide.
     """
     text_x = uk.Space.GROUP_INSET + uk.Space.ROW_X
-    right = uk.Space.WINDOW - uk.ScrollArea.gutter_width()
+    right = uk.Space.WINDOW - uk.ScrollArea.gutter_width() - uk.ScrollArea.EDGE_GAP
     top = uk.Space.MD if first else uk.Space.SECTION_GAP
     uk.SectionHeader(master, title, bg_under=Theme.WINDOW_BG).pack(
         fill="x", padx=(uk.px(text_x), uk.px(right)), pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP))

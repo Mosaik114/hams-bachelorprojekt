@@ -39,6 +39,7 @@ MESSAGES: dict[str, str] = {
     "status.copied_from_history": "Aus Verlauf kopiert",
     "status.setup_pending": "Einrichtung abschließen, um ein Sprachmodell herunterzuladen",
     "status.no_signal": "Kein Mikrofonsignal",
+    "status.error": "Fehler – Details im Log",
     "status.no_recording": "Keine Aufnahme erkannt",
     "status.no_speech": "Keine Sprache erkannt",
     "status.model_still_loading": "Modell wird noch geladen …",

@@ -268,19 +268,15 @@ class SettingsWindow:
         self._stage = head
         self._close_btn = head.close_button
 
-        # One topic at a time: a slim row of tab stones, each as wide as its word, wrapping when narrow.
-        self._tabs = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=1)
-        self._tabs.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(0, uk.px(uk.Space.MD)))
-        self._tabs.bind("<Configure>", lambda _e: self._lay_out_tabs(), add="+")
-        self._tab_buttons: list[uk.SecondaryButton] = []
-        self._tab_places: list[tuple[int, int]] = []
-
-        # The hairline appears only when content scrolls away below it.
-        self._head_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
-        self._head_line.pack(fill="x")
-
-        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, on_scroll=self._on_scroll)
-        self.scroll.pack(fill="both", expand=True, padx=(uk.px(uk.Space.WINDOW), 0), pady=(0, uk.px(uk.Space.WINDOW)))
+        # Hairlines at both ends of the scroll area, shown while content lies beyond them. The bar keeps a small
+        # distance from the window edge: there the edge grip for resizing would cover most of its gutter.
+        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, on_scroll=self._on_scroll, edges=True)
+        self.scroll.pack(
+            fill="both",
+            expand=True,
+            padx=(uk.px(uk.Space.WINDOW), uk.px(uk.ScrollArea.EDGE_GAP)),
+            pady=(0, uk.px(uk.Space.WINDOW)),
+        )
         self.scroll.bind_keys(self.win)
 
         body = self.scroll.body
@@ -300,15 +296,12 @@ class SettingsWindow:
             self.general,
             self.about,
         ]
-        for index, (title, _widgets) in enumerate(self._pages):
-            button = uk.SecondaryButton(
-                self._tabs,
-                title,
-                lambda i=index: self.select_page(i),
-                bg_under=Theme.WINDOW_BG,
-                height=uk.Height.STANDARD,
-            )
-            self._tab_buttons.append(button)
+        # One topic at a time: a row of tabs, each as wide as its word, wrapping when narrow.
+        self._tabs = uk.TabBar(
+            self.win, [title for title, _widgets in self._pages], self.select_page, bg_under=Theme.WINDOW_BG
+        )
+        self._tabs.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(0, uk.px(uk.Space.MD)), before=self.scroll)
+        self._tab_buttons = self._tabs.buttons
         self.page = -1
         self.select_page(0)
 
@@ -347,8 +340,7 @@ class SettingsWindow:
             first = False
             options = {key: value for key, value in info.items() if key != "in"}
             widget.pack(**options)
-        for number, button in enumerate(self._tab_buttons):
-            button.set_role("primary" if number == index else "secondary")
+        self._tabs.show(index)
         self.win.after_idle(self._render_shown_page)
         self.scroll.scroll_to(0)
         self._on_scroll(0)
@@ -429,37 +421,9 @@ class SettingsWindow:
         self._warm_queue = []
         self._unplace_warm()
 
-    def _lay_out_tabs(self) -> None:
-        """Places the tab stones left to right at their natural width; a stone that does not fit starts a new row.
-
-        Nothing is stretched: a tab is as wide as its word. The rows only change when the window width does.
-        """
-        try:
-            width = self._tabs.winfo_width()
-        except tk.TclError:  # pragma: no cover - the window is going away
-            return
-        if width <= 1 or not self._tab_buttons:
-            return
-        gap = uk.px(uk.Space.SM)
-        x = y = 0
-        row_height = max(button.winfo_reqheight() for button in self._tab_buttons)
-        places = []
-        for button in self._tab_buttons:
-            wide = button.winfo_reqwidth()
-            if x > 0 and x + wide > width:
-                x, y = 0, y + row_height + gap
-            places.append((x, y))
-            x += wide + gap
-        if places == self._tab_places:
-            return
-        self._tab_places = places
-        for button, (left, top) in zip(self._tab_buttons, places, strict=True):
-            button.place(x=left, y=top)
-        self._tabs.configure(height=y + row_height)
-
-    def _on_scroll(self, offset: int) -> None:
-        """The line appears only when something lies under it."""
-        self._head_line.configure(bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
+    def _on_scroll(self, _offset: int) -> None:
+        """The hairlines at both ends follow the scroll area itself (`ScrollArea(edges=True)`)."""
+        self.scroll._update_edges()
 
 
 def _render_stale(widget: tk.Misc) -> None:

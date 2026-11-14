@@ -1,21 +1,19 @@
-"""The painted stage at the top of the settings: a quiet watercolour wash with one ink line like a spoken phrase.
+"""The painted stage at the top of the settings: the sound track of a spoken phrase in ink and watercolour.
 
-Tusche und Aquarell (Loratu), kept deliberately calm for a work tool: no sun, no hills, no figure. The wash is
-the accent colour at low strength, laid in two soft bands with the fibres of the paper; the ink line is a
-voice-like wave that swells and fades. Everything fades into the window background at the bottom, so the stage
-has no hard edge against the content below.
+Tusche und Aquarell (Loratu), kept calm for a work tool. Hams turns speech into text, so the head shows what a
+voice looks like on a track: words of a few syllables, each a dense bundle of swings that rise and fall, short
+pauses between the words, all symmetric around a thin zero line. A soft turquoise wash follows the loudness like
+wet paint around the line. Both ends fade into the paper, so the picture has no edge against title or cross.
 
-The stage keeps its free areas: wash and line stay between `clear_left` (the end of mark and title) and
-`clear_right` (the start of the close button), so at any window width nothing touches the title or the cross.
-The line is a calm spoken phrase - a few soft swells of different height - not a pulse.
+The picture covers only the stretch between title and cross (`Stage` places it there, against the cross). Its
+width comes in steps (`STEP`): while a window is resized, the stage only moves the picture and paints a new one
+when the free stretch crosses a step, never for every pixel.
 
 `render_banner` is pure PIL/numpy and deterministic (fixed seeds), so the same size always gives the same image;
-`banner_image` caches the Tk image per size, free areas, mode and DPI.
+`banner_image` caches the Tk image per size, mode and DPI.
 """
 
 from __future__ import annotations
-
-import math
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageTk
@@ -24,11 +22,22 @@ from hams.ui_kit.caches import _img_cache
 from hams.ui_kit.scale import Scale
 from hams.ui_kit.theme import Theme
 
-#: Strength of the wash (share of the accent colour) at its deepest point. Small on purpose.
-WASH = 0.14
-#: Opacity of the ink line.
-INK_LINE = 0.45
-SUPERSAMPLE = 3
+#: Opacity of the ink line at its strongest.
+INK_LINE = 0.62
+#: Strength of the wash (share of the accent colour) inside the loudest syllable. Small on purpose.
+WASH = 0.20
+#: Shortest stretch (logical pixels) worth a track; below it the stage stays plain paper.
+MIN_LINE = 64
+#: Longest stretch (logical pixels): a wide window keeps one short phrase near the cross.
+MAX_LINE = 300
+#: The picture's width comes in steps of this many logical pixels (see the module text).
+STEP = 16
+#: One swing of the voice, in logical pixels: the same density at every width.
+PERIOD = 3.4
+SUPERSAMPLE = 4
+
+#: The phrase: words as (start, end) in 0..1 of the stretch, with pauses between them.
+WORDS = ((0.02, 0.24), (0.29, 0.55), (0.60, 0.70), (0.75, 0.98))
 
 
 def _rgb(value: str) -> np.ndarray:
@@ -36,128 +45,107 @@ def _rgb(value: str) -> np.ndarray:
     return np.array([int(value[i : i + 2], 16) for i in (0, 2, 4)], np.float32)
 
 
-def _smooth_noise(width: int, height: int, cells: tuple[int, int], seed: int, blur: float) -> np.ndarray:
-    """Low-frequency noise 0..1, the same for the same arguments."""
+def speech_envelope(samples: int, seed: int = 11) -> np.ndarray:
+    """Loudness 0..1 over `samples` points: syllables of different stress inside words, silence in the pauses."""
     rng = np.random.default_rng(seed)
-    small = Image.fromarray((rng.random((cells[1], cells[0])) * 255).astype(np.uint8), "L")
-    big = small.resize((width, height), Image.BICUBIC)
-    if blur > 0:
-        big = big.filter(ImageFilter.GaussianBlur(blur))
-    return np.asarray(big, np.float32) / 255
+    u = np.linspace(0, 1, samples)
+    envelope = np.zeros(samples)
+    for start, end in WORDS:
+        syllables = max(2, round((end - start) / 0.07))
+        edges = np.linspace(start, end, syllables + 1)
+        for left, right in zip(edges[:-1], edges[1:], strict=True):
+            stress = 0.45 + 0.55 * rng.random()
+            t = np.clip((u - left) / (right - left), 0, 1)
+            bump = np.sin(np.pi * t) ** 1.6 * stress
+            envelope = np.maximum(envelope, np.where((u >= left) & (u <= right), bump, 0.0))
+    # the phrase carries most in its middle
+    return envelope * (0.55 + 0.45 * np.sin(np.pi * u) ** 0.7)
 
 
-def _smoothstep(edge0: float, edge1: float, x: np.ndarray) -> np.ndarray:
-    t = np.clip((x - edge0) / (edge1 - edge0), 0, 1)
-    return t * t * (3 - 2 * t)
+def _fade(width: int, height: int) -> np.ndarray:
+    """1 inside, 0 at both ends: a long soft start on the left (towards the title), a short one at the cross."""
+    xs = np.linspace(0, 1, width, dtype=np.float32)[None, :]
+    left = np.clip(xs / 0.18, 0, 1)
+    right = np.clip((1 - xs) / 0.06, 0, 1)
+    fade = (left * left * (3 - 2 * left)) * (right * right * (3 - 2 * right))
+    return np.repeat(fade, height, 0)
 
 
-def _band(width: int, height: int, top: float, amplitude: float, phase: float, soft: float) -> np.ndarray:
-    """A soft watercolour band below a gentle curve (0..1), its edge frayed by noise."""
-    xs = np.linspace(0, 1, width, dtype=np.float32)
-    curve = top + amplitude * np.sin(xs * math.pi * 1.6 + phase) + amplitude * 0.4 * np.sin(xs * math.pi * 3.7 + phase)
-    ys = np.arange(height, dtype=np.float32)[:, None] / max(1, height)
-    fray = (_smooth_noise(width, height, (max(4, width // 18), 4), 7 + int(phase * 10), 1.0) - 0.5) * 0.06
-    return np.clip((ys - curve[None, :] + fray) / soft + 0.5, 0, 1)
-
-
-#: Length of one swell of the spoken line, in logical pixels: the phrase gets more swells when it is longer,
-#: never a denser zigzag.
-SWELL = 46
-#: Shortest stretch (logical pixels) the line is drawn on; below it the stage stays plain paper.
-MIN_LINE = 64
-#: Longest stretch (logical pixels): a wide window keeps one short phrase.
-MAX_LINE = 240
-
-
-def _ink_wave(width: int, height: int, scale: float, start: float, end: float) -> Image.Image:
-    """The ink line as an alpha mask: a phrase of speech from `start` to `end` (pixels) that swells and fades."""
+def _voice_line(width: int, height: int, scale: float, envelope: np.ndarray) -> np.ndarray:
+    """The ink line as alpha 0..1: fast swings inside the loudness, each swing a little different."""
     s = SUPERSAMPLE
-    mask = Image.new("L", (width * s, height * s), 0)
-    if end - start < MIN_LINE * scale:
-        return mask.resize((width, height))
-    draw = ImageDraw.Draw(mask)
-    mid_y = 0.60 * height
-    swells = max(2, round((end - start) / (SWELL * scale)))
-    points = []
-    steps = 360
-    for i in range(steps + 1):
-        u = i / steps
-        x = start + (end - start) * u
-        envelope = math.sin(math.pi * u) ** 1.2  # rises, carries, fades
-        # syllables: a slow carrier whose swells differ in height, like stressed and unstressed syllables
-        stress = 0.65 + 0.35 * math.sin(u * 2 * math.pi * 1.3 + 0.4)
-        wave = math.sin(u * math.pi * swells) * stress  # one swell per half wave, alternately up and down
-        y = mid_y - envelope * wave * 0.20 * height
-        points.append((x * s, y * s))
-    line = max(1, round(1.6 * scale * s))
-    draw.line(points, fill=255, width=line, joint="curve")
-    for x, y in (points[0], points[-1]):  # round ends, like a brush lifted
-        r = line / 2
-        draw.ellipse((x - r, y - r, x + r, y + r), fill=255)
-    return mask.resize((width, height), Image.LANCZOS)
+    big_w, big_h = width * s, height * s
+    middle, reach = 0.5 * big_h, 0.30 * big_h
+    xs = np.arange(big_w, dtype=np.float64)
+    period = PERIOD * scale * s
+    knots = np.arange(0, big_w + period, period / 2)
+    jitter = np.interp(xs, knots, 0.55 + 0.45 * np.random.default_rng(5).random(len(knots)))
+    loud = np.interp(xs, np.linspace(0, big_w - 1, len(envelope)), envelope)
+    ys = middle - loud * reach * jitter * np.sin(2 * np.pi * xs / period)
+    mask = Image.new("L", (big_w, big_h), 0)
+    ImageDraw.Draw(mask).line(
+        list(zip(xs.tolist(), ys.tolist(), strict=True)), fill=255, width=max(1, round(1.0 * scale * s)), joint="curve"
+    )
+    return np.asarray(mask.resize((width, height), Image.LANCZOS), np.float32) / 255
 
 
-def render_banner(
-    width: int,
-    height: int,
-    *,
-    scale: float = 1.0,
-    clear_left: int | None = None,
-    clear_right: int | None = None,
-) -> Image.Image:
-    """The stage in the current palette, `width` x `height` physical pixels, as RGB.
+def _wash(width: int, height: int, scale: float, envelope: np.ndarray) -> np.ndarray:
+    """The watercolour around the line as alpha 0..1: the loudness mirrored, softened, with paper fibres in it."""
+    xs = np.linspace(0, len(envelope) - 1, width)
+    loud = np.interp(xs, np.arange(len(envelope)), envelope)
+    rows = np.abs(np.linspace(-1, 1, height, dtype=np.float32))[:, None]
+    body = (rows <= 0.66 * loud[None, :]).astype(np.float32)
+    soft = Image.fromarray((body * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.6 * scale))
+    body = np.asarray(soft, np.float32) / 255
+    cells = np.random.default_rng(9).random((max(2, height // 6), max(2, width // 5)))
+    fibres = Image.fromarray((cells * 255).astype(np.uint8)).resize((width, height), Image.BICUBIC)
+    body *= 0.75 + 0.5 * np.asarray(fibres, np.float32) / 255
+    # a faint glow that reaches further than the body, like paint that ran into wet paper
+    glow = np.clip(1 - (rows / np.maximum(0.15 + 0.85 * loud[None, :], 1e-3)) ** 2, 0, 1)
+    glow = np.asarray(Image.fromarray((glow * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(height * 0.06)))
+    return body * WASH + np.asarray(glow, np.float32) / 255 * 0.07
 
-    `clear_left`/`clear_right` (pixels) bound the painted part; without them it takes 30-93 % of the width.
+
+def render_banner(width: int, height: int, *, scale: float = 1.0) -> Image.Image:
+    """The track in the current palette, `width` x `height` physical pixels, as RGB on the window paper.
+
+    The whole image is the stretch between title and cross; both ends fade into the paper. Below `MIN_LINE` it is
+    plain paper.
     """
     width, height = max(1, int(width)), max(1, int(height))
-    left = 0.30 * width if clear_left is None else float(clear_left)
-    right = 0.93 * width if clear_right is None else float(clear_right)
-    right = max(left, min(float(width), right))
     paper = _rgb(Theme.WINDOW_BG)
-    wash = _rgb(Theme.ACCENT_TINT)
-    deep = _rgb(Theme.ACCENT_SURFACE)
     image = np.empty((height, width, 3), np.float32)
     image[:] = paper
-
-    xs = np.linspace(0, 1, width, dtype=np.float32)[None, :]
-    ys = np.linspace(0, 1, height, dtype=np.float32)[:, None]
-    # a light wash that gathers towards the upper right, with the fibres of the paper in it
-    gather = np.clip(0.35 + 0.65 * xs - 0.35 * ys, 0, 1)
-    blotch = 0.75 + 0.5 * _smooth_noise(width, height, (7, 3), 21, 2.0)
-    fibres = 0.9 + 0.2 * _smooth_noise(width, height, (max(8, width // 6), max(3, height // 10)), 5, 0.6)
-    strength = WASH * 0.55 * gather * blotch * fibres
-    # two soft bands at the bottom, like a wet edge that dried
-    strength += WASH * 0.55 * _band(width, height, 0.55, 0.08, 0.6, 0.30) * blotch
-    strength += WASH * 0.45 * _band(width, height, 0.74, 0.06, 2.1, 0.22) * (0.8 + 0.4 * fibres - 0.2)
-    # fades out into the window below, and to plain paper where title and cross stand: no hard edges
-    strength *= np.clip((1.0 - ys) / 0.35, 0, 1) ** 0.8
-    # soft ramps at both free areas, never wider than half the painted stretch
-    span = max(1.0, right - left) / width
-    ramp_in, ramp_out = min(0.20, span / 2), min(0.09, span / 2)
-    lo, hi = left / width, right / width
-    strength *= _smoothstep(lo, lo + ramp_in, xs) * (1.0 - _smoothstep(hi - ramp_out, hi, xs))
-    tint = wash * 0.6 + deep * 0.4
-    image = image * (1 - strength[..., None]) + tint * strength[..., None]
-
-    line_end = right - 0.06 * (right - left)
-    # one short phrase near the cross, however wide the window: a long line would read as a recording
-    line_start = max(left + 0.12 * (right - left), line_end - MAX_LINE * scale)
-    ink = np.asarray(_ink_wave(width, height, scale, line_start, line_end), np.float32)[..., None] / 255
-    ink *= INK_LINE * np.clip((1.0 - ys[..., None]) / 0.25, 0, 1)
-    image = image * (1 - ink) + wash * ink
-
-    grain = np.random.default_rng(3).normal(0, 1.4, (height, width, 1)).astype(np.float32)
-    image = np.clip(image + grain, 0, 255).astype(np.uint8)
-    return Image.fromarray(image, "RGB")
+    if width >= MIN_LINE * scale:
+        envelope = speech_envelope(max(64, width * 2))
+        fade = _fade(width, height)
+        tint = _rgb(Theme.ACCENT_TINT)
+        wash_colour = tint * 0.6 + _rgb(Theme.ACCENT_SURFACE) * 0.4
+        wash = np.clip(_wash(width, height, scale, envelope), 0, 1) * fade
+        image = image * (1 - wash[..., None]) + wash_colour * wash[..., None]
+        # the thin zero line of the track, in the pauses too
+        line = _voice_line(width, height, scale, envelope)
+        zero = np.zeros((height, width), np.float32)
+        zero[height // 2, :] = 0.28
+        ink = np.maximum(line, zero) * INK_LINE * fade
+        image = image * (1 - ink[..., None]) + tint * ink[..., None]
+    return Image.fromarray(np.clip(image, 0, 255).astype(np.uint8), "RGB")
 
 
-def banner_image(
-    width: int, height: int, *, clear_left: int | None = None, clear_right: int | None = None
-) -> ImageTk.PhotoImage:
-    """`render_banner` as a cached Tk image (per size, free areas, colour mode and DPI)."""
-    key = ("banner", int(width), int(height), clear_left, clear_right, Theme.mode, Theme.WINDOW_BG, Scale.factor)
+def track_width(stretch: int, scale: float) -> int:
+    """How wide the picture is for a free stretch of `stretch` pixels: capped and in steps, 0 when too short."""
+    stretch = min(int(stretch), int(MAX_LINE * scale))
+    if stretch < MIN_LINE * scale:
+        return 0
+    step = max(1, round(STEP * scale))
+    return stretch - stretch % step
+
+
+def banner_image(width: int, height: int) -> ImageTk.PhotoImage:
+    """`render_banner` as a cached Tk image (per size, colour mode and DPI)."""
+    key = ("banner", int(width), int(height), Theme.mode, Theme.WINDOW_BG, Scale.factor)
     cached = _img_cache.fetch(key)
     if cached is not None:
         return cached
-    image = render_banner(width, height, scale=Scale.factor, clear_left=clear_left, clear_right=clear_right)
+    image = render_banner(width, height, scale=Scale.factor)
     return _img_cache.store(key, ImageTk.PhotoImage(image))

@@ -172,12 +172,13 @@ SEMIBOLD_FAMILIES = ("Segoe UI Variable Text Semibold", "Segoe UI Semibold")
 
 # Rolle -> (Familienschlüssel, Punktgröße, Schnitt). Die Schlüssel werden beim
 # Initialisieren gegen die tatsächlich installierten Familien aufgelöst.
-# Mosaik-Design: vier Größen (16, 13, 12, 11 pt). Überschriften tragen die
-# Serifenschrift, Schaltflächen den halbfetten Schnitt; fett ist nichts.
+# Vier Größen (16, 13, 12, 11 pt). Überschriften und Knöpfe in der runden Schrift (fett), Zeilentitel
+# halbfett, Fließtext normal.
 _FONT_ROLES: dict[str, tuple] = {
     # Tusche und Aquarell (Loratu): Überschriften und Knöpfe in einer runden, kräftigen Schrift.
     "window_title": ("rounded", 16, "bold"),  # Fenstertitel
     "section": ("rounded", 13, "bold"),  # Abschnittsueberschrift in den Einstellungen
+    "page_title": ("rounded", 16, "bold"),  # Überschrift einer Seite im Assistenten (wie der Fenstertitel)
     "row_title": ("semibold", 12, "normal"),  # Titel einer Einstellungszeile
     "description": ("small", 11, "normal"),  # Hilfstext unter einem Titel
     "status": ("text", 12, "normal"),  # die eine Statuszeile

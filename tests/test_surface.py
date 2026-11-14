@@ -220,9 +220,6 @@ class TestStretchedTemplate:
     STYLES = [
         pytest.param({"squircle": True, "border": "#E5E5E5", "border_w": 1}, id="group"),
         pytest.param({"border": "#333333", "border_w": 2}, id="border"),
-        pytest.param(
-            {"ring": "#0A786E", "ring_width": 2, "ring_gap": 1, "border": "#DDDDDD", "border_w": 1}, id="ring"
-        ),
         pytest.param({"edge": "#FFFFFF"}, id="edge"),
         pytest.param({"gradient": 0.04, "dither": False, "squircle": True}, id="gradient"),
     ]
