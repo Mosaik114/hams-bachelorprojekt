@@ -76,9 +76,12 @@ from hams.ui_kit.theme import (
     apply_theme_tree,
 )
 from hams.ui_kit.window import (
+    ContentFreeze,
     WindowChrome,
     bring_to_front,
+    clear_layered,
     frame_window,
+    is_layered,
     round_window_corners,
     system_frame,
 )
@@ -115,9 +118,12 @@ __all__ = [
     "Space",
     "Theme",
     "apply_theme_tree",
+    "ContentFreeze",
     "WindowChrome",
     "bring_to_front",
+    "clear_layered",
     "frame_window",
+    "is_layered",
     "round_window_corners",
     "system_frame",
 ]

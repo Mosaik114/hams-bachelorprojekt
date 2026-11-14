@@ -124,6 +124,7 @@ class TestSettingsTabs:
         assert headers and not headers[0].winfo_ismapped()
 
     def test_hidden_pages_do_not_draw_until_shown(self, settings, live_app):
+        settings._stop_warming()  # the ahead layout draws hidden pages on purpose (test_windows_phase5)
         _title, widgets = settings._pages[1]
         assert all(getattr(widget, "hidden_page", False) for widget, _ in widgets)
         select = settings.transcription.model_select
@@ -148,11 +149,11 @@ class TestSettingsTabs:
         assert all(b.winfo_x() + b.winfo_width() <= right for b in settings._tab_buttons), "nothing sticks out"
 
     def test_the_stage_follows_the_colour_mode(self, settings, live_app):
-        before = settings._stage_image
+        before = settings._stage._images[0]
         uk.Theme.apply("dark")
         try:
             settings._repaint()
-            assert settings._stage_image is not before
+            assert settings._stage._images[0] is not before
         finally:
             uk.Theme.apply("light")
             settings._repaint()

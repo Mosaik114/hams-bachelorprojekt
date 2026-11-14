@@ -108,6 +108,43 @@ def round_window_corners(root: tk.Misc, radius: int = Radius.WINDOW) -> str:
         return "keine"  # Rundung ist kosmetisch — nie den Start blockieren
 
 
+_GWL_EXSTYLE = -20
+_WS_EX_LAYERED = 0x00080000
+
+
+def clear_layered(win: tk.Misc) -> bool:
+    """Nimmt `WS_EX_LAYERED` vom Fenster, wenn es keine Transparenz mehr braucht. True, wenn es gesetzt war.
+
+    Tk setzt den Stil für `-alpha` unter 1, nimmt ihn bei 1.0 aber nicht wieder weg. Ein Layered Window lässt
+    Windows bei jeder Größenänderung die ganze Fläche neu zusammensetzen; nach dem unsichtbaren Vorab-Aufbau
+    der Einstellungen blieb das Fenster so für immer teurer als nötig.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        if float(win.attributes("-alpha")) < 1.0:
+            return False
+        hwnd = _window_handle(win)
+        user32 = ctypes.windll.user32
+        style = int(user32.GetWindowLongW(hwnd, _GWL_EXSTYLE))
+        if not style & _WS_EX_LAYERED:
+            return False
+        user32.SetWindowLongW(hwnd, _GWL_EXSTYLE, style & ~_WS_EX_LAYERED)
+        return True
+    except (AttributeError, OSError, tk.TclError, ValueError):
+        return False
+
+
+def is_layered(win: tk.Misc) -> bool:
+    """Ob das Fenster gerade `WS_EX_LAYERED` trägt (nur Windows)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        return bool(ctypes.windll.user32.GetWindowLongW(_window_handle(win), _GWL_EXSTYLE) & _WS_EX_LAYERED)
+    except (AttributeError, OSError, tk.TclError):
+        return False
+
+
 # --- Fensterrahmen -----------------------------------------------------------
 #
 # Windows: randlos und immer oben, der Rahmen ist Teil des eigenen Designs.
@@ -157,6 +194,10 @@ def system_frame() -> bool:
 # Fenster eine Regel: freie Fläche (Fensterhintergrund, kein Bedienelement) verschiebt das Fenster; ein Rand von
 # `WindowChrome.EDGE` Pixeln ändert die Größe, wenn das Fenster das erlaubt.
 #
+# Größe ändern friert den Inhalt ein (`ContentFreeze`): Tk legte sonst bei jedem Zugschritt alle rund 225
+# Einzelfenster neu aus, 60–95 ms je Schritt. Eingefroren wächst nur das Fenster selbst, der Inhalt behält seine
+# Lage, und beim Loslassen wird einmal ausgelegt.
+#
 # Bewusst *nicht* über die Verschiebeschleife von Windows (WM_NCLBUTTONDOWN mit HTCAPTION): aus einem
 # Tk-Ereignis heraus gestartet, liess sie Hams mitten im Ziehen abstuerzen (0xC0000409 in ucrtbase, 14.11.2026).
 # Tk bewegt das Fenster selbst, eine Lage je Leerlauf.
@@ -194,6 +235,96 @@ def is_free_area(widget: tk.Misc) -> bool:
         return False
 
 
+class ContentFreeze:
+    """Hält den Inhalt eines Fensters in seiner Lage fest, solange das Fenster die Größe ändert.
+
+    Jedes direkte Kind, das `pack` oder `grid` gehört, wird mit seiner jetzigen Lage und Größe an `place`
+    übergeben. Ein so platziertes Kind folgt der Fenstergröße nicht mehr: Tk muss beim Ziehen nichts darin neu
+    auslegen und nichts neu zeichnen. `thaw()` gibt alle Kinder in ihrer alten Reihenfolge und mit ihren alten
+    Optionen an ihren Geometriemanager zurück, das Fenster legt danach genau einmal aus.
+
+    Die frei werdende Fläche am wachsenden Rand zeigt den Fenstergrund (Papier), wie bei vielen Windows-Programmen.
+
+    Unter Windows reicht das Festhalten allein nicht: die Fensterklassen von Tk tragen `CS_HREDRAW | CS_VREDRAW`,
+    und damit erklärt Windows bei jeder Größenänderung das *ganze* Fenster samt aller Kindfenster für ungültig —
+    gemessen 40–60 Neuzeichnungen je Zugschritt, 13–29 ms. Für die Dauer des Ziehens nimmt `freeze` die beiden
+    Bits von den Klassen des Fensters (Rahmen und Tk-Inneres), `thaw` setzt sie zurück: dann wird nur die neu
+    aufgedeckte Fläche gemalt (gemessen 2 ms je Schritt).
+    """
+
+    #: CS_VREDRAW | CS_HREDRAW
+    _REDRAW_BITS = 0x0003
+    _GCL_STYLE = -26
+
+    def __init__(self, win: tk.Misc) -> None:
+        self.win = win
+        #: (Kind, Manager, Optionen) in der Reihenfolge, in der der Manager sie führt.
+        self._frozen: list[tuple[tk.Misc, str, dict]] = []
+        #: Fenstergriffe mit ihrem ursprünglichen Klassenstil, solange er geändert ist.
+        self._class_styles: list[tuple[int, int]] = []
+
+    @property
+    def active(self) -> bool:
+        return bool(self._frozen)
+
+    def freeze(self) -> None:
+        if self._frozen:
+            return
+        win = self.win
+        try:
+            # Die Größe ausdrücklich festhalten: ohne verwaltete Kinder würde das Fenster sonst auf seine
+            # angeforderte Größe (1 x 1) schrumpfen.
+            win.geometry(f"{win.winfo_width()}x{win.winfo_height()}")
+            children = [(child, "pack") for child in win.pack_slaves()]
+            children += [(child, "grid") for child in win.grid_slaves()[::-1]]
+            places = [
+                (child, manager, child.winfo_x(), child.winfo_y(), child.winfo_width(), child.winfo_height())
+                for child, manager in children
+            ]
+            for child, manager, x, y, width, height in places:
+                info = child.pack_info() if manager == "pack" else child.grid_info()
+                info = {key: value for key, value in info.items() if key != "in"}
+                self._frozen.append((child, manager, info))
+                child.place(x=x, y=y, width=width, height=height)
+        except tk.TclError:  # pragma: no cover - das Fenster verschwindet gerade
+            self.thaw()
+            return
+        self._quiet_redraw()
+
+    def _quiet_redraw(self) -> None:
+        if sys.platform != "win32" or self._class_styles:
+            return
+        try:
+            user32 = ctypes.windll.user32
+            inner = self.win.winfo_id()
+            for hwnd in (user32.GetParent(inner), inner):
+                if not hwnd:
+                    continue
+                style = int(user32.GetClassLongW(hwnd, self._GCL_STYLE))
+                if style & self._REDRAW_BITS:
+                    self._class_styles.append((hwnd, style))
+                    user32.SetClassLongW(hwnd, self._GCL_STYLE, style & ~self._REDRAW_BITS)
+        except (AttributeError, OSError, tk.TclError):  # pragma: no cover - nur Tempo, nie ein Fehler
+            self._restore_redraw()
+
+    def _restore_redraw(self) -> None:
+        styles, self._class_styles = self._class_styles, []
+        for hwnd, style in styles:
+            with contextlib.suppress(AttributeError, OSError):
+                ctypes.windll.user32.SetClassLongW(hwnd, self._GCL_STYLE, style)
+
+    def thaw(self) -> None:
+        self._restore_redraw()
+        frozen, self._frozen = self._frozen, []
+        for child, manager, info in frozen:
+            with contextlib.suppress(tk.TclError):
+                child.place_forget()
+                if manager == "pack":
+                    child.pack(**info)
+                else:
+                    child.grid(**info)
+
+
 class WindowChrome:
     """Verschieben und Größe ändern für ein randloses Fenster.
 
@@ -222,6 +353,7 @@ class WindowChrome:
         self._pending: tuple | None = None
         self._apply_job: str | None = None
         self._cursor: tuple[tk.Misc, str] | None = None
+        self.freeze = ContentFreeze(win)
         #: Where this chrome last put the window; Tk reports a new position only after its next event round.
         self._placed: tuple[int, int] | None = None
         win.bind("<ButtonPress-1>", self._on_press, add="+")
@@ -289,6 +421,7 @@ class WindowChrome:
             return
         if edge:
             self._gesture = ("resize", edge, event.x_root, event.y_root, frame)
+            self.freeze.freeze()
             return
         if not is_free_area(event.widget):
             return
@@ -349,6 +482,7 @@ class WindowChrome:
             if self._placed is not None and self.on_moved is not None:
                 self.on_moved(*self._placed)
             return
+        self.freeze.thaw()
         with contextlib.suppress(tk.TclError):
             self.win.update_idletasks()
             round_window_corners(self.win)

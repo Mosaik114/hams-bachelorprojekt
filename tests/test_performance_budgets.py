@@ -6,8 +6,8 @@ runner is no place to judge 20 ms. Run it on the development machine before and 
 Budgets (per step, median over the run, on the Tk thread):
 
 * moving a window: 2 ms
-* resizing the settings at an edge: 20 ms (60 frames would need 16 ms; the window manager adds its share)
-* switching a settings tab, also the first visit: 30 ms
+* resizing the settings at an edge: 16 ms (60 frames a second; the content is frozen while dragging)
+* switching a settings tab, also the first visit: 30 ms (median), a first visit no dearer than a later one
 * showing the prebuilt settings window: 60 ms
 """
 
@@ -23,8 +23,10 @@ from hams import ui_kit as uk
 pytestmark = pytest.mark.skipif(not os.environ.get("HAMS_PERF"), reason="time budgets: set HAMS_PERF=1")
 
 MOVE_MS = 2.0
-RESIZE_MS = 20.0
+RESIZE_MS = 16.0
 TAB_MS = 30.0
+#: What a first visit may cost more than a later one (noise; a page laid out on its first visit cost 30-90 ms).
+FIRST_EXTRA_MS = 12.0
 OPEN_MS = 60.0
 
 
@@ -64,7 +66,6 @@ def test_moving_a_window(settings, live_app):
     assert median_ms(samples) <= MOVE_MS
 
 
-@pytest.mark.xfail(reason="phase 5 of the rebuild: the content still lays out on every step", strict=False)
 @pytest.mark.parametrize("page", [1, 4])
 def test_resizing_the_settings(settings, live_app, page):
     settings.select_page(page)
@@ -73,18 +74,31 @@ def test_resizing_the_settings(settings, live_app, page):
     chrome = uk.WindowChrome(win, min_size=settings.MIN_SIZE)
     edge = (win.winfo_rootx() + win.winfo_width() - 2, win.winfo_rooty() + win.winfo_height() // 2)
     samples = drag(live_app.root, chrome, win, edge, 40, 4, 0)
+    print(f"resize page {page}: median {median_ms(samples):.1f} ms, max {max(samples) * 1000:.1f} ms")
     assert median_ms(samples) <= RESIZE_MS
 
 
-@pytest.mark.xfail(reason="phase 5 of the rebuild: hidden pages are laid out on their first visit", strict=False)
 def test_switching_tabs_also_the_first_time(settings, live_app):
-    samples = []
-    for page in (1, 2, 3, 4, 5, 0, 1, 4):
+    """The hidden pages are laid out ahead in quiet steps after the window appears (`warm_pages`)."""
+    for _ in range(60):
+        live_app.root.update()
+        time.sleep(0.01)
+
+    def visit(page):
         began = time.perf_counter()
         settings.select_page(page)
         live_app.root.update()
-        samples.append(time.perf_counter() - began)
-    assert max(samples) * 1000 <= TAB_MS
+        return (time.perf_counter() - began) * 1000
+
+    first = {page: visit(page) for page in (1, 2, 3, 4, 5)}
+    visit(0)
+    again = {page: visit(page) for page in (1, 2, 3, 4, 5)}
+    print("first visits (ms):", {p: round(v, 1) for p, v in first.items()})
+    print("later visits (ms):", {p: round(v, 1) for p, v in again.items()})
+    assert statistics.median(first.values()) <= TAB_MS
+    for page, ms in first.items():
+        # Showing a page costs what mapping its widgets costs; the first visit adds no layout of its own.
+        assert ms <= again[page] + FIRST_EXTRA_MS, page
 
 
 def test_showing_the_prebuilt_settings(live_app):

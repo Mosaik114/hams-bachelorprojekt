@@ -30,7 +30,7 @@ from hams.settings_sections import choose_dictation_language, choose_ui_language
 from hams.settings_status import LevelMonitor
 from hams.setup_wizard import Choices, SetupController, Task, task_view
 from hams.ui_kit import Theme
-from hams.window_mark import mark_label
+from hams.window_stage import Stage
 
 if TYPE_CHECKING:
     from hams.app import FloatingTranscriberApp
@@ -108,6 +108,9 @@ class SetupWindow:
 
         self.win = tk.Toplevel(app.root)
         self.chrome = uk.frame_window(self.win)
+        app.watch_dpi(self.win)
+        # Escape closes, like the settings (a running download still asks first).
+        self.win.bind("<Escape>", lambda _e: self.close(), add="+")
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
         self.win.geometry(f"{uk.px(self.WIDTH)}x{uk.px(self.HEIGHT)}+{uk.px(120)}+{uk.px(80)}")
@@ -253,33 +256,41 @@ class SetupWindow:
         self.back_button = self._footer_button(t("setup.back"), self.go_back, "secondary", "left")
         self.next_button = self._footer_button(t("setup.next"), self.go_next, "primary", "right")
         self.skip_button = self._footer_button(t("setup.skip"), self.skip, "secondary", "right")
-        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG)
+        # Hairlines at both ends of the scroll area, shown only while content lies beyond them: the page then
+        # ends at a drawn edge instead of text cut off in the middle of a line.
+        self._bottom_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
+        self._bottom_line.pack(side="bottom", fill="x")
+        self._top_line = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=max(1, uk.px(1)))
+        self._top_line.pack(fill="x")
+        self.scroll = uk.ScrollArea(self.win, bg_under=Theme.WINDOW_BG, on_scroll=lambda _o: self._update_edges())
         self.scroll.pack(fill="both", expand=True, padx=(uk.px(uk.Space.WINDOW), 0))
         self.scroll.bind_keys(self.win)
+        self.scroll.body.bind("<Configure>", lambda _e: self._update_edges(), add="+")
+        self.scroll.canvas.bind("<Configure>", lambda _e: self._update_edges(), add="+")
         self.show_page()
 
+    def _update_edges(self) -> None:
+        """A line above where content scrolled away, a line below where more content follows."""
+        try:
+            offset, rest = self.scroll.offset, self.scroll.scrollable
+            self._top_line.configure(bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
+            self._bottom_line.configure(bg=Theme.HAIRLINE if offset < rest else Theme.WINDOW_BG)
+        except tk.TclError:  # pragma: no cover - the window is being rebuilt
+            pass
+
     def _build_head(self) -> None:
-        head = tk.Frame(self.win, bg=Theme.WINDOW_BG)
-        head.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(uk.px(uk.Space.WINDOW), 0))
-        mark_label(head, bg=Theme.WINDOW_BG).pack(side="left", padx=(0, uk.px(uk.Space.MD)))
-        title = tk.Label(
-            head,
-            text=t("setup.title", product=branding.PRODUCT_NAME),
-            bg=Theme.WINDOW_BG,
-            fg=Theme.TEXT_PRIMARY,
-            font=uk.font("window_title"),
-            anchor="w",
+        """The same painted stage as the settings: mark, title and cross, the cross centred on its face."""
+        self.stage = Stage(
+            self.win,
+            t("setup.title", product=branding.PRODUCT_NAME),
+            self.close,
+            close_tooltip=t("setup.close_tooltip"),
         )
-        title.pack(side="left")
-        self.close_button = uk.IconButton(
-            head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip=t("setup.close_tooltip")
-        )
-        self.close_button.set_hover_colour(Theme.ERROR)
-        if not uk.system_frame():
-            self.close_button.pack(side="right")
+        self.stage.pack(fill="x")
+        self.close_button = self.stage.close_button
 
         steps = tk.Frame(self.win, bg=Theme.WINDOW_BG)
-        steps.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(uk.px(uk.Space.MD), uk.px(uk.Space.LG)))
+        steps.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(0, uk.px(uk.Space.MD)))
         self.step_label = tk.Label(
             steps, bg=Theme.WINDOW_BG, fg=Theme.TEXT_TERTIARY, font=uk.font("description"), anchor="w"
         )
@@ -356,7 +367,10 @@ class SetupWindow:
 
     def _update_footer(self) -> None:
         if self._close_box is not None:
-            return  # the close question holds the footer until it is answered
+            if self._download_running():
+                return  # the close question holds the footer until it is answered
+            self._keep_open()  # the download it asked about is over: the question has no subject any more
+            return
         controller = self.controller
         self.back_button.set_enabled(controller.can_back())
         self.next_button.config(text=t("setup.finish" if controller.is_last else "setup.next"))

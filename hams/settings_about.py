@@ -41,8 +41,8 @@ def open_report(path) -> bool:
 class AboutSection(Section):
     """Version, help links, log folder and the diagnostic report."""
 
-    HELP_WIDTH = 124  # logical, like "Erneut starten"
-    REPORT_OPEN_WIDTH = 88  # logical, "Öffnen" beside "Erstellen"
+    # The buttons measure themselves (text plus padding). Fixed widths from the thinner font made them wider
+    # than their word, and the report row with two of them left its description four lines of room.
 
     def __init__(self, window, master: tk.Misc) -> None:
         super().__init__(window)
@@ -86,7 +86,6 @@ class AboutSection(Section):
         button = uk.SecondaryButton(
             body, t("settings.about.open"), command, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
         )
-        uk.keep_logical_width(button, self.HELP_WIDTH)
         row.set_control(button)
         return row, button
 
@@ -100,6 +99,8 @@ class AboutSection(Section):
             hairline=False,
         )
         self.row_report.pack(fill="x")
+        # The two buttons stand on a line of their own under the description: beside it they left the text a
+        # narrow column of four lines ("Info & Hilfe" looked crowded).
         box = tk.Frame(body, bg=Theme.GROUP_SURFACE, highlightthickness=0, takefocus=0)
         self.report_open_button = uk.SecondaryButton(
             box,
@@ -115,14 +116,12 @@ class AboutSection(Section):
             bg_under=Theme.GROUP_SURFACE,
             height=uk.Height.STANDARD,
         )
-        uk.keep_logical_width(self.report_button, self.HELP_WIDTH)
-        uk.keep_logical_width(self.report_open_button, self.REPORT_OPEN_WIDTH)
         self.report_button.pack(side="right")
-        # From the start, greyed out until there is a report: a control that appears later changes the row's
-        # width and makes the wrapped description reflow.
+        # From the start, greyed out until there is a report: a control that appears later would shift the line.
         self.report_open_button.set_enabled(False)
-        self.report_open_button.pack(side="right", padx=(0, uk.px(uk.Space.XS)))
-        self.row_report.set_control(box)
+        self.report_open_button.pack(side="right", padx=(0, uk.px(uk.Space.MD)))
+        box.pack(fill="x", padx=uk.px(uk.Space.ROW_X), pady=(0, uk.px(uk.Space.ROW_Y)))
+        self.report_box = box
 
     def open_last_report(self) -> None:
         if self.report_path is not None and not open_report(self.report_path):

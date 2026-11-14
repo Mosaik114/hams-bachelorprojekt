@@ -58,6 +58,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self.root = root
         #: Gives background threads a way onto the Tk thread (see `ui_call`).
         self._ui_dispatcher = UiDispatcher(root)
+        #: The DPI each window last saw (`check_dpi`), by Tk path.
+        self._seen_dpi: dict[str, int] = {}
         self._init_window()
         self._init_core()
         self._init_runtime_state()
@@ -169,20 +171,38 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
     # ------------------------------------------------------------------ dpi
 
     def _on_root_configure(self, event: tk.Event) -> None:
-        """Notices a move to a monitor with another scaling.
+        if event.widget is self.root:
+            self.check_dpi(self.root)
+
+    def watch_dpi(self, win: tk.Misc) -> None:
+        """Lets a window of its own (settings, assistant) notice a move to a monitor with another scaling."""
+
+        def on_configure(event: tk.Event) -> None:
+            if event.widget is win:
+                self.check_dpi(win)
+
+        win.bind("<Configure>", on_configure, add="+")
+
+    def check_dpi(self, win: tk.Misc) -> bool:
+        """Rescales the app when `win` has just arrived on a monitor with another scaling.
 
         Tk does not know `WM_DPICHANGED`, so the DPI is compared on the Configure event that comes anyway - no
-        timer of its own.
+        timer of its own. Every window counts, not only the main window: the settings moved to the second monitor
+        rescale too. Each window remembers the DPI it last saw, so only the window that *moved* decides; the main
+        window, refitted on its old monitor, does not switch the scale back.
         """
-        if event.widget is not self.root:
-            return
-        dpi = uk.window_dpi(self.root)
-        if dpi == uk.Scale.dpi:
-            return
-        logger.info("DPI change: %d -> %d", uk.Scale.dpi, dpi)
+        try:
+            dpi = uk.window_dpi(win)
+        except tk.TclError:  # pragma: no cover - the window is going away
+            return False
+        previous, self._seen_dpi[str(win)] = self._seen_dpi.get(str(win)), dpi
+        if dpi in (uk.Scale.dpi, previous):
+            return False
+        logger.info("DPI change: %d -> %d (%s)", uk.Scale.dpi, dpi, win)
         uk.Scale.apply(self.root, dpi)
         self._fit_window()
         uk.round_window_corners(self.root)
+        return True
 
     # ------------------------------------------------------------------ hotkeys
 

@@ -26,7 +26,7 @@ from hams.settings_sections import GeneralSection, Section
 from hams.settings_shortcuts import ShortcutsSection
 from hams.settings_status import RecordingSection
 from hams.ui_kit import Theme
-from hams.window_mark import mark_photo
+from hams.window_stage import Stage
 
 if TYPE_CHECKING:
     from hams.app import FloatingTranscriberApp
@@ -47,6 +47,10 @@ class SettingsWindow:
     LAYOUT_HIDDEN_MS = 250
     #: Far outside every screen, for the invisible first layout.
     OFFSCREEN = -32000
+    #: Pause between laying out two hidden pages (`warm_pages`): one page per step keeps the app responsive.
+    WARM_STEP_MS = 40
+    #: Where a hidden page is laid out inside the scroll body: far above it, where nothing of it is seen.
+    WARM_Y = -20000
 
     def __init__(self, app: FloatingTranscriberApp, *, show: bool = True) -> None:
         self.app = app
@@ -54,6 +58,7 @@ class SettingsWindow:
         self.win.withdraw()
         self.win.title(t("settings.window_title", product=branding.PRODUCT_NAME))
         self.chrome = uk.frame_window(self.win, min_size=self.MIN_SIZE, on_resized=self._remember_size)
+        app.watch_dpi(self.win)
         self.win.protocol("WM_DELETE_WINDOW", self.close)
         self.win.configure(bg=Theme.WINDOW_BG)
         self.win.geometry(self._size())
@@ -64,6 +69,10 @@ class SettingsWindow:
         #: The colour scheme the widgets are painted in; a switch while hidden is caught up on `show`.
         self._painted_mode = Theme.mode
         self._layout_job: str | None = None
+        #: Hidden pages still to be laid out ahead, and the page laid out in the running step.
+        self._warm_queue: list[int] = []
+        self._warm_current: int | None = None
+        self._warm_job: str | None = None
 
         self._build()
         uk.Scale.register(self._on_scale_change)
@@ -111,6 +120,7 @@ class SettingsWindow:
         uk.round_window_corners(self.win)
         for section in self.sections:
             section.on_show()
+        self.warm_pages()
 
     def focus(self) -> None:
         uk.bring_to_front(self.win)
@@ -132,7 +142,10 @@ class SettingsWindow:
             self.win.deiconify()
         except tk.TclError:  # pragma: no cover - the window is going away
             return
-        self._layout_job = self.win.after(self.LAYOUT_HIDDEN_MS, self._end_hidden_layout)
+        self.warm_pages()
+        # The page steps run while the window is mapped; it stays mapped until the last one is done.
+        hold = self.LAYOUT_HIDDEN_MS + len(self._pages) * self.WARM_STEP_MS
+        self._layout_job = self.win.after(hold, self._end_hidden_layout)
 
     def _end_hidden_layout(self, *, show: bool = False) -> None:
         if self._layout_job is None:
@@ -143,8 +156,11 @@ class SettingsWindow:
         self._layout_job = None
         with contextlib.suppress(tk.TclError):
             if not show:
+                self._stop_warming()
                 self.win.withdraw()
             self.win.attributes("-alpha", 1.0)
+            # Tk keeps WS_EX_LAYERED after the alpha is back at 1.0; a layered window costs more on every resize.
+            uk.clear_layered(self.win)
 
     def close(self) -> None:
         """Hides the window; everything it ran stops. The widgets stay for the next opening."""
@@ -154,6 +170,7 @@ class SettingsWindow:
         popover = uk.Popover.current
         if popover is not None and str(popover.trigger).startswith(str(self.win)):
             uk.Popover.dismiss_current()
+        self._stop_warming()
         for section in self.sections:
             section.on_hide()
         with contextlib.suppress(tk.TclError):
@@ -186,9 +203,7 @@ class SettingsWindow:
 
     def _repaint(self) -> int:
         self._painted_mode = Theme.mode
-        changed = uk.apply_theme_tree(self.win)
-        self._paint_stage()
-        return changed
+        return uk.apply_theme_tree(self.win)  # the stage repaints itself in its theme hook
 
     def _on_scale_change(self, _factor: float) -> None:
         """Follows a new DPI with the window size.
@@ -225,7 +240,11 @@ class SettingsWindow:
         return f"{uk.px(CFG.settings_width)}x{uk.px(CFG.settings_height)}"
 
     def _remember_size(self, width: int, height: int) -> None:
-        """After a resize by edge or corner: keep the size in logical pixels, so it holds at any DPI."""
+        """After a resize by edge or corner: keep the size in logical pixels, so it holds at any DPI.
+
+        The hidden pages are laid out again for the new width, so that switching to one stays quick.
+        """
+        self.warm_pages()
         factor = max(uk.Scale.factor, 0.1)
         logical = (round(width / factor), round(height / factor))
         if logical == (CFG.settings_width, CFG.settings_height):
@@ -244,15 +263,10 @@ class SettingsWindow:
         makes the window feel calm.
         """
         # The stage (Tusche und Aquarell): a quiet painted wash with the mark and the title on it.
-        head = tk.Canvas(self.win, bg=Theme.WINDOW_BG, bd=0, highlightthickness=0, height=uk.px(self.STAGE_HEIGHT))
+        head = Stage(self.win, t("settings.title"), self.close, close_tooltip=t("settings.close_tooltip"))
         head.pack(fill="x")
         self._stage = head
-        self._stage_size = (0, 0)
-        self._close_btn = uk.IconButton(
-            head, "close", self.close, bg_under=Theme.WINDOW_BG, tooltip=t("settings.close_tooltip")
-        )
-        self._close_btn.set_hover_colour(Theme.ERROR)
-        head.bind("<Configure>", self._paint_stage, add="+")
+        self._close_btn = head.close_button
 
         # One topic at a time: a slim row of tab stones, each as wide as its word, wrapping when narrow.
         self._tabs = tk.Frame(self.win, bg=Theme.WINDOW_BG, height=1)
@@ -305,33 +319,6 @@ class SettingsWindow:
 
     # ---------------------------------------------------------- stage and pages
 
-    #: Height of the painted stage in logical pixels.
-    STAGE_HEIGHT = 76
-
-    def _paint_stage(self, event: tk.Event | None = None) -> None:
-        """The wash for the current width, then mark, title and cross on it."""
-        stage = self._stage
-        width, height = (event.width, event.height) if event is not None else self._stage_size
-        if width <= 1:
-            return
-        self._stage_size = (width, height)
-        stage.delete("all")
-        self._stage_image = uk.banner_image(width, height)
-        stage.create_image(0, 0, anchor="nw", image=self._stage_image)
-        margin, middle = uk.px(uk.Space.WINDOW), height // 2
-        # Mark and title are painted onto the stage, not placed as labels: a label would stand there as a box
-        # in the paper colour.
-        self._stage_mark = mark_photo()
-        x = margin
-        if self._stage_mark is not None:
-            stage.create_image(x, middle, anchor="w", image=self._stage_mark)
-            x += self._stage_mark.width() + uk.px(uk.Space.MD)
-        stage.create_text(
-            x, middle, anchor="w", text=t("settings.title"), font=uk.font("window_title"), fill=Theme.TEXT_PRIMARY
-        )
-        if not uk.system_frame():  # on Linux the KDE title bar has the cross
-            stage.create_window(width - margin, middle, anchor="e", window=self._close_btn)
-
     def _page(self, section_class, body: tk.Frame) -> Section:
         """Builds a section and remembers which widgets of the scroll body belong to it."""
         before = len(body.pack_slaves())
@@ -368,16 +355,79 @@ class SettingsWindow:
 
     def _render_shown_page(self) -> None:
         """Controls that changed size while their page was hidden draw themselves now."""
-        pending = [self.scroll.body]
-        while pending:
-            widget = pending.pop()
-            render = getattr(widget, "render_if_stale", None)
-            if render is not None:
-                render()
-            try:
-                pending.extend(widget.winfo_children())
-            except tk.TclError:  # pragma: no cover - the window is going away
-                return
+        with contextlib.suppress(tk.TclError):  # the window is going away
+            _render_stale(self.scroll.body)
+
+    # ---------------------------------------------------------- hidden pages laid out ahead
+
+    def warm_pages(self) -> None:
+        """Lays out every hidden page ahead, one per step, so that also the first visit of a tab is quick.
+
+        Only the shown page is packed into the scroll body. A hidden page would be laid out on its first visit
+        (measured 45–113 ms) and again after every change of the width. Here each hidden page is placed for one
+        step at the width it would have, far above the visible part of the body, where the body clips it away;
+        `place` does not change the body's height, so the scroll area does not notice. Its controls render at
+        their final size, then it is taken away again. Shown later with `pack` at the same width, nothing in it
+        changes size, and nothing has to be laid out or drawn.
+        """
+        self._warm_queue = [index for index in range(len(self._pages)) if index != self.page]
+        if self._warm_job is None:
+            # Not right away: the window has to be laid out first, or the pages get the width of the moment.
+            with contextlib.suppress(tk.TclError):
+                self._warm_job = self.win.after(self.WARM_STEP_MS, self._warm_step)
+
+    def _warm_step(self) -> None:
+        self._warm_job = None
+        self._unplace_warm()
+        if not self._warm_queue or not self.reusable():
+            self._warm_queue = []
+            return
+        index = self._warm_queue.pop(0)
+        if index != self.page:
+            self._place_warm(index)
+        with contextlib.suppress(tk.TclError):
+            self._warm_job = self.win.after(self.WARM_STEP_MS, self._warm_step)
+
+    def _page_widgets(self, index: int) -> list[tuple[tk.Misc, dict]]:
+        """The widgets of a page as `select_page` packs them (without the heading the tab already shows)."""
+        title, widgets = self._pages[index]
+        if widgets and isinstance(widgets[0][0], uk.SectionHeader) and str(widgets[0][0].cget("text")) == title:
+            return widgets[1:]
+        return widgets
+
+    def _place_warm(self, index: int) -> None:
+        try:
+            width = self.scroll.body.winfo_width()
+        except tk.TclError:  # pragma: no cover - the window is going away
+            return
+        if width <= 1:
+            return
+        self._warm_current = index
+        for widget, info in self._page_widgets(index):
+            left, right = _pad_pair(info.get("padx", 0))
+            widget.hidden_page = False
+            with contextlib.suppress(tk.TclError):
+                widget.place(x=left, y=self.WARM_Y, width=max(1, width - left - right))
+
+    def _unplace_warm(self) -> None:
+        index, self._warm_current = self._warm_current, None
+        if index is None:
+            return
+        for widget, _info in self._page_widgets(index):
+            with contextlib.suppress(tk.TclError):
+                if widget.winfo_manager() == "place":
+                    _render_stale(widget)  # drawn now, at the final size, not on the first visit
+                    widget.place_forget()
+            if index != self.page:
+                widget.hidden_page = True
+
+    def _stop_warming(self) -> None:
+        if self._warm_job is not None:
+            with contextlib.suppress(ValueError, tk.TclError):
+                self.win.after_cancel(self._warm_job)
+            self._warm_job = None
+        self._warm_queue = []
+        self._unplace_warm()
 
     def _lay_out_tabs(self) -> None:
         """Places the tab stones left to right at their natural width; a stone that does not fit starts a new row.
@@ -410,3 +460,23 @@ class SettingsWindow:
     def _on_scroll(self, offset: int) -> None:
         """The line appears only when something lies under it."""
         self._head_line.configure(bg=Theme.HAIRLINE if offset > 0 else Theme.WINDOW_BG)
+
+
+def _render_stale(widget: tk.Misc) -> None:
+    """Lets every control in `widget` catch up on a drawing it skipped while hidden."""
+    pending = [widget]
+    while pending:
+        node = pending.pop()
+        render = getattr(node, "render_if_stale", None)
+        if render is not None:
+            render()
+        pending.extend(node.winfo_children())
+
+
+def _pad_pair(value) -> tuple[int, int]:
+    """`padx` of `pack_info` as (left, right): Tk reports one number, a pair, or a string of one or two."""
+    if isinstance(value, (tuple, list)):
+        parts = [int(float(str(part))) for part in value]
+    else:
+        parts = [int(float(part)) for part in str(value).split()] or [0]
+    return (parts[0], parts[-1])
