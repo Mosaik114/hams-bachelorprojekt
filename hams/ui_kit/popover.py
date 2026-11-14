@@ -96,7 +96,9 @@ class _PopoverItem(tk.Frame):
             self._trailing.pack(side="right", before=text_box, padx=(0, px(Space.MD)))
 
         # Die ganze Zeile ist der Eintrag, auch die freie Fläche neben dem Text.
-        self._area = PressArea(self, self._on_click, on_hover=self.set_hover, enabled=lambda: option.enabled)
+        self._area = PressArea(
+            self, self._on_click, on_hover=self.set_hover, on_press=self._set_pressed, enabled=lambda: option.enabled
+        )
         if option.enabled:
             self._area.set_cursor("hand2")
 
@@ -112,7 +114,15 @@ class _PopoverItem(tk.Frame):
         if not self.option.enabled:
             return
         self._hovered = hovered
-        colour = Theme.CONTROL_HOVER if hovered else Theme.POPOVER_SURFACE
+        self._colour(Theme.CONTROL_HOVER if hovered else Theme.POPOVER_SURFACE)
+
+    def _set_pressed(self, pressed: bool) -> None:
+        if self.option.enabled:
+            self._colour(
+                Theme.CONTROL_PRESSED if pressed else Theme.CONTROL_HOVER if self._hovered else Theme.POPOVER_SURFACE
+            )
+
+    def _colour(self, colour: str) -> None:
         for widget in self._parts() + [self._title.master]:
             widget.configure(bg=colour)
 

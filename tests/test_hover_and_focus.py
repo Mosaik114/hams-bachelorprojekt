@@ -163,7 +163,7 @@ class TestFocusRingOnlyForTheKeyboard:
         switch.focus_set()
         root.update()
         assert switch.has_state(State.FOCUSED)
-        assert switch.focus_colour() == Theme.ACCENT_TINT
+        assert switch.focus_colour() == Theme.FOCUS
 
     def test_a_click_still_gives_the_widget_the_real_focus(self, window, root):
         """Nur die Anzeige entfällt — Leertaste und Eingabe müssen wirken."""
@@ -184,13 +184,32 @@ class TestFocusRingOnlyForTheKeyboard:
         switch.event_generate("<ButtonRelease-1>", x=10, y=10)
         root.update()
         assert switch.focus_colour() is None
+        other.event_generate("<KeyPress-Tab>")  # wer tabuliert, bedient mit der Tastatur
         other.focus_set()
         root.update()
         switch.focus_set()
         root.update()
-        assert switch.focus_colour() == Theme.ACCENT_TINT, (
-            "der Zeiger-Vermerk darf nur für genau einen Fokuswechsel gelten"
-        )
+        assert switch.focus_colour() == Theme.FOCUS
+
+    def test_a_window_coming_back_after_a_click_shows_no_edge(self, window, root):
+        """Tk legt den Fokus beim Wiederaktivieren zurueck (FocusIn ohne Klick): nach einem Klick kein Rand."""
+        switch = self._switch(window, root)
+        switch.event_generate("<ButtonPress-1>", x=10, y=10)
+        switch.event_generate("<ButtonRelease-1>", x=10, y=10)
+        root.update()
+        switch.event_generate("<FocusOut>")
+        switch.event_generate("<FocusIn>")
+        root.update()
+        assert switch.focus_colour() is None
+
+    def test_a_click_beside_takes_the_edge_away(self, window, root):
+        switch = self._switch(window, root)
+        switch.focus_set()
+        root.update()
+        assert switch.focus_colour() == Theme.FOCUS
+        window.event_generate("<ButtonPress-1>", x=1, y=1)
+        root.update()
+        assert switch.focus_colour() is None
 
     def test_it_holds_for_buttons_as_well(self, window, root):
         button = SecondaryButton(window, "Neu starten", lambda: None, bg_under=Theme.WINDOW_BG)
@@ -203,13 +222,14 @@ class TestFocusRingOnlyForTheKeyboard:
         root.update()
         assert button.focus_colour() is None
 
-        # Erst weg, dann wieder hin: ein `focus_set()` auf das bereits
-        # fokussierte Widget erzeugt kein FocusIn und damit auch keinen Ring.
+        # Erst weg, dann wieder hin, mit der Tastatur: ein `focus_set()` auf das bereits
+        # fokussierte Widget erzeugt kein FocusIn und damit auch keinen Rand.
+        nachbar.event_generate("<KeyPress-Tab>")
         nachbar.focus_set()
         root.update()
         button.focus_set()
         root.update()
-        assert button.focus_colour() == Theme.ACCENT_TINT
+        assert button.focus_colour() == Theme.FOCUS
 
     def test_the_select_behaves_the_same(self, window, root):
         feld = Select(window, bg_under=Theme.WINDOW_BG, options=[Option("a", "A")], value="a")

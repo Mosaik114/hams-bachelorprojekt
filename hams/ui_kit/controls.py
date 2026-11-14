@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 from hams.ui_kit.animation import Animator, blend
 from hams.ui_kit.scale import Scale, px
-from hams.ui_kit.states import FocusMixin, State, StateMixin
+from hams.ui_kit.states import FocusMixin, Pressable, State, StateMixin
 from hams.ui_kit.surfaces import SurfaceSpec, paint, surface
 from hams.ui_kit.theme import Radius, Theme, ink_width
 
@@ -112,7 +112,7 @@ class StatusDot(tk.Canvas):
         self.create_image(0, 0, anchor="nw", image=image)
 
 
-class Switch(tk.Canvas, StateMixin, FocusMixin):
+class Switch(tk.Canvas, StateMixin, FocusMixin, Pressable):
     """Schalter mit gleitendem Knopf.
 
     Der Zustand wird doppelt kodiert — Spurfarbe *und* Knopfposition. Farbe
@@ -147,8 +147,9 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         )
         self.init_states("secondary")
         self.init_focus(self.toggle)
-        self.bind("<Enter>", lambda _e: self.enabled and self.set_state(State.HOVER, True), add="+")
-        self.bind("<Leave>", lambda _e: self.set_state(State.HOVER, False), add="+")
+        self.init_press(self.toggle)
+        self.bind("<Enter>", self.press_enter, add="+")
+        self.bind("<Leave>", self.press_leave, add="+")
         self.bind("<ButtonPress-1>", self._on_press, add="+")
         self.bind("<ButtonRelease-1>", self._on_release, add="+")
         self.bind("<Destroy>", self._on_destroy, add="+")
@@ -204,15 +205,10 @@ class Switch(tk.Canvas, StateMixin, FocusMixin):
         self.configure(cursor="hand2" if enabled else "arrow", takefocus=1 if enabled else 0)
 
     def _on_press(self, _event=None) -> None:
-        if State.is_interactive(self._states):
-            self.set_state(State.PRESSED, True)
-            self.focus_set()
+        self.press_down()
 
-    def _on_release(self, _event=None) -> None:
-        fired = self.has_state(State.PRESSED)
-        self.set_state(State.PRESSED, False)
-        if fired:
-            self.toggle()
+    def _on_release(self, event=None) -> None:
+        self.press_up(event)
 
     def _on_destroy(self, event: tk.Event) -> None:
         if event.widget is self:

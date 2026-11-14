@@ -176,7 +176,14 @@ _TEXT_INPUTS = frozenset({"Entry", "TEntry", "Text", "Spinbox", "TSpinbox", "Lis
 
 
 def is_free_area(widget: tk.Misc) -> bool:
-    """Fensterhintergrund ohne eigene Bedienung: Überschrift, Ränder, Text auf dem Fenstergrund."""
+    """Fensterhintergrund ohne eigene Bedienung: Überschrift, Ränder, Text auf dem Fenstergrund.
+
+    Ein Widget kann das ausdrücklich festlegen (`drag_surface = True/False`): eine gemalte Platte hat zwar den
+    Fenstergrund als Hintergrund (für ihre runden Ecken), ist aber eine Fläche und kein Rand zum Ziehen.
+    """
+    explicit = getattr(widget, "drag_surface", None)
+    if explicit is not None:
+        return bool(explicit)
     try:
         if isinstance(widget, FocusMixin) or widget.winfo_class() in _TEXT_INPUTS:
             return False

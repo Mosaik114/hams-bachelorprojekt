@@ -255,6 +255,93 @@ class StateMixin:
         """Wird bei jeder Zustandsänderung gerufen; Controls zeichnen hier neu."""
 
 
+class Pressable:
+    """Druecken wie bei einer Windows-Schaltflaeche — fuer jedes Control dasselbe Verhalten.
+
+    Der Druck gilt bis zum Loslassen. Rutscht der Zeiger dabei hinaus, hebt sich die Flaeche; kommt er zurueck,
+    sinkt sie wieder ein. Ausgeloest wird beim Loslassen ueber dem Control. Frueher vergass ein Control den
+    Druck beim Hinausrutschen, und ein Zurueckgleiten loeste nicht mehr aus.
+
+    Erwartet `StateMixin` und `focus_set`; `on_activate` ist, was ein vollstaendiger Klick tut.
+    """
+
+    def init_press(self, on_activate: Callable[[], None] | None) -> None:
+        self._press_action = on_activate
+        self._armed = False
+
+    def press_enter(self, _event=None) -> None:
+        if self.enabled:
+            self.set_state(State.HOVER, True)
+            if self._armed:
+                self.set_state(State.PRESSED, True)
+
+    def press_leave(self, _event=None) -> None:
+        self.set_state(State.HOVER, False)
+        self.set_state(State.PRESSED, False)
+
+    def press_down(self, _event=None) -> None:
+        if State.is_interactive(self._states):
+            self._armed = True
+            self.set_state(State.PRESSED, True)
+            self.focus_set()
+
+    def press_up(self, event=None) -> None:
+        armed, self._armed = self._armed, False
+        self.set_state(State.PRESSED, False)
+        complete = armed and self._pointer_inside(event) and State.is_interactive(self._states)
+        if complete and self._press_action is not None:
+            self._press_action()
+
+    def _pointer_inside(self, event) -> bool:
+        if event is None or not hasattr(event, "x"):
+            return True
+        try:
+            return 0 <= event.x < self.winfo_width() and 0 <= event.y < self.winfo_height()
+        except tk.TclError:  # pragma: no cover - widget going away
+            return False
+
+
+class InputModality:
+    """Womit zuletzt bedient wurde: Tastatur oder Zeiger — fuer alle Fenster der Anwendung gemeinsam.
+
+    Der Fokusrand ist nur fuer Tastaturbedienung da (wie `:focus-visible` im Browser). Frueher entschied jedes
+    Control an *seinem* FocusIn, ob ein Klick vorausging. Tk schickt FocusIn aber auch ohne Klick: wenn das
+    Fenster wieder aktiv wird, und wenn ein Popover den Fokus zurueckgibt. Dann stand der Rand nach einem
+    Mausklick da. Jetzt zaehlt die letzte Eingabe: jede Taste schaltet auf Tastatur, jeder Mausklick auf Zeiger.
+    """
+
+    keyboard = True
+    _installed: set = set()
+
+    @classmethod
+    def install(cls, widget: tk.Misc) -> None:
+        """Bindet einmal je Tcl-Interpreter an alle Widgets (idempotent)."""
+        interp = str(widget.tk)
+        if interp in cls._installed:
+            return
+        cls._installed.add(interp)
+        # Tab hat in Tk eigene, genauere Bindungen am Tag "all" (Fokus weiterreichen); eine allgemeine
+        # <KeyPress>-Bindung liefe dort nicht. Deshalb auch Tab und Umschalt+Tab ausdruecklich, angehaengt.
+        for sequence in ("<KeyPress>", "<Key-Tab>", "<Shift-Key-Tab>", "<<NextWindow>>", "<<PrevWindow>>"):
+            widget.bind_all(sequence, cls._on_key, add="+")
+        widget.bind_all("<ButtonPress>", cls._on_pointer, add="+")
+
+    @classmethod
+    def _on_key(cls, _event=None) -> None:
+        cls.keyboard = True
+
+    @classmethod
+    def _on_pointer(cls, event=None) -> None:
+        cls.keyboard = False
+        # Ein Klick neben das fokussierte Control (auf freie Flaeche) nimmt ihm den sichtbaren Rand.
+        try:
+            focused = event.widget.focus_get() if event is not None else None
+        except (tk.TclError, KeyError, AttributeError):
+            focused = None
+        if isinstance(focused, FocusMixin) and focused.has_state(State.FOCUSED):
+            focused.set_state(State.FOCUSED, False)
+
+
 class FocusMixin:
     """Tastaturfokus für ein Control.
 
@@ -264,20 +351,12 @@ class FocusMixin:
 
     def init_focus(self, activate: Callable[[], None] | None = None) -> None:
         self._activate = activate
-        #: Kam der Fokus gerade vom Zeiger? Dann bleibt der Ring aus.
-        self._focus_from_pointer = False
+        InputModality.install(self)
         self.configure(takefocus=1)
-        # Muss *vor* dem Fokuswechsel greifen: die Controls rufen in ihrem
-        # eigenen Press-Handler `focus_set()`, und `add="+"` haengt hier an
-        # erster Stelle, weil `init_focus()` vor jenen Bindungen laeuft.
-        self.bind("<ButtonPress-1>", self._note_pointer_focus, add="+")
         self.bind("<FocusIn>", self._on_focus_in, add="+")
         self.bind("<FocusOut>", self._on_focus_out, add="+")
         self.bind("<Return>", self._on_activate_key, add="+")
         self.bind("<space>", self._on_activate_key, add="+")
-
-    def _note_pointer_focus(self, _event=None) -> None:
-        self._focus_from_pointer = True
 
     def _on_focus_in(self, _event=None) -> None:
         """Der Ring erscheint nur, wenn der Fokus von der Tastatur kommt.
@@ -290,11 +369,11 @@ class FocusMixin:
 
         Der Fokus selbst wird in beiden Faellen gesetzt; nur die *Anzeige*
         unterscheidet sich. Leertaste und Eingabetaste wirken also auch nach
-        einem Klick.
+        einem Klick. Ob zuletzt Tastatur oder Zeiger bedient hat, weiss
+        `InputModality` fuer alle Fenster — ein FocusIn beim Wiederaktivieren
+        des Fensters zeigt den Rand deshalb nur nach Tastaturbedienung.
         """
-        from_pointer = self._focus_from_pointer
-        self._focus_from_pointer = False
-        if not from_pointer:
+        if InputModality.keyboard:
             self.set_state(State.FOCUSED, True)
 
     def _on_focus_out(self, _event=None) -> None:

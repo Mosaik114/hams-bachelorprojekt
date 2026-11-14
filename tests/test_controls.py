@@ -181,7 +181,7 @@ class TestKeyboard:
         button.focus_set()
         root.update()
         assert button.has_state(State.FOCUSED)
-        assert button.focus_colour() == Theme.ACCENT_TINT
+        assert button.focus_colour() == Theme.FOCUS
 
     @pytest.mark.parametrize("name", ["primary", "secondary", "icon", "switch"])
     def test_disabled_leaves_the_tab_chain(self, controls, root, name):

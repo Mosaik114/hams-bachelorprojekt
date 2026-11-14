@@ -10,8 +10,10 @@ from kit import (
     GroupSurface,
     Height,
     ScrollArea,
+    SecondaryButton,
     SectionHeader,
     SettingRow,
+    State,
     Switch,
     Theme,
 )
@@ -509,3 +511,40 @@ class TestDpi:
         row.destroy()
         root.update()
         assert len(uk.Scale._callbacks) == before
+
+
+class TestPressLikeWindows:
+    def test_sliding_off_and_back_still_fires(self, window, root):
+        fired = []
+        button = SecondaryButton(window, "OK", lambda: fired.append(1), bg_under=Theme.WINDOW_BG)
+        button.pack()
+        root.update()
+        button.event_generate("<ButtonPress-1>", x=5, y=5)
+        button.event_generate("<Leave>")
+        assert not button.has_state(State.PRESSED), "the surface lifts while the pointer is outside"
+        button.event_generate("<Enter>")
+        assert button.has_state(State.PRESSED), "and sinks again when it comes back"
+        button.event_generate("<ButtonRelease-1>", x=5, y=5)
+        root.update()
+        assert fired == [1]
+
+    def test_releasing_outside_does_not_fire(self, window, root):
+        fired = []
+        button = SecondaryButton(window, "OK", lambda: fired.append(1), bg_under=Theme.WINDOW_BG)
+        button.pack()
+        root.update()
+        button.event_generate("<ButtonPress-1>", x=5, y=5)
+        button.event_generate("<ButtonRelease-1>", x=-40, y=5)
+        root.update()
+        assert fired == []
+
+    def test_a_pressed_row_looks_pressed(self, window, root):
+        row = SettingRow(window, "Ton", interactive=True, command=lambda: None)
+        row.pack(fill="x")
+        root.update()
+        x, y = row.title_label.winfo_rootx() + 2, row.title_label.winfo_rooty() + 2
+        row.title_label.event_generate("<Enter>", rootx=x, rooty=y)
+        row.title_label.event_generate("<ButtonPress-1>", rootx=x, rooty=y)
+        assert row.title_label.cget("bg") == Theme.CONTROL_HOVER
+        row.title_label.event_generate("<ButtonRelease-1>", rootx=x, rooty=y)
+        assert row.title_label.cget("bg") == Theme.CONTROL_SURFACE

@@ -156,3 +156,9 @@ class TestSettingsWindowSize:
         win.geometry(f"{win.winfo_width() + 200}x{win.winfo_height()}")
         live_app.root.update()
         assert settings.scroll.winfo_width() == before + 200
+
+
+class TestPlates:
+    def test_the_rim_of_a_plate_does_not_move_the_window(self, window):
+        plate = uk.GroupSurface(window, bg_under=uk.Theme.WINDOW_BG)
+        assert not window_mod.is_free_area(plate)

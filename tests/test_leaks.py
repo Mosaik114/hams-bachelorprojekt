@@ -2,10 +2,8 @@
 
 Counted are the Tcl commands of the interpreter: every Python callback Tk knows (bindings, `after`, `command=`)
 is one. A popover opened and closed twenty times, or a settings window built anew five times, must leave the
-count where it was (a small margin for caches that fill once).
+count where it was (a small margin for timers that are pending at that moment).
 """
-
-import pytest
 
 from hams.ui_kit.popover import Popover
 
@@ -13,10 +11,10 @@ MARGIN = 10
 
 
 def tcl_commands(root) -> int:
-    return len(root.tk.call("info", "commands"))
+    """Callbacks Tk knows. Images (`pyimageN`) are left out: they live in the bounded image cache on purpose."""
+    return sum(1 for name in root.tk.call("info", "commands") if not str(name).startswith("pyimage"))
 
 
-@pytest.mark.xfail(reason="phase 3 of the rebuild: PressArea keeps one bind tag per area", strict=True)
 def test_popovers_leave_nothing_behind(live_app):
     live_app._open_settings()
     live_app.root.update()
@@ -37,7 +35,6 @@ def test_popovers_leave_nothing_behind(live_app):
     assert tcl_commands(live_app.root) - before <= MARGIN
 
 
-@pytest.mark.xfail(reason="phase 3 of the rebuild: PressArea keeps one bind tag per area", strict=True)
 def test_rebuilding_the_settings_leaves_nothing_behind(live_app):
     def rebuild():
         live_app._open_settings()

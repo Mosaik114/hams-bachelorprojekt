@@ -147,7 +147,13 @@ class SettingRow(tk.Frame):
 
     def _bind_interaction(self) -> None:
         """Die ganze Zeile ist Auslöser (Schalter): jeder Teil, auch Rand und Trennlinie."""
-        self._area = PressArea(self, self._on_click, on_hover=self._on_hover, enabled=lambda: self._enabled)
+        self._area = PressArea(
+            self,
+            self._on_click,
+            on_hover=self._on_hover,
+            on_press=self._on_press_look,
+            enabled=lambda: self._enabled,
+        )
         self._area.set_cursor("hand2")
 
     # ------------------------------------------------------------ Aufbau
@@ -303,6 +309,13 @@ class SettingRow(tk.Frame):
     def _on_leave(self, _event=None) -> None:
         self._hovered = False
         self._paint(Theme.GROUP_SURFACE)
+
+    def _on_press_look(self, pressed: bool) -> None:
+        """Gedrückt eine Stufe dunkler als im Hover, wie ein Knopf."""
+        if self._enabled and self._interactive:
+            self._paint(
+                Theme.CONTROL_HOVER if pressed else Theme.CONTROL_SURFACE if self._hovered else Theme.GROUP_SURFACE
+            )
 
     def _on_hover(self, inside: bool) -> None:
         if inside:

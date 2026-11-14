@@ -144,6 +144,17 @@ def model_cache_check(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def keyboard_modality():
+    """Every test starts as if the keyboard was used last; a simulated click in one test must not hide the
+    focus edge in the next (`InputModality` is shared by the whole application)."""
+    from hams.ui_kit.states import InputModality
+
+    InputModality.keyboard = True
+    yield
+    InputModality.keyboard = True
+
+
+@pytest.fixture(autouse=True)
 def no_animation():
     """Animationen aus, ausser ein Test schaltet sie ausdruecklich ein.
 

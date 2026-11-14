@@ -9,7 +9,7 @@ from PIL import ImageTk
 
 from hams.ui_kit.icons import ICON_BOX, render_icon
 from hams.ui_kit.scale import Scale, font, px
-from hams.ui_kit.states import ControlStyle, FocusMixin, State, StateMixin
+from hams.ui_kit.states import ControlStyle, FocusMixin, Pressable, State, StateMixin
 from hams.ui_kit.surfaces import paint
 from hams.ui_kit.theme import Depth, Height, Radius, Space, Theme
 
@@ -26,7 +26,7 @@ def on_hidden_page(widget: tk.Misc) -> bool:
     return False
 
 
-class BaseControl(tk.Label, StateMixin, FocusMixin):
+class BaseControl(tk.Label, StateMixin, FocusMixin, Pressable):
     """Gemeinsame Grundlage aller neuen Controls.
 
     Bündelt, was sonst jede Klasse einzeln erfände: Zustände, Tastaturfokus,
@@ -67,6 +67,7 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         self._image: ImageTk.PhotoImage | None = None
 
         self.init_focus(self._invoke)
+        self.init_press(self._command_if_any)
         self.bind("<Configure>", self._on_configure, add="+")
         self.bind("<Enter>", self._on_enter, add="+")
         self.bind("<Leave>", self._on_leave, add="+")
@@ -76,6 +77,10 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         Scale.register(self._on_scale_change)
 
     # ------------------------------------------------------------ Verhalten
+
+    def _command_if_any(self) -> None:
+        if self._command is not None:
+            self._command()
 
     def _invoke(self) -> None:
         if State.is_interactive(self._states) and self._command is not None:
@@ -89,23 +94,16 @@ class BaseControl(tk.Label, StateMixin, FocusMixin):
         # (Platz fuer 256) — nach gut 40 Hovern waere nichts Wiederverwendbares
         # mehr darin und *jedes* Neuzeichnen teuer. Der Gewinn waere ein
         # 60-ms-Effekt, den kaum jemand bemerkt.
-        if self.enabled:
-            self.set_state(State.HOVER, True)
+        self.press_enter()
 
     def _on_leave(self, _event=None) -> None:
-        self.set_state(State.HOVER, False)
-        self.set_state(State.PRESSED, False)
+        self.press_leave()
 
     def _on_press(self, _event=None) -> None:
-        if State.is_interactive(self._states):
-            self.set_state(State.PRESSED, True)
-            self.focus_set()
+        self.press_down()
 
-    def _on_release(self, _event=None) -> None:
-        fired = self.has_state(State.PRESSED)
-        self.set_state(State.PRESSED, False)
-        if fired:
-            self._invoke()
+    def _on_release(self, event=None) -> None:
+        self.press_up(event)
 
     def set_enabled(self, enabled: bool) -> None:
         self.set_state(State.DISABLED, not enabled)

@@ -276,11 +276,16 @@ class SectionHeader(tk.Label):
 class GroupSurface(tk.Canvas):
     """Eine abgerundete Fläche, die mehrere Zeilen zusammenfasst.
 
+    Rand und Seite der Platte verschieben das Fenster nicht (`drag_surface`), obwohl die Canvas für die runden
+    Ecken den Fenstergrund trägt.
+
     Die Zeilen liegen in einem Frame, das um `Space.GROUP_INSET` eingerückt im
     Canvas sitzt. Das genügt: bei 10 px Radius liegt die Ecke (4, 4) noch
     innerhalb der Rundung, der Rand bleibt also frei. Den sichtbaren Abstand
     zum Text liefert die Zeile selbst mit `Space.ROW_X`.
     """
+
+    drag_surface = False
 
     def __init__(self, master: tk.Misc, *, bg_under: str) -> None:
         super().__init__(master, bg=bg_under, bd=0, highlightthickness=0, takefocus=0, height=px(Radius.GROUP * 2))
