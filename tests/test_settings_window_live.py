@@ -240,6 +240,28 @@ class TestSwitches:
         assert CFG.sound_feedback is False
         assert ("ui", "sound_feedback", False) in hams.saved
 
+    def test_the_level_at_the_pointer_is_saved_and_applies_at_once(self, open_settings, hams, live_app):
+        CFG.cursor_level = True
+        g = open_settings().general
+        assert g.switch_cursor_level.value is True
+        assert sub(g.row_cursor_level) == "Zeigt beim Diktieren eine kleine Animation neben dem Mauszeiger"
+        refreshed = live_app.cursor_level.refreshed
+        g.row_cursor_level._on_click()  # a click anywhere on the row
+        assert CFG.cursor_level is False
+        assert ("ui", "cursor_level", False) in hams.saved
+        assert live_app.cursor_level.refreshed == refreshed + 1
+        g.switch_cursor_level.toggle()
+        assert CFG.cursor_level is True
+        assert ("ui", "cursor_level", True) in hams.saved
+
+    def test_the_switch_shows_the_stored_value_when_opened_again(self, open_settings, live_app):
+        CFG.cursor_level = True
+        win = open_settings()
+        win.close()
+        CFG.cursor_level = False
+        g = open_settings().general
+        assert g.switch_cursor_level.value is False
+
     def test_choosing_the_current_appearance_writes_nothing(self, open_settings, hams):
         g = open_settings().general
         g.select_appearance_mode(uk.Theme.mode)
@@ -536,5 +558,6 @@ class TestRowHoverOnEveryPage:
                     assert not any(corner.winfo_ismapped() for corner in corners)
             assert "Text bereinigen" in titles
             assert "Nach Updates suchen" in titles
+            assert "Pegel an der Maus" in titles
         finally:
             uk.Theme.apply(before)

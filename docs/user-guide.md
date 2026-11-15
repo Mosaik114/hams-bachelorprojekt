@@ -129,7 +129,7 @@ to your configuration file.
 | Transcription | Whisper model (download, switch, delete downloaded models), dictation language, hardware in use |
 | AI | text cleanup on/off, cleanup model, Ask AI model, Ollama status; *Download* for a cleanup model that isn't installed yet |
 | Shortcuts | both hotkeys, each with *Change* (see [Changing the hotkeys](#changing-the-hotkeys)); *Restart* button for when hotkeys stop responding |
-| General | sound on start/stop, light or dark appearance, interface language, *Check for updates*, *Edit* for the glossary, *Run again* for the setup assistant |
+| General | sound on start/stop, *Save transcripts*, *Level at the pointer*, light or dark appearance, interface language, *Check for updates*, *Edit* for the glossary, *Run again* for the setup assistant |
 | About & help | the installed version, *Open* for this user guide and for [troubleshooting](troubleshooting.md), *Open* for the log folder, *Create* for a diagnostic report (see [Reporting a bug](troubleshooting.md#reporting-a-bug)) |
 
 Model switches and dictation language apply from the next recording. The interface language applies after a
@@ -192,8 +192,7 @@ The most useful keys:
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts (dictation and *Ask AI*) |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
 | `[output]` | `save_transcripts`, `keep_days` | keep each pasted text as a file (default off) and for how many days (default 30, `0` forever) |
-| `[ui]` | `language`, `appearance`, `sound_feedback` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps |
-| `[integrations]` | `cursor_dot` | optional, default `false`: tells a separate overlay tool (if one runs) that Hams is recording and how loud, through a local window message (Linux: a socket in `$XDG_RUNTIME_DIR`). See `hams/cursor_dot.py` |
+| `[ui]` | `language`, `appearance`, `sound_feedback`, `cursor_level` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps; the level animation beside the mouse pointer while recording (default `true`, Windows only) |
 | `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
 
 **Interface language.** With `language = "auto"` (*System language* in the settings), Hams uses German when the operating system's display language is
@@ -381,6 +380,10 @@ On Linux the files are in `~/.config/hams` (`config.toml`, `glossary.toml`, `set
 `git pull` in the folder and repeat the `uv pip install` line. To uninstall, run `setup_autostart.py --remove`,
 `sudo bash linux/setup-system.sh --remove`, and delete the folder.
 
+Not on Linux: the level animation beside the mouse pointer (*Settings → General → Level at the pointer*). Under
+Wayland a program may neither read the pointer position outside its own windows nor place a window there, so the
+switch has no effect on Linux.
+
 ## Uninstall
 
 Windows Settings → Apps → Installed apps → **Hams** → Uninstall.
@@ -436,8 +439,8 @@ only check-in is an update check that you can turn off (see below).
 | *User guide*, *Troubleshooting* in *Settings → About & help*, *Help …* in the tray menu | opens the page on `github.com` in your web browser | nothing from Hams |
 | Text cleanup, *Ask AI*, warm-up at start, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
 
-Nothing else; Hams has no crash reporting. The optional `[integrations] cursor_dot` (off by default) only talks to
-another program on the same computer. `api.github.com` is the one outbound host the update check adds.
+Nothing else; Hams has no crash reporting. The level animation at the mouse pointer is drawn by Hams itself and
+sends nothing anywhere. `api.github.com` is the one outbound host the update check adds.
 When GitHub lists a newer release, Hams says so once as a tray notification and keeps a calm notice in the tray
 menu and under *Settings → General* until you open it or dismiss it (×) for that version. It never downloads or
 installs anything itself. The time of the last check and the dismissed version are kept in

@@ -44,7 +44,7 @@ FIELDS = [
     ("output", "keep_days", "transcripts_keep_days", "days"),
     ("ui", "sound_feedback", "sound_feedback", "bool"),
     ("updates", "check", "update_check", "bool"),
-    ("integrations", "cursor_dot", "integrations_cursor_dot", "bool"),
+    ("ui", "cursor_level", "cursor_level", "bool"),
 ]
 
 WRONG_VALUES = {

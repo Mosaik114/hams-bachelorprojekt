@@ -198,11 +198,11 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     from setup_fakes import InlineThread
 
     from hams import app as app_mod
-    from hams import cursor_dot, update_notice
     from hams import ollama as ollama_api
     from hams import recording as recording_mod
     from hams import settings_status as status_mod
     from hams import transcription as transcription_mod
+    from hams import update_notice
     from hams.app import FloatingTranscriberApp as App
     from hams.config import CFG
 
@@ -224,8 +224,27 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
             super().__init__()
             fakes.hotkeys = self
 
-    def dot(state, level=None):
-        fakes.dots.append((state, level))
+    class CursorLevel:
+        """The level at the pointer without a window: notes what it would show (tests/test_cursor_level.py
+        checks the real one)."""
+
+        def __init__(self, root):
+            self.state = "ready"
+            self.refreshed = 0
+            self.closed = False
+
+        def follow_state(self, state):
+            self.state = state
+            fakes.dots.append((state, None))
+
+        def set_level(self, level):
+            fakes.dots.append((self.state, level))
+
+        def refresh(self):
+            self.refreshed += 1
+
+        def close(self):
+            self.closed = True
 
     def load(self):
         fakes.loads += 1
@@ -241,7 +260,7 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     monkeypatch.setattr(transcription_mod, "pyperclip", fakes.clipboard)
     monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", tmp_path / "transkripte")
     monkeypatch.setattr(app_mod, "winsound", SimpleNamespace(Beep=lambda f, d: fakes.beeps.append((f, d))))
-    monkeypatch.setattr(cursor_dot, "notify", dot)
+    monkeypatch.setattr(app_mod, "CursorLevel", CursorLevel)
     fakes.sd = fake_sounddevice()
     monkeypatch.setattr(recording_mod, "sd", fakes.sd)
     monkeypatch.setattr(status_mod, "ScanThread", InlineThread)

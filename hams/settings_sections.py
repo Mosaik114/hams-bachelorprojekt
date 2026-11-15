@@ -1,5 +1,5 @@
 """The building blocks of the settings window: the `Section` base class, the shared helpers and the group
-"General" (sound, transcripts, appearance, language, updates, glossary, setup assistant).
+"General" (sound, transcripts, level at the pointer, appearance, language, updates, glossary, setup assistant).
 
 Every group of the window is a `Section` object that owns its widgets and its state (audit finding 11: before,
 six mixins shared undeclared attributes on one window object). A section builds its rows once; `sync()` fills
@@ -11,6 +11,7 @@ streams, a capture). The other sections live in settings_status.py (recording), 
 from __future__ import annotations
 
 import contextlib
+import sys
 import tkinter as tk
 from typing import TYPE_CHECKING
 
@@ -126,7 +127,7 @@ class Section:
 
 
 class GeneralSection(Section):
-    """Sound, transcripts, appearance, interface language, updates, glossary and the setup assistant."""
+    """Sound, transcripts, level at the pointer, appearance, interface language, updates, glossary, setup assistant."""
 
     APPEARANCE_LABELS = Text(
         lambda: {Theme.LIGHT: t("settings.appearance.light"), Theme.DARK: t("settings.appearance.dark")}
@@ -154,6 +155,7 @@ class GeneralSection(Section):
         )
         self.row_sound.set_control(self.switch_sound)
         self._build_transcripts_row(body)
+        self._build_cursor_level_row(body)
 
         # A select, not a switch: "dark on/off" would make light the absence of dark; "Appearance -> Light/Dark"
         # names both modes as equals and leaves room for a third "System". Single line, without a description:
@@ -199,6 +201,7 @@ class GeneralSection(Section):
         self.switch_sound.set(CFG.sound_feedback, animate=False)
         self.switch_transcripts.set(CFG.save_transcripts, animate=False)
         self.row_transcripts.set_description(self.transcripts_hint(CFG.transcripts_keep_days))
+        self.switch_cursor_level.set(CFG.cursor_level, animate=False)
         self.select_appearance.set_value(Theme.mode)
         self.select_language.set_value(CFG.ui_language)
         self.row_language.set_description(self.language_hint(CFG.ui_language))
@@ -241,6 +244,31 @@ class GeneralSection(Section):
     def _on_transcripts(self, value: bool) -> None:
         CFG.save_transcripts = value
         _persist_config_value("output", "save_transcripts", value)
+
+    # ---------------------------------------------------------- level at the mouse pointer
+
+    def _build_cursor_level_row(self, body: tk.Misc) -> None:
+        """Whether the level animation beside the mouse pointer is shown while recording (`[ui] cursor_level`)."""
+        self.row_cursor_level = uk.SettingRow(
+            body,
+            t("settings.cursor_level.title"),
+            variant="description",
+            # Linux has no overlay (see cursor_level.py); the row says so instead of promising one.
+            description=t("settings.cursor_level.hint" if sys.platform == "win32" else "settings.cursor_level.linux"),
+            interactive=True,
+            command=lambda: self.switch_cursor_level.toggle(),
+        )
+        self.row_cursor_level.pack(fill="x")
+        self.switch_cursor_level = uk.Switch(
+            body, bg_under=Theme.GROUP_SURFACE, value=CFG.cursor_level, command=self._on_cursor_level
+        )
+        self.row_cursor_level.set_control(self.switch_cursor_level)
+
+    def _on_cursor_level(self, value: bool) -> None:
+        """Applies at once: during a recording the animation appears or disappears right away."""
+        CFG.cursor_level = value
+        _persist_config_value("ui", "cursor_level", value)
+        self.app.cursor_level.refresh()
 
     # ---------------------------------------------------------- appearance, language
 

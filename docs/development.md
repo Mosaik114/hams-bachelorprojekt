@@ -74,7 +74,7 @@ hams/
 ├── support.py           help links, log folder, in-app diagnostic report
 ├── glossary.py          hotwords, fixed corrections, live reload
 ├── ollama.py            OllamaClient (every request to Ollama), status and model list
-├── cursor_dot.py        optional: recording state to an external cursor overlay (off by default)
+├── cursor_level.py      level animation beside the mouse pointer while recording (Windows)
 ├── system_hotkeys.py    Windows hotkeys     │ portal_hotkeys.py  Linux hotkeys
 ├── linux.py             uinput paste, chime, signals, lock file
 ├── settings_*.py        settings window, sections, live status, model manager, about & help

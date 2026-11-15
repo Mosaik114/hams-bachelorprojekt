@@ -16,11 +16,12 @@ import tkinter as tk
 
 import numpy as np
 
-from hams import branding, cursor_dot, transcription
+from hams import branding, transcription
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.config import APP_DIR, CFG, CONFIG_PATH, logger
+from hams.cursor_level import CursorLevel
 from hams.i18n import Text, t, tn
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex, restart_command
 from hams.main_window import MainWindowMixin
@@ -65,6 +66,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self._init_runtime_state()
 
         self._build_ui()
+        #: The level beside the mouse pointer while recording (window built on the first recording).
+        self.cursor_level = CursorLevel(self.root)
         self._fit_window()
         self.apply_state("model_loading")
         if setup and CFG.model_size not in whisper_models.installed_whisper_models():
@@ -436,8 +439,9 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self._ui_dispatcher.close()  # late callbacks from background threads are dropped
 
     def _release_resources(self) -> None:
-        """Stream, hotkeys and model."""
+        """Stream, hotkeys, model and the level at the pointer."""
         self._stop_elapsed_ticker()
+        self.cursor_level.close()
         self._cancel_done_reset()
         self.recorder.close()
         self.suspend_hotkeys()
@@ -520,7 +524,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
 
         self._show_footer_hint(hint, calm=calm)
         self._set_tray_icon(self._tray_colour(state))
-        cursor_dot.notify(state)
+        self.cursor_level.follow_state(state)
         self._cancel_done_reset()
         if state == "done":
             # A hint wants to be read; without one a short glance is enough.
@@ -707,7 +711,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             return
         level = _display_level(self.recorder.level)
         self.level_meter.set_level(level)
-        cursor_dot.notify(self._state, level)
+        self.cursor_level.set_level(level)
         self._level_tick_job = self.root.after(50, self._level_tick)
 
     def _stop_level_ticker(self) -> None:

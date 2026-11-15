@@ -195,9 +195,8 @@ class Config:
     ui_language: str = i18n.DEFAULT_SETTING
     #: Einmal am Tag beim Start bei GitHub nach einer neuen Version fragen (siehe updates.py).
     update_check: bool = True
-    #: Optional: report recording state and level to an external overlay (`[integrations] cursor_dot`, see
-    #: cursor_dot.py). Off: nothing is sent.
-    integrations_cursor_dot: bool = False
+    #: The level animation beside the mouse pointer while recording (`[ui] cursor_level`, see cursor_level.py).
+    cursor_level: bool = True
 
 
 def ipv4_loopback(url: str) -> str:
@@ -462,6 +461,7 @@ def _load_layers() -> Config:
             _note_retired_keys(data, path)
         if path == CONFIG_PATH and data:
             _keep_legacy_output(cfg, data)
+            _take_over_cursor_dot(cfg, data)
 
     if not cfg.transcription_language:
         cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
@@ -513,6 +513,21 @@ def _keep_legacy_output(cfg: Config, data: dict) -> None:
         cfg.save_transcripts = LEGACY_OUTPUT["save_transcripts"]
     if "keep_days" not in present:
         cfg.transcripts_keep_days = LEGACY_OUTPUT["keep_days"]
+
+
+def _take_over_cursor_dot(cfg: Config, data: dict) -> None:
+    """`[integrations] cursor_dot = true` (up to 1.3.1: the level at the pointer drawn by a separate tool) means
+    `[ui] cursor_level = true` as long as the file has no `cursor_level` of its own. Read quietly, never reported.
+
+    Only `true` is taken over: `false` stood in every user file as the template's default and said "send nothing
+    to the other tool", not "no animation".
+    """
+    integrations, ui = data.get("integrations"), data.get("ui")
+    if not isinstance(integrations, dict) or integrations.get("cursor_dot") is not True:
+        return
+    if isinstance(ui, dict) and "cursor_level" in ui:
+        return
+    cfg.cursor_level = True
 
 
 def _warn_config(message: str) -> None:
@@ -658,6 +673,7 @@ def _apply_ui(cfg: Config, ui: SectionReader) -> None:
     if "window_y" in ui:
         cfg.window_y = clean_coordinate(ui.raw("window_y"))
     cfg.tray_hint_shown = ui.boolean("tray_hint_shown", cfg.tray_hint_shown)
+    cfg.cursor_level = ui.boolean("cursor_level", cfg.cursor_level)
     cfg.settings_width = ui.integer("settings_width", cfg.settings_width, SETTINGS_MIN_WIDTH, SETTINGS_MAX)
     cfg.settings_height = ui.integer("settings_height", cfg.settings_height, SETTINGS_MIN_HEIGHT, SETTINGS_MAX)
     # `normalise` statt `str(...)`: der Schluessel fehlt in jeder bestehenden
@@ -672,10 +688,6 @@ def _apply_updates(cfg: Config, updates: SectionReader) -> None:
     cfg.update_check = updates.boolean("check", cfg.update_check, invalid=False)
 
 
-def _apply_integrations(cfg: Config, integrations: SectionReader) -> None:
-    cfg.integrations_cursor_dot = integrations.boolean("cursor_dot", cfg.integrations_cursor_dot, invalid=False)
-
-
 #: Abschnitt und Leser, in der Reihenfolge der Vorlage.
 _SECTION_APPLIERS = (
     ("audio", _apply_audio),
@@ -687,7 +699,6 @@ _SECTION_APPLIERS = (
     ("output", _apply_output),
     ("ui", _apply_ui),
     ("updates", _apply_updates),
-    ("integrations", _apply_integrations),
 )
 
 

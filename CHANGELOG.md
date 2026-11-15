@@ -5,6 +5,18 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Level at the pointer:** while you dictate, a small paper pill with five level bars sits just above and to the
+  left of the mouse pointer and follows it (turquoise for dictation, purple for *Ask AI*), so you can see that Hams
+  is listening without looking at its window. Clicks go through it, it never takes the focus and it keeps clear of
+  the pointer and the screen edges. On by default; *Settings → General → Level at the pointer* (`[ui]
+  cursor_level`) switches it off at once. Windows only.
+
+### Removed
+- The optional `[integrations] cursor_dot` messages to a separate overlay tool: Hams draws the level itself now and
+  sends nothing to other programs. A settings file with `cursor_dot = true` keeps the animation on, without a
+  warning.
+
 ## [1.3.1] – 2026-11-14
 
 ### Changed

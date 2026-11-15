@@ -91,6 +91,9 @@ appearance = "light"
 # "auto" folgt der Systemsprache: Deutsch auf einem deutschen System, sonst
 # Englisch. Eine Änderung gilt nach einem Neustart von Hams.
 language = "auto"
+# Beim Diktieren eine kleine Pegel-Animation neben dem Mauszeiger zeigen
+# (nur Windows). Umgestellt wird auch in den Einstellungen unter Allgemein.
+cursor_level = true
 # Die zuletzt gemerkte Fensterposition (window_x, window_y) und ob der
 # Hinweis „läuft im Tray weiter“ schon kam (tray_hint_shown) schreibt Hams
 # selbst in die Nutzerkonfiguration — hier haben sie nichts zu suchen.
@@ -101,9 +104,3 @@ language = "auto"
 # Release-Seite. Heruntergeladen wird nie etwas. false schaltet die Abfrage ab
 # (auch in den Einstellungen unter Allgemein).
 check = true
-
-[integrations]
-# Optional: Aufnahmezustand und Pegel an ein separates Overlay-Werkzeug melden, das
-# einen Aufnahmepunkt am Mauszeiger zeigt (siehe hams/cursor_dot.py). Bleibt alles
-# auf dem Rechner; aus heisst: es wird nichts gesendet.
-cursor_dot = false

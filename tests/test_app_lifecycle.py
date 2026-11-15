@@ -127,7 +127,7 @@ class TestStates:
         live_app.apply_state("ready")
         assert live_app.main_button._icon_name is None
 
-    def test_the_cursor_dot_follows_every_state(self, live_app, hams):
+    def test_the_level_at_the_pointer_follows_every_state(self, live_app, hams):
         live_app.apply_state("recording_prompt")
         assert hams.dots[-1] == ("recording_prompt", None)
 
@@ -379,7 +379,7 @@ class TestRecording:
             live_app._release_resources()
             live_app.recorder.is_recording = False
 
-    def test_the_level_meter_and_cursor_dot_follow_the_signal(self, live_app, hams):
+    def test_the_level_meter_and_the_pointer_level_follow_the_signal(self, live_app, hams):
         live_app.toggle_recording()
         try:
             hams.streams[-1].feed(np.full(160, 0.3))
