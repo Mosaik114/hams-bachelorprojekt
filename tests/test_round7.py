@@ -251,3 +251,33 @@ class TestSmallerFixes:
         assert button._paint(button._last_width, uk.px(button._logical_height)) is first
         stone = uk.IconButton(window, "close", lambda: None, bg_under=uk.Theme.WINDOW_BG)
         assert stone._paint(0, 0) is stone._paint(0, 0)
+
+
+class TestFlatSurface:
+    """A control without a surface of its own (a tab at rest) is painted as plain paper.
+
+    It used to be a rounded shape in the colour of the paper: the smoothed edges left light angles at the
+    corners, seen as faint brackets around every tab.
+    """
+
+    def test_a_tab_at_rest_is_plain_paper(self, window, root):
+        from PIL import ImageTk
+
+        bar = uk.TabBar(window, ["Eins", "Zwei"], lambda _i: None, bg_under=uk.Theme.WINDOW_BG)
+        bar.pack(fill="x")
+        root.update()
+        bar.show(0)
+        root.update()
+        rest = bar.buttons[1]
+        image = ImageTk.getimage(rest._image).convert("RGB")
+        paper = tuple(int(uk.Theme.WINDOW_BG[i : i + 2], 16) for i in (1, 3, 5))
+        assert image.getcolors() == [(image.width * image.height, paper)]
+        bar.destroy()
+
+    def test_flat_only_without_ink_side_or_focus(self):
+        from hams.ui_kit.surfaces import SurfaceSpec
+
+        assert SurfaceSpec(20, 10, 4, "#FFFFFF").flat
+        assert not SurfaceSpec(20, 10, 4, "#FFFFFF", focus="#000000").flat
+        assert not SurfaceSpec(20, 10, 4, "#FFFFFF", ink="#000000", ink_width=1.0).flat
+        assert SurfaceSpec(20, 10, 4, "#123456").render().getcolors() == [(200, (0x12, 0x34, 0x56, 255))]

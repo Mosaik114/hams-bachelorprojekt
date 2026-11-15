@@ -310,7 +310,7 @@ class TestRowHoverCorners:
         root.update()
         corners = row._corner_labels
         assert len(corners) == 4 and all(label.winfo_ismapped() for label in corners)
-        size = uk.px(uk.Radius.GROUP - uk.Space.GROUP_INSET)
+        size = row.corner_radius()
         assert int(corners[0].winfo_reqwidth()) == size
         row._on_leave()
         root.update()

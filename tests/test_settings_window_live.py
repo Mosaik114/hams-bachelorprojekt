@@ -465,3 +465,76 @@ class TestSystemFrame:
         assert not win.win.overrideredirect()
         assert not win.win.attributes("-topmost")
         assert not win._close_btn.winfo_ismapped()
+
+
+# ---------------------------------------------------------------- hover of the rows on every page
+
+
+def _rect(widget, origin):
+    """A widget's rectangle relative to `origin` (both mapped)."""
+    left = widget.winfo_rootx() - origin.winfo_rootx()
+    top = widget.winfo_rooty() - origin.winfo_rooty()
+    return left, top, left + widget.winfo_width(), top + widget.winfo_height()
+
+
+def _overlaps(a, b) -> bool:
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
+def _interactive_rows(widget):
+    found = []
+    for child in widget.winfo_children():
+        if isinstance(child, uk.SettingRow) and child._interactive:
+            found.append(child)
+        found.extend(_interactive_rows(child))
+    return found
+
+
+class TestRowHoverOnEveryPage:
+    """The hover of a row is a rounded surface *behind* its content.
+
+    The user saw the corner pieces over the first letter of "Text bereinigen" and "Nach Updates suchen", and
+    corner remnants next to the switch: `place` counts from the inner edge of a frame with padding, so the
+    corners sat at the text instead of at the edge of the surface.
+    """
+
+    @pytest.mark.parametrize("dark", [False, True], ids=["light", "dark"])
+    def test_no_corner_covers_text_or_control_and_all_sit_at_the_outer_edges(self, open_settings, dark):
+        before = uk.Theme.mode
+        uk.Theme.apply("dark" if dark else "light")
+        try:
+            win = open_settings()
+            titles = []
+            for index in range(len(win._pages)):
+                win.select_page(index)
+                win.win.update()
+                win._stop_warming()  # hidden pages laid out ahead must not count as shown
+                rows = [row for widget, _info in win._pages[index][1] for row in _interactive_rows(widget)]
+                for row in rows:
+                    if not row.enabled:
+                        continue
+                    titles.append(row._title_text)
+                    row._on_enter()
+                    win.win.update()
+                    line = row._line
+                    content = [row._text_box, *([row._control] if row._control is not None else [])]
+                    corners = row._corner_labels
+                    assert all(corner.winfo_ismapped() for corner in corners), row._title_text
+                    width, height = line.winfo_width(), line.winfo_height()
+                    size = row.corner_radius()
+                    expected = {(0, 0), (width - size, 0), (0, height - size), (width - size, height - size)}
+                    assert {(c.winfo_x(), c.winfo_y()) for c in corners} == expected, row._title_text
+                    for corner in corners:
+                        for part in content:
+                            assert not _overlaps(_rect(corner, line), _rect(part, line)), row._title_text
+                    # Stacking order: the corners lie under every other child of the line.
+                    order = [str(name) for name in win.win.tk.call("winfo", "children", str(line))]
+                    lowest = order[: len(corners)]
+                    assert set(lowest) == {str(corner) for corner in corners}, row._title_text
+                    row._on_leave()
+                    win.win.update()
+                    assert not any(corner.winfo_ismapped() for corner in corners)
+            assert "Text bereinigen" in titles
+            assert "Nach Updates suchen" in titles
+        finally:
+            uk.Theme.apply(before)

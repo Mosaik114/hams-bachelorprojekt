@@ -380,13 +380,30 @@ class SurfaceSpec:
             "pressed": self.pressed,
         }
 
+    @property
+    def flat(self) -> bool:
+        """Keine eigene Fläche: nichts als der Untergrund (Reiter und Icon-Knöpfe in Ruhe).
+
+        Eine solche Fläche wird als glatte Farbe gemalt, nicht als Form in der Farbe des Untergrunds: deren
+        geglättete Kanten (Lanczos) ließen helle Winkel stehen, sichtbar als Klammern um jeden Reiter.
+        """
+        return not (self.ink or self.side or self.focus or self.edge or self.shadow or self.gradient)
+
     def render(self) -> Image.Image:
         """Pures PIL, ohne Tk."""
+        if self.flat:
+            return Image.new("RGBA", (max(1, self.width), max(1, self.height)), self.fill)
         return render_surface(self.width, self.height, self.radius, self.fill, **self.options())
 
 
 def paint(spec: SurfaceSpec) -> ImageTk.PhotoImage:
     """Die Fläche als Tk-Bild, aus dem gemeinsamen Bildspeicher."""
+    if spec.flat:
+        key = ("flat", max(1, spec.width), max(1, spec.height), spec.fill)
+        cached = _img_cache.fetch(key)
+        if cached is not None:
+            return cached
+        return _img_cache.store(key, ImageTk.PhotoImage(spec.render()))
     return surface(spec.width, spec.height, spec.radius, spec.fill, **spec.options())
 
 

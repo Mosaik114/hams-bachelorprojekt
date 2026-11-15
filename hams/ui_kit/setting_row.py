@@ -311,19 +311,31 @@ class SettingRow(tk.Frame):
         self._hovered = False
         self._paint(Theme.GROUP_SURFACE)
 
-    #: Ecken der Hover-Fläche: (Ecke, place-Optionen). Die Fläche ist gerundet wie die Platte innen.
+    #: Ecken der Hover-Fläche: (Ecke, Richtung x, Richtung y, place-Optionen ohne Versatz).
     _CORNERS = (
-        ("nw", {"x": 0, "y": 0, "anchor": "nw"}),
-        ("ne", {"relx": 1.0, "y": 0, "anchor": "ne"}),
-        ("sw", {"x": 0, "rely": 1.0, "anchor": "sw"}),
-        ("se", {"relx": 1.0, "rely": 1.0, "anchor": "se"}),
+        ("nw", -1, -1, {"relx": 0.0, "rely": 0.0, "anchor": "nw"}),
+        ("ne", 1, -1, {"relx": 1.0, "rely": 0.0, "anchor": "ne"}),
+        ("sw", -1, 1, {"relx": 0.0, "rely": 1.0, "anchor": "sw"}),
+        ("se", 1, 1, {"relx": 1.0, "rely": 1.0, "anchor": "se"}),
     )
+
+    def corner_radius(self) -> int:
+        """Radius der Hover-Ecken: wie die Platte innen, aber nie größer als der Innenabstand der Zeile.
+
+        Die Ecken liegen im Innenabstand, nie über Text oder Control.
+        """
+        return max(1, min(px(Radius.GROUP - Space.GROUP_INSET), px(Space.ROW_X), px(Space.ROW_Y)))
 
     def _round_corners(self, colour: str) -> None:
         """Rundet die farbige Hover-Fläche: vier kleine Eckbilder in Plattenfarbe mit einem Viertelkreis.
 
         Die Zeile besteht aus rechteckigen Tk-Rahmen; ohne die Ecken stand der Hover als scharfes Rechteck in
-        der runden Platte. Radius = Platte minus Einzug, damit beide Rundungen zueinander passen.
+        der runden Platte.
+
+        Die Ecken sitzen an den *Außenkanten* der Hover-Fläche, im Innenabstand. `place` rechnet in einem Frame
+        mit `padx`/`pady` ab der Innenkante, also ab dem Text: früher standen die Ecken dort, schnitten den
+        ersten Buchstaben an, und die echten Kanten blieben eckig. Jetzt werden sie um den Innenabstand nach
+        außen geschoben und liegen im Stapel unter allem Inhalt.
         """
         corners = getattr(self, "_corner_labels", None)
         if colour == Theme.GROUP_SURFACE:
@@ -332,18 +344,19 @@ class SettingRow(tk.Frame):
             return
         if corners is None:
             corners = self._corner_labels = []
-            for _name, _options in self._CORNERS:
+            for _corner in self._CORNERS:
                 label = tk.Label(self._line, bd=0, highlightthickness=0, padx=0, pady=0, bg=Theme.GROUP_SURFACE)
                 if self._area is not None:
                     self._area.join(label)
                 corners.append(label)
-        radius = px(Radius.GROUP - Space.GROUP_INSET)
-        for label, (name, options) in zip(corners, self._CORNERS, strict=True):
+        radius = self.corner_radius()
+        pad_x, pad_y = int(str(self._line.cget("padx"))), int(str(self._line.cget("pady")))
+        for label, (name, dx, dy, options) in zip(corners, self._CORNERS, strict=True):
             image = corner_image(name, radius, colour, Theme.GROUP_SURFACE)
             label.configure(image=image, bg=Theme.GROUP_SURFACE)
             label.image = image
-            label.place(**options)
-            label.lift()
+            label.place(x=dx * pad_x, y=dy * pad_y, **options)
+            tk.Misc.lower(label)  # unter Text und Control; über dem Grund der Zeile liegt es als Kind ohnehin
 
     def _on_press_look(self, pressed: bool) -> None:
         """Gedrückt eine Stufe dunkler als im Hover, wie ein Knopf."""

@@ -75,6 +75,41 @@ def test_settings_pages(live_app, themed, out, mode):
     win.close()
 
 
+def _row_titled(widget, title):
+    for child in widget.winfo_children():
+        if isinstance(child, uk.SettingRow) and child._title_text == title:
+            return child
+        found = _row_titled(child, title)
+        if found is not None:
+            return found
+    return None
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_settings_row_hover(live_app, themed, out, mode):
+    """A row under the pointer: the rounded hover surface lies behind its text (KI and Allgemein)."""
+    themed(mode)
+    live_app.ollama_state = online("qwen3:8b")
+    live_app._open_settings()
+    live_app.root.update()
+    win = live_app.settings_win
+    win._repaint()
+    for page in range(len(win._pages)):
+        win.select_page(page)
+        win._stop_warming()
+        live_app.root.update()
+        for name, title in (("ki", "Text bereinigen"), ("allgemein", "Nach Updates suchen")):
+            row = _row_titled(win.scroll.body, title)
+            if row is None or not row.winfo_ismapped():
+                continue
+            capture(win.win, out / f"{mode}-hover-{name}-rest.png")
+            row._on_enter()
+            capture(win.win, out / f"{mode}-hover-{name}.png")
+            row._on_leave()
+    win.select_page(0)
+    win.close()
+
+
 def test_settings_sizes(live_app, out):
     live_app._open_settings()
     live_app.root.update()
