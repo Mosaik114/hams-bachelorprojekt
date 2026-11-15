@@ -46,6 +46,10 @@ class FakeDesktop:
         self.visible = False
         self.calls.append(("hide",))
 
+    def paint(self, hwnd, image):
+        self.painted = image
+        return True
+
 
 @pytest.fixture
 def switch_on(monkeypatch):
@@ -107,7 +111,7 @@ class TestGeometry:
     def test_sizes_follow_the_monitor_scale(self):
         normal, large = cl.Geometry.for_factor(1.0), cl.Geometry.for_factor(1.5)
         assert (normal.width, normal.height, normal.gap) == (cl.PILL_WIDTH, cl.PILL_HEIGHT, cl.GAP)
-        assert (large.width, large.height, large.gap) == (66, 36, 21)
+        assert (large.width, large.height, large.gap) == (84, 30, 21)
 
     def test_the_bars_sit_centred_in_the_pill(self):
         geometry = cl.Geometry.for_factor(1.0)
@@ -123,9 +127,31 @@ class TestGeometry:
             assert all(geometry.bar_min <= h <= geometry.bar_max for h in loud)
         assert cl.bar_targets(5.0, 0.0, geometry) == cl.bar_targets(1.0, 0.0, geometry)  # clamped
 
-    def test_the_key_colour_is_ink_one_step_off(self):
-        assert cl.key_colour("#8E877F") == "#8e8780"
-        assert cl.key_colour("#0000FF") == "#0000fe"
+    @pytest.mark.parametrize("size,border", [((56, 20), 1.0), ((84, 30), 1.5), ((3, 12), 0.0)])
+    def test_the_pill_is_a_clean_stadium(self, size, border):
+        """No square corner tips: transparent corners, symmetric on both axes, the round ends smooth."""
+        width, height = size
+        image = cl.stadium(width, height, "#FFFCF5", border="#8E877F" if border else None, border_w=border)
+        alpha = image.getchannel("A")
+        for x in range(width):
+            for y in range(height):
+                value = alpha.getpixel((x, y))
+                assert value == alpha.getpixel((width - 1 - x, y)) == alpha.getpixel((x, height - 1 - y))
+        if width > height:
+            assert alpha.getpixel((0, 0)) == 0 and alpha.getpixel((1, 1)) == 0
+            assert alpha.getpixel((width // 2, 0)) == 255 and alpha.getpixel((0, height // 2)) == 255
+            assert 0 < alpha.getpixel((height // 2 - 3, 0)) < 255, "the curve is anti-aliased"
+
+    def test_the_bitmap_is_premultiplied_bgra_top_down(self):
+        from PIL import Image
+
+        image = Image.new("RGBA", (2, 1), (200, 100, 50, 128))
+        image.putpixel((1, 0), (10, 20, 30, 0))
+        data = cl.premultiplied_bgra(image)
+        assert len(data) == 8
+        blue, green, red, alpha = data[:4]
+        assert alpha == 128 and abs(blue - 25) <= 1 and abs(green - 50) <= 1 and abs(red - 100) <= 1
+        assert data[4:] == bytes(4), "a transparent pixel carries no colour"
 
 
 # --------------------------------------------------------------------------- showing and hiding
@@ -136,7 +162,8 @@ class TestStates:
         overlay.follow_state("recording")
         assert overlay.shown
         geometry = overlay._geometry
-        assert overlay._desktop.calls[-1] == ("show", 800 - geometry.gap - geometry.width, 500 - geometry.gap - 24)
+        expected = ("show", 800 - geometry.gap - geometry.width, 500 - geometry.gap - geometry.height)
+        assert overlay._desktop.calls[-1] == expected
         assert overlay._job is not None
 
     @pytest.mark.parametrize("state", ["ready", "transcribing", "cleaning", "generating", "done", "error", "no_signal"])
@@ -230,7 +257,9 @@ class TestFollowing:
         desktop.position = (2500, 500)
         frame(overlay)
         assert overlay._geometry.factor == 1.5
-        assert int(overlay.canvas.cget("width")) == cl.Geometry.for_factor(1.5).width
+        large = cl.Geometry.for_factor(1.5)
+        assert overlay.frame_image.size == (large.width, large.height)
+        assert overlay._desktop.painted is overlay.frame_image
 
     def test_without_a_pointer_position_it_keeps_the_last_one(self, overlay):
         overlay.follow_state("recording")
@@ -260,7 +289,10 @@ class TestFollowing:
             Theme.apply(Theme.DARK if before == Theme.LIGHT else Theme.LIGHT)
             overlay.follow_state("ready")
             overlay.follow_state("recording")
-            assert str(overlay.win.attributes("-transparentcolor")).lower() == cl.key_colour(Theme.INK)
+            paper = Theme.GROUP_SURFACE.lstrip("#")
+            expected = tuple(int(paper[i : i + 2], 16) for i in (0, 2, 4))
+            pixel = overlay.frame_image.getpixel((overlay._geometry.width // 2, 3))
+            assert all(abs(a - b) <= 3 for a, b in zip(pixel[:3], expected, strict=True)), pixel
             assert overlay._bar_colour == Theme.ACCENT_TINT
         finally:
             Theme.apply(before)
@@ -291,6 +323,10 @@ class TestRealWindow:
             assert desktop.styles(level.hwnd) & cl.OVERLAY_STYLES == cl.OVERLAY_STYLES
             assert not desktop.styles(level.hwnd) & cl.WS_EX_APPWINDOW
             assert user32.GetForegroundWindow() == before, "showing must not take the focus"
+            frame_image = level.frame_image
+            assert frame_image.getpixel((0, 0))[3] == 0, "the corners are transparent, no colour key"
+            assert frame_image.getpixel((frame_image.width // 2, frame_image.height // 2))[3] == 255
+            assert desktop.paint(level.hwnd, frame_image), "UpdateLayeredWindow accepts the bitmap"
             frame(level)
             level.follow_state("error")
             root.update()

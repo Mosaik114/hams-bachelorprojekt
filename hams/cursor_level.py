@@ -1,6 +1,6 @@
 """The level at the mouse pointer: a small level animation beside the pointer while Hams records.
 
-A paper pill with an ink edge and five rounded bars, turquoise for dictation and in the AI colour for *Ask AI*,
+A paper pill with an ink edge and seven rounded bars, turquoise for dictation and in the AI colour for *Ask AI*,
 like the level meter in the settings. It sits a little *above and to the left* of the pointer, so the pointer
 and whatever it points at stay visible; at a screen edge it moves to the other side.
 
@@ -9,8 +9,10 @@ The window (Windows only):
 - a borderless, always-on-top Tk toplevel with the extended styles `WS_EX_LAYERED | WS_EX_TRANSPARENT |
   WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`: clicks go through it, it never takes the focus (the text field the user
   dictates into keeps it) and it has no taskbar button;
-- the corners outside the pill are cut away by a colour key (`-transparentcolor`). The key is the ink colour
-  shifted by one step, so the anti-aliased rim of the pill blends into ink instead of a coloured fringe;
+- real per-pixel alpha: each frame is composed as an RGBA image (pill, then bars) and handed to Windows with
+  `UpdateLayeredWindow` as a premultiplied 32-bit bitmap, so the anti-aliased rim blends with whatever lies
+  underneath, light or dark. A colour key (`-transparentcolor`) left a light, jagged seam on dark backgrounds:
+  the smoothed rim pixels were mixed with the key colour instead of the screen;
 - built once on the first show, afterwards only shown, moved and hidden (`ShowWindow`/`SetWindowPos` with
   `SWP_NOACTIVATE`): no window per dictation, no leak.
 
@@ -36,20 +38,19 @@ from dataclasses import dataclass
 
 from hams.config import CFG, logger
 from hams.ui_kit.scale import Scale
-from hams.ui_kit.surfaces import render_surface
 from hams.ui_kit.theme import Depth, Theme
 
 #: The states in which the animation is shown, and the colour token of its bars.
 BAR_COLOURS = {"recording": "ACCENT_TINT", "recording_prompt": "AI"}
 
 # Sizes in logical pixels (96 dpi); `Geometry.for_factor` scales them for the monitor under the pointer.
-PILL_WIDTH = 44
-PILL_HEIGHT = 24
-BAR_COUNT = 5
-BAR_WIDTH = 4
+PILL_WIDTH = 56
+PILL_HEIGHT = 20
+BAR_COUNT = 7
+BAR_WIDTH = 3
 BAR_GAP = 3
-BAR_MIN = 4  # at silence: five dots
-BAR_MAX = 14
+BAR_MIN = 3  # at silence: a row of dots
+BAR_MAX = 12
 #: Distance between the pointer's hot spot and the pill (logical).
 GAP = 14
 #: Height of the standard arrow below its hot spot (logical); a pill moved below the pointer keeps clear of it.
@@ -60,7 +61,7 @@ FRAME_MS = 16
 #: Share of the remaining way a bar moves per frame: calm, but quick enough to follow speech.
 EASE = 0.35
 #: Each bar's share of the level: the middle one is tallest, like the meter's swell.
-BAR_WEIGHTS = (0.55, 0.8, 1.0, 0.8, 0.55)
+BAR_WEIGHTS = (0.45, 0.65, 0.85, 1.0, 0.85, 0.65, 0.45)
 
 
 @dataclass(frozen=True)
@@ -122,6 +123,49 @@ def place(
     return x, y
 
 
+#: Supersampling of the stadium shapes: drawn this many times larger, then reduced with a box filter.
+SUPERSAMPLE = 4
+
+
+def _hex_rgb(colour: str) -> tuple[int, int, int]:
+    value = colour.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _stadium(draw, left: float, top: float, right: float, bottom: float) -> None:
+    """An exact stadium: two half circles of the full height joined by a rectangle, so no corner is left over."""
+    diameter = bottom - top
+    if right - left <= diameter:
+        draw.ellipse((left, top, right, bottom), fill=255)
+        return
+    draw.ellipse((left, top, left + diameter, bottom), fill=255)
+    draw.ellipse((right - diameter, top, right, bottom), fill=255)
+    draw.rectangle((left + diameter / 2, top, right - diameter / 2, bottom), fill=255)
+
+
+def stadium(width: int, height: int, fill: str, border: str | None = None, border_w: float = 0.0):
+    """A smooth stadium with real alpha (RGBA), drawn `SUPERSAMPLE` times larger; an ink rim of `border_w` px.
+
+    Colour and coverage are kept apart: the colour layer reaches out to the edge, the shape only gives the alpha.
+    Reducing a shape drawn on transparent black would darken the rim.
+    """
+    from PIL import Image, ImageDraw
+
+    scale = SUPERSAMPLE
+    big = (width * scale, height * scale)
+    colour = Image.new("RGB", big, _hex_rgb(border or fill))
+    mask = Image.new("L", big, 0)
+    _stadium(ImageDraw.Draw(mask), 0, 0, big[0] - 1, big[1] - 1)  # PIL boxes include both ends
+    if border and border_w > 0:
+        inset = border_w * scale
+        inner = Image.new("L", big, 0)
+        _stadium(ImageDraw.Draw(inner), inset, inset, big[0] - 1 - inset, big[1] - 1 - inset)
+        colour.paste(_hex_rgb(fill), (0, 0, *big), inner)
+    reduced = colour.resize((width, height), Image.BOX)
+    reduced.putalpha(mask.resize((width, height), Image.BOX))
+    return reduced
+
+
 def bar_targets(level: float, now: float, geometry: Geometry) -> list[float]:
     """Target height of each bar for `level` (0..1): a gentle swell around the middle, alive but calm."""
     level = max(0.0, min(1.0, level))
@@ -131,14 +175,6 @@ def bar_targets(level: float, now: float, geometry: Geometry) -> list[float]:
         wobble = 0.78 + 0.22 * math.sin(now * 9.0 + index * 1.7)
         heights.append(geometry.bar_min + span * level * weight * wobble)
     return heights
-
-
-def key_colour(ink: str) -> str:
-    """The transparency key: the ink colour one step off in blue (a colour no drawn pixel uses exactly)."""
-    value = ink.lstrip("#")
-    red, green, blue = int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
-    blue = blue + 1 if blue < 255 else blue - 1
-    return f"#{red:02x}{green:02x}{blue:02x}"
 
 
 # --------------------------------------------------------------------------- Win32
@@ -170,6 +206,46 @@ SWP_NOSIZE = 0x0001
 SWP_NOACTIVATE = 0x0010
 SWP_SHOWWINDOW = 0x0040
 MONITOR_DEFAULTTONEAREST = 2
+ULW_ALPHA = 2
+AC_SRC_ALPHA = 1
+
+
+class _Size(ctypes.Structure):
+    _fields_ = [("cx", ctypes.c_long), ("cy", ctypes.c_long)]
+
+
+class _Blend(ctypes.Structure):
+    _fields_ = [
+        ("op", ctypes.c_ubyte),
+        ("flags", ctypes.c_ubyte),
+        ("alpha", ctypes.c_ubyte),
+        ("format", ctypes.c_ubyte),
+    ]
+
+
+class _BitmapInfoHeader(ctypes.Structure):
+    _fields_ = [
+        ("biSize", ctypes.c_uint32),
+        ("biWidth", ctypes.c_int32),
+        ("biHeight", ctypes.c_int32),
+        ("biPlanes", ctypes.c_uint16),
+        ("biBitCount", ctypes.c_uint16),
+        ("biCompression", ctypes.c_uint32),
+        ("biSizeImage", ctypes.c_uint32),
+        ("biXPelsPerMeter", ctypes.c_int32),
+        ("biYPelsPerMeter", ctypes.c_int32),
+        ("biClrUsed", ctypes.c_uint32),
+        ("biClrImportant", ctypes.c_uint32),
+    ]
+
+
+def premultiplied_bgra(image) -> bytes:
+    """An RGBA image as the bytes of a top-down 32-bit DIB: B, G, R premultiplied with A, then A."""
+    from PIL import Image, ImageChops
+
+    red, green, blue, alpha = image.convert("RGBA").split()
+    channels = [ImageChops.multiply(channel, alpha) for channel in (blue, green, red)]
+    return Image.merge("RGBA", (*channels, alpha)).tobytes()
 
 
 class Win32Desktop:
@@ -191,6 +267,36 @@ class Win32Desktop:
         ]
         self.user32.MonitorFromPoint.argtypes = [_Point, ctypes.c_ulong]
         self.user32.MonitorFromPoint.restype = ctypes.c_void_p
+        self.gdi32 = ctypes.windll.gdi32
+        self.user32.GetDC.argtypes = [ctypes.c_void_p]
+        self.user32.GetDC.restype = ctypes.c_void_p
+        self.user32.ReleaseDC.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        self.user32.UpdateLayeredWindow.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.POINTER(_Size),
+            ctypes.c_void_p,
+            ctypes.POINTER(_Point),
+            ctypes.c_uint32,
+            ctypes.POINTER(_Blend),
+            ctypes.c_uint32,
+        ]
+        self.gdi32.CreateCompatibleDC.argtypes = [ctypes.c_void_p]
+        self.gdi32.CreateCompatibleDC.restype = ctypes.c_void_p
+        self.gdi32.CreateDIBSection.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(_BitmapInfoHeader),
+            ctypes.c_uint,
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.c_void_p,
+            ctypes.c_uint32,
+        ]
+        self.gdi32.CreateDIBSection.restype = ctypes.c_void_p
+        self.gdi32.SelectObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        self.gdi32.SelectObject.restype = ctypes.c_void_p
+        self.gdi32.DeleteObject.argtypes = [ctypes.c_void_p]
+        self.gdi32.DeleteDC.argtypes = [ctypes.c_void_p]
 
     def cursor(self) -> tuple[int, int] | None:
         point = _Point()
@@ -215,8 +321,11 @@ class Win32Desktop:
         return handle, area, factor
 
     def prepare(self, hwnd: int) -> None:
-        style = int(self.user32.GetWindowLongW(hwnd, GWL_EXSTYLE))
-        self.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, (style | OVERLAY_STYLES) & ~WS_EX_APPWINDOW)
+        """Sets the overlay styles. `WS_EX_LAYERED` is taken off once first: Tk may have used
+        `SetLayeredWindowAttributes` on the window, and then `UpdateLayeredWindow` fails (error 87)."""
+        style = int(self.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)) & ~WS_EX_APPWINDOW
+        self.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED)
+        self.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style | OVERLAY_STYLES)
 
     def styles(self, hwnd: int) -> int:
         return int(self.user32.GetWindowLongW(hwnd, GWL_EXSTYLE))
@@ -230,6 +339,39 @@ class Win32Desktop:
     def hide(self, hwnd: int) -> None:
         self.user32.ShowWindow(hwnd, SW_HIDE)
 
+    def paint(self, hwnd: int, image) -> bool:
+        """Puts the RGBA `image` into the layered window with per-pixel alpha (the position stays)."""
+        width, height = image.size
+        data = premultiplied_bgra(image)
+        screen = self.user32.GetDC(None)
+        memory = self.gdi32.CreateCompatibleDC(screen)
+        header = _BitmapInfoHeader(ctypes.sizeof(_BitmapInfoHeader), width, -height, 1, 32, 0, 0, 0, 0, 0, 0)
+        bits = ctypes.c_void_p()
+        bitmap = self.gdi32.CreateDIBSection(screen, ctypes.byref(header), 0, ctypes.byref(bits), None, 0)
+        try:
+            if not bitmap or not bits.value:  # pragma: no cover - out of GDI resources
+                return False
+            ctypes.memmove(bits, data, len(data))
+            old = self.gdi32.SelectObject(memory, bitmap)
+            ok = self.user32.UpdateLayeredWindow(
+                hwnd,
+                screen,
+                None,
+                ctypes.byref(_Size(width, height)),
+                memory,
+                ctypes.byref(_Point(0, 0)),
+                0,
+                ctypes.byref(_Blend(0, 0, 255, AC_SRC_ALPHA)),
+                ULW_ALPHA,
+            )
+            self.gdi32.SelectObject(memory, old)
+            return bool(ok)
+        finally:
+            if bitmap:
+                self.gdi32.DeleteObject(bitmap)
+            self.gdi32.DeleteDC(memory)
+            self.user32.ReleaseDC(None, screen)
+
 
 # --------------------------------------------------------------------------- overlay
 
@@ -242,7 +384,8 @@ class CursorLevel:
         self.supported = sys.platform == "win32" if supported is None else supported
         self._desktop = desktop
         self.win: tk.Toplevel | None = None
-        self.canvas: tk.Canvas | None = None
+        #: The last frame handed to Windows (RGBA), for the tests and the pictures.
+        self.frame_image = None
         self.hwnd = 0
         self.state = "ready"
         self.level = 0.0
@@ -254,7 +397,6 @@ class CursorLevel:
         self._area = (0, 0, 0, 0)
         self._geometry: Geometry | None = None
         self._look: tuple | None = None
-        self._bars: list[int] = []
         self._shown_heights: list[int] = []
         self._heights: list[float] = []
         self._images: dict = {}
@@ -305,7 +447,7 @@ class CursorLevel:
         if self.win is not None:
             with contextlib.suppress(tk.TclError):  # the root went first
                 self.win.destroy()
-        self.win = self.canvas = None
+        self.win = self.frame_image = None
         self._images.clear()
         self._background = None
 
@@ -354,8 +496,6 @@ class CursorLevel:
         win.withdraw()
         win.overrideredirect(True)
         win.attributes("-topmost", True)
-        self.canvas = tk.Canvas(win, bd=0, highlightthickness=0)
-        self.canvas.pack(fill="both", expand=True)
         self.win = win
         # Mapped once far off screen so Tk creates the native window; from then on only user32 shows and hides it.
         win.geometry("+-32000+-32000")
@@ -367,72 +507,56 @@ class CursorLevel:
         logger.info("Level at the pointer: window built")
 
     def _paint_look(self) -> None:
-        """Background and bar images for the current appearance, scale and mode; only when one of them changed."""
+        """Pill and bar images for the current appearance, scale and mode; only when one of them changed."""
         geometry = self._geometry
         colour = getattr(Theme, BAR_COLOURS.get(self.state, "ACCENT_TINT"))
         look = (Theme.mode, geometry, colour)
         if look == self._look:
             return
         self._look = look
-        key = key_colour(Theme.INK)
-        self.win.configure(bg=key)
-        self.win.attributes("-transparentcolor", key)
+        # Tk's own idea of the size matches the bitmap, so it never sizes the window back.
         self.win.geometry(f"{geometry.width}x{geometry.height}")
-        canvas = self.canvas
-        canvas.configure(width=geometry.width, height=geometry.height, bg=key)
-        canvas.delete("all")
         self._images.clear()
-        from PIL import ImageTk
-
-        pill = render_surface(
+        self._background = stadium(
             geometry.width,
             geometry.height,
-            geometry.height // 2,
             Theme.GROUP_SURFACE,
             border=Theme.INK,
             border_w=max(1.0, Depth.INK * geometry.factor),
         )
-        self._background = ImageTk.PhotoImage(pill, master=canvas)
-        canvas.create_image(0, 0, anchor="nw", image=self._background)
-        self._bars = []
-        self._shown_heights = []
+        self._shown_heights = [-1] * BAR_COUNT
         self._heights = [float(geometry.bar_min)] * BAR_COUNT
-        for _index in range(BAR_COUNT):
-            self._bars.append(canvas.create_image(0, 0, anchor="nw"))
-            self._shown_heights.append(-1)
         self._bar_colour = colour
-        # Tk rewrites the extended styles when it sets `-transparentcolor`: apply ours again afterwards.
         self.desktop.prepare(self.hwnd)
 
     def _bar_image(self, height: int):
         """A rounded bar of `height` pixels; kept per height (at most `bar_max` of them per look)."""
         image = self._images.get(height)
         if image is None:
-            from PIL import ImageTk
-
             width = self._geometry.bar_width
-            bar = render_surface(width, height, width // 2, self._bar_colour)
-            image = self._images[height] = ImageTk.PhotoImage(bar, master=self.canvas)
+            bar = stadium(width, height, self._bar_colour)
+            image = self._images[height] = bar
         return image
 
     def _draw_bars(self, now: float) -> None:
+        """Eases the bars toward the level; composes and paints a frame only when a bar changed by a pixel."""
         geometry = self._geometry
-        targets = bar_targets(self.level, now, geometry)
         changed = False
-        for index, target in enumerate(targets):
-            current = self._heights[index]
-            current += (target - current) * EASE
+        for index, target in enumerate(bar_targets(self.level, now, geometry)):
+            current = self._heights[index] + (target - self._heights[index]) * EASE
             self._heights[index] = current
             height = max(geometry.bar_min, min(geometry.bar_max, int(round(current))))
-            if height == self._shown_heights[index]:
-                continue
-            self._shown_heights[index] = height
-            item = self._bars[index]
-            self.canvas.itemconfigure(item, image=self._bar_image(height))
-            self.canvas.coords(item, geometry.bar_left(index), (geometry.height - height) // 2)
-            changed = True
-        if changed:
-            self.redraws += 1
+            if height != self._shown_heights[index]:
+                self._shown_heights[index] = height
+                changed = True
+        if not changed:
+            return
+        frame = self._background.copy()
+        for index, height in enumerate(self._shown_heights):
+            frame.alpha_composite(self._bar_image(height), (geometry.bar_left(index), (geometry.height - height) // 2))
+        self.frame_image = frame
+        self.desktop.paint(self.hwnd, frame)
+        self.redraws += 1
 
     def _frame(self) -> None:
         self._job = None
