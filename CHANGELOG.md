@@ -5,12 +5,38 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.2] – 2026-11-16
+
+1.3.2 is the first release after 1.3.0 and includes everything from 1.3.1: that version was tagged, but its CI run
+failed on an unstable test and it never came out as a release.
+
+### Included from 1.3.1
+- **Level at the pointer (Windows):** while you dictate, a small pill with seven level bars follows the mouse
+  pointer (turquoise for dictation, purple for *Ask AI*), at the refresh rate of the monitor, click-through and
+  hidden over full-screen games and videos. On by default; *Settings → General → Level at the pointer* switches it
+  off. It replaces `[integrations] cursor_dot`.
+- **Found as "Hams Dictate"** in the Start menu, on the desktop, under Windows *Apps* and in the setup wizard; the
+  app, its folders, settings and `Hams.exe` keep the name Hams.
+- **New look, "Tusche und Aquarell",** in light and dark, with one painted base for all controls and Nunito for
+  headings and buttons.
+- **Smoother settings window:** resizable at every edge, smooth while resizing, quick tab switches, and every free
+  area of a window moves it.
+- **Fixes** for the focus ring, greyed-out rows, pressing and sliding off buttons, a leak in the click areas,
+  scaling after a monitor change, the setup assistant (Escape, a "Next" that stayed locked after a model download)
+  and selection lists that reacted only on their text.
+
+The details are in the 1.3.1 section of `CHANGELOG.md`.
+
 ### Changed
 - **README:** shorter, with the screenshots next to the text they explain, a section for reviewers, and how to
   verify a download (SHA-256 and build provenance). The project history moved to `docs/development.md`.
 - **Repository layout:** the ruff rules moved into `pyproject.toml`, the Windows coverage settings to
   `.github/coverage-windows.ini`, the assistant context to `.claude/CLAUDE.md`. A code of conduct (Contributor
   Covenant 2.1) and a social preview image were added.
+
+### Fixed
+- **Steady test suite:** worker threads in the tests no longer stall on Tk images that earlier tests left behind;
+  the suite now frees them on the Tk thread after every test. This made the queue test fail at random on Linux CI.
 
 ## [1.3.1] – 2026-11-16
 
