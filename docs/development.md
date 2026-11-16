@@ -34,7 +34,7 @@ optional `Hams.exe` that opens the settings of the running instance.
 ```powershell
 pip install --require-hashes -r requirements-dev.txt
 pip install --no-deps -e .
-pytest tests --cov=hams       # ≈1,600 test functions, ≈3,200 test cases; Tk tests open real windows
+pytest tests --cov=hams       # ≈2,000 test functions, ≈3,750 test cases; Tk tests open real windows
 ruff check . ; ruff format --check .
 ```
 
@@ -86,7 +86,12 @@ scripts/                 Windows start script and settings launcher
 packaging/               PyInstaller spec, Inno Setup script, build and smoke test
 linux/                   install script, system setup and bring-to-front helper for Linux
 tools/                   reproducible WER, latency and cleanup benchmarks (need a GPU and Windows TTS)
+docs/                    user and developer documentation; images/ holds the README images and social preview
+.github/                 CI workflows, lock script, issue and PR templates, Windows coverage settings
+.claude/CLAUDE.md        context for AI coding assistants (see "How it was built" in the README)
 ```
+
+Lint and format rules live in `pyproject.toml` under `[tool.ruff]`.
 
 The codebase is about 10.5k lines of application code and 12k lines of tests.
 
@@ -101,3 +106,18 @@ The codebase is about 10.5k lines of application code and 12k lines of tests.
 | Data, logs | `%LOCALAPPDATA%\Hams` | `~/.local/share/hams` (or `$XDG_DATA_HOME/hams`) |
 | Autostart | registry `Run` key | `~/.config/autostart` + systemd user service |
 | Bring to front | tray icon, or start Hams again | `linux/show-hams.sh` (bind it to a key or panel button), or start Hams again |
+
+## Images in the README
+
+The screenshots in `docs/images/` are captured from the app at 200 % scaling, all windows at the same size; the
+level pill is rendered by the app's own drawing code over a plain text line. The demo GIF shows a real dictation
+(Whisper `turbo` on the GPU, cleanup with `qwen3.5:9b`) in real time with only the idle pauses trimmed; the mail
+window in it is a simple test editor. `docs/images/social-preview.png` (1280 × 640) is the repository's social
+preview, set under *Settings → General → Social preview*.
+
+## Project history
+
+Hams began as a single-file prototype of about 3,400 lines for the thesis, under the working title *Wisper*. It was
+then split into modules, ported to Linux/Wayland and hardened for daily use; today everything is called `hams`. The
+project grew up in a private monorepo, and its history was imported from there unchanged: early commits also touch
+sibling tools, many commit messages are in German, and a few early timestamps were normalised when squashing.

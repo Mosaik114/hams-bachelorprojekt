@@ -5,6 +5,13 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **README:** shorter, with the screenshots next to the text they explain, a section for reviewers, and how to
+  verify a download (SHA-256 and build provenance). The project history moved to `docs/development.md`.
+- **Repository layout:** the ruff rules moved into `pyproject.toml`, the Windows coverage settings to
+  `.github/coverage-windows.ini`, the assistant context to `.claude/CLAUDE.md`. A code of conduct (Contributor
+  Covenant 2.1) and a social preview image were added.
+
 ## [1.3.1] – 2026-11-16
 
 ### Added
