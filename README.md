@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/secrets.yml"><img alt="Secret scan" src="https://github.com/Mosaik114/hams-bachelorprojekt/actions/workflows/secrets.yml/badge.svg"></a>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white">
   <img alt="Platforms" src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux-informational">
@@ -20,11 +20,12 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/demo.gif" width="880" alt="Hams in action: the cursor sits in an email draft, Hams records a spoken sentence with filler words, transcribes it and pastes the cleaned-up sentence at the cursor">
+  <img src="docs/images/demo.gif" width="880" alt="Hams in action: the cursor sits in an email draft; while Hams records a spoken sentence with filler words, a small level pill sits beside the pointer; then Hams transcribes it and pastes the cleaned-up sentence at the cursor">
   <br>
-  <sub>Recorded in real time (only the idle pauses are trimmed). The mail window is a simple test editor; the
-  dictation, the transcription (Whisper turbo on the GPU) and the cleanup (<code>qwen3.5:9b</code> in Ollama) are
-  real.</sub>
+  <sub>The Hams window and the level pill beside the pointer are drawn by the app itself, in its current look. The
+  sentence, its cleanup and the timing come from a real dictation (Whisper turbo on the GPU, cleanup with
+  <code>qwen3.5:9b</code> in Ollama), recorded in real time with only the idle pauses trimmed. The mail window is a
+  simple test editor.</sub>
 </p>
 
 <p align="center">
@@ -68,17 +69,17 @@
 
 <table>
   <tr>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/main-window-dark.png"><img src="docs/images/main-window-light.png" width="340" alt="Main window: ready, with the Turbo model loaded and both shortcuts"></picture><br><sub>Main window</sub></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/level-at-pointer-dark.png"><img src="docs/images/level-at-pointer-light.png" width="420" alt="Level at the pointer: a small pill with level bars above the mouse pointer while dictating into a text field"></picture><br><sub>Level at the pointer while dictating</sub></td>
+    <td align="center" valign="top"><img src="docs/images/main-window.png" width="340" alt="Main window: ready, with the Turbo model loaded and both shortcuts"><br><sub>Main window</sub></td>
+    <td align="center" valign="top"><img src="docs/images/level-at-pointer.png" width="420" alt="Level at the pointer: a small pill with level bars above the mouse pointer while dictating into a text field"><br><sub>Level at the pointer while dictating</sub></td>
   </tr>
   <tr>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-ai-dark.png"><img src="docs/images/settings-ai-light.png" width="404" alt="Settings, AI tab: text cleanup on, Ollama running, Qwen 3.5 9B as cleanup and Ask AI model"></picture><br><sub>Settings: local AI cleanup</sub></td>
-    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/setup-model-dark.png"><img src="docs/images/setup-model-light.png" width="404" alt="Setup assistant, step 3 of 6: the Turbo speech model is downloaded and ready"></picture><br><sub>Setup assistant: speech model</sub></td>
+    <td align="center" valign="top"><img src="docs/images/settings-ai.png" width="404" alt="Settings, AI tab: text cleanup on, Ollama running, Qwen 3.5 9B as cleanup and Ask AI model"><br><sub>Settings: local AI cleanup</sub></td>
+    <td align="center" valign="top"><img src="docs/images/setup-model.png" width="404" alt="Setup assistant, step 3 of 6: the Turbo speech model is downloaded and ready"><br><sub>Setup assistant: speech model</sub></td>
   </tr>
 </table>
 
-<sub>Light and dark follow your GitHub theme. The windows are captured from the app at 200 % scaling, all at the same size;
-the level pill is rendered by the app's own drawing code over a plain text line.</sub>
+<sub>The windows are captured from the app at 200 % scaling, all at the same size; the level pill is rendered
+by the app's own drawing code over a plain text line.</sub>
 
 ## Install
 
