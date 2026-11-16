@@ -9,6 +9,7 @@
 """
 
 import sys
+import time
 import tkinter as tk
 from types import SimpleNamespace
 
@@ -167,10 +168,40 @@ def settings(live_app):
     return live_app.settings_win
 
 
-def settle(app, rounds=40):
-    for _ in range(rounds):
+def settle(app, done=None, timeout=10.0):
+    """Runs the event loop until `done()` holds (default: no warming step left), with a generous time limit.
+
+    Waits for the state, not for a number of rounds: on a loaded machine a fixed count was sometimes too short.
+    """
+    settings = app.settings_win
+
+    def finished():
+        return settings._warm_job is None and not settings._warm_queue and settings._warm_current is None
+
+    done = done or finished
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
         app.root.update()
-        app.root.after(10)
+        if done():
+            return True
+        time.sleep(0.005)
+    return False
+
+
+def laid_out(settings, app):
+    """The settings window has its final width, so the pages are placed at the width they will be shown at."""
+    return settle(app, lambda: settings.scroll.body.winfo_width() > 1)
+
+
+def one_warm_step(settings):
+    """Runs exactly one warming step by hand: the timer is taken off, so the step count does not depend on timing."""
+    if settings._warm_job is not None:
+        settings.win.after_cancel(settings._warm_job)
+        settings._warm_job = None
+    settings._warm_step()
+    if settings._warm_job is not None:
+        settings.win.after_cancel(settings._warm_job)
+        settings._warm_job = None
 
 
 class TestWarmPages:
@@ -183,8 +214,9 @@ class TestWarmPages:
 
     def test_hidden_pages_are_laid_out_at_the_shown_width(self, settings, live_app, monkeypatch):
         monkeypatch.setattr(settings, "WARM_STEP_MS", 1)
+        assert laid_out(settings, live_app)
         settings.warm_pages()
-        settle(live_app)
+        assert settle(live_app)
         width = settings.scroll.body.winfo_width()
         for index in range(1, len(settings._pages)):
             for widget, info in settings._page_widgets(index):
@@ -194,18 +226,22 @@ class TestWarmPages:
                 assert widget.hidden_page
 
     def test_warming_does_not_change_the_scroll_height(self, settings, live_app, monkeypatch):
-        monkeypatch.setattr(settings, "WARM_STEP_MS", 1)
+        assert laid_out(settings, live_app)
+        assert settle(live_app)
         before = settings.scroll.body.winfo_reqheight()
         settings.warm_pages()
-        live_app.root.update()
+        one_warm_step(settings)
+        live_app.root.update_idletasks()
         assert settings._warm_current is not None, "a page is placed during its step"
         assert settings.scroll.body.winfo_reqheight() == before
-        settle(live_app)
+        settings._stop_warming()
 
     def test_selecting_the_page_being_warmed_shows_it(self, settings, live_app):
+        assert laid_out(settings, live_app)
         settings.warm_pages()
-        live_app.root.update()
+        one_warm_step(settings)
         index = settings._warm_current
+        assert index is not None
         settings.select_page(index)
         settings._warm_step()
         widgets = settings._page_widgets(index)

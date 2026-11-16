@@ -428,20 +428,34 @@ class TestFrameTiming:
         assert uk.FRAME_MS == 8
         assert pytest.approx(8.333, abs=0.01) == uk.FRAME_PERIOD_MS
 
-    def test_frames_keep_to_the_timeline(self, animated, window, root):
-        """Frame work does not add up: over a longer run the average stays near the 120 Hz period."""
+    def test_frames_keep_to_the_timeline(self, animated, window, monkeypatch):
+        """Frame work does not add up: over a longer run the average stays at the 120 Hz period.
+
+        Driven by a controlled clock, not the wall clock: on a loaded machine every timer fires late and the load
+        would decide the result. Each frame does 2 ms of work; a scheduler that waited a full period after the
+        work would come out at 10.3 ms per frame.
+        """
+        clock = [0.0]
+        monkeypatch.setattr("hams.ui_kit.animation.time", SimpleNamespace(perf_counter=lambda: clock[0]))
+        timers = []
+        monkeypatch.setattr(window, "after", lambda ms, callback: timers.append((ms, callback)) or "job")
         stamps = []
 
         def step(_fraction):
-            stamps.append(time.perf_counter())
-            time.sleep(0.002)  # 2 ms of work per frame
+            stamps.append(clock[0] * 1000)
+            clock[0] += 0.002  # 2 ms of work per frame
 
         Animator.run(window, "timeline", 300, step)
-        assert settle(root)
-        intervals = [(b - a) * 1000 for a, b in zip(stamps, stamps[1:], strict=False)]
-        assert len(intervals) >= 10
+        while timers:
+            ms, callback = timers.pop()
+            clock[0] += ms / 1000  # the timer fires exactly when it was asked to
+            callback()
+        intervals = [b - a for a, b in zip(stamps, stamps[1:], strict=False)]
+        assert len(intervals) >= 30
         average = sum(intervals) / len(intervals)
-        assert average < uk.FRAME_PERIOD_MS + 2.0, f"frames drift: {average:.2f} ms on average"
+        assert average == pytest.approx(uk.FRAME_PERIOD_MS, abs=0.1), f"frames drift: {average:.2f} ms on average"
+        assert max(intervals) <= uk.FRAME_PERIOD_MS + 1.0
+        assert Animator.pending(window) == 0
 
     def test_the_fine_timer_is_held_only_while_animating(self, animated, window, root, monkeypatch):
         calls = []
