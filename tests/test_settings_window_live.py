@@ -244,7 +244,13 @@ class TestSwitches:
         CFG.cursor_level = True
         g = open_settings().general
         assert g.switch_cursor_level.value is True
-        assert sub(g.row_cursor_level) == "Zeigt beim Diktieren eine kleine Animation neben dem Mauszeiger"
+        # Linux has no overlay; the row says so instead of promising one
+        expected = (
+            "Zeigt beim Diktieren eine kleine Animation neben dem Mauszeiger"
+            if sys.platform == "win32"
+            else "Gibt es bisher nur unter Windows"
+        )
+        assert sub(g.row_cursor_level) == expected
         refreshed = live_app.cursor_level.refreshed
         g.row_cursor_level._on_click()  # a click anywhere on the row
         assert CFG.cursor_level is False
