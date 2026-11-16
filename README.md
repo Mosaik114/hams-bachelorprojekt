@@ -21,7 +21,7 @@
 <p align="center">
   <img src="docs/images/demo.gif" width="880" alt="Hams in action: the cursor sits in an email draft; while Hams records a spoken sentence with filler words, a small level pill sits beside the pointer; then Hams transcribes it and pastes the cleaned-up sentence at the cursor">
   <br>
-  <sub>A real dictation in real time, only idle pauses trimmed: filler words in, a clean sentence out.</sub>
+  <sub>Text and timing from a real dictation, idle pauses trimmed: filler words in, a clean sentence out.</sub>
 </p>
 
 <p align="center">
