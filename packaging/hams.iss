@@ -24,6 +24,9 @@
 #endif
 
 #define AppName "Hams"
+; The name under which Hams is found: Start menu, desktop shortcut, Windows "Apps" and the setup wizard.
+; Folders, the autostart entry and the EXE keep the plain AppName, and so does the app window.
+#define AppDisplayName "Hams Dictate"
 #define AppExe "Hams.exe"
 #define AppUrl "https://github.com/Mosaik114/hams-bachelorprojekt"
 ; Same name as MUTEX_NAME in hams\instance.py: setup and uninstall wait until Hams is closed.
@@ -31,9 +34,9 @@
 
 [Setup]
 AppId={{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C93}
-AppName={#AppName}
+AppName={#AppDisplayName}
 AppVersion={#AppVersion}
-AppVerName={#AppName} {#AppVersion}
+AppVerName={#AppDisplayName} {#AppVersion}
 AppPublisher={#AppName}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
@@ -52,7 +55,7 @@ OutputDir={#OutputDir}
 OutputBaseFilename=Hams-Setup-{#AppVersion}
 SetupIconFile=..\hams\assets\branding\hams.ico
 UninstallDisplayIcon={app}\{#AppExe}
-UninstallDisplayName={#AppName}
+UninstallDisplayName={#AppDisplayName}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -78,13 +81,16 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [InstallDelete]
 ; An update must not mix old and new libraries.
 Type: filesandordirs; Name: "{app}\_internal"
+; Shortcuts of versions up to 1.3.0 were called just "Hams"; an update replaces them instead of adding a second one.
+Type: files; Name: "{autoprograms}\{#AppName}.lnk"
+Type: files; Name: "{autodesktop}\{#AppName}.lnk"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
+Name: "{autoprograms}\{#AppDisplayName}"; Filename: "{app}\{#AppExe}"
+Name: "{autodesktop}\{#AppDisplayName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Registry]
 ; The same entry hams\setup_autostart.py writes for a source install, so there is only ever one.

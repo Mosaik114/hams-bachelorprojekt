@@ -18,7 +18,9 @@ $Setup = (Resolve-Path $Setup).Path
 $AppDir = Join-Path $env:LOCALAPPDATA "Programs\Hams"
 $Exe = Join-Path $AppDir "Hams.exe"
 $RunKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-$Shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Hams.lnk"
+# Found as "Hams Dictate" (Start menu, Windows "Apps"); folders and the EXE keep the plain name.
+$Shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\Hams Dictate.lnk"
+$UninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C93}_is1"
 $Logs = Join-Path (Get-Location) "build\smoke"
 New-Item -ItemType Directory -Force $Logs | Out-Null
 
@@ -44,6 +46,8 @@ $process = Start-Process $Setup -ArgumentList $arguments -Wait -PassThru
 Assert-That ($process.ExitCode -eq 0) "setup exits with 0 (got $($process.ExitCode))"
 Assert-That (Test-Path $Exe) "Hams.exe installed per user in $AppDir"
 Assert-That (Test-Path $Shortcut) "Start menu shortcut exists"
+$displayName = (Get-ItemProperty $UninstallKey -Name DisplayName -ErrorAction SilentlyContinue).DisplayName
+Assert-That ($displayName -eq "Hams Dictate") "listed in Windows Apps as 'Hams Dictate' (got '$displayName')"
 Assert-That ((Get-Autostart) -eq "`"$Exe`" --background") "autostart entry starts Hams.exe in the tray (--background)"
 $installed = Get-FileList $AppDir
 Write-Host ("Installed: {0} files, {1:N0} MB" -f $installed.Count, ((Get-ChildItem $AppDir -Recurse -File | Measure-Object Length -Sum).Sum / 1MB))

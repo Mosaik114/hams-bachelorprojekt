@@ -62,6 +62,10 @@ def test_installer_matches_hams_iss(manifests):
     app_id = re.search(r"^AppId=\{(\{[0-9A-F-]+\})$", ISS, re.MULTILINE).group(1)
     assert installer["ProductCode"] == f"{app_id}_is1"
     assert installer["AppsAndFeaturesEntries"][0]["ProductCode"] == f"{app_id}_is1"
+    # Windows "Apps" shows UninstallDisplayName; winget matches an installed copy by it
+    display_name = re.search(r'^#define AppDisplayName "([^"]+)"$', ISS, re.MULTILINE).group(1)
+    assert "UninstallDisplayName={#AppDisplayName}" in ISS
+    assert installer["AppsAndFeaturesEntries"][0]["DisplayName"] == display_name == "Hams Dictate"
     assert "/VERYSILENT" in installer["InstallerSwitches"]["Silent"]
     assert "OutputBaseFilename=Hams-Setup-{#AppVersion}" in ISS
     (entry,) = installer["Installers"]
@@ -75,7 +79,7 @@ def test_installer_matches_hams_iss(manifests):
 def test_locale(manifests):
     locale = manifests["defaultLocale"]
     assert manifests["version"]["DefaultLocale"] == locale["PackageLocale"] == "en-US"
-    assert locale["PackageName"] == "Hams" and locale["License"] == "MIT"
+    assert locale["PackageName"] == "Hams Dictate" and locale["License"] == "MIT"
     assert locale["ReleaseNotesUrl"].endswith(f"/releases/tag/v{VERSION}")
     assert len(locale["ShortDescription"]) <= 256
 

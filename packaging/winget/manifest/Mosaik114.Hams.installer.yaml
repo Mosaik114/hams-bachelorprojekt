@@ -20,7 +20,7 @@ MinimumOSVersion: 10.0.0.0
 # AppId in hams.iss plus the suffix Inno Setup adds to the uninstall key.
 ProductCode: '{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C93}_is1'
 AppsAndFeaturesEntries:
-  - DisplayName: Hams
+  - DisplayName: Hams Dictate
     ProductCode: '{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C93}_is1'
 Installers:
   - Architecture: x64

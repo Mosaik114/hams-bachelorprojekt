@@ -19,7 +19,7 @@ can tidy up the text or answer a spoken question.
 1. Download `Hams-Setup-<version>.exe` from the
    [latest release](https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest).
 2. Run it. Hams installs for your Windows user only, without admin rights and without Python, into
-   `%LOCALAPPDATA%\Programs\Hams` (about 257 MB). The installer adds a Start menu entry and offers two options:
+   `%LOCALAPPDATA%\Programs\Hams` (about 257 MB). The installer adds a Start menu entry, **Hams Dictate**, and offers two options:
    *Start Hams when I sign in to Windows* (on by default) and a desktop icon (off by default).
 3. **Windows warning about an unknown publisher.** The installer and `Hams.exe` are not code-signed. Microsoft
    Defender SmartScreen may show *"Windows protected your PC"*. Click **More info → Run anyway**. If *Smart App
@@ -386,7 +386,7 @@ switch has no effect on Linux.
 
 ## Uninstall
 
-Windows Settings → Apps → Installed apps → **Hams** → Uninstall.
+Windows Settings → Apps → Installed apps → **Hams Dictate** → Uninstall.
 
 The uninstaller removes the program folder (`%LOCALAPPDATA%\Programs\Hams`), the Start menu and desktop entries,
 and the autostart entry. It then asks two questions, both answered *No* by default:
