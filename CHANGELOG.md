@@ -5,9 +5,12 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.3] – 2026-11-16
+
 ### Changed
 - **Light mode is now "Kalkweiß":** an almost neutral off-white instead of the cream paper, with white plates,
   a lighter ink edge and quieter separators. Accent and dark mode are unchanged.
+- **README:** the screenshots, the demo and the social preview show the new light look.
 
 ## [1.3.2] – 2026-11-16
 
