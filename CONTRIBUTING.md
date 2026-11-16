@@ -38,13 +38,13 @@ Add the `[cuda]` extra (`pip install -e ".[cuda]"`) to transcribe on an NVIDIA G
 pytest tests --cov=hams
 ```
 
-About 3,200 tests; coverage counts lines and branches together. The gate is 93 % on Windows
-(`coverage-windows.ini`) and 88 % on Linux (`pyproject.toml`), where the Windows-only modules count but mostly
+About 3,750 test cases; coverage counts lines and branches together. The gate is 93 % on Windows
+(`.github/coverage-windows.ini`) and 88 % on Linux (`pyproject.toml`), where the Windows-only modules count but mostly
 cannot run. Many tests open real Tk windows, so run them headless:
 
 - **Linux:** `xvfb-run -a pytest tests` (as in CI).
 - **Windows:** run the suite on a separate, invisible desktop (for example via `CreateDesktop`), or accept that
-  windows briefly flash on screen. Windows CI uses `--cov-config=coverage-windows.ini`, which leaves out the
+  windows briefly flash on screen. Windows CI uses `--cov-config=.github/coverage-windows.ini`, which leaves out the
   Linux-only modules.
 
 The suite never touches your real configuration: `tests/conftest.py` points `HAMS_CONFIG` and `HAMS_LOG_DIR` at
@@ -60,7 +60,7 @@ Test behaviour, not source text: build the core objects (`Pipeline`, `ModelManag
 ruff check . && ruff format --check .
 ```
 
-Rules are in `ruff.toml`; the maximum cyclomatic complexity per function is 10.
+Rules are in `pyproject.toml` (`[tool.ruff]`); the maximum cyclomatic complexity per function is 10.
 
 ## Dependencies
 

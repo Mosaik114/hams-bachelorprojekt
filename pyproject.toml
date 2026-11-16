@@ -64,7 +64,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
 # Coverage gate for the Linux CI job: line and branch coverage together; the run fails below it.
-# It is lower than the Windows gate (93 %, coverage-windows.ini) because the Windows-only modules count here
+# It is lower than the Windows gate (93 %, .github/coverage-windows.ini) because the Windows-only modules count here
 # but mostly cannot run on Linux (measured 89.8 % with branches).
 [tool.coverage.run]
 branch = true
@@ -87,4 +87,45 @@ packages = ["hams", "hams.ui_kit", "hams.prompts"]
 [tool.setuptools.package-data]
 hams = ["prompts/*.txt", "*.toml", "assets/branding/*", "assets/fonts/*"]
 
-# Linter- und Formatregeln: ruff.toml
+# Lint and format rules. The rule selection is fixed here because ruff changes its defaults between versions.
+[tool.ruff]
+line-length = 120
+target-version = "py311"   # same as requires-python above
+extend-exclude = ["**/.venv", "**/*.egg-info", "tools/_korpus"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # style and syntax (pycodestyle)
+    "F",        # real errors: unused names, broken imports (Pyflakes)
+    "B",        # likely bugs (flake8-bugbear)
+    "SIM",      # simpler forms
+    "C90",      # complexity (at most 10 branches per function)
+    "I",        # import order
+    "UP",       # current Python idioms
+    "S",        # security (bandit)
+]
+ignore = [
+    # Programs without a full path (S607) and subprocess without a shell (S603): on Linux, Hams deliberately calls
+    # systemctl, wl-copy and friends from PATH; there is no outside input there.
+    "S603", "S607",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+# assert is exactly right in tests; so are dummy paths and identifiers
+"tests/**" = ["S101", "S105", "S106", "S108"]
+# Fixtures imported from appearance_support.py: the test parameters share their names (pytest requires it)
+"tests/test_appearance*.py" = ["F811"]
+# E402 is intended in main.py: the project root must be on sys.path before the other imports, so that the direct
+# script start from the autostart VBS finds the package imports below.
+"hams/main.py" = ["E402"]
+# The ui_kit package re-exports the names of its modules; they are only passed through there.
+"hams/ui_kit/__init__.py" = ["F401"]
+# Measurement tools: start PowerShell for speech output and import after the sys.path entry
+"tools/*.py" = ["E402", "S101", "S311"]
+
+[tool.ruff.format]
+# One consistent style (ruff format); quotes stay as they are
+quote-style = "preserve"

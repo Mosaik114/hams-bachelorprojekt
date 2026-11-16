@@ -77,9 +77,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements-dev.txt
           pip install --no-deps -e .
-      # Linux-only modules are excluded from the Windows coverage figure (coverage-windows.ini)
+      # Linux-only modules are excluded from the Windows coverage figure (.github/coverage-windows.ini)
       - name: Run tests
-        run: pytest tests -q --cov=hams --cov-report=term --cov-config=coverage-windows.ini
+        run: pytest tests -q --cov=hams --cov-report=term --cov-config=.github/coverage-windows.ini
 
   test-linux:
     # The lock files are compiled for 3.11 (--universal); 3.12 installs the same pins. Python 3.10 is not
