@@ -5,8 +5,10 @@ Each class pins one finding: the fix must hold, or a dictation gets lost, mangle
 
 import logging
 import socket
+import sys
 import threading
 import time
+import traceback
 import urllib.request
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,11 +37,22 @@ def pipeline(monkeypatch, tmp_path):
 
 
 def wait_until(condition, timeout=30.0) -> None:
-    """Waits for this test's own result. Waiting for every live "transcribe" thread also waited for threads other
-    tests left behind, and a loaded runner ran out of time; the generous limit only matters when it fails."""
+    """Waits for this test's own result; the generous limit only matters when it fails.
+
+    A worker that stood still here once was collecting the Tk garbage of earlier tests (see
+    `tk_garbage_dies_on_the_tk_thread` in conftest.py). If it ever times out again, the message shows where every
+    "transcribe" thread is.
+    """
     end = time.monotonic() + timeout
     while not condition():
-        assert time.monotonic() < end, "the pipeline did not finish"
+        if time.monotonic() >= end:
+            frames = sys._current_frames()
+            stacks = [
+                f"--- {thread.name}\n" + "".join(traceback.format_stack(frames[thread.ident])[-6:])
+                for thread in threading.enumerate()
+                if thread.name == "transcribe" and thread.ident in frames
+            ]
+            raise AssertionError("the pipeline did not finish\n" + "\n".join(stacks))
         time.sleep(0.01)
 
 

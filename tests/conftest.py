@@ -2,6 +2,7 @@
 
 import atexit
 import contextlib
+import gc
 import os
 import shutil
 import sys
@@ -342,6 +343,34 @@ def root():
     yield window
     with contextlib.suppress(tk.TclError):
         window.destroy()
+
+
+@pytest.fixture(autouse=True)
+def tk_garbage_dies_on_the_tk_thread():
+    """Collects each test's garbage on the Tk thread, before a worker thread can trip over it.
+
+    Windows, widgets and their callbacks form reference cycles, so their Tk photo images are freed only by the
+    cyclic garbage collector - on whichever thread happens to allocate when it runs. On a worker thread each
+    image's `__del__` calls Tk across threads, and without a running `mainloop` (tests only call `update`)
+    `_tkinter` waits a full second for it and then gives up; Pillow's `PhotoImage` swallows the error. A pipeline
+    thread that ran into the garbage of earlier Tk tests stood still for 30 s and more, and its queue test failed
+    with "the pipeline did not finish". Collected here, on the Tk thread, every image is deleted at once.
+
+    After every test, not only those that ask for `root`: a Pillow image needs no fixture to find the one Tk root.
+    `pytest_collection_finish` freezes the heap of the imports, so a collection only looks at the test's objects.
+    """
+    yield
+    gc.collect()
+
+
+def pytest_collection_finish(session):
+    """Moves everything the imports and the collection left alive out of the collector's way (`gc.freeze`).
+
+    The collection after each test then only scans what tests created since, instead of the whole heap of numpy,
+    faster-whisper and Tk modules every time.
+    """
+    gc.collect()
+    gc.freeze()
 
 
 @pytest.fixture(autouse=True, scope="module")

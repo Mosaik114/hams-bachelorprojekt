@@ -5,6 +5,7 @@ ist der einzige Punkt, der tatsächlich lädt, und lässt sich ersetzen. Der rea
 Durchlauf mit GPU-Speichermessung lief als Integrationstest.
 """
 
+import gc
 import sys
 import threading
 import time
@@ -267,6 +268,9 @@ def cold(app, hams, monkeypatch):
     app.models.active_model_size = None
     app.models.model_ready.clear()
     app.models._phase = "idle"
+    # A load calls gc.collect() on its own thread; the Tk garbage of building the app goes here, on the Tk thread,
+    # instead of costing that thread a second per image (see `tk_garbage_dies_on_the_tk_thread` in conftest.py).
+    gc.collect()
     return app
 
 
