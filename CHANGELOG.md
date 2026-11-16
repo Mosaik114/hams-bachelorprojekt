@@ -5,6 +5,8 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] – 2026-11-16
+
 ### Added
 - **Level at the pointer:** while you dictate, a small paper pill with seven level bars sits just above and to the
   left of the mouse pointer and follows it (turquoise for dictation, purple for *Ask AI*), so you can see that Hams
@@ -14,14 +16,10 @@ follow [Semantic Versioning](https://semver.org/).
   pointer (240 Hz on a 240 Hz screen, in step with the compositor) and stays hidden over full-screen games and
   videos.
 
-### Removed
-- The optional `[integrations] cursor_dot` messages to a separate overlay tool: Hams draws the level itself now and
-  sends nothing to other programs. A settings file with `cursor_dot = true` keeps the animation on, without a
-  warning.
-
-## [1.3.1] – 2026-11-14
-
 ### Changed
+- **Found as "Hams Dictate":** the Start menu entry, the desktop icon, the entry under Windows *Apps* and the
+  setup wizard carry the name *Hams Dictate*. The app itself is still called Hams; its folders, settings, the
+  autostart entry and `Hams.exe` keep their names, and an update replaces the old *Hams* shortcuts.
 - **New look, "Tusche und Aquarell":** paper background, a fine ink edge and a stone side under every control,
   calm turquoise accents, in light and dark. Headings and buttons use Nunito (SIL Open Font License, bundled and
   loaded only for Hams). The settings and the setup assistant share one painted head with the Hams mark; its
@@ -35,17 +33,17 @@ follow [Semantic Versioning](https://semver.org/).
 - **Switching tabs is quick also the first time:** the hidden pages are laid out ahead in quiet steps after the
   window appears and after every resize.
 - **Moving a window works from any free area,** not only from the title: every part of the window background
-  (header, margins, text on the background) moves it, one position per idle round. One shared piece (`ui_kit.WindowChrome`) does this for the main
-  window, the settings and the setup assistant; each of them used to carry its own copy.
+  (header, margins, text on the background) moves it, one position per idle round. One shared piece
+  (`ui_kit.WindowChrome`) does this for the main window, the settings and the setup assistant; each of them used to
+  carry its own copy.
 - **The settings window can be resized** at every edge and corner (smallest 400 × 420 logical pixels); the content
   follows the width, and the size is kept in `[ui] settings_width`/`settings_height`.
 - **Tray icon:** colours follow the taskbar theme, errors have a colour of their own, and every drawn size is used.
 - **"Info & Hilfe"** is less crowded: the buttons measure themselves, the report buttons stand under their text.
-- **Moving a window works from any free area,** not only from the title: every part of the window background
-  (header, margins, text on the background) moves it, one position per idle round. One shared piece (`ui_kit.WindowChrome`) does this for the main
-  window, the settings and the setup assistant; each of them used to carry its own copy.
-- **The settings window can be resized** at every edge and corner (smallest 400 × 420 logical pixels); the content
-  follows the width, and the size is kept in `[ui] settings_width`/`settings_height`.
+
+### Removed
+- **`[integrations] cursor_dot` is gone:** Hams draws the level at the pointer itself and sends nothing to other
+  programs. A settings file with `cursor_dot = true` keeps the level at the pointer on, without a warning.
 
 ### Fixed
 - **The focus ring shows only after keyboard use,** never after a mouse click (a turquoise ring stood around the

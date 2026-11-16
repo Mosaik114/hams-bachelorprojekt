@@ -2,7 +2,7 @@
   <img src="hams/assets/branding/hams_mark_256.png" alt="Hams logo" width="104">
 </p>
 
-<h1 align="center">Hams</h1>
+<h1 align="center">Hams Dictate</h1>
 
 <p align="center">
   <b>Local, privacy-first voice input for Windows and Linux.</b><br>
@@ -51,12 +51,14 @@
   *Automatic*. Switching needs no restart. All measurements below are for German only.
 - **Glossary for names and jargon.** Words are passed to Whisper as hotword hints, fixed mishearings are corrected
   deterministically, and the LLM is told to leave those spellings alone.
+- **Level at the pointer.** While you dictate, a small level pill follows the mouse pointer, so you can see that
+  Hams is listening without looking at its window (Windows).
 - **Graceful degradation.** If Ollama is slow or down, the raw transcript is pasted anyway. The app falls back from
   CUDA `float16` to `int8` and on to the CPU when needed.
 - **Cross-platform desktop integration.** Windows: `RegisterHotKey`, tray icon, DPI awareness, autostart.
   Linux (KDE Plasma on Wayland): XDG Desktop Portal `GlobalShortcuts`, a `uinput` virtual keyboard, a systemd user
   service.
-- **Engineered like a product.** ≈1,800 test functions (≈3,350 test cases including parametrisation, many of them
+- **Engineered like a product.** ≈2,000 test functions (≈3,750 test cases including parametrisation, many of them
   driving live Tk windows), line+branch coverage gates (93 % Windows, 88 % Linux), ruff with complexity limits, hash-locked dependencies,
   `pip-audit` and a gitleaks history scan in CI.
 - **Private by design.** No account, no telemetry; logs record text *lengths*, never the dictated text. Every network
@@ -66,13 +68,17 @@
 
 <table>
   <tr>
-    <td align="center"><img src="docs/images/settings.png" width="200" alt="Settings window"><br><sub>Settings</sub></td>
-    <td align="center"><img src="docs/images/settings-shortcuts.png" width="200" alt="Settings: changing the Ask AI shortcut, waiting for the new key combination"><br><sub>Changing a shortcut</sub></td>
-    <td align="center"><img src="docs/images/wizard-welcome.png" width="200" alt="Setup assistant: welcome"><br><sub>Setup assistant</sub></td>
-    <td align="center"><img src="docs/images/wizard-hardware.png" width="200" alt="Setup assistant: graphics card check"><br><sub>Graphics card check</sub></td>
-    <td align="center"><img src="docs/images/wizard-finish.png" width="200" alt="Setup assistant: ready to dictate"><br><sub>Ready to dictate</sub></td>
+    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/main-window-dark.png"><img src="docs/images/main-window-light.png" width="340" alt="Main window: ready, with the Turbo model loaded and both shortcuts"></picture><br><sub>Main window</sub></td>
+    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/level-at-pointer-dark.png"><img src="docs/images/level-at-pointer-light.png" width="420" alt="Level at the pointer: a small pill with level bars above the mouse pointer while dictating into a text field"></picture><br><sub>Level at the pointer while dictating</sub></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-ai-dark.png"><img src="docs/images/settings-ai-light.png" width="404" alt="Settings, AI tab: text cleanup on, Ollama running, Qwen 3.5 9B as cleanup and Ask AI model"></picture><br><sub>Settings: local AI cleanup</sub></td>
+    <td align="center" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/setup-model-dark.png"><img src="docs/images/setup-model-light.png" width="404" alt="Setup assistant, step 3 of 6: the Turbo speech model is downloaded and ready"></picture><br><sub>Setup assistant: speech model</sub></td>
   </tr>
 </table>
+
+<sub>Light and dark follow your GitHub theme. The windows are captured from the app at 200 % scaling, all at the same size;
+the level pill is rendered by the app's own drawing code over a plain text line.</sub>
 
 ## Install
 

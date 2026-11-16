@@ -153,7 +153,7 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
 
 ## Quality gates
 
-- ≈1,800 test functions, ≈3,350 test cases including parametrisation. Many of them drive the real Tk application
+- ≈2,000 test functions, ≈3,750 test cases including parametrisation. Many of them drive the real Tk application
   through `tests/live_app.py`, with fakes for the microphone, Whisper and Ollama; the core objects are tested
   directly with injected fakes (`make_pipeline`, `ready_models`, `RecordingSink`). Tests check behaviour, never the
   source text of a function; the only source scans are project-wide AST rules (catalog strings, theme colours,

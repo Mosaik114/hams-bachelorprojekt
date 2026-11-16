@@ -706,7 +706,7 @@ class TestSetting:
         return _load_config()
 
     def test_the_old_key_is_taken_over_quietly(self, tmp_path, monkeypatch, caplog):
-        """`[integrations] cursor_dot = true` from 1.3.1 means the switch is on - without a warning."""
+        """`[integrations] cursor_dot = true` from 1.3.0 and earlier means the switch is on - without a warning."""
         with caplog.at_level(logging.WARNING, logger="hams"):
             cfg = self._load(
                 tmp_path, monkeypatch, "[integrations]\ncursor_dot = true\n", template="[ui]\ncursor_level = false\n"

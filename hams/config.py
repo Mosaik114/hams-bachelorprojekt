@@ -516,7 +516,7 @@ def _keep_legacy_output(cfg: Config, data: dict) -> None:
 
 
 def _take_over_cursor_dot(cfg: Config, data: dict) -> None:
-    """`[integrations] cursor_dot = true` (up to 1.3.1: the level at the pointer drawn by a separate tool) means
+    """`[integrations] cursor_dot = true` (up to 1.3.0: the level at the pointer drawn by a separate tool) means
     `[ui] cursor_level = true` as long as the file has no `cursor_level` of its own. Read quietly, never reported.
 
     Only `true` is taken over: `false` stood in every user file as the template's default and said "send nothing
