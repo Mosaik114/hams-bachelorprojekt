@@ -34,9 +34,11 @@ def pipeline(monkeypatch, tmp_path):
     return instance
 
 
-def wait_for_pipeline(timeout=5.0) -> None:
+def wait_until(condition, timeout=30.0) -> None:
+    """Waits for this test's own result. Waiting for every live "transcribe" thread also waited for threads other
+    tests left behind, and a loaded runner ran out of time; the generous limit only matters when it fails."""
     end = time.monotonic() + timeout
-    while any(t.name == "transcribe" and t.is_alive() for t in threading.enumerate()):
+    while not condition():
         assert time.monotonic() < end, "the pipeline did not finish"
         time.sleep(0.01)
 
@@ -104,7 +106,7 @@ class TestQueuedRecordings:
         time.sleep(0.05)
         pipeline.enqueue(np.full(10, 2.0), True, pipeline.next_run())
         gate.set()
-        wait_for_pipeline()
+        wait_until(lambda: len(pipeline.pasted) == 2 and not pipeline._busy)
         assert pipeline.pasted == ["text 1", "text 2"]
         assert modes == [False, True]
         assert names(pipeline.states) == ["done"], "only the newest run reports"
@@ -131,7 +133,7 @@ class TestQueuedRecordings:
         live_app.toggle_recording_generate()
         hams.streams[-1].feed(np.full(800, 0.2))
         live_app.toggle_recording()
-        wait_for_pipeline()
+        wait_until(lambda: received)
         assert received == [{"prompt_mode": True, "run_id": live_app.pipeline.latest_run}]
         assert live_app._prompt_mode is False
 

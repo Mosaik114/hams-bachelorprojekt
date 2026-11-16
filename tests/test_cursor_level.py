@@ -503,7 +503,10 @@ class TestFollowRate:
         overlay._desktop.create = refuse
         with caplog.at_level(logging.ERROR, logger="hams"):
             overlay.follow_state("recording")
-            overlay.follower._thread.join(5)
+            # The thread ends at once after the failed create; on a loaded runner it once started only after 5 s.
+            # join returns as soon as it ends, so the long limit costs nothing when all is well.
+            overlay.follower._thread.join(30)
+            assert not overlay.follower.alive
         assert any("window not created" in r.getMessage() for r in caplog.records)
         overlay.follow_state("ready")
         assert overlay._desktop.destroyed == 0
