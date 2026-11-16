@@ -148,7 +148,7 @@ class TestContrast:
         """Die Zusage lautet: Fenstergrund und Gruppenflaeche, sonst nichts.
 
         Dunkel reicht `TEXT_TERTIARY` auf der Controlflaeche nicht (3,94:1),
-        hell knapp (4,68:1). Statt die Ausnahme festzuschreiben, prueft der
+        hell knapp (5,3:1). Statt die Ausnahme festzuschreiben, prueft der
         Test die Zusage — und dass auf allen uebrigen Flaechen
         `TEXT_SECONDARY` traegt.
         """
@@ -184,13 +184,23 @@ class TestContrast:
 class TestInk:
     """Tusche und Aquarell: Rand und Seite der gemalten Flaechen muessen in beiden Modi zu sehen sein."""
 
+    #: Untergrenze fuer Tuscherand und Seiten je Modus. Hell (Kalkweiss) liegt die Plattenseite bewusst leiser
+    #: auf dem Grund (1,26:1); die Kante traegt dort der Tuscherand mit 2,5:1.
+    SIDE_MIN = {Theme.DARK: 1.3, Theme.LIGHT: 1.25}
+
     @pytest.mark.parametrize("mode", MODES)
     def test_ink_and_sides_stand_out(self, mode):
         palette = Theme.palette(mode)
         for name in ("INK", "GROUP_SIDE", "CONTROL_SIDE"):
             for ground in ("WINDOW_BG", "GROUP_SURFACE"):
                 ratio = contrast(palette[name], palette[ground])
-                assert ratio >= 1.3, f"{mode}: {name} auf {ground} nur {ratio:.2f}:1"
+                assert ratio >= self.SIDE_MIN[mode], f"{mode}: {name} auf {ground} nur {ratio:.2f}:1"
+
+    def test_light_ink_edge_carries_the_quiet_steps(self):
+        """Hell sind die Flaechen nur leise gestuft; der Tuscherand muss sie tragen und bleibt deshalb deutlich."""
+        palette = Theme.palette(Theme.LIGHT)
+        for ground in ("WINDOW_BG", "GROUP_SURFACE"):
+            assert contrast(palette["INK"], palette[ground]) >= 2.0, f"INK auf {ground}"
 
     @pytest.mark.parametrize("mode", MODES)
     def test_pressed_sinks_darker_than_the_stone(self, mode):
@@ -238,10 +248,15 @@ class TestSurfaceLadder:
         palette = Theme.palette(mode)
         assert luminance(palette["POPOVER_SURFACE"]) > luminance(palette["GROUP_SURFACE"])
 
+    #: Untergrenzen je Modus. Hell (Kalkweiss) sind Stufen und Trennlinie bewusst leiser als beim frueheren
+    #: Creme-Papier; die Hierarchie tragen dort Tuscherand und Seite (siehe `TestInk`).
+    HAIRLINE_MIN = {Theme.DARK: 1.2, Theme.LIGHT: 1.15}
+    STEP_MIN = {Theme.DARK: 1.10, Theme.LIGHT: 1.08}
+
     @pytest.mark.parametrize("mode", MODES)
     def test_hairline_is_visible_against_group(self, mode):
         palette = Theme.palette(mode)
-        assert contrast(palette["HAIRLINE"], palette["GROUP_SURFACE"]) >= 1.2
+        assert contrast(palette["HAIRLINE"], palette["GROUP_SURFACE"]) >= self.HAIRLINE_MIN[mode]
 
     @pytest.mark.parametrize("mode", MODES)
     def test_steps_stay_subtle(self, mode):
@@ -260,7 +275,7 @@ class TestSurfaceLadder:
             ("CONTROL_HOVER", "CONTROL_SURFACE"),
         ):
             ratio = contrast(palette[a], palette[b])
-            assert ratio >= 1.10, f"{mode}: {a} zu {b} nur {ratio:.3f}:1"
+            assert ratio >= self.STEP_MIN[mode], f"{mode}: {a} zu {b} nur {ratio:.3f}:1"
 
 
 class TestScales:

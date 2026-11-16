@@ -105,50 +105,58 @@ class Theme:
             "KNOB": "#FFFFFF",  # Schaltknopf des Toggles
         },
         LIGHT: {
-            # --- Flaechen: Aquarellpapier wie Loratu ---------------------------
-            # Der Fenstergrund ist Papier; die Platten darauf sind heller (frisches
-            # Blatt), die Steine darauf wieder dunkler. Alle Toene warm.
-            "WINDOW_BG": "#F4ECD9",
-            "GROUP_SURFACE": "#FFFCF5",  # Papierplatte
-            "CONTROL_SURFACE": "#F3E9D3",  # Stein, 1,18:1 gegen die Platte
-            "CONTROL_HOVER": "#E9DCC1",  # dunkler, nicht heller
-            "CONTROL_PRESSED": "#DCCBA9",  # gedrückt: noch dunkler, Text 8,9:1
-            # Die schwebende Ebene ist die hellste Flaeche.
-            "POPOVER_SURFACE": "#FFFEFB",
-            "HAIRLINE": "#E3D8C2",  # Trennlinie, wie Papierfasern
-            "CONTROL_OUTLINE": "#8A8170",  # >= 3:1 auf GROUP_SURFACE
+            # --- Flaechen: Kalkweiss -------------------------------------------
+            # Fast neutral mit einem Hauch Waerme; das fruehere Creme-Papier war zu
+            # gelb. Der Fenstergrund ist Kalk; die Platten darauf sind weiss, die
+            # Steine darauf wieder dunkler. Die Stufen sind klein (Platte zu Grund
+            # 1,09:1) — getragen wird die Tiefe vom Tuscherand und der Seite.
+            "WINDOW_BG": "#F5F4F1",
+            # Weiss, aber nicht #FFFFFF: das ist schon ON_ACCENT/ON_FILL/KNOB, und
+            # `Theme.remap()` braucht je Wert genau ein Token (sonst wird eine
+            # Platte nach dem Wechsel auf dunkel zum weissen Knopf).
+            "GROUP_SURFACE": "#FEFEFD",  # Platte
+            "CONTROL_SURFACE": "#F0EEEA",  # Stein, 1,15:1 gegen die Platte
+            "CONTROL_HOVER": "#E4E1DD",  # dunkler, nicht heller; 1,12:1 zum Stein
+            "CONTROL_PRESSED": "#D4D0CA",  # gedrückt: noch dunkler, Text 9,2:1
+            # Die schwebende Ebene ist die hellste Flaeche (aus demselben Grund
+            # wie bei der Platte nicht #FFFFFF).
+            "POPOVER_SURFACE": "#FFFFFE",
+            "HAIRLINE": "#EEECE8",  # Trennlinie, 1,17:1 auf der Platte
+            "CONTROL_OUTLINE": "#888279",  # 3,8:1 auf GROUP_SURFACE
             # --- Tusche: Rand und Seite der gemalten Flaechen -----------------
-            "INK": "#8E877F",  # Tuscherand: warmes Grau, dezent (Stufe „dezenter“)
-            "SCROLL_THUMB": "#857D70",  # Daumen der Bildlaufleiste, 3,5:1 zum Papier
-            "GROUP_SIDE": "#D2C2A3",  # Seite unter einer Platte, 1,3:1 zum Papier
-            "CONTROL_SIDE": "#D6C7A9",  # Seite unter einem Stein
+            "INK": "#A09D98",  # Tuscherand: helles, fast neutrales Grau, 2,5:1 zum Grund
+            "SCROLL_THUMB": "#87827B",  # Daumen der Bildlaufleiste, 3,5:1 zum Grund
+            "GROUP_SIDE": "#DEDBD5",  # Seite unter einer Platte, 1,26:1 zum Grund
+            "CONTROL_SIDE": "#CFCCC7",  # Seite unter einem Stein, 1,38:1 zum Stein
             "ACCENT_SIDE": "#075A52",
             "RECORDING_SIDE": "#6E1712",
             "ERROR_SIDE": "#7A1A14",
             "AI_SIDE": "#4A2C57",
             # --- Text: Tinte -------------------------------------------------
             "TEXT_PRIMARY": "#1C2B45",
-            "TEXT_SECONDARY": "#4C5568",  # 6,4:1 auf WINDOW_BG
-            "TEXT_TERTIARY": "#5A6274",  # 5,2:1 auf WINDOW_BG, 6,0:1 auf Platte
-            "TEXT_DISABLED": "#6B7180",  # ausgegraut, aber lesbar: 4,8:1 auf der Platte
+            "TEXT_SECONDARY": "#4C5568",  # 6,8:1 auf WINDOW_BG
+            # Tertiaer- und Ausgegraut-Text halten ihren Kontrast zur Platte (6,1:1 und 4,8:1). Heller darf der
+            # Tertiaertext nicht werden: als Punkt „untaetig“ muss er sich in Grau vom Gruen „bereit“ abheben.
+            "TEXT_TERTIARY": "#5A6274",  # 5,6:1 auf WINDOW_BG, 6,1:1 auf Platte
+            "TEXT_DISABLED": "#6C7282",  # ausgegraut, aber lesbar: 4,8:1 auf der Platte
             # --- Akzent: Tuerkis ---------------------------------------------
             "ACCENT_SURFACE": "#0B7D72",  # dieselbe Fuellung wie im Dunkeln
             "ACCENT_HOVER": "#0A7167",
             "ACCENT_PRESSED": "#09635B",
-            # Dunkler als der Markenton: #0E8C80 erreicht auf Creme nur 3,92:1,
-            # auf der Hoverflaeche 2,73:1.
-            "ACCENT_TINT": "#0A786E",  # 5,08:1 auf WINDOW_BG, 3,54:1 auf CONTROL_HOVER
+            # Dunkler als der Markenton: #0E8C80 erreicht auf dem Grund nur 3,76:1,
+            # auf der Hoverflaeche 3,17:1.
+            "ACCENT_TINT": "#0A786E",  # 4,86:1 auf WINDOW_BG, 4,11:1 auf CONTROL_HOVER
             "FOCUS": "#0A786E",  # Tuscherand eines Controls mit Tastaturfokus
             # --- Semantik ----------------------------------------------------
             "SUCCESS": "#3B7A3E",
             "WARNING": "#8F5B12",
-            "ERROR": "#B3261E",  # 6,20:1 — traegt auch als Text
+            "ERROR": "#B3261E",  # 6,5:1 auf der Platte — traegt auch als Text
             "ERROR_SURFACE": "#A8231C",  # gefuellt, ON_FILL 7,19:1
             "RECORDING": "#B3261E",
             "RECORDING_SURFACE": "#A8231C",
             "RECORDING_HOVER": "#961F19",
             "RECORDING_PRESSED": "#801A15",
-            "AI": "#7A4A8C",  # 6,26:1
+            "AI": "#7A4A8C",  # 6,5:1 auf der Platte
             "AI_SURFACE": "#6E4380",
             "AI_HOVER": "#613A71",
             "AI_PRESSED": "#533262",

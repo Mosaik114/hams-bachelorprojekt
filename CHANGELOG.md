@@ -5,6 +5,10 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Light mode is now "Kalkweiß":** an almost neutral off-white instead of the cream paper, with white plates,
+  a lighter ink edge and quieter separators. Accent and dark mode are unchanged.
+
 ## [1.3.2] – 2026-11-16
 
 1.3.2 is the first release after 1.3.0 and includes everything from 1.3.1: that version was tagged, but its CI run
