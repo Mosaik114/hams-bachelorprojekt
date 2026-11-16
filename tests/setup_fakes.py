@@ -44,3 +44,15 @@ def fake_services(**overrides) -> sw.SetupServices:
 def online(*names) -> OllamaState:
     """Ein erreichbares Ollama mit diesen Modellen."""
     return OllamaState(True, [OllamaModel(name) for name in names])
+
+
+def answer_ollama(app, fakes, state: OllamaState) -> OllamaState:
+    """Makes `state` the answer of Ollama for the live app: what the app knows now and what every later check gets.
+
+    Setting only `app.ollama_state` is not enough: the AI tab asks again in the background as soon as it is shown,
+    and the fixture's probe (`fakes.probe`, "offline") would replace the state at some moment during a capture.
+    """
+    fakes.probe = state
+    app.ollama_state = state
+    app.ollama_checked = True
+    return state

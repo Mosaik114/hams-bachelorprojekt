@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from setup_fakes import answer_ollama, online
 
 from hams import models as whisper_models
 from hams import ollama as ollama_api
@@ -207,6 +208,17 @@ class TestOllama:
         assert live_app.ollama_state is hams.probe
         assert sub(ai.row_cleanup_model) == "Ollama erreichbar"
         assert ai.row_prompt_model.enabled
+
+    def test_a_preset_answer_survives_the_check_of_the_ai_tab(self, open_settings, hams, live_app):
+        """The snapshot run presets Ollama; the tab's own check must not swap it for the fixture's "offline"."""
+        state = answer_ollama(live_app, hams, online("qwen3:8b", "gemma3:4b"))
+        CFG.ollama_model_cleanup = "qwen3:8b"
+        ai = open_settings().ai
+        ai.check_ollama()  # the check the tab starts when it is shown, here on the test thread
+        live_app.root.update()
+        assert live_app.ollama_state is state
+        assert (dot(ai.row_cleanup_model), sub(ai.row_cleanup_model)) == ("ready", "Ollama erreichbar")
+        assert [o.value for o in ai.select_cleanup_model.options if o.value] == ["qwen3:8b", "gemma3:4b"]
 
     def test_the_first_answer_before_any_check_says_checking(self, open_settings, live_app):
         ai = open_settings().ai

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from setup_fakes import fake_services, online
+from setup_fakes import answer_ollama, fake_services, online
 from window_capture import capture
 
 from hams import setup_window as window_mod
@@ -55,9 +55,9 @@ def test_main_window(live_app, themed, out, mode):
 
 
 @pytest.mark.parametrize("mode", MODES)
-def test_settings_pages(live_app, themed, out, mode):
+def test_settings_pages(live_app, hams, themed, out, mode):
     themed(mode)
-    live_app.ollama_state = online("qwen3:8b")
+    answer_ollama(live_app, hams, online("qwen3:8b"))
     live_app._open_settings()
     live_app.root.update()
     win = live_app.settings_win
@@ -86,10 +86,10 @@ def _row_titled(widget, title):
 
 
 @pytest.mark.parametrize("mode", MODES)
-def test_settings_row_hover(live_app, themed, out, mode):
+def test_settings_row_hover(live_app, hams, themed, out, mode):
     """A row under the pointer: the rounded hover surface lies behind its text (KI and Allgemein)."""
     themed(mode)
-    live_app.ollama_state = online("qwen3:8b")
+    answer_ollama(live_app, hams, online("qwen3:8b"))
     live_app._open_settings()
     live_app.root.update()
     win = live_app.settings_win
