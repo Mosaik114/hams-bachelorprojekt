@@ -12,10 +12,13 @@ Budgets (per step, median over the run, on the Tk thread):
   60 frames on every page would need the rows painted on one canvas instead of built from single widgets.
 * switching a settings tab, also the first visit: 30 ms (median), a first visit no dearer than a later one
 * showing the prebuilt settings window: 60 ms
+* the level at the pointer: one move per frame of the monitor (at least 90 % of its rate), at most 8 % of one
+  core for the follower thread
 """
 
 import os
 import statistics
+import sys
 import time
 from types import SimpleNamespace
 
@@ -31,6 +34,8 @@ TAB_MS = 30.0
 #: What a first visit may cost more than a later one (noise; a page laid out on its first visit cost 30-90 ms).
 FIRST_EXTRA_MS = 12.0
 OPEN_MS = 60.0
+#: CPU share of one core the pointer follower may use while the pointer moves (measured: about 3-4 % at 240 Hz).
+FOLLOW_CPU = 0.08
 
 
 def median_ms(samples: list[float]) -> float:
@@ -113,3 +118,57 @@ def test_showing_the_prebuilt_settings(live_app):
     live_app._open_settings()
     live_app.root.update()
     assert (time.perf_counter() - began) * 1000 <= OPEN_MS
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the level at the pointer is Win32")
+def test_the_level_at_the_pointer_follows_at_the_monitor_rate(root, monkeypatch):
+    """The pill moves once per frame of the monitor under the pointer (240 Hz on the development PC, never the
+    30-60 Hz of a Tk timer) and its thread costs at most `FOLLOW_CPU` of one core while the pointer moves."""
+    import ctypes
+    import math
+
+    from hams import cursor_level as cl
+    from hams.config import CFG
+
+    monkeypatch.setattr(CFG, "cursor_level", True)
+    began = time.perf_counter()
+
+    class Circling(cl.Win32Desktop):
+        def cursor(self):  # GetCursorPos fails on the invisible test desktop
+            t = time.perf_counter() - began
+            return int(800 + 300 * math.cos(t * 3)), int(500 + 200 * math.sin(t * 3))
+
+        def fullscreen(self):
+            return False
+
+    desktop = Circling()
+    hz = cl.frame_rate(desktop.refresh_rate(desktop.monitor((800, 500))[0]))
+    level = cl.CursorLevel(root, desktop)
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.OpenThread.restype = ctypes.c_void_p
+    kernel32.GetThreadTimes.argtypes = [ctypes.c_void_p] + [ctypes.POINTER(ctypes.c_uint64)] * 4
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+
+    def thread_cpu(handle) -> float:
+        times = [ctypes.c_uint64() for _ in range(4)]
+        kernel32.GetThreadTimes(handle, *map(ctypes.byref, times))
+        return (times[2].value + times[3].value) / 1e7
+
+    try:
+        level.follow_state("recording")
+        query = 0x0800  # THREAD_QUERY_LIMITED_INFORMATION
+        handle = kernel32.OpenThread(query, False, level.follower._thread.native_id)
+        start, ticks, cpu = time.perf_counter(), level.follower.ticks, thread_cpu(handle)
+        while time.perf_counter() - start < 3.0:
+            root.update()
+            time.sleep(0.005)
+        wall = time.perf_counter() - start
+        rate = (level.follower.ticks - ticks) / wall
+        share = (thread_cpu(handle) - cpu) / wall
+        kernel32.CloseHandle(handle)
+        print(f"follower: {rate:.1f} ticks/s on a {hz} Hz monitor, {level.moves} moves, {100 * share:.2f} % CPU")
+        assert rate >= 0.9 * hz
+        assert level.moves >= 0.8 * rate * wall, "a circling pointer moves the pill in nearly every tick"
+        assert share <= FOLLOW_CPU
+    finally:
+        level.close()
