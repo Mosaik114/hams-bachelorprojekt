@@ -16,7 +16,7 @@ import tkinter as tk
 
 import numpy as np
 
-from hams import branding, transcription
+from hams import branding, transcription, update_install
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
@@ -115,6 +115,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self._apply_window_icon()
         self.settings_win: SettingsWindow | None = None
         self.setup_win: SetupWindow | None = None
+        self.glossary_win = None
         #: True while the start holds the model back for the setup assistant.
         self._model_deferred = False
 
@@ -125,7 +126,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         #: The one client for the Ollama service: cleanup, *Ask AI*, warm-up, the settings' checks and pulls.
         self.ollama = ollama_api.OllamaClient.for_url(lambda: CFG.ollama_url)
         self.pipeline = Pipeline(self.models, self, self.ollama, on_delivered=self._add_to_history)
-        self.updates = UpdateNotice(self.ui_call, self._on_update_found, self._refresh_tray)
+        self.updates = UpdateNotice(self.ui_call, self._on_update_found, self._on_update_change, self.install_update)
         #: The service's last answer. It belongs to the app, so a settings window opened again does not claim
         #: "unreachable" until its own first check is back.
         self.ollama_state = ollama_api.OllamaState(False)
@@ -316,6 +317,15 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             self.setup_win = SetupWindow(self)
 
         self.ui_call(_do)  # also from the tray thread
+
+    def open_glossary(self) -> None:
+        """The glossary window (Settings → General → Glossary); one at a time."""
+        from hams.glossary_window import GlossaryWindow
+
+        if self.glossary_win is not None and self.glossary_win.alive():
+            self.glossary_win.focus()
+            return
+        self.glossary_win = GlossaryWindow(self)
 
     def on_setup_closed(self, completed: bool) -> None:
         """The assistant is closed. If the start held the model back, it is loaded now.
@@ -865,11 +875,50 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
     # ------------------------------------------------------------------ update notice
 
     def _on_update_found(self, release, first: bool) -> None:
-        self._refresh_tray()
+        self._on_update_change()
         if first:
             self._notify_update(release)
+
+    def _on_update_change(self) -> None:
+        """The update notice changed (found, checked, progress, dismissed): tray menu and settings row follow."""
+        self._refresh_tray()
         if self.settings_win is not None and self.settings_win.alive():
-            self.settings_win.show_update(release)
+            self.settings_win.show_update()
+
+    def update_now(self, icon=None, item=None) -> None:
+        """Tray entry "Update now": the settings open on General, where the row shows the download."""
+
+        def _do() -> None:
+            self._open_settings()
+            self.ui_call(lambda: self.settings_win.show_general() if self.settings_win is not None else None)
+            self.updates.install()
+
+        self.ui_call(_do)
+
+    #: How often a finished update download checks whether the dictation it waits for is done (ms).
+    UPDATE_WAIT_MS = 500
+
+    def install_update(self, setup) -> None:
+        """Runs the verified setup and quits, so it can replace the files; it starts Hams again afterwards.
+
+        Never in the middle of a dictation: while recording, transcribing or downloading a model, the update waits
+        (the settings row says so) and comes as soon as that is done. Cancelled meanwhile, it does nothing.
+        """
+        if self.updates.phase != "waiting" or self._shutting_down:
+            return
+        if self.is_recording or self.pipeline.pending() or self.models.downloading is not None:
+            self.root.after(self.UPDATE_WAIT_MS, lambda: self.install_update(setup))
+            return
+        self.updates.installing()
+        self._flush_position()
+        try:
+            update_install.launch_setup(setup, background=not self._window_visible)
+        except update_install.UpdateError as exc:
+            self.updates.failed(exc.reason)
+            return
+        # The single-instance lock stays until this process has ended: the setup waits for exactly that.
+        logger.info("Quitting for the update")
+        self._shut_down()
 
     def _notify_update(self, release) -> None:
         """A calm system message; a tray without them (Linux/AppIndicator) leaves the menu and the settings."""

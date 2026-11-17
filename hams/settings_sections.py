@@ -13,9 +13,21 @@ from __future__ import annotations
 import contextlib
 import sys
 import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog
 from typing import TYPE_CHECKING
 
-from hams import branding, dictation_language, glossary, i18n, updates
+from hams import (
+    branding,
+    dictation_language,
+    i18n,
+    support,
+    transcription,
+    update_install,
+    update_notice,
+    updates,
+)
+from hams import models as whisper_models
 from hams import ui_kit as uk
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import Text, t
@@ -68,8 +80,10 @@ def group(master: tk.Misc, title: str, *, first: bool = False) -> uk.GroupSurfac
     text_x = uk.Space.GROUP_INSET + uk.Space.ROW_X
     right = uk.Space.WINDOW - uk.ScrollArea.gutter_width() - uk.ScrollArea.EDGE_GAP
     top = uk.Space.MD if first else uk.Space.SECTION_GAP
+    # Right to left the header stands flush with the row text on the right.
+    pad = (uk.px(right + text_x), uk.px(text_x)) if uk.Writing.rtl else (uk.px(text_x), uk.px(right))
     uk.SectionHeader(master, title, bg_under=Theme.WINDOW_BG).pack(
-        fill="x", padx=(uk.px(text_x), uk.px(right)), pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP))
+        fill="x", padx=pad, pady=(uk.px(top), uk.px(uk.Space.GROUP_GAP))
     )
     surface = uk.GroupSurface(master, bg_under=Theme.WINDOW_BG)
     surface.pack(fill="x", padx=(0, uk.px(right)))
@@ -132,7 +146,6 @@ class GeneralSection(Section):
     APPEARANCE_LABELS = Text(
         lambda: {Theme.LIGHT: t("settings.appearance.light"), Theme.DARK: t("settings.appearance.dark")}
     )
-    UPDATE_WIDTH = 96  # logical; "Ansehen" plus air
     GLOSSARY_WIDTH = 124  # logical, like "Erneut starten"
     SETUP_WIDTH = 124  # logical; "Erneut starten" plus air
 
@@ -155,6 +168,7 @@ class GeneralSection(Section):
         )
         self.row_sound.set_control(self.switch_sound)
         self._build_transcripts_row(body)
+        self._build_folder_row(body)
         self._build_cursor_level_row(body)
 
         # A select, not a switch: "dark on/off" would make light the absence of dark; "Appearance -> Light/Dark"
@@ -172,7 +186,7 @@ class GeneralSection(Section):
             value=Theme.mode,
             on_change=self.select_appearance_mode,
         )
-        uk.keep_logical_width(self.select_appearance, CONTROL_WIDTH)
+        uk.keep_logical_width(self.select_appearance, self.select_appearance.fitting_width(CONTROL_WIDTH))
         self.row_appearance.set_control(self.select_appearance)
 
         # The language applies after a restart: rebuilding every open window would be a lot of work for a rare
@@ -191,7 +205,7 @@ class GeneralSection(Section):
             value=CFG.ui_language,
             on_change=self.select_ui_language,
         )
-        uk.keep_logical_width(self.select_language, CONTROL_WIDTH)
+        uk.keep_logical_width(self.select_language, self.select_language.fitting_width(CONTROL_WIDTH))
         self.row_language.set_control(self.select_language)
         self._build_update_rows(body)
         self._build_glossary_row(body)
@@ -201,16 +215,13 @@ class GeneralSection(Section):
         self.switch_sound.set(CFG.sound_feedback, animate=False)
         self.switch_transcripts.set(CFG.save_transcripts, animate=False)
         self.row_transcripts.set_description(self.transcripts_hint(CFG.transcripts_keep_days))
+        self.row_folder.set_description(str(transcription.transcripts_folder()))
         self.switch_cursor_level.set(CFG.cursor_level, animate=False)
         self.select_appearance.set_value(Theme.mode)
         self.select_language.set_value(CFG.ui_language)
         self.row_language.set_description(self.language_hint(CFG.ui_language))
         self.switch_updates.set(CFG.update_check, animate=False)
-        release = self.app.updates.available
-        if release is not None:
-            self.show_update(release)
-        else:
-            self._remove_update_row()
+        self.show_update()
         self.row_glossary.set_description(t("settings.glossary.hint"))
 
     # ---------------------------------------------------------- sound, transcripts
@@ -244,6 +255,68 @@ class GeneralSection(Section):
     def _on_transcripts(self, value: bool) -> None:
         CFG.save_transcripts = value
         _persist_config_value("output", "save_transcripts", value)
+
+    # ---------------------------------------------------------- transcript folder
+
+    #: The folder dialog (Tk's, on Windows the system's folder picker); the tests put their own answer here.
+    choose_folder = staticmethod(filedialog.askdirectory)
+
+    def _build_folder_row(self, body: tk.Misc) -> None:
+        """Where the transcripts go (`[output] transcripts_dir`): the path as the text, "Change" and "Open" below it."""
+        self.row_folder = uk.SettingRow(
+            body,
+            t("settings.folder.title"),
+            variant="description",
+            description=str(transcription.transcripts_folder()),
+            stacked=True,
+        )
+        self.row_folder.pack(fill="x")
+        box = tk.Frame(body, bg=Theme.GROUP_SURFACE, highlightthickness=0, takefocus=0)
+        self.folder_change_button = uk.SecondaryButton(
+            box,
+            t("settings.folder.change"),
+            self.change_transcripts_folder,
+            bg_under=Theme.GROUP_SURFACE,
+            height=uk.Height.STANDARD,
+        )
+        self.folder_open_button = uk.SecondaryButton(
+            box,
+            t("settings.folder.open"),
+            self.open_transcripts_folder,
+            bg_under=Theme.GROUP_SURFACE,
+            height=uk.Height.STANDARD,
+        )
+        self.folder_open_button.pack(side=uk.mirror_side("right"))
+        self.folder_change_button.pack(side=uk.mirror_side("right"), padx=uk.mirror_pad((0, uk.px(uk.Space.MD))))
+        self.row_folder.set_control(box)
+
+    def change_transcripts_folder(self) -> None:
+        """Asks for a folder; only one Hams can write to is stored. The data folder itself is stored as ""."""
+        current = transcription.transcripts_folder()
+        picked = self.choose_folder(
+            parent=self.win, initialdir=str(current), title=t("settings.folder.dialog"), mustexist=False
+        )
+        if not picked:
+            return
+        folder = Path(picked)
+        if not transcription.usable_transcripts_folder(folder):
+            self.row_folder.set_description(t("settings.folder.invalid"))
+            return
+        value = "" if folder == transcription.OUTPUT_DIR else str(folder)
+        CFG.transcripts_dir = value
+        _persist_config_value("output", "transcripts_dir", value)
+        logger.info("Transcript folder: %s", "default" if not value else "custom")
+        self.row_folder.set_description(str(transcription.transcripts_folder()))
+
+    def open_transcripts_folder(self) -> None:
+        """Opens the folder in Explorer; creates it first, so there is something to open."""
+        folder = transcription.transcripts_folder()
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            support.open_path(folder)
+        except OSError as exc:
+            logger.warning("Transcript folder could not be opened: %s", type(exc).__name__)
+            self.row_folder.set_description(t("settings.folder.open_failed", path=folder))
 
     # ---------------------------------------------------------- level at the mouse pointer
 
@@ -300,8 +373,13 @@ class GeneralSection(Section):
     # ---------------------------------------------------------- updates
 
     def _build_update_rows(self, body: tk.Misc) -> None:
-        """The switch for the daily update check; above it, if one is waiting, the notice."""
-        self.row_update: uk.SettingRow | None = None
+        """The switch for the daily check, and below it one row for everything else about updates.
+
+        That row (`row_update`) follows the app's update notice (`app.updates`, see `update_notice.py`): it offers
+        "Check for updates now" and says what came out; with a newer version it offers "View" and "Update now",
+        then shows the download with its progress, and finally that Hams restarts. Its buttons stand on a line of
+        their own under the text (a stacked row), so long labels never squeeze the description.
+        """
         self.row_updates = uk.SettingRow(
             body,
             t("settings.updates.title"),
@@ -315,43 +393,102 @@ class GeneralSection(Section):
             body, bg_under=Theme.GROUP_SURFACE, value=CFG.update_check, command=self._on_updates
         )
         self.row_updates.set_control(self.switch_updates)
-        if self.app.updates.available is not None:
-            self.show_update(self.app.updates.available)
+
+        self.row_update = uk.SettingRow(
+            body, t("settings.update.check_title"), variant="description", description="", stacked=True
+        )
+        self.row_update.pack(fill="x")
+        box = self.update_box = tk.Frame(body, bg=Theme.GROUP_SURFACE, highlightthickness=0, takefocus=0)
+        notice = self.app.updates
+
+        def button(key: str, command) -> uk.SecondaryButton:
+            return uk.SecondaryButton(box, t(key), command, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD)
+
+        def icon_button(tooltip: str, command) -> uk.IconButton:
+            return uk.IconButton(box, "close", command, bg_under=Theme.GROUP_SURFACE, tooltip=t(tooltip))
+
+        self.update_check_button = button("settings.update.check_button", notice.check_now)
+        self.update_install_button = button("settings.update.install", notice.install)
+        self.update_install_button.set_role("primary")
+        self.update_view_button = button("settings.update.open", notice.open_release_page)
+        self.update_dismiss_button = icon_button("settings.update.dismiss_tooltip", self._dismiss_update)
+        self.update_cancel_button = icon_button("settings.update.cancel_tooltip", notice.cancel)
+        self.update_progress = uk.ProgressBar(box, bg_under=Theme.GROUP_SURFACE)
+        self.row_update.set_control(box)
+        self.show_update()
 
     def _on_updates(self, value: bool) -> None:
         """Applies from the next start: then Hams asks again (or no longer)."""
         CFG.update_check = value
         _persist_config_value("updates", "check", value)
 
-    def show_update(self, release) -> None:
-        """A calm notice of a new version: view it, or hide it for this version."""
-        if self.row_update is not None:
-            self.row_update.set_description(self.update_hint(release.version))
-            return
-        body = self.group.body
-        self.row_update = uk.SettingRow(
-            body, t("settings.update.title"), variant="description", description=self.update_hint(release.version)
+    def update_controls(self) -> list:
+        """The controls the update row shows now, from the right edge inwards."""
+        notice = self.app.updates
+        phase = notice.phase
+        if phase == update_notice.DOWNLOADING:
+            return [self.update_cancel_button, self.update_progress]
+        if phase == update_notice.WAITING:
+            return [self.update_cancel_button]
+        if phase == update_notice.INSTALLING:
+            return []
+        if notice.available is None:
+            return [self.update_check_button]
+        shown = [self.update_dismiss_button]
+        if notice.can_install():
+            shown.append(self.update_install_button)
+        shown.append(self.update_view_button)
+        return shown
+
+    def show_update(self) -> None:
+        """Title, text and buttons of the update row for the current state of `app.updates`."""
+        notice = self.app.updates
+        self.row_update.set_title(
+            t("settings.update.check_title" if notice.available is None else "settings.update.title")
         )
-        self.row_update.pack(fill="x", before=self.row_updates)
-        box = tk.Frame(body, bg=Theme.GROUP_SURFACE)
-        view = uk.SecondaryButton(
-            box,
-            t("settings.update.open"),
-            self.app.updates.open_release_page,
-            bg_under=Theme.GROUP_SURFACE,
-            height=uk.Height.STANDARD,
-        )
-        uk.keep_logical_width(view, self.UPDATE_WIDTH)
-        view.pack(side="left")
-        dismiss = uk.IconButton(
-            box,
-            "close",
-            self._dismiss_update,
-            bg_under=Theme.GROUP_SURFACE,
-            tooltip=t("settings.update.dismiss_tooltip"),
-        )
-        dismiss.pack(side="left", padx=(uk.px(uk.Space.XS), 0))
-        self.row_update.set_control(box)
+        self.row_update.set_description(self.update_text())
+        self.update_check_button.set_enabled(notice.phase != update_notice.CHECKING)
+        if notice.phase == update_notice.DOWNLOADING:
+            done, total = notice.progress
+            self.update_progress.set_fraction(done / total if total else 0.0)
+        shown = self.update_controls()
+        for widget in self.update_box.pack_slaves():
+            if widget not in shown:
+                widget.pack_forget()
+        gap = uk.px(uk.Space.MD)
+        for widget in shown:
+            side = uk.mirror_side("right")
+            if widget is self.update_progress:
+                widget.pack(side=side, fill="x", expand=True, padx=uk.mirror_pad((0, gap)))
+            else:
+                widget.pack(side=side, padx=uk.mirror_pad((0, gap if widget is not shown[0] else 0)))
+
+    def update_text(self) -> str:
+        """The update row's description."""
+        notice = self.app.updates
+        product, current = branding.PRODUCT_NAME, updates.app_version()
+        phase = notice.phase
+        if phase == update_notice.DOWNLOADING:
+            done, total = notice.progress
+            percent = int(done * 100 / total) if total else 0
+            progress = whisper_models.format_progress(done, total) if total else whisper_models.format_bytes(done)
+            return t("settings.update.downloading", percent=percent, progress=progress)
+        if phase in (update_notice.WAITING, update_notice.INSTALLING):
+            return t(f"settings.update.{phase}", product=product)
+        if phase == update_notice.FAILED:
+            if notice.error == update_install.CANCELLED:
+                return t("settings.update.cancelled")
+            return t(f"update.error.{notice.error}", product=product)
+        if notice.available is not None:
+            hint = self.update_hint(notice.available.version)
+            return hint if notice.can_install() else hint + "\n" + t("settings.update.manual")
+        if phase == update_notice.CHECKING:
+            return t("settings.update.checking")
+        if phase == update_notice.LATEST:
+            return t("settings.update.latest", product=product, current=current)
+        if phase == update_notice.CHECK_FAILED:
+            return t("settings.update.check_failed")
+        return t("settings.update.installed", product=product, current=current)
 
     @staticmethod
     def update_hint(version: str) -> str:
@@ -359,12 +496,7 @@ class GeneralSection(Section):
 
     def _dismiss_update(self) -> None:
         self.app.updates.dismiss()
-        self._remove_update_row()
-
-    def _remove_update_row(self) -> None:
-        if self.row_update is not None:
-            self.row_update.destroy()
-            self.row_update = None
+        self.show_update()
 
     # ---------------------------------------------------------- glossary, setup
 
@@ -384,13 +516,8 @@ class GeneralSection(Section):
         self.row_glossary.set_control(self.glossary_button)
 
     def edit_glossary(self) -> None:
-        try:
-            glossary.open_in_editor()
-        except OSError as exc:
-            logger.warning("Glossary could not be opened: %s", type(exc).__name__)
-            self.row_glossary.set_description(t("settings.glossary.failed", path=glossary.glossary_path()))
-            return
-        self.row_glossary.set_description(t("settings.glossary.opened"))
+        """The glossary window: both lists, edited in place (the file stays the storage)."""
+        self.app.open_glossary()
 
     def _build_setup_row(self, body: tk.Misc) -> None:
         """The setup assistant, once more: a new microphone, a GPU added, Ollama installed."""

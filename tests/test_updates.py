@@ -253,3 +253,74 @@ class TestChecker:
         checker = UpdateChecker()
         assert checker.path == updates.state_path()
         assert checker.current == updates.app_version()
+
+
+class TestAssets:
+    def answer(self, *names, prefix=updates.DOWNLOAD_PREFIX + "v1.3.0/"):
+        return {
+            "tag_name": "v1.3.0",
+            "html_url": updates.RELEASES_PAGE + "/tag/v1.3.0",
+            "assets": [{"name": name, "browser_download_url": prefix + name} for name in names] + ["junk", {"x": 1}],
+        }
+
+    def test_setup_and_checksum_are_found(self):
+        base = updates.DOWNLOAD_PREFIX + "v1.3.0/"
+        payload = self.answer("Hams-Setup-1.3.0.exe", "Hams-Setup-1.3.0.exe.sha256", "other.zip")
+        release = updates.fetch_latest(opener_returning(payload))
+        assert release.setup_url == base + "Hams-Setup-1.3.0.exe"
+        assert release.checksum_url == base + "Hams-Setup-1.3.0.exe.sha256"
+
+    def test_missing_assets_stay_empty(self):
+        release = updates.fetch_latest(opener_returning({"tag_name": "v1.3.0", "assets": "nonsense"}))
+        assert (release.setup_url, release.checksum_url) == ("", "")
+        release = updates.fetch_latest(opener_returning(self.answer("Hams-Setup-1.2.0.exe")))
+        assert release.setup_url == "", "only the file of exactly this version counts"
+
+    def test_foreign_addresses_are_kept_for_the_installer_to_refuse(self):
+        release = updates.fetch_latest(opener_returning(self.answer("Hams-Setup-1.3.0.exe", prefix="https://x/")))
+        assert release.setup_url == "https://x/Hams-Setup-1.3.0.exe"
+        assert updates.release_asset(release.setup_url) == ""
+
+    def test_the_state_remembers_the_assets(self, tmp_path):
+        release = Release("1.3.0", updates.RELEASES_PAGE, "s", "c")
+        state = UpdateState()
+        state.remember(release)
+        updates.save_state(tmp_path / "state.json", state)
+        assert updates.load_state(tmp_path / "state.json").pending("1.2.0") == release
+
+    @pytest.mark.parametrize(
+        ("url", "accepted"),
+        [
+            (updates.DOWNLOAD_PREFIX + "v1/Hams-Setup-1.exe", True),
+            ("https://github.com/someone/else/releases/download/v1/Hams-Setup-1.exe", False),
+            (updates.DOWNLOAD_PREFIX + "../x", False),
+            (updates.DOWNLOAD_PREFIX + "v1/x?y", False),
+            (None, False),
+        ],
+    )
+    def test_release_asset(self, url, accepted):
+        assert (updates.release_asset(url) == url) is accepted
+
+
+class TestCheckNow:
+    def checker(self, tmp_path, release):
+        return UpdateChecker(tmp_path / "state.json", fetch=lambda: release, clock=Clock(), current="1.1.0")
+
+    def test_newer(self, tmp_path):
+        checker = self.checker(tmp_path, Release("1.2.0", updates.RELEASES_PAGE))
+        checker.run()
+        checker.dismiss("1.2.0")
+        result, release = checker.check_now()
+        assert (result, release.version) == (updates.AVAILABLE, "1.2.0"), "asked on purpose: a dismissal is lifted"
+
+    def test_latest(self, tmp_path):
+        assert self.checker(tmp_path, Release("1.1.0", updates.RELEASES_PAGE)).check_now() == (updates.LATEST, None)
+
+    def test_offline(self, tmp_path):
+        checker = self.checker(tmp_path, None)
+        assert checker.check_now() == (updates.FAILED, None)
+        assert updates.load_state(checker.path).last_check == 1_000_000.0
+
+    def test_names(self):
+        assert updates.setup_name("1.3.4") == "Hams-Setup-1.3.4.exe"
+        assert updates.checksum_name("1.3.4") == "Hams-Setup-1.3.4.exe.sha256"

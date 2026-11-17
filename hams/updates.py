@@ -1,10 +1,14 @@
-"""Update notice: at most once a day, ask GitHub whether a newer Hams was released.
+"""Update check: at most once a day (or when asked), ask GitHub whether a newer Hams was released.
 
-Only a notice: Hams never downloads or installs anything on its own. The check
-asks one public endpoint (`RELEASES_API`, no account, no identifier beyond
-what any HTTPS request carries) in a background thread with a short timeout.
-Offline or any error stays silent and only goes to the log. `[updates] check =
-false` in config.toml (or the switch in Settings → General) turns it off.
+The check asks one public endpoint (`RELEASES_API`, no account, no identifier
+beyond what any HTTPS request carries) in a background thread with a short
+timeout. Offline or any error stays silent and only goes to the log. `[updates]
+check = false` in config.toml (or the switch in Settings → General) turns the
+daily check off; "Check for updates now" still asks when clicked.
+
+Nothing is downloaded on its own. The answer also names the release's setup file
+and its `.sha256` file (`Release.setup_url`, `Release.checksum_url`); only the
+user's "Update now" downloads them, see `update_install.py`.
 
 The time of the last attempt, the newest version seen and the version whose
 notice was dismissed live in a small JSON file in the data folder
@@ -40,6 +44,9 @@ TIMEOUT_SECONDS = 5
 STATE_FILE = "update-check.json"
 #: Generic client name; nothing about the user or the machine.
 USER_AGENT = "Hams-update-check"
+
+#: The only place a setup file or its checksum may come from (see `release_asset`).
+DOWNLOAD_PREFIX = f"https://github.com/{REPOSITORY}/releases/download/"
 
 _VERSION = re.compile(r"^v?(\d+)\.(\d+)(?:\.(\d+))?(-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 
@@ -79,10 +86,30 @@ def release_url(url: object) -> str:
     return RELEASES_PAGE
 
 
+def setup_name(version: str) -> str:
+    """The setup file a release carries, as the release workflow names it (packaging/hams.iss)."""
+    return f"Hams-Setup-{version}.exe"
+
+
+def checksum_name(version: str) -> str:
+    """The checksum file next to it: `sha256sum` output for the setup file."""
+    return setup_name(version) + ".sha256"
+
+
+def release_asset(url: object) -> str:
+    """`url` if it lies under this repository's release downloads, else "": nothing else is ever downloaded."""
+    if isinstance(url, str) and url.startswith(DOWNLOAD_PREFIX) and ".." not in url and "?" not in url:
+        return url
+    return ""
+
+
 @dataclass
 class Release:
     version: str
     url: str
+    #: Where the setup file and its checksum file are, if the release has them ("" otherwise).
+    setup_url: str = ""
+    checksum_url: str = ""
 
 
 @dataclass
@@ -94,6 +121,8 @@ class UpdateState:
     url: str = ""
     dismissed: str = ""
     notified: str = ""
+    setup_url: str = ""
+    checksum_url: str = ""
 
     def due(self, now: float) -> bool:
         """At most once per interval; a clock that went backwards counts as due."""
@@ -103,7 +132,11 @@ class UpdateState:
         """The release to point out: newer than `current` and not dismissed."""
         if not is_newer(self.latest, current) or self.latest == self.dismissed:
             return None
-        return Release(self.latest, release_url(self.url))
+        return Release(self.latest, release_url(self.url), self.setup_url, self.checksum_url)
+
+    def remember(self, release: Release) -> None:
+        self.latest, self.url = release.version, release.url
+        self.setup_url, self.checksum_url = release.setup_url, release.checksum_url
 
 
 def state_path() -> Path:
@@ -151,7 +184,23 @@ def fetch_latest(opener: Callable = urllib.request.urlopen, timeout: float = TIM
     if not isinstance(tag, str) or parse_version(tag) is None:
         logger.info("Update check: no usable version in the answer")
         return None
-    return Release(clean_version(tag), release_url(data.get("html_url")))
+    version = clean_version(tag)
+    setup_url, checksum_url = _assets(data.get("assets"), version)
+    return Release(version, release_url(data.get("html_url")), setup_url, checksum_url)
+
+
+def _assets(assets: object, version: str) -> tuple[str, str]:
+    """The download addresses of the setup file and its checksum ("" if missing); `update_install` checks them."""
+    found = {}
+    for asset in assets if isinstance(assets, list) else []:
+        if isinstance(asset, dict) and isinstance(asset.get("name"), str):
+            url = asset.get("browser_download_url")
+            found[asset["name"]] = url if isinstance(url, str) else ""
+    return found.get(setup_name(version), ""), found.get(checksum_name(version), "")
+
+
+#: Results of `UpdateChecker.check_now`.
+LATEST, AVAILABLE, FAILED = "latest", "available", "failed"
 
 
 class UpdateChecker:
@@ -175,13 +224,33 @@ class UpdateChecker:
         state = load_state(self.path)
         now = self._clock()
         if state.due(now):
-            state.last_check = now  # also on failure: at most one attempt a day
-            release = self._fetch()
-            if release is not None:
-                state.latest, state.url = release.version, release.url
-                logger.info("Update check: latest release %s, running %s", release.version, self.current)
-            save_state(self.path, state)
+            self._ask(state, now)
         return state.pending(self.current)
+
+    def check_now(self) -> tuple[str, Release | None]:
+        """Asks GitHub right away, whatever the daily rhythm says ("Check for updates now").
+
+        Returns `(result, release)`: `LATEST` (nothing newer), `AVAILABLE` with the newer release (also when its
+        notice was dismissed before: whoever asks wants to know), or `FAILED` (offline, no usable answer).
+        """
+        state = load_state(self.path)
+        release = self._ask(state, self._clock())
+        if release is None:
+            return FAILED, None
+        if not is_newer(release.version, self.current):
+            return LATEST, None
+        state.dismissed = ""
+        save_state(self.path, state)
+        return AVAILABLE, state.pending(self.current)
+
+    def _ask(self, state: UpdateState, now: float) -> Release | None:
+        state.last_check = now  # also on failure: at most one automatic attempt a day
+        release = self._fetch()
+        if release is not None:
+            state.remember(release)
+            logger.info("Update check: latest release %s, running %s", release.version, self.current)
+        save_state(self.path, state)
+        return release
 
     def dismiss(self, version: str) -> None:
         state = load_state(self.path)

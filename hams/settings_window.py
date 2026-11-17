@@ -229,8 +229,13 @@ class SettingsWindow:
     def on_download_finished(self, model_id: str, error: str, switching: bool) -> None:
         self.transcription.on_download_finished(model_id, error, switching)
 
-    def show_update(self, release) -> None:
-        self.general.show_update(release)
+    def show_update(self) -> None:
+        """The update row follows the app's update notice (found, checked, progress)."""
+        self.general.show_update()
+
+    def show_general(self) -> None:
+        """Opens the group General, where the update row is."""
+        self.select_page(self.sections.index(self.general))
 
     # ---------------------------------------------------------- size
 

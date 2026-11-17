@@ -192,7 +192,7 @@ class TrayMixin:
         if not history_items:
             history_items.append(pystray.MenuItem(t("tray.history_empty"), None, enabled=False))
 
-        update_items = self.updates.menu_items(pystray.MenuItem)
+        update_items = self.updates.menu_items(pystray.MenuItem, install=self.update_now)
         if update_items:
             update_items.append(pystray.Menu.SEPARATOR)
         return pystray.Menu(

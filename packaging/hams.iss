@@ -12,6 +12,12 @@
 ; models Hams downloaded into the shared Hugging Face cache (only Hams' own model
 ; folders, see CATALOG in hams\models.py). A silent uninstall asks nothing and
 ; deletes nothing.
+;
+; One-click update (hams\update_install.py): Hams runs this setup with
+;   /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /RESTARTHAMS=window|background /LOG=<file>
+; and quits. With /RESTARTHAMS the setup first waits until Hams has ended (its
+; single-instance mutex is gone), installs over the existing installation with the
+; tasks chosen before, and then starts Hams again (in the tray for "background").
 
 #ifndef AppVersion
   #define AppVersion "0.0.0"
@@ -99,6 +105,8 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+; After a one-click update (silent, so the entry above is skipped): Hams comes back as it was.
+Filename: "{app}\{#AppExe}"; Parameters: "{code:RestartParameters}"; Flags: nowait; Check: RestartAfterUpdate
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
@@ -114,6 +122,38 @@ var
 begin
   Result := RegQueryStringValue(HKCU, RunKey, '{#AppName}', Value) and
     (Pos(Lowercase(ExpandConstant('{app}\{#AppExe}')), Lowercase(Value)) > 0);
+end;
+
+{ /RESTARTHAMS=window or /RESTARTHAMS=background: started by Hams' own "Update now". }
+function RestartAfterUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:RESTARTHAMS|}') <> '';
+end;
+
+function RestartParameters(Param: String): String;
+begin
+  if ExpandConstant('{param:RESTARTHAMS|}') = 'background' then
+    Result := '--background'
+  else
+    Result := '';
+end;
+
+{ The Hams that started this update quits right after starting it; wait (at most a minute) until it has, so its
+  files can be replaced. Without /RESTARTHAMS, AppMutex asks the user as before. }
+function InitializeSetup(): Boolean;
+var
+  Waited: Integer;
+begin
+  Result := True;
+  if not RestartAfterUpdate() then
+    Exit;
+  Waited := 0;
+  while CheckForMutexes('{#AppMutexName}') and (Waited < 60000) do
+  begin
+    Sleep(250);
+    Waited := Waited + 250;
+  end;
+  Log(Format('Update: waited %d ms for Hams to quit', [Waited]));
 end;
 
 procedure RemoveOurAutostart();
