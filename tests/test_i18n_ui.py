@@ -18,9 +18,13 @@ from hams import settings_models as models_mod
 from hams import settings_status as status_mod
 from hams import ui_kit as uk
 from hams.config import CFG
+from hams.messages_de import MESSAGES as DE
 
 #: Shown in their own language on purpose (the language picker).
-ENDONYMS = {"Deutsch", "English"}
+#: Language names are shown in their own language ("Türkçe" has letters that look German).
+ENDONYMS = {
+    text for key, text in DE.items() if key.startswith(("language.", "dictation.")) and not key.endswith(".auto")
+}
 
 
 class InlineThread:
@@ -127,16 +131,25 @@ class TestEnglish:
 class TestGerman:
     def test_settings_window_speaks_german(self, open_settings):
         texts = visible_texts(open_settings().win)
-        assert {"Einstellungen", "Sprache", "Systemsprache", "Strg"} <= set(texts)
+        assert {"Einstellungen", "Sprache", "Automatisch", "Strg"} <= set(texts)
 
     def test_tray_menu(self, live_app):
         assert "Beenden" in tray_texts(live_app)
 
 
 class TestLanguageRow:
-    def test_offers_the_three_settings(self, open_settings):
+    def test_offers_every_language(self, open_settings):
         general = open_settings().general
-        assert [option.value for option in general.select_language.options] == ["auto", "de", "en"]
+        assert [option.value for option in general.select_language.options] == [
+            "auto",
+            "de",
+            "en",
+            "ru",
+            "es",
+            "fr",
+            "ar",
+            "tr",
+        ]
         assert general.select_language.value == CFG.ui_language
 
     def test_a_new_language_is_saved_and_asks_for_a_restart(self, open_settings, hams, monkeypatch):

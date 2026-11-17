@@ -19,6 +19,7 @@ from collections.abc import Callable, Sequence
 
 from hams.ui_kit.buttons import SecondaryButton
 from hams.ui_kit.scale import px
+from hams.ui_kit.text import Writing
 from hams.ui_kit.theme import Height, Space
 
 
@@ -45,8 +46,9 @@ class TabBar(tk.Frame):
             button.TEXT_PADDING = self.PADDING
             button.set_role("tab")
             button._update_request()
-            button.bind("<Left>", lambda _e, i=index: self._step(i, -1), add="+")
-            button.bind("<Right>", lambda _e, i=index: self._step(i, 1), add="+")
+            back = 1 if Writing.rtl else -1  # right to left, the left arrow goes on to the next tab
+            button.bind("<Left>", lambda _e, i=index, b=back: self._step(i, b), add="+")
+            button.bind("<Right>", lambda _e, i=index, b=back: self._step(i, -b), add="+")
             button.bind("<Home>", lambda _e: self._jump(0), add="+")
             button.bind("<End>", lambda _e: self._jump(len(self.buttons) - 1), add="+")
             self.buttons.append(button)
@@ -101,6 +103,11 @@ class TabBar(tk.Frame):
                 x, y = 0, y + row_height + gap
             places.append((x, y))
             x += wide + gap
+        if Writing.rtl:  # the first tab on the right
+            places = [
+                (width - left - button.winfo_reqwidth(), top)
+                for button, (left, top) in zip(self.buttons, places, strict=True)
+            ]
         if places == self._places:
             return
         self._places = places

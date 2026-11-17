@@ -116,10 +116,10 @@ class AboutSection(Section):
             bg_under=Theme.GROUP_SURFACE,
             height=uk.Height.STANDARD,
         )
-        self.report_button.pack(side="right")
+        self.report_button.pack(side=uk.mirror_side("right"))
         # From the start, greyed out until there is a report: a control that appears later would shift the line.
         self.report_open_button.set_enabled(False)
-        self.report_open_button.pack(side="right", padx=(0, uk.px(uk.Space.MD)))
+        self.report_open_button.pack(side=uk.mirror_side("right"), padx=uk.mirror_pad((0, uk.px(uk.Space.MD))))
         box.pack(fill="x", padx=uk.px(uk.Space.ROW_X), pady=(0, uk.px(uk.Space.ROW_Y)))
         self.report_box = box
 

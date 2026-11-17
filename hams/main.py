@@ -124,7 +124,7 @@ def main(*, show_settings: bool = False, show_setup: bool = False, background: b
     state = bootstrap.start()
     logger.info("User configuration %s (%s)", CONFIG_PATH, state)
     # Vor jedem sichtbaren Text, auch vor der Meldung an eine zweite Instanz.
-    logger.info("UI language: %s (setting %s)", i18n.set_language(CFG.ui_language), CFG.ui_language)
+    logger.info("UI language: %s (setting %s)", bootstrap.apply_language(CFG.ui_language), CFG.ui_language)
 
     mutex_handle = _acquire_single_instance_mutex()
     if mutex_handle is None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import tkinter as tk
 from collections.abc import Callable
 
@@ -14,6 +15,7 @@ from hams.ui_kit.popover import Option, Popover
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.states import State
 from hams.ui_kit.surfaces import paint
+from hams.ui_kit.text import Writing
 from hams.ui_kit.theme import Height, Radius, Space
 
 
@@ -82,6 +84,22 @@ class Select(BaseControl):
     def options(self) -> list:
         return list(self._option_list)
 
+    def fitting_width(self, minimum: int) -> int:
+        """Die logische Breite, in der jeder Wert ungekürzt steht, mindestens `minimum`.
+
+        Für Felder neben ihrem Titel (Sprache, Darstellung): „Автоматически“ passte nicht in 160 px und stand
+        als „Автоматичес…“ da. Das Feld wächst dann ein Stück, der Titel daneben bricht um.
+        """
+        try:
+            widest = max(
+                (int(self.tk.call("font", "measure", font("row_title"), option.label)) for option in self._option_list),
+                default=0,
+            )
+        except tk.TclError:  # pragma: no cover - Widget bereits zerstört
+            return minimum
+        frame = Space.LG + ICON_BOX + 2 * Space.MD + 2  # Text links, Chevron, Luft; wie in `_draw_text`
+        return max(minimum, math.ceil(widest / Scale.factor) + frame)
+
     def _selected(self) -> Option | None:
         for option in self._option_list:
             if option.value == self._value:
@@ -120,7 +138,7 @@ class Select(BaseControl):
         """Fläche und Chevron als ein Bild (zwischengespeichert); der Wert steht als Tk-Text darauf."""
         _fill, foreground = self.colours()
         spec = self.surface_spec(width, height, px(self._logical_radius), under=self._bg_under)
-        key = ("select", spec, foreground, Scale.factor)
+        key = ("select", spec, foreground, Scale.factor, Writing.rtl)
         cached = _img_cache.fetch(key)
         if cached is not None:
             return cached
@@ -128,7 +146,8 @@ class Select(BaseControl):
         _x, centre = self.body_centre()
         chevron = px(ICON_BOX)
         glyph = render_icon("chevron", chevron, foreground)
-        plate.paste(glyph, (plate.width - chevron - px(Space.MD), centre - chevron // 2), glyph)
+        left = px(Space.MD) if Writing.rtl else plate.width - chevron - px(Space.MD)
+        plate.paste(glyph, (left, centre - chevron // 2), glyph)
         return _img_cache.store(key, ImageTk.PhotoImage(plate))
 
     def natural_width(self) -> int:
@@ -147,7 +166,11 @@ class Select(BaseControl):
             title_font = font("row_title")
             text = _fit(title_font, label, available)
             _x, centre = self.body_centre()
-            self.create_text(left, centre, text=text, font=title_font, fill=self._fg, anchor="w", tags="label")
+            if Writing.rtl:  # the value on the right, the chevron on the left
+                left, anchor = self._last_width - left, "e"
+            else:
+                anchor = "w"
+            self.create_text(left, centre, text=text, font=title_font, fill=self._fg, anchor=anchor, tags="label")
         except tk.TclError:  # pragma: no cover - Widget bereits zerstört
             pass
 

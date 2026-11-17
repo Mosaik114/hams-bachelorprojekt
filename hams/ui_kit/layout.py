@@ -10,6 +10,7 @@ from hams.ui_kit.animation import Animator
 from hams.ui_kit.resizing import Resizing
 from hams.ui_kit.scale import Scale, font, px
 from hams.ui_kit.surfaces import surface
+from hams.ui_kit.text import mirror_anchor
 from hams.ui_kit.theme import Depth, Radius, Space, Theme, ink_width
 
 # ---------------------------------------------------------------- Einstellungs-Bausteine
@@ -351,7 +352,7 @@ class SectionHeader(tk.Label):
             bg=bg_under,
             fg=Theme.TEXT_PRIMARY,
             font=font("section"),
-            anchor="w",
+            anchor=mirror_anchor("w"),
             bd=0,
             padx=0,
             pady=0,

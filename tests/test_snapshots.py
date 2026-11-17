@@ -98,7 +98,7 @@ def test_settings_row_hover(live_app, hams, themed, out, mode):
         win.select_page(page)
         win._stop_warming()
         live_app.root.update()
-        for name, title in (("ki", "Text bereinigen"), ("allgemein", "Nach Updates suchen")):
+        for name, title in (("ki", "Text bereinigen"), ("allgemein", "Über Updates informieren")):
             row = _row_titled(win.scroll.body, title)
             if row is None or not row.winfo_ismapped():
                 continue
@@ -136,3 +136,83 @@ def test_setup_pages(live_app, themed, out, mode, monkeypatch, tmp_path):
         wizard.controller.next()
         number += 1
     wizard.close(confirmed=True)
+
+
+#: Every interface language, each a full set of pictures (main window, settings, glossary, assistant).
+LANGUAGES = ("de", "en", "ru", "es", "fr", "ar", "tr")
+
+
+@pytest.fixture
+def interface_language(root):
+    """Switches texts, reading direction and fonts before the app is built; German again afterwards."""
+    from hams import bootstrap
+
+    yield lambda language: bootstrap.apply_language(language, root)
+    bootstrap.apply_language("de", root)
+
+
+@pytest.mark.parametrize("language", LANGUAGES)
+def test_languages(interface_language, root, hams, out, language, monkeypatch, tmp_path):
+    """Each language in light mode; Arabic must read right to left with the layout mirrored."""
+    import tkinter as tk
+
+    from hams import glossary, update_notice, updates
+    from hams.app import FloatingTranscriberApp
+    from hams.config import CFG
+
+    interface_language(language)
+    path = tmp_path / "glossary.toml"
+    path.write_text(glossary.DEFAULT_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+    monkeypatch.setattr(glossary, "glossary_path", lambda: path)
+    entries = glossary.GlossaryFile(path)
+    for word in ("Hüseyin", "عبد الله", "Nerway"):
+        entries.add_word(word)
+    entries.set_replacement("Ner way", "Nerway")
+    entries.save()
+    monkeypatch.setattr(update_notice.UpdateNotice, "can_install", staticmethod(lambda: True))
+    CFG.model_size = "large-v3-turbo"
+    window = tk.Toplevel(root)
+    app = FloatingTranscriberApp(window)
+    try:
+        uk.Theme.apply("light")
+        app._show_window()
+        app.apply_state("ready")
+        capture(app.root, out / f"{language}-main.png")
+        app.updates.available = updates.Release("1.3.5", updates.RELEASES_PAGE)
+        app._open_settings()
+        root.update()
+        win = app.settings_win
+        for page in range(len(win._pages)):
+            win.select_page(page)
+            root.update()
+            capture(win.win, out / f"{language}-settings-{page}.png")
+        win.show_general()
+        for _ in range(3):
+            root.update()
+        win.scroll.scroll_to(win.scroll.scrollable)
+        root.update()
+        capture(win.win, out / f"{language}-settings-general-end.png")
+        app.updates.phase, app.updates.progress = update_notice.DOWNLOADING, (34_000_000, 75_000_000)
+        win.show_update()
+        root.update()
+        capture(win.win, out / f"{language}-settings-update-progress.png")
+        app.updates.phase = update_notice.IDLE
+        win.close()
+        app.open_glossary()
+        root.update()
+        app.glossary_win.say(app.glossary_win.status.cget("text") or "")
+        capture(app.glossary_win.win, out / f"{language}-glossary.png")
+        app.glossary_win.close()
+        wizard = SetupWindow(app, fake_services(gpu_present=lambda: True, gpu_libraries_found=lambda: True))
+        app.setup_win = wizard
+        wizard.show_page()
+        capture(wizard.win, out / f"{language}-setup-welcome.png")
+        wizard.close(confirmed=True)
+    finally:
+        app._shutting_down = True
+        if app.settings_win is not None and app.settings_win.alive():
+            app.settings_win.close()
+        app._release_resources()
+        app._cancel_position_job()
+        window.destroy()
+        root.update()

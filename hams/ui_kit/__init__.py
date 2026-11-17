@@ -68,6 +68,7 @@ from hams.ui_kit.scale import (
 from hams.ui_kit.select import Select
 from hams.ui_kit.setting_row import SettingRow
 from hams.ui_kit.tabs import TabBar
+from hams.ui_kit.text import Writing, mirror_anchor, mirror_pad, mirror_side, text_justify
 from hams.ui_kit.theme import (
     Depth,
     Height,
@@ -99,6 +100,11 @@ __all__ = [
     "GroupSurface",
     "ScrollArea",
     "TabBar",
+    "Writing",
+    "mirror_anchor",
+    "mirror_pad",
+    "mirror_side",
+    "text_justify",
     "SectionHeader",
     "work_areas",
     "Option",

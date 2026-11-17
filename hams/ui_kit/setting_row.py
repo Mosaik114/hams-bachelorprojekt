@@ -9,7 +9,7 @@ from collections.abc import Callable
 from hams.ui_kit.controls import StatusDot
 from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import Scale, font, px
-from hams.ui_kit.text import _fit_text, _line_height
+from hams.ui_kit.text import Writing, _fit_text, _line_height, mirror_anchor, mirror_pad, mirror_side, text_justify
 from hams.ui_kit.theme import Height, Radius, Space, Theme, set_surface_under
 
 
@@ -29,6 +29,9 @@ class SettingRow(tk.Frame):
     Die Höhe ergibt sich aus dem Inhalt: oben und unten `Space.ROW_Y`, dazwischen
     Text oder Control, mindestens `Height.ROW_MIN`. Eine Beschreibung bricht um,
     statt gekürzt zu werden.
+
+    Von rechts nach links (`Writing.rtl`, Arabisch) steht der Text rechts und
+    rechtsbündig, das Control links davon.
 
     Bei `interactive=True` ist die ganze Zeile Auslöser (für Schalter). Bei
     Auswahlzeilen bleibt das ausdrücklich aus: ein Klick auf die Beschreibung
@@ -53,6 +56,8 @@ class SettingRow(tk.Frame):
         self._interactive = interactive
         self._command = command
         self._stacked = stacked
+        #: Spalten von Text und Control; von rechts nach links getauscht.
+        self._text_column, self._control_column = (1, 0) if Writing.rtl else (0, 1)
         self._enabled = True
         self._hovered = False
         self._control: tk.Misc | None = None
@@ -78,10 +83,10 @@ class SettingRow(tk.Frame):
         """Titel; bei `description`/`status` darunter die Beschreibung, beim Status mit Punkt davor."""
         self._line = tk.Frame(self, bg=Theme.GROUP_SURFACE)
         self._line.pack(fill="x")
-        self._line.grid_columnconfigure(0, weight=1)
+        self._line.grid_columnconfigure(self._text_column, weight=1)
 
         self._text_box = tk.Frame(self._line, bg=Theme.GROUP_SURFACE)
-        self._text_box.grid(row=0, column=0, sticky="ew")
+        self._text_box.grid(row=0, column=self._text_column, sticky="ew")
 
         self.title_label = tk.Label(
             self._text_box,
@@ -89,35 +94,35 @@ class SettingRow(tk.Frame):
             bg=Theme.GROUP_SURFACE,
             fg=Theme.TEXT_PRIMARY,
             font=font("row_title"),
-            anchor="w",
+            anchor=mirror_anchor("w"),
             bd=0,
             padx=0,
             pady=0,
         )
-        self.title_label.pack(anchor="w")
+        self.title_label.pack(anchor=mirror_anchor("w"))
 
         self.sub_box: tk.Frame | None = None
         self.status_dot: StatusDot | None = None
         self.sub_label: tk.Label | None = None
         if variant in ("description", "status"):
             self.sub_box = tk.Frame(self._text_box, bg=Theme.GROUP_SURFACE)
-            self.sub_box.pack(anchor="w", fill="x", pady=(px(Space.TEXT_GAP), 0))
+            self.sub_box.pack(anchor=mirror_anchor("w"), fill="x", pady=(px(Space.TEXT_GAP), 0))
             if variant == "status":
                 self.status_dot = StatusDot(self.sub_box, bg_under=Theme.GROUP_SURFACE, size=StatusDot.SIZE_ROW)
-                self.status_dot.pack(side="left", anchor="n", padx=(0, px(Space.ICON_GAP)))
+                self.status_dot.pack(side=mirror_side("left"), anchor="n", padx=mirror_pad((0, px(Space.ICON_GAP))))
             self.sub_label = tk.Label(
                 self.sub_box,
                 text=description,
                 bg=Theme.GROUP_SURFACE,
                 fg=Theme.TEXT_TERTIARY,
                 font=font("description"),
-                anchor="w",
-                justify="left",
+                anchor=mirror_anchor("w"),
+                justify=text_justify(),
                 bd=0,
                 padx=0,
                 pady=0,
             )
-            self.sub_label.pack(side="left", fill="x")
+            self.sub_label.pack(side=mirror_side("left"), fill="x")
 
     def _build_value(self, value: str, variant: str) -> None:
         """`display`: der Wert rechts statt eines Controls."""
@@ -129,13 +134,13 @@ class SettingRow(tk.Frame):
                 bg=Theme.GROUP_SURFACE,
                 fg=Theme.TEXT_SECONDARY,
                 font=font("row_title"),
-                anchor="e",
-                justify="right",
+                anchor=mirror_anchor("e"),
+                justify="left" if Writing.rtl else "right",
                 bd=0,
                 padx=0,
                 pady=0,
             )
-            self.value_label.grid(row=0, column=1, sticky="e")
+            self.value_label.grid(row=0, column=self._control_column, sticky=mirror_anchor("e"))
 
     def _build_hairline(self, hairline: bool) -> None:
         self.hairline: tk.Frame | None = None
@@ -177,7 +182,7 @@ class SettingRow(tk.Frame):
         if self._stacked:
             # Auswahlfelder und Pegel nehmen die volle Breite; eine Schaltfläche,
             # die vorübergehend an ihre Stelle tritt, behält ihre eigene.
-            sticky = "ew" if getattr(control, "stretch_stacked", True) else "w"
+            sticky = "ew" if getattr(control, "stretch_stacked", True) else mirror_anchor("w")
             control.grid(
                 in_=self._line,
                 row=1,
@@ -190,9 +195,9 @@ class SettingRow(tk.Frame):
             control.grid(
                 in_=self._line,
                 row=0,
-                column=1,
-                sticky="e",
-                padx=(px(Space.CONTROL_GAP), 0),
+                column=self._control_column,
+                sticky=mirror_anchor("e"),
+                padx=mirror_pad((px(Space.CONTROL_GAP), 0)),
             )
         # Tk stapelt nach Erzeugungsreihenfolge; ein spaeter erzeugtes Control
         # laege sonst hinter dem Zeilengrund.
@@ -212,7 +217,7 @@ class SettingRow(tk.Frame):
         if self._control is not None:
             self.set_control(self._control)
         if self.value_label is not None:
-            self.value_label.grid_configure(padx=(px(Space.CONTROL_GAP), 0))
+            self.value_label.grid_configure(padx=mirror_pad((px(Space.CONTROL_GAP), 0)))
         if self.status_dot is not None:
             # Mittig zur ersten Textzeile, nicht an deren Oberkante.
             line = _line_height(font("description"), self)
@@ -254,6 +259,12 @@ class SettingRow(tk.Frame):
         if self.status_dot is not None:
             self.status_dot.set_status(status)
         self._sub_text = text
+        self._refit()
+
+    def set_title(self, text: str) -> None:
+        """Ein neuer Titel (eine Zeile, die ihren Zustand wechselt, etwa „Updates“ → „Update verfügbar“)."""
+        self._title_text = text
+        self.title_label.configure(text=text)
         self._refit()
 
     def set_description(self, text: str) -> None:

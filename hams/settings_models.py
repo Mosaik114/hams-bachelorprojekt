@@ -138,7 +138,7 @@ class TranscriptionSection(Section):
             value=CFG.transcription_language,
             on_change=self.select_dictation_language,
         )
-        uk.keep_logical_width(self.select_dictation, CONTROL_WIDTH)
+        uk.keep_logical_width(self.select_dictation, self.select_dictation.fitting_width(CONTROL_WIDTH))
         self.row_dictation.set_control(self.select_dictation)
 
     def _build_storage(self, body: tk.Misc) -> None:
@@ -164,7 +164,7 @@ class TranscriptionSection(Section):
             height=uk.Height.STANDARD,
         )
         uk.keep_logical_width(self.delete_button, self.DELETE_WIDTH)
-        self.delete_button.pack(side="left")
+        self.delete_button.pack(side=uk.mirror_side("left"))
         self.delete_cancel = uk.IconButton(
             self.delete_box,
             "close",
@@ -172,7 +172,7 @@ class TranscriptionSection(Section):
             bg_under=Theme.GROUP_SURFACE,
             tooltip=t("settings.storage.delete_cancel_tooltip"),
         )
-        self.delete_cancel.pack(side="left", padx=(uk.px(uk.Space.XS), 0))
+        self.delete_cancel.pack(side=uk.mirror_side("left"), padx=uk.mirror_pad((uk.px(uk.Space.XS), 0)))
 
     # ---------------------------------------------------------- show / hide
 

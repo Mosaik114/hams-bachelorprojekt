@@ -6,6 +6,9 @@ painted voice track (`banner_image`) fills the free stretch between title and cr
 The cross stands with the middle of its *face* on the middle of the stage: a stone is taller than its face by its
 side, and centring the whole widget put the cross visibly higher than the title.
 
+Right to left (Arabic) the stage is mirrored: mark and title on the right, the cross on the left, the track
+between them.
+
 A new width only *moves* the track and the cross. The track's own width comes in steps, so while the window is
 resized a new picture is painted only when the free stretch crosses a step; everything else is two `coords` calls.
 Before, every pixel of a resize painted the whole stage anew (3-6 ms a step).
@@ -73,18 +76,20 @@ class Stage(tk.Canvas):
             self.paint()
 
     def free_areas(self, width: int) -> tuple[int, int]:
-        """Where the track may begin and must end (pixels): after the title, before the cross."""
+        """Where the track may begin and must end (pixels): between the title and the cross."""
         margin = uk.px(uk.Space.WINDOW)
-        left = margin
+        head = 0
         mark = mark_photo()
         if mark is not None:
-            left += mark.width() + uk.px(uk.Space.MD)
+            head += mark.width() + uk.px(uk.Space.MD)
         with contextlib.suppress(tk.TclError):  # fonts not yet created
-            left += int(self.tk.call("font", "measure", uk.font("window_title"), self._title))
-        left += uk.px(self.TITLE_GAP)
-        right = width - margin
-        if self.has_close:
-            right -= uk.px(uk.IconButton.SIZE) + uk.px(uk.Space.LG)
+            head += int(self.tk.call("font", "measure", uk.font("window_title"), self._title))
+        head += uk.px(self.TITLE_GAP)
+        cross = uk.px(uk.IconButton.SIZE) + uk.px(uk.Space.LG) if self.has_close else 0
+        if uk.Writing.rtl:
+            left, right = margin + cross, width - margin - head
+        else:
+            left, right = margin + head, width - margin - cross
         return left, max(left, right)
 
     def paint(self) -> None:
@@ -99,16 +104,27 @@ class Stage(tk.Canvas):
         self.create_image(0, 0, anchor="ne", tags="track")
         margin, middle = uk.px(uk.Space.WINDOW), height // 2
         x = margin
+        lead = uk.mirror_anchor("w")
         if mark is not None:
-            self.create_image(x, middle, anchor="w", image=mark, tags="mark")
+            self.create_image(x, middle, anchor=lead, image=mark, tags="mark")
             x += mark.width() + uk.px(uk.Space.MD)
         self.create_text(
-            x, middle, anchor="w", text=self._title, font=uk.font("window_title"), fill=Theme.TEXT_PRIMARY, tags="title"
+            x,
+            middle,
+            anchor=lead,
+            text=self._title,
+            font=uk.font("window_title"),
+            fill=Theme.TEXT_PRIMARY,
+            tags="title",
         )
         if self.has_close:
             # The face of the stone on the middle line, its side hangs below it.
             self.create_window(
-                0, middle + uk.px(uk.Depth.CONTROL) // 2, anchor="e", window=self.close_button, tags="close"
+                0,
+                middle + uk.px(uk.Depth.CONTROL) // 2,
+                anchor=uk.mirror_anchor("e"),
+                window=self.close_button,
+                tags="close",
             )
         self.place_items()
 
@@ -125,7 +141,18 @@ class Stage(tk.Canvas):
             self._images[1:] = [image]
             self.itemconfigure("track", image=image)
         self.coords("track", right, 0)
-        self.coords("close", width - uk.px(uk.Space.WINDOW), height // 2 + uk.px(uk.Depth.CONTROL) // 2)
+        margin, middle = uk.px(uk.Space.WINDOW), height // 2
+        if not uk.Writing.rtl:
+            self.coords("close", width - margin, middle + uk.px(uk.Depth.CONTROL) // 2)
+            return
+        # Right to left the head hangs from the right edge, so it follows every new width.
+        self.coords("close", margin, middle + uk.px(uk.Depth.CONTROL) // 2)
+        x = width - margin
+        mark = mark_photo()
+        if mark is not None:
+            self.coords("mark", x, middle)
+            x -= mark.width() + uk.px(uk.Space.MD)
+        self.coords("title", x, middle)
 
     def _on_theme_change(self) -> None:
         self.configure(bg=Theme.WINDOW_BG)

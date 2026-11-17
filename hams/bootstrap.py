@@ -8,7 +8,8 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
-from hams import audio_devices, config
+from hams import audio_devices, config, i18n
+from hams import ui_kit as uk
 from hams.config import CFG
 from hams.ui_kit import Theme
 
@@ -52,6 +53,19 @@ def load() -> None:
     CFG.mic_device = audio_devices.resolve_mic_device(CFG.mic_device_raw)
     # Before the first widget: every drawing routine reads the palette through `Theme`.
     Theme.apply(CFG.appearance)
+
+
+def apply_language(setting, root=None) -> str:
+    """The interface language for everything built from now on: texts, reading direction, fonts. Returns it.
+
+    At the start before the first window; the setup assistant calls it again when its language choice changes
+    (then with `root`, so the named fonts switch to ones with the letters the language needs).
+    """
+    language = i18n.set_language(setting)
+    uk.Writing.rtl = i18n.is_rtl(language)
+    if root is not None:
+        uk.init_fonts(root, force=True)
+    return language
 
 
 def start() -> str:

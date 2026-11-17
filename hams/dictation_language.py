@@ -29,7 +29,7 @@ from hams import i18n
 
 AUTO = "auto"
 #: Sprachen mit eigenem Whisper-Rahmensatz und eigener Auswahl in den Einstellungen.
-SUPPORTED = ("de", "en", "fr", "es", "it", "nl", "pl", "pt")
+SUPPORTED = ("de", "en", "fr", "es", "it", "nl", "pl", "pt", "tr", "ar")
 #: Erlaubte Werte von `transcription.language`.
 SETTINGS = (AUTO, *SUPPORTED)
 #: Anweisungen für jede erkannte Sprache ohne eigene.
@@ -67,6 +67,8 @@ ENGLISH_NAMES = {
     "nl": "Dutch",
     "pl": "Polish",
     "pt": "Portuguese",
+    "tr": "Turkish",
+    "ar": "Arabic",
 }
 
 #: Whisper nimmt den Hinweis als „vorigen Text“. Eine bloße Liste arabischer und englischer Wörter zog die Ausgabe
@@ -80,6 +82,8 @@ HOTWORD_FRAMES = {
     "nl": "Een Nederlandse tekst. Namen en begrippen daarin: {}.",
     "pl": "Tekst po polsku. Nazwy i pojęcia w nim: {}.",
     "pt": "Um texto em português. Nomes e termos que contém: {}.",
+    "tr": "Türkçe bir metin. İçindeki adlar ve terimler: {}.",
+    "ar": "نص باللغة العربية. الأسماء والمصطلحات الواردة فيه: {}.",
 }
 
 _GERMAN_GLOSSARY_HINT = "Diese Wörter sind richtig geschrieben und bleiben genau so: "
@@ -106,8 +110,12 @@ def normalise_setting(value: object) -> str | None:
 
 
 def default_setting(ui_setting: object, platform: str | None = None, environ=None) -> str:
-    """Die Diktiersprache ohne eigenen Eintrag: dieselbe wie die Oberfläche (deutsches System → "de", sonst "en")."""
-    return i18n.resolve_language(ui_setting, platform, environ)
+    """Die Diktiersprache ohne eigenen Eintrag: dieselbe wie die Oberfläche (deutsches System → "de").
+
+    Eine Oberflächensprache ohne eigene Diktiersprache (Russisch) ergibt "auto": Whisper erkennt sie dann selbst.
+    """
+    language = i18n.resolve_language(ui_setting, platform, environ)
+    return language if language in SUPPORTED else AUTO
 
 
 def whisper_language(setting: str) -> str | None:

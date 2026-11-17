@@ -82,7 +82,12 @@ class TestSettings:
 
     @pytest.mark.parametrize(
         ("ui", "environ", "expected"),
-        [("auto", {"LANG": "de_DE.UTF-8"}, "de"), ("auto", {"LANG": "fr_FR.UTF-8"}, "en"), ("de", {}, "de")],
+        [
+            ("auto", {"LANG": "de_DE.UTF-8"}, "de"),
+            ("auto", {"LANG": "fr_FR.UTF-8"}, "fr"),
+            ("auto", {"LANG": "ru_RU.UTF-8"}, "auto"),
+            ("de", {}, "de"),
+        ],
     )
     def test_default_follows_the_interface_language(self, ui, environ, expected):
         assert dl.default_setting(ui, platform="linux", environ=environ) == expected

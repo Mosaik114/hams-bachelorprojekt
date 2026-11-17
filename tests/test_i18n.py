@@ -44,7 +44,7 @@ class TestCatalogs:
 
     def test_english_catalog_contains_no_german(self):
         """Language names are the only exception: they are shown in their own language."""
-        endonyms = {"language.de", "language.en"}
+        endonyms = {key for key in EN if key.startswith(("language.", "dictation.")) and not key.endswith(".auto")}
         offenders = [f"{key}: {text}" for key, text in EN.items() if key not in endonyms and looks_german(text)]
         assert not offenders, "\n".join(offenders)
 
@@ -76,7 +76,7 @@ class TestLookup:
         assert i18n.t_for("de", "tray.quit") == "Quit"
 
     def test_unknown_language_uses_english(self):
-        assert i18n.t_for("fr", "tray.quit") == "Quit"
+        assert i18n.t_for("ja", "tray.quit") == "Quit"
 
     @pytest.mark.parametrize(("count", "text"), [(0, "0 models · 1 GB"), (1, "1 model · 1 GB"), (2, "2 models · 1 GB")])
     def test_plural(self, english, count, text):
@@ -114,7 +114,7 @@ class TestLookup:
 class TestResolution:
     @pytest.mark.parametrize(
         ("value", "expected"),
-        [("auto", "auto"), ("de", "de"), ("EN", "en"), (" de ", "de"), ("fr", "auto"), ("", "auto"), (None, "auto")],
+        [("auto", "auto"), ("de", "de"), ("EN", "en"), (" de ", "de"), ("ja", "auto"), ("", "auto"), (None, "auto")],
     )
     def test_normalise_setting(self, value, expected):
         assert i18n.normalise_setting(value) == expected
@@ -130,7 +130,8 @@ class TestResolution:
             ({"LANG": "de_DE.UTF-8"}, "de"),
             ({"LANG": "de_AT.UTF-8"}, "de"),
             ({"LANG": "en_GB.UTF-8"}, "en"),
-            ({"LANG": "fr_FR.UTF-8"}, "en"),
+            ({"LANG": "fr_FR.UTF-8"}, "fr"),
+            ({"LANG": "ja_JP.UTF-8"}, "en"),
             ({"LANG": "C.UTF-8"}, "en"),
             ({}, "en"),
             ({"LC_ALL": "de_DE.UTF-8", "LANG": "en_US.UTF-8"}, "de"),
@@ -144,7 +145,7 @@ class TestResolution:
 
     @pytest.mark.parametrize(
         ("langid", "expected"),
-        [(0x0407, "de"), (0x0C07, "de"), (0x0807, "de"), (0x0409, "en"), (0x040C, "en")],
+        [(0x0407, "de"), (0x0C07, "de"), (0x0807, "de"), (0x0409, "en"), (0x040C, "fr"), (0x0411, "en")],
     )
     def test_auto_on_windows_reads_the_ui_language(self, monkeypatch, langid, expected):
         kernel32 = SimpleNamespace(GetUserDefaultUILanguage=lambda: langid)
@@ -232,6 +233,7 @@ ALLOWLIST = {
     ("dictation_language.py", "Un texto en español."),
     ("dictation_language.py", "Tekst po polsku."),
     ("dictation_language.py", "Um texto em português."),
+    ("dictation_language.py", "Türkçe bir metin."),
     # Patterns the cleanup guard matches against dictated text and model answers; never shown.
     ("cleanup_guard.py", "\\A[ \\t]*(?P<line>"),
     ("cleanup_guard.py", "äh"),

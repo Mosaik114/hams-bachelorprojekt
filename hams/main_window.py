@@ -82,16 +82,19 @@ class MainWindowMixin:
         head = tk.Frame(card, bg=Theme.WINDOW_BG)
         head.pack(fill="x")
 
-        mark_label(head, bg=Theme.WINDOW_BG).pack(side="left", padx=(0, uk.px(uk.Space.MD)))
+        # Right to left (Arabic) the whole head is mirrored: mark and name on the right, the buttons on the left.
+        mark_label(head, bg=Theme.WINDOW_BG).pack(
+            side=uk.mirror_side("left"), padx=uk.mirror_pad((0, uk.px(uk.Space.MD)))
+        )
         title = tk.Label(
             head,
             text=branding.PRODUCT_NAME,
             bg=Theme.WINDOW_BG,
             fg=Theme.TEXT_PRIMARY,
             font=uk.font("window_title"),
-            anchor="w",
+            anchor=uk.mirror_anchor("w"),
         )
-        title.pack(side="left")
+        title.pack(side=uk.mirror_side("left"))
         # Reihenfolge der Erzeugung ist die Reihenfolge der Tabulatorkette; sie
         # soll der Leserichtung folgen (Zahnrad, dann Kreuz). Gepackt wird
         # umgekehrt, weil `side="right"` das zuerst gepackte ganz aussen setzt.
@@ -103,8 +106,8 @@ class MainWindowMixin:
         )
         self._close_btn.set_hover_colour(Theme.ERROR)
         if not uk.system_frame():  # unter Linux hat die KDE-Titelleiste das Kreuz
-            self._close_btn.pack(side="right")
-        self._gear_btn.pack(side="right", padx=(0, uk.px(uk.Space.XS)))
+            self._close_btn.pack(side=uk.mirror_side("right"))
+        self._gear_btn.pack(side=uk.mirror_side("right"), padx=uk.mirror_pad((0, uk.px(uk.Space.XS))))
 
     def _build_status_row(self, card: tk.Frame) -> None:
         """2. Statuszeile: die einzige Zustandsanzeige des Produkts."""
@@ -112,15 +115,25 @@ class MainWindowMixin:
         status_row.pack(fill="x", pady=(uk.px(uk.Space.XL), 0))
 
         self.status_dot = uk.StatusDot(status_row, bg_under=Theme.WINDOW_BG, size=uk.StatusDot.SIZE_MAIN)
-        self.status_dot.pack(side="left", pady=uk.px(uk.Space.SM))
+        self.status_dot.pack(side=uk.mirror_side("left"), pady=uk.px(uk.Space.SM))
         self.status_label = tk.Label(
-            status_row, text="", anchor="w", bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY, font=uk.font("status")
+            status_row,
+            text="",
+            anchor=uk.mirror_anchor("w"),
+            bg=Theme.WINDOW_BG,
+            fg=Theme.TEXT_PRIMARY,
+            font=uk.font("status"),
         )
-        self.status_label.pack(side="left", padx=(uk.px(uk.Space.MD), 0))
+        self.status_label.pack(side=uk.mirror_side("left"), padx=uk.mirror_pad((uk.px(uk.Space.MD), 0)))
         self.elapsed_label = tk.Label(
-            status_row, text="", anchor="e", bg=Theme.WINDOW_BG, fg=Theme.TEXT_SECONDARY, font=uk.font("status")
+            status_row,
+            text="",
+            anchor=uk.mirror_anchor("e"),
+            bg=Theme.WINDOW_BG,
+            fg=Theme.TEXT_SECONDARY,
+            font=uk.font("status"),
         )
-        self.elapsed_label.pack(side="right")
+        self.elapsed_label.pack(side=uk.mirror_side("right"))
 
     def _build_footer(self, card: tk.Frame) -> None:
         """5. Fußzeile: beide Kurzbefehle als Tasten, im Fehlerfall der Hinweis.
@@ -131,31 +144,37 @@ class MainWindowMixin:
         self.footer.pack_propagate(False)
 
         self.shortcut_box = tk.Frame(self.footer, bg=Theme.WINDOW_BG)
-        self.shortcut_box.grid_columnconfigure(0, weight=1)
+        # The name on the reading side, the keys on the other (right to left: name right, keys left).
+        name_column, keys_column = (1, 0) if uk.Writing.rtl else (0, 1)
+        self.shortcut_box.grid_columnconfigure(name_column, weight=1)
         self.shortcut_keys = {}
+        #: (name, keys) per shortcut row; their width decides how wide the window must be (`_fit_window`).
+        self._shortcut_rows = []
         for row, (key, text, combo) in enumerate(self.shortcuts()):
             gap = (uk.px(uk.Space.SM) if row else 0, 0)
-            tk.Label(
+            name = tk.Label(
                 self.shortcut_box,
                 text=text,
-                anchor="w",
+                anchor=uk.mirror_anchor("w"),
                 bd=0,
                 padx=0,
                 pady=0,
                 bg=Theme.WINDOW_BG,
                 fg=Theme.TEXT_TERTIARY,
                 font=uk.font("description"),
-            ).grid(row=row, column=0, sticky="w", pady=gap)
+            )
+            name.grid(row=row, column=name_column, sticky=uk.mirror_anchor("w"), pady=gap)
             keys = uk.KeyCombo(self.shortcut_box, bg_under=Theme.WINDOW_BG, combo=combo)
-            keys.grid(row=row, column=1, sticky="e", pady=gap)
+            keys.grid(row=row, column=keys_column, sticky=uk.mirror_anchor("e"), pady=gap)
+            self._shortcut_rows.append((name, keys))
             self.shortcut_keys[key] = keys
         self.shortcut_box.pack(fill="x")
 
         self.footer_label = tk.Label(
             self.footer,
             text="",
-            anchor="nw",
-            justify="left",
+            anchor=uk.mirror_anchor("nw"),
+            justify=uk.text_justify(),
             bd=0,
             padx=0,
             pady=0,
@@ -192,6 +211,18 @@ class MainWindowMixin:
             self.footer_label.pack_forget()
             self.shortcut_box.pack(fill="x")
 
+    def _footer_width(self) -> int:
+        """Pixels the shortcut rows need: name, a gap, the keys, and the window margins.
+
+        At 360 logical pixels a long name ("Спросить ИИ", the Arabic "Ask AI") ran into its keys; such a language
+        makes the window a little wider instead.
+        """
+        widest = 0
+        for name, keys in self._shortcut_rows:
+            with contextlib.suppress(tk.TclError):
+                widest = max(widest, name.winfo_reqwidth() + uk.px(uk.Space.SM) + keys.winfo_reqwidth())
+        return widest + 2 * uk.px(uk.Space.WINDOW)
+
     def _fit_window(self) -> None:
         """Fensterhöhe aus den fünf Zonen berechnen.
 
@@ -219,7 +250,7 @@ class MainWindowMixin:
             + footer  # Kurzbefehle als Tasten
             + uk.Space.WINDOW  # Rand unten
         )
-        width = uk.px(self.WINDOW_WIDTH)
+        width = max(uk.px(self.WINDOW_WIDTH), self._footer_width())
         height = uk.px(max(logical, self.WINDOW_MIN_HEIGHT))
         self._window_size = (width, height)
         self.root.geometry(f"{width}x{height}")

@@ -186,7 +186,14 @@ _FONT_ROLES: dict[str, tuple] = {
     "shortcut": ("small", 11, "normal"),  # Tasten-Chips
     "meta": ("small", 11, "normal"),  # Zusatzangaben im Popover
     "icon": ("text", 13, "normal"),  # Glyph in Icon-Buttons
+    # Text des Nutzers (Glossar): Namen in jeder Schrift, auch „عبد الله“ mitten in einer deutschen Oberfläche.
+    "content": ("plain", 12, "normal"),
 }
+
+#: Schriften mit arabischen Buchstaben. Nunito und die variablen Segoe-Schnitte haben keine; Tk holte sie dann
+#: Wort für Wort aus einer Ersatzschrift, und Windows ordnete jedes Wort für sich: der Satz stand rückwärts.
+#: Bleibt ein Text in *einer* Schrift, formt und ordnet Windows ihn als Ganzes.
+SCRIPT_FAMILIES = {"plain": "Segoe UI", "semibold": "Segoe UI Semibold"}
 
 
 def points_to_px(points: float) -> int:
@@ -250,7 +257,14 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
         "mono": "Cascadia Mono" if "Cascadia Mono" in families else "Consolas",
         "serif": next((f for f in SERIF_FAMILIES if f in families), "Times New Roman"),
         "rounded": next((f for f in ROUNDED_FAMILIES if f in families), "Segoe UI"),
+        "plain": SCRIPT_FAMILIES["plain"],
     }
+    from hams.ui_kit.text import Writing  # text.py builds on this module
+
+    if Writing.rtl:
+        # Arabisch: jede Rolle in einer Schrift mit arabischen Buchstaben (siehe SCRIPT_FAMILIES).
+        resolved.update({key: SCRIPT_FAMILIES["plain"] for key in ("display", "text", "small", "serif", "rounded")})
+        resolved["semibold"] = SCRIPT_FAMILIES["semibold"]
     if sys.platform != "win32":
         # Segoe UI und Georgia gibt es nur unter Windows.
         from hams.linux import FONT_SUBSTITUTES, font_available
@@ -266,6 +280,7 @@ def init_fonts(root: tk.Misc, force: bool = False) -> dict[str, tkfont.Font]:
             mono=pick("mono"),
             serif=pick("serif"),
             rounded=pick("rounded"),
+            plain=pick("text"),
         )
     if _FONTS and not force:
         return _FONTS

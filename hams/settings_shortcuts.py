@@ -73,7 +73,7 @@ class ShortcutsSection(Section):
             if parts.change is not None:
                 parts.cancel.pack_forget()
                 parts.default.pack_forget()
-                parts.change.pack(side="right")
+                parts.change.pack(side=uk.mirror_side("right"))
         self.restart_button.set_enabled(True)
         self.row_restart.set_description(self.RESTART_HINT)
 
@@ -87,7 +87,7 @@ class ShortcutsSection(Section):
         row.pack(fill="x")
         box = tk.Frame(body, bg=Theme.GROUP_SURFACE, highlightthickness=0, takefocus=0)
         keys = uk.KeyCombo(box, bg_under=Theme.GROUP_SURFACE, combo=combo)
-        keys.pack(side="left")
+        keys.pack(side=uk.mirror_side("left"))
         parts = SimpleNamespace(row=row, box=box, keys=keys, change=None, default=None, cancel=None)
         if editable():
             self._build_shortcut_buttons(parts, key)
@@ -119,7 +119,7 @@ class ShortcutsSection(Section):
             height=uk.Height.STANDARD,
         )
         uk.keep_logical_width(parts.change, self.CHANGE_WIDTH)
-        parts.change.pack(side="right")
+        parts.change.pack(side=uk.mirror_side("right"))
         # The recording lands on the surface itself and ends there ("break"): otherwise the window's bindings would
         # act, such as Esc to close or Home/End to scroll.
         parts.box.bind("<KeyPress>", self.on_capture_key)
@@ -144,9 +144,9 @@ class ShortcutsSection(Section):
         self.app.suspend_hotkeys()
         parts = self.shortcut_rows[key]
         parts.change.pack_forget()
-        parts.cancel.pack(side="right")
+        parts.cancel.pack(side=uk.mirror_side("right"))
         if hotkey_editor.canonical(getattr(CFG, f"hotkey_{key}")) != hotkey_editor.DEFAULTS[key]:
-            parts.default.pack(side="right", padx=(0, uk.px(uk.Space.XS)))
+            parts.default.pack(side=uk.mirror_side("right"), padx=uk.mirror_pad((0, uk.px(uk.Space.XS))))
         parts.row.set_description(t("settings.shortcut.capture"))
         parts.box.focus_set()
         logger.info("Shortcut capture started (%s)", key)
@@ -216,7 +216,7 @@ class ShortcutsSection(Section):
         parts.keys.set_combo(getattr(CFG, f"hotkey_{key}"))
         parts.cancel.pack_forget()
         parts.default.pack_forget()
-        parts.change.pack(side="right")
+        parts.change.pack(side=uk.mirror_side("right"))
         parts.row.set_description(description)
 
     def close_capture(self) -> None:

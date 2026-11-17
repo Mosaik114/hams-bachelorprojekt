@@ -13,7 +13,7 @@ from hams.ui_kit.monitors import work_area
 from hams.ui_kit.press_area import PressArea
 from hams.ui_kit.scale import font, px
 from hams.ui_kit.states import return_focus_to
-from hams.ui_kit.text import _fit_text, _text_width
+from hams.ui_kit.text import _fit_text, _text_width, mirror_anchor, mirror_pad, mirror_side
 from hams.ui_kit.theme import Depth, Radius, Space, Theme, ink_width
 from hams.ui_kit.window import round_window_corners
 
@@ -68,23 +68,28 @@ class _PopoverItem(tk.Frame):
         # breit und draengte den Titel aus der Zeile.
         self._check_image = icon("check", ICON_BOX, Theme.ACCENT_TINT if selected else Theme.POPOVER_SURFACE)
         self._check = tk.Label(self, bg=Theme.POPOVER_SURFACE, bd=0, image=self._check_image)
-        self._check.pack(side="left", padx=(px(Space.MD), px(Space.ICON_GAP)))
+        self._check.pack(side=mirror_side("left"), padx=mirror_pad((px(Space.MD), px(Space.ICON_GAP))))
 
         text_box = tk.Frame(self, bg=Theme.POPOVER_SURFACE)
-        text_box.pack(side="left", fill="x", expand=True, pady=px(Space.SM))
+        text_box.pack(side=mirror_side("left"), fill="x", expand=True, pady=px(Space.SM))
         colour = Theme.TEXT_PRIMARY if option.enabled else Theme.TEXT_TERTIARY
         title = _fit_text(self, option.label, font("row_title"), text_width)
         self._title = tk.Label(
-            text_box, text=title, bg=Theme.POPOVER_SURFACE, fg=colour, font=font("row_title"), anchor="w"
+            text_box, text=title, bg=Theme.POPOVER_SURFACE, fg=colour, font=font("row_title"), anchor=mirror_anchor("w")
         )
-        self._title.pack(anchor="w")
+        self._title.pack(anchor=mirror_anchor("w"))
         self._meta = None
         if option.meta:
             meta = _fit_text(self, option.meta, font("meta"), text_width)
             self._meta = tk.Label(
-                text_box, text=meta, bg=Theme.POPOVER_SURFACE, fg=Theme.TEXT_SECONDARY, font=font("meta"), anchor="w"
+                text_box,
+                text=meta,
+                bg=Theme.POPOVER_SURFACE,
+                fg=Theme.TEXT_SECONDARY,
+                font=font("meta"),
+                anchor=mirror_anchor("w"),
             )
-            self._meta.pack(anchor="w")
+            self._meta.pack(anchor=mirror_anchor("w"))
 
         self._trailing = None
         if option.trailing:
@@ -93,7 +98,7 @@ class _PopoverItem(tk.Frame):
             )
             # `before`, weil der Textblock mit expand=True gepackt ist und der
             # Zusatzangabe sonst keinen Platz uebrig laesst.
-            self._trailing.pack(side="right", before=text_box, padx=(0, px(Space.MD)))
+            self._trailing.pack(side=mirror_side("right"), before=text_box, padx=mirror_pad((0, px(Space.MD))))
 
         # Die ganze Zeile ist der Eintrag, auch die freie Fläche neben dem Text.
         self._area = PressArea(
@@ -252,8 +257,8 @@ class Popover(tk.Toplevel):
                 bg=Theme.POPOVER_SURFACE,
                 fg=Theme.TEXT_SECONDARY,
                 font=font("meta"),
-                anchor="w",
-            ).pack(fill="x", padx=(px(Space.MD), 0), pady=(px(Space.SM), px(Space.XS)))
+                anchor=mirror_anchor("w"),
+            ).pack(fill="x", padx=mirror_pad((px(Space.MD), 0)), pady=(px(Space.SM), px(Space.XS)))
 
         if groups:
             for name in groups:

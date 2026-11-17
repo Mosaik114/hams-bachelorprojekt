@@ -533,7 +533,7 @@ def _interactive_rows(widget):
 class TestRowHoverOnEveryPage:
     """The hover of a row is a rounded surface *behind* its content.
 
-    The user saw the corner pieces over the first letter of "Text bereinigen" and "Nach Updates suchen", and
+    The user saw the corner pieces over the first letter of "Text bereinigen" and "Über Updates informieren", and
     corner remnants next to the switch: `place` counts from the inner edge of a frame with padding, so the
     corners sat at the text instead of at the edge of the surface.
     """
@@ -575,7 +575,7 @@ class TestRowHoverOnEveryPage:
                     win.win.update()
                     assert not any(corner.winfo_ismapped() for corner in corners)
             assert "Text bereinigen" in titles
-            assert "Nach Updates suchen" in titles
+            assert "Über Updates informieren" in titles
             assert "Pegel an der Maus" in titles
         finally:
             uk.Theme.apply(before)

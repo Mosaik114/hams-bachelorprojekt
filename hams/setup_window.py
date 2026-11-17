@@ -19,7 +19,7 @@ import sys
 import tkinter as tk
 from typing import TYPE_CHECKING
 
-from hams import branding, i18n, setup_wizard
+from hams import bootstrap, branding, setup_wizard
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
@@ -208,17 +208,17 @@ class SetupWindow:
             fg=Theme.TEXT_PRIMARY,
             font=uk.font("description"),
             wraplength=self._text_width(),
-            justify="left",
-            anchor="w",
+            justify=uk.text_justify(),
+            anchor=uk.mirror_anchor("w"),
         ).pack(fill="x", pady=(0, uk.px(uk.Space.MD)))  # in the footer: the window's width, not the page's
         self.close_anyway_button = uk.SecondaryButton(
             box, t("setup.close_anyway"), lambda: self.close(confirmed=True), bg_under=Theme.WINDOW_BG
         )
-        self.close_anyway_button.pack(side="left")
+        self.close_anyway_button.pack(side=uk.mirror_side("left"))
         self.keep_open_button = uk.SecondaryButton(
             box, t("setup.keep_open"), self._keep_open, bg_under=Theme.WINDOW_BG, role="primary"
         )
-        self.keep_open_button.pack(side="right")
+        self.keep_open_button.pack(side=uk.mirror_side("right"))
         self._close_box = box
 
     def _keep_open(self) -> None:
@@ -227,8 +227,8 @@ class SetupWindow:
             return
         self._close_box.destroy()
         self._close_box = None
-        self.back_button.pack(side="left")
-        self.next_button.pack(side="right", padx=(uk.px(uk.Space.MD), 0))
+        self.back_button.pack(side=uk.mirror_side("left"))
+        self.next_button.pack(side=uk.mirror_side("right"), padx=uk.mirror_pad((uk.px(uk.Space.MD), 0)))
         self._update_footer()
 
     def _cancel_jobs(self) -> None:
@@ -293,12 +293,12 @@ class SetupWindow:
         steps = tk.Frame(self.win, bg=Theme.WINDOW_BG)
         steps.pack(fill="x", padx=uk.px(uk.Space.WINDOW), pady=(0, uk.px(uk.Space.MD)))
         self.step_label = tk.Label(
-            steps, bg=Theme.WINDOW_BG, fg=Theme.TEXT_TERTIARY, font=uk.font("description"), anchor="w"
+            steps, bg=Theme.WINDOW_BG, fg=Theme.TEXT_TERTIARY, font=uk.font("description"), anchor=uk.mirror_anchor("w")
         )
-        self.step_label.pack(side="left")
+        self.step_label.pack(side=uk.mirror_side("left"))
         self.step_bar = uk.ProgressBar(steps, bg_under=Theme.WINDOW_BG, height=4)
         uk.keep_logical_width(self.step_bar, 120)
-        self.step_bar.pack(side="right")
+        self.step_bar.pack(side=uk.mirror_side("right"))
 
     def _footer_button(self, text: str, command, role: str, side: str) -> uk.SecondaryButton:
         button = uk.SecondaryButton(
@@ -378,7 +378,9 @@ class SetupWindow:
         self.next_button.set_enabled(controller.can_next(self._model_ready()))
         if controller.page in setup_wizard.SKIPPABLE:
             # innen neben „Weiter“: rechts gepackt steht das zuerst Gepackte ganz aussen
-            self.skip_button.pack(side="right", padx=(uk.px(uk.Space.MD), 0), after=self.next_button)
+            self.skip_button.pack(
+                side=uk.mirror_side("right"), padx=uk.mirror_pad((uk.px(uk.Space.MD), 0)), after=self.next_button
+            )
             self.skip_button.set_enabled(controller.can_skip())
         else:
             self.skip_button.pack_forget()
@@ -411,7 +413,12 @@ class SetupWindow:
         # Page title clearly above the text: larger and bold; the text below is regular (it was semibold and
         # only 1 pt smaller, so the whole page read bold).
         label = tk.Label(
-            master, text=text, bg=Theme.WINDOW_BG, fg=Theme.TEXT_PRIMARY, font=uk.font("page_title"), anchor="w"
+            master,
+            text=text,
+            bg=Theme.WINDOW_BG,
+            fg=Theme.TEXT_PRIMARY,
+            font=uk.font("page_title"),
+            anchor=uk.mirror_anchor("w"),
         )
         label.pack(fill="x", pady=(0, uk.px(uk.Space.MD)))
         return label
@@ -423,8 +430,8 @@ class SetupWindow:
             bg=Theme.WINDOW_BG,
             fg=Theme.TEXT_TERTIARY if tertiary else Theme.TEXT_SECONDARY,
             font=uk.font("description" if tertiary else "status"),
-            anchor="w",
-            justify="left",
+            anchor=uk.mirror_anchor("w"),
+            justify=uk.text_justify(),
             wraplength=self._text_width(),
         )
         label.pack(fill="x", pady=(0, uk.px(uk.Space.LG)))
@@ -440,7 +447,7 @@ class SetupWindow:
         row = uk.SettingRow(group.body, title, variant="description", description=description, hairline=hairline)
         row.pack(fill="x")
         select = uk.Select(group.body, bg_under=Theme.GROUP_SURFACE, options=options, value=value, on_change=on_change)
-        uk.keep_logical_width(select, self.CONTROL_WIDTH)
+        uk.keep_logical_width(select, select.fitting_width(self.CONTROL_WIDTH))
         row.set_control(select)
         return row, select
 
@@ -475,7 +482,7 @@ class SetupWindow:
         if setting is None:
             return
         self.controller.choices.ui_language = setting
-        i18n.set_language(setting)
+        bootstrap.apply_language(setting, self.app.root)
         for sequence in self.SCROLL_KEYS:
             self.win.unbind(sequence)
         for child in self.win.winfo_children():
