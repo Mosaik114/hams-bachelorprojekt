@@ -5,6 +5,33 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.6] – 2026-11-17
+
+### Fixed
+- **Speech models load again on Windows with developer mode (error 448).** The setup (Inno Setup 6.7 and later)
+  switched on Windows' *RedirectionGuard* for itself, and Windows handed it on to the Hams it started: after the
+  install, after *Update now* and from the *Start Hams* tick. Such a Hams could not follow the links the Hugging
+  Face cache creates where Windows allows them (developer mode), so every model download and load failed with
+  "untrusted mount point" (error 448), and *Try again* never helped. Three layers now:
+  - The setup no longer switches RedirectionGuard on (`RedirectionGuard=no`); it only writes to the user's own
+    folders, where the guard protects nothing.
+  - A Hams that finds RedirectionGuard on its process anyway (started by an older setup or another program)
+    starts itself once more from the Windows shell, without it, and quits – once, never in a loop. *Update now*
+    from such a Hams starts the setup from the shell as well.
+  - The model cache holds no links any more: downloads are stored as plain files, and links already there are
+    replaced by the files they pointed to (as hard links, so no extra space), silently, before any model access.
+    If a cache is still unreadable, Hams reads its own models one by one, and deleting a model works all the same.
+- **The diagnostic report names no account in log tracebacks either:** paths quoted with doubled backslashes
+  (`C:\\Users\\<name>`) slipped through before.
+
+### Changed
+- **Own message when Windows will not let Hams into the model folder** (error 448, OneDrive files that are not
+  available, unreachable files): "Windows won't let Hams into the folder for speech models. Please quit Hams, open
+  it again from the Start menu and try once more." with the Windows error number as its code, instead of
+  "The download didn't work (OSError)".
+- The diagnostic report says whether RedirectionGuard is on for Hams, and every setup build log names the Inno
+  Setup version it was compiled with.
+
 ## [1.3.5] – 2026-11-17
 
 ### Fixed
