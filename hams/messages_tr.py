@@ -331,6 +331,10 @@ MESSAGES: dict[str, str] = {
         "Windows, Hams'in konuşma modelleri klasörüne girmesine izin vermiyor. "
         "Lütfen Hams'i kapatın, Başlat menüsünden yeniden açın ve tekrar deneyin."
     ),
+    "download.error.cloud_folder": (
+        "OneDrive şu anda konuşma modelleri klasörüne erişim vermiyor. "
+        "Lütfen OneDrive'ın açık ve oturumun açık olduğunu kontrol edip tekrar deneyin."
+    ),
     "download.error.blocked": (
         "Bir koruma programı veya ağ indirmeyi engelliyor. "
         "Lütfen başka bir Wi-Fi deneyin, örneğin telefonun hotspot'unu."

@@ -171,17 +171,31 @@ jobs:
         run: |
           $version = python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
           if ("v$version" -ne "${{ github.ref_name }}") { throw "Tag ${{ github.ref_name }} does not match pyproject version $version" }
+      # One fixed version, installed and then really checked (not just printed): hams.iss depends on it for
+      # RedirectionGuard, and whatever the runner image or Chocolatey offers next must not change the setup unseen.
+      # 6.7.1 is the newest on Chocolatey; the RedirectionGuard directive exists since 6.7.0. ISCC.exe's own
+      # VersionInfo says 0.0.0.0, so the version comes from the uninstall entry.
       - name: Inno Setup
         shell: pwsh
         run: |
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          if (-not (Test-Path $iscc)) { throw "Inno Setup 6 not found" }
-          "Inno Setup {0}" -f (Get-Item $iscc).VersionInfo.ProductVersion
+          $want = "6.7.1"
+          choco install innosetup --version $want --allow-downgrade -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "choco install innosetup $want failed ($LASTEXITCODE)" }
+          $entries = Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue |
+            Where-Object { $_.DisplayName -like "Inno Setup*" -and $_.DisplayVersion }
+          $entries | ForEach-Object { "{0} {1} in {2}" -f $_.DisplayName, $_.DisplayVersion, $_.InstallLocation }
+          $entry = @($entries | Where-Object { $_.DisplayVersion -eq $want }) | Select-Object -First 1
+          if (-not $entry) { throw "Inno Setup $want is not installed" }
+          $iscc = Join-Path $entry.InstallLocation "ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe of Inno Setup $want not found in $($entry.InstallLocation)" }
+          "INNO_ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Inno Setup ${want}: $iscc"
       - name: Build app and installer
         shell: pwsh
-        run: ./packaging/build.ps1 -Installer
-      - name: Smoke test (silent install, self-test, silent uninstall)
+        run: ./packaging/build.ps1 -Installer -InnoCompiler $env:INNO_ISCC
+      - name: Smoke test (silent install, self-test, update with and without RedirectionGuard, silent uninstall)
         shell: pwsh
         run: ./packaging/smoke_test.ps1 -Setup (Get-Item build/installer/Hams-Setup-*.exe).FullName
       # The one-click update installs nothing without it (hams/update_install.py): sha256sum format, LF

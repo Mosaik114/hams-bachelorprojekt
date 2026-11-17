@@ -252,16 +252,22 @@ def cache_root() -> Path | None:
 # folgt solchen Links nicht; jeder Zugriff endet dann mit Fehler 448, und der Download half nicht, weil der Hub den
 # Link nur neu anlegte. Deshalb: neue Dateien immer als echte Dateien, vorhandene Links still ersetzen.
 
-#: Windows errors of a path that leads through a link or a cloud placeholder Windows will not follow: 448
-#: (untrusted mount point, RedirectionGuard), 1920/1921 (cannot access or resolve the file), the reparse-point
-#: errors, and the cloud-file range (OneDrive provider not running, file not synced, access to it denied).
-UNTRUSTED_PATH_ERRORS = frozenset({448, 1920, 1921, 4390, 4392, 4393, 4394, *range(358, 406)})
+#: Windows errors of a path that leads through a link Windows will not follow: 448 (untrusted mount point,
+#: RedirectionGuard), 1920/1921 (cannot access or resolve the file) and the reparse-point errors.
+LINK_PATH_ERRORS = frozenset({448, 1920, 1921, 4390, 4392, 4393, 4394})
+#: The cloud-file range: OneDrive (or another sync program) does not hand the file over - not running, not signed
+#: in, not synced, access denied. A different advice than for a link.
+CLOUD_PATH_ERRORS = frozenset(range(358, 406))
+#: Both: a path Windows will not follow.
+UNTRUSTED_PATH_ERRORS = LINK_PATH_ERRORS | CLOUD_PATH_ERRORS
 
 _IO_REPARSE_TAG_SYMLINK = 0xA000000C
 _IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003  # junction
 
-#: Set once `prepare_cache` replaced the links of the catalog models in this process.
+#: Set once `prepare_cache` replaced the links of the catalog models in this process. Under `_LINKS_LOCK`: the start
+#: load, a download and the settings may ask at the same time, and the second must wait until the first is done.
 _LINKS_CHECKED = False
+_LINKS_LOCK = threading.Lock()
 
 
 def untrusted_path(exc: BaseException) -> int | None:
@@ -271,6 +277,25 @@ def untrusted_path(exc: BaseException) -> int | None:
         if isinstance(item, OSError) and number in UNTRUSTED_PATH_ERRORS:
             return number
     return None
+
+
+def folder_problem(exc: BaseException) -> str:
+    """What kind of folder trouble `exc` is, or "".
+
+    "blocked_folder": a link Windows will not follow; "cloud_folder": OneDrive does not hand the file over.
+    """
+    number = untrusted_path(exc)
+    if number is None:
+        return ""
+    return "cloud_folder" if number in CLOUD_PATH_ERRORS else "blocked_folder"
+
+
+def describe_folder_problem(exc: BaseException) -> str:
+    """The sentence for a model folder Windows will not let Hams into, with its number; "" for other errors."""
+    kind = folder_problem(exc)
+    if not kind:
+        return ""
+    return t("download.error.with_code", message=t(f"download.error.{kind}"), code=str(untrusted_path(exc)))
 
 
 def _no_symlinks(cache_dir=None) -> bool:  # noqa: ARG001 - same signature as the hub's function
@@ -286,6 +311,8 @@ def store_plain_files() -> bool:
     """
     if sys.platform != "win32":
         return False
+    # The hub's own switch, in versions that know it (newer than the 1.7.2 Hams ships): the same, documented.
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
     try:
         from huggingface_hub import file_download
 
@@ -343,11 +370,22 @@ def _replace_link(path: str) -> bool:
     with contextlib.suppress(FileNotFoundError):
         os.unlink(temporary)
     try:
-        os.link(target, temporary)
-    except OSError:
-        shutil.copyfile(target, temporary)
-    os.unlink(path)  # the link itself, never what it points to
-    os.replace(temporary, path)
+        try:
+            os.link(target, temporary)
+        except OSError:
+            shutil.copyfile(target, temporary)  # another drive, or a file system without hard links
+        # Replaces the link itself, never what it points to (a rename does not follow the link it overwrites).
+        try:
+            os.replace(temporary, path)
+        except OSError:
+            # Should Windows refuse to rename over a link it will not trust: the link away first (only the link).
+            os.unlink(path)
+            os.replace(temporary, path)
+    except BaseException:
+        # A copy that broke off (full disk) may already be gigabytes: it must not stay behind.
+        with contextlib.suppress(OSError):
+            os.unlink(temporary)
+        raise
     return True
 
 
@@ -402,14 +440,15 @@ def prepare_cache(*, force: bool = False) -> int:
     if sys.platform != "win32":
         return 0
     store_plain_files()
-    if _LINKS_CHECKED and not force:
-        return 0
-    _LINKS_CHECKED = True
-    try:
-        return replace_cache_links()
-    except Exception:  # noqa: BLE001 - never in the way of a start; the access itself reports what is wrong
-        logger.warning("Model cache links not checked", exc_info=True)
-        return 0
+    with _LINKS_LOCK:
+        if _LINKS_CHECKED and not force:
+            return 0
+        _LINKS_CHECKED = True
+        try:
+            return replace_cache_links()
+        except Exception:  # noqa: BLE001 - never in the way of a start; the access itself reports what is wrong
+            logger.warning("Model cache links not checked", exc_info=True)
+            return 0
 
 
 class _CatalogCache:
@@ -807,7 +846,7 @@ def describe_download_error(exc: BaseException) -> str:
     status = http_status(exc)
     if status is not None:
         code = str(status)
-    elif kind == "blocked_folder":
+    elif kind in ("blocked_folder", "cloud_folder"):
         code = str(untrusted_path(exc))  # 448 says more than "OSError"
     else:
         code = type(_exception_chain(exc)[-1]).__name__
@@ -907,8 +946,12 @@ def error_kind(exc: BaseException) -> str:
 
 def _local_kind(chain: list[BaseException], text: str) -> str:
     """Trouble on this computer: a folder Windows will not enter, missing write rights or a full disk; "" if none."""
-    if any(isinstance(item, OSError) and getattr(item, "winerror", None) in UNTRUSTED_PATH_ERRORS for item in chain):
-        return "blocked_folder"
+    for item in chain:
+        number = getattr(item, "winerror", None) if isinstance(item, OSError) else None
+        if number in CLOUD_PATH_ERRORS:
+            return "cloud_folder"
+        if number in LINK_PATH_ERRORS:
+            return "blocked_folder"
     if any(isinstance(item, PermissionError) for item in chain):
         return "permission"
     if any(isinstance(item, OSError) and getattr(item, "errno", None) == 28 for item in chain):

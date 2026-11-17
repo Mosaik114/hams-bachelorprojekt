@@ -3,6 +3,7 @@
 import ctypes
 import sys
 
+from hams import test_instance
 from hams.config import APP_DIR, logger
 
 #: Bewusst ``Global\``: eine Instanz je *Rechner*, nicht je Anmeldesitzung. Das
@@ -19,7 +20,8 @@ MUTEX_NAME = "Global\\Hams-SingleInstance-7a3f2c1b"
 #: nie gleichzeitig (beide belegten dieselben Hotkeys) — wer zuerst startet,
 #: gewinnt, der andere meldet „laeuft bereits".
 LEGACY_MUTEX_NAME = "Global\\Wisper-SingleInstance-7a3f2c1b"
-MUTEX_NAMES = (MUTEX_NAME, LEGACY_MUTEX_NAME)
+#: Eine Testinstanz (`test_instance`) haelt nur ihr eigenes Schloss und begegnet so nie dem echten Hams.
+MUTEX_NAMES = (MUTEX_NAME + test_instance.suffix(),) if test_instance.suffix() else (MUTEX_NAME, LEGACY_MUTEX_NAME)
 ERROR_ACCESS_DENIED = 5
 ERROR_ALREADY_EXISTS = 183
 
@@ -55,6 +57,33 @@ class _MutexApi:
 
     def close(self, handle: int) -> bool:
         return bool(self.kernel32.CloseHandle(handle))
+
+    def exists(self, name: str) -> bool:
+        """Whether some process holds the named mutex; asks without creating it."""
+        from ctypes import wintypes
+
+        self.kernel32.OpenMutexW.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.LPCWSTR]
+        self.kernel32.OpenMutexW.restype = wintypes.HANDLE
+        ctypes.set_last_error(0)
+        handle = self.kernel32.OpenMutexW(_SYNCHRONIZE, False, name)
+        if handle:
+            self.close(handle)
+            return True
+        # Another session's Hams may refuse us the handle: it is there all the same.
+        return ctypes.get_last_error() == ERROR_ACCESS_DENIED
+
+
+_SYNCHRONIZE = 0x00100000
+
+
+def held_elsewhere() -> bool:
+    """Whether another Hams holds the single-instance lock right now (Windows; False elsewhere)."""
+    if sys.platform != "win32":
+        return False
+    try:
+        return _kernel32().exists(MUTEX_NAMES[0])
+    except OSError:
+        return False
 
 
 def _kernel32() -> _MutexApi:

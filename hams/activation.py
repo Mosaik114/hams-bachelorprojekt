@@ -7,8 +7,11 @@ import ctypes
 import time
 from ctypes import wintypes
 
-SETTINGS_EVENT = "Local\\Hams.OpenSettings-7a3f2c1b"
-SHOW_EVENT = "Local\\Hams.ShowWindow-7a3f2c1b"
+from hams import test_instance
+
+# A test instance (`test_instance`) answers only its own requests.
+SETTINGS_EVENT = "Local\\Hams.OpenSettings-7a3f2c1b" + test_instance.suffix()
+SHOW_EVENT = "Local\\Hams.ShowWindow-7a3f2c1b" + test_instance.suffix()
 EVENT_MODIFY_STATE = 0x0002
 WAIT_OBJECT_0 = 0
 WAIT_TIMEOUT = 258

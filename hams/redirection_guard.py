@@ -34,6 +34,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from contextlib import suppress
 
 logger = logging.getLogger("hams")
@@ -365,21 +366,72 @@ def start_from_shell(command: list[str], *, cwd: str | None = None) -> bool:
 
 
 def restart_command(argv: list[str] | None = None) -> list[str]:
-    """The command line of this Hams again: the packaged exe, or the interpreter with ``-m hams``."""
+    """The command line of this Hams again: the packaged exe, or the interpreter with ``-m hams``.
+
+    A test instance passes its name on as an argument: Explorer starts the new Hams with its own environment, where
+    ``HAMS_TEST_INSTANCE`` is not set, and without it the test Hams would meet the user's.
+    """
+    from hams import test_instance
+
     args = [arg for arg in (sys.argv[1:] if argv is None else argv) if arg != RESTART_ARGUMENT]
+    instance = test_instance.argument()
+    if instance and not any(arg.startswith(test_instance.ARGUMENT) for arg in args):
+        args.append(instance)
     if getattr(sys, "frozen", False):
         return [sys.executable, *args]
     return [sys.executable, "-m", "hams", *args]
 
 
+def program_folder() -> str:
+    """Where the restarted Hams starts: the folder of Hams.exe, not whatever folder the starting program was in."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(sys.executable)
+    return os.getcwd()
+
+
+#: How long the old Hams waits for the new one to take the single-instance lock before it keeps running itself.
+#: A cold start of the packaged Hams takes about 3 s; on a slow disk with a virus scanner looking, it takes longer.
+CONFIRM_SECONDS = 20.0
+
+
+def _lock_taken(timeout: float = CONFIRM_SECONDS, *, poll: float = 0.2) -> bool:
+    """Waits until another Hams holds the single-instance lock: the new one is running. False after `timeout`."""
+    from hams import instance
+
+    deadline = time.monotonic() + timeout
+    while True:
+        if instance.held_elsewhere():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(poll)
+
+
+def _another_hams() -> bool:
+    from hams import instance
+
+    return instance.held_elsewhere()
+
+
 def restart_without_guard(
-    argv: list[str] | None = None, *, check=enforced, start=start_from_shell, frozen: bool | None = None
+    argv: list[str] | None = None,
+    *,
+    check=enforced,
+    start=start_from_shell,
+    frozen: bool | None = None,
+    running=_another_hams,
+    confirmed=_lock_taken,
 ) -> bool:
     """Starts this Hams once more without RedirectionGuard if it is on here. True: the caller quits now.
 
     Only the installed app (`frozen`): a source checkout runs in a terminal the user watches, and a restart would
     tear it away from there. Only once: the restarted Hams carries `RESTART_ARGUMENT` and keeps running whatever it
     finds. Called before the single-instance lock is taken, so the new Hams can take it.
+
+    Not when another Hams runs already: this start only asks that one to show itself (`main`), a restart would add
+    nothing. And this Hams quits only once the new one holds the lock (`confirmed`); the shell does not say whether
+    it really started the program. If it did not, this Hams keeps running, with the mitigation, instead of leaving the
+    user with no Hams at all.
     """
     args = list(sys.argv[1:] if argv is None else argv)
     if not (getattr(sys, "frozen", False) if frozen is None else frozen):
@@ -390,8 +442,14 @@ def restart_without_guard(
         return False
     if not check():
         return False
-    if not start([*restart_command(args), RESTART_ARGUMENT], cwd=os.getcwd()):
+    if running():
+        logger.info("RedirectionGuard is on, but another Hams runs already; no restart")
+        return False
+    if not start([*restart_command(args), RESTART_ARGUMENT], cwd=program_folder()):
         logger.warning("RedirectionGuard is on and Hams could not start itself without it")
+        return False
+    if not confirmed():
+        logger.warning("The Hams started through the Windows shell did not come up; this one keeps running")
         return False
     logger.info("RedirectionGuard was on (inherited from the starting program): restarted through the Windows shell")
     return True

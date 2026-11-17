@@ -21,16 +21,33 @@ follow [Semantic Versioning](https://semver.org/).
   - The model cache holds no links any more: downloads are stored as plain files, and links already there are
     replaced by the files they pointed to (as hard links, so no extra space), silently, before any model access.
     If a cache is still unreadable, Hams reads its own models one by one, and deleting a model works all the same.
+  - The restart starts Hams in its own program folder, and the old Hams quits only once the new one holds the
+    single-instance lock: if the shell does not start it (it does not say), the old one simply keeps running
+    instead of leaving the user with no Hams. No restart when another Hams runs already.
 - **The diagnostic report names no account in log tracebacks either:** paths quoted with doubled backslashes
   (`C:\\Users\\<name>`) slipped through before.
+- Replacing a cache link no longer leaves a half copy behind when the disk fills up in the middle, and two model
+  accesses at the same moment no longer both start the replacement.
 
 ### Changed
-- **Own message when Windows will not let Hams into the model folder** (error 448, OneDrive files that are not
-  available, unreachable files): "Windows won't let Hams into the folder for speech models. Please quit Hams, open
-  it again from the Start menu and try once more." with the Windows error number as its code, instead of
-  "The download didn't work (OSError)".
+- **Own message when Windows will not let Hams into the model folder** (error 448, unreachable files): "Windows
+  won't let Hams into the folder for speech models. Please quit Hams, open it again from the Start menu and try
+  once more." with the Windows error number as its code, instead of "The download didn't work (OSError)" – also
+  when the model does not *load*, instead of "could not be loaded on GPU or CPU".
+- **OneDrive has its own advice** (errors 358–405, a file OneDrive does not hand over): "OneDrive isn't handing
+  over the folder for speech models right now. Please check that OneDrive is running and signed in, then try
+  again."
+- **A setup started with administrator rights asks first** ("Install anyway?", *No* offered), because only there
+  the missing RedirectionGuard would matter. Silent, it stops – except for Hams' own *Update now*, with UAC off
+  (no boundary to protect), or with `/ALLOWADMIN=1`. A normal double-click installs as always.
+- Model downloads also set the hub's own `HF_HUB_DISABLE_SYMLINKS=1`, for hub versions that read it.
 - The diagnostic report says whether RedirectionGuard is on for Hams, and every setup build log names the Inno
-  Setup version it was compiled with.
+  Setup version it was compiled with. CI installs one fixed Inno Setup version (6.7.1) and checks it.
+- **Installer smoke test end to end:** the setup installs and starts Hams, and the Hams it starts after an update
+  runs without RedirectionGuard – also when the program that started the update had it (then Hams comes back
+  through the Windows shell). On a developer machine it runs as a test instance (`build.ps1 -TestInstance`,
+  `smoke_test.ps1 -TestInstance`, `--test-instance`): own AppId, folders, lock and events, no hotkeys, so the
+  real Hams is never touched.
 
 ## [1.3.5] – 2026-11-17
 

@@ -149,8 +149,12 @@ def no_repair_in_the_real_cache(monkeypatch, tmp_path_factory):
 def hub_links_untouched(monkeypatch):
     """`prepare_cache` switches the hub's links off for the whole process and runs once: per test, from scratch."""
     from hams import models as whisper_models
+    from hams import test_instance
 
     monkeypatch.setattr(whisper_models, "_LINKS_CHECKED", False)
+    # `store_plain_files` also sets the hub's own switch for the process; and no test runs as a test instance
+    monkeypatch.delenv("HF_HUB_DISABLE_SYMLINKS", raising=False)
+    monkeypatch.delenv(test_instance.ENV, raising=False)
     try:
         from huggingface_hub import file_download
     except ImportError:  # pragma: no cover - the hub belongs to faster-whisper

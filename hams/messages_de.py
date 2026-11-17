@@ -330,6 +330,10 @@ MESSAGES: dict[str, str] = {
         "Windows lässt Hams nicht in den Ordner für Sprachmodelle. "
         "Bitte Hams beenden, über das Startmenü neu öffnen und nochmal versuchen."
     ),
+    "download.error.cloud_folder": (
+        "OneDrive gibt den Ordner für Sprachmodelle gerade nicht frei. "
+        "Bitte prüfen, ob OneDrive läuft und angemeldet ist, dann nochmal versuchen."
+    ),
     "download.error.blocked": (
         "Ein Schutzprogramm oder das Netzwerk blockiert den Download. "
         "Bitte ein anderes WLAN probieren, etwa den Handy-Hotspot."

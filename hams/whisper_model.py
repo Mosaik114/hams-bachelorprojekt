@@ -1,5 +1,6 @@
 """The Whisper model of the running app: load, switch, download (`ModelManager`)."""
 
+import contextlib
 import gc
 import threading
 import time
@@ -44,8 +45,10 @@ def _installed_here(manager, model_id: str) -> bool:
         return False
 
 
-def _load_on_devices(model_id: str, *, local: bool) -> tuple:
+def _load_on_devices(model_id: str, *, local: bool, problems: list | None = None) -> tuple:
     """One pass over the devices and compute types. `local`: from the disk only, no question to the server.
+
+    `problems` collects the exceptions, for a sentence the user can act on (`ModelManager.model_error_detail`).
 
     Returns:
         (model, device, compute type) or (None, None, error text).
@@ -67,6 +70,8 @@ def _load_on_devices(model_id: str, *, local: bool) -> tuple:
                 logger.info("Model ready (%s/%s)", device, compute_type)
                 return model, device, compute_type
             except Exception as exc:  # noqa: BLE001 - try the next device or compute type
+                if problems is not None:
+                    problems.append(exc)
                 errors.append(f"{device}/{compute_type}: {exc}")
                 logger.warning("Model load failed: %s", errors[-1])
     return None, None, " | ".join(errors)
@@ -115,6 +120,11 @@ class ModelManager:
         self.active_compute_type: str | None = None
         self.model_ready = threading.Event()
         self.model_error: str | None = None
+        #: With `model_error`: a sentence the user can act on, when the reason is known (a model folder Windows will
+        #: not let Hams into: error 448, OneDrive), else None and the app says the general one.
+        self.model_error_detail: str | None = None
+        #: What the last `_build_model` found out about the reason; taken over by `_commit`.
+        self._load_detail: str | None = None
         #: The model the user asked for that could not be loaded while an older one stayed active, else None.
         self.fallback: str | None = None
         #: Short guard around `model` and its companions.
@@ -268,10 +278,17 @@ class ModelManager:
         """
         whisper_models.prepare_cache()  # links Windows will not follow become plain files first (error 448)
         local = _installed_here(self, model_id)
-        model, device, info = _load_on_devices(model_id, local=local)
+        problems: list = []
+        model, device, info = _load_on_devices(model_id, local=local, problems=problems)
         if model is None and local:
             logger.warning("Loading %s from the disk alone failed; trying once more with the model server", model_id)
-            model, device, info = _load_on_devices(model_id, local=False)
+            model, device, info = _load_on_devices(model_id, local=False, problems=problems)
+        # A folder Windows will not let Hams into (448, OneDrive) is said as such, not as "neither GPU nor CPU".
+        detail = None
+        if model is None:
+            detail = next((text for text in map(whisper_models.describe_folder_problem, problems) if text), None)
+        with contextlib.suppress(AttributeError):  # the device matrix is also run on its own, without a manager
+            self._load_detail = detail
         return model, device, info
 
     def _switch_worker(self, model_id: str, generation: int, persist: bool = True) -> None:
@@ -324,9 +341,11 @@ class ModelManager:
                     self.active_compute_type = info
                     self.active_model_size = model_id
                     self.model_error = None
+                    self.model_error_detail = None
                     self.model_ready.set()
                 else:
                     self.model_error = info
+                    self.model_error_detail = self._load_detail
         if not current:
             del model  # the discarded model frees its memory
             gc.collect()

@@ -333,6 +333,10 @@ MESSAGES: dict[str, str] = {
         "Windows no deja que Hams entre en la carpeta de los modelos de voz. "
         "Cierra Hams, ábrelo de nuevo desde el menú Inicio y vuelve a intentarlo."
     ),
+    "download.error.cloud_folder": (
+        "OneDrive no está dando acceso a la carpeta de los modelos de voz ahora mismo. "
+        "Comprueba que OneDrive esté abierto y con la sesión iniciada, y vuelve a intentarlo."
+    ),
     "download.error.blocked": (
         "Un programa de protección o la red bloquea la descarga. "
         "Prueba otra red wifi, por ejemplo el punto de acceso del móvil."

@@ -6,6 +6,8 @@
     Output:
         build\dist\Hams\Hams.exe              the frozen app (one folder)
         build\installer\Hams-Setup-<ver>.exe  the installer (with -Installer)
+        build\installer-test\...              a test-instance installer (with -Installer -TestInstance <name>),
+                                              for packaging\smoke_test.ps1 on a developer machine
 
     The version comes from pyproject.toml. The Python environment must already contain
     the locked dependencies, or pass -InstallDependencies:
@@ -25,7 +27,8 @@ param(
     [string]$Python = "python",
     [switch]$InstallDependencies,
     [switch]$Installer,
-    [string]$InnoCompiler = ""
+    [string]$InnoCompiler = "",
+    [string]$TestInstance = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -45,12 +48,15 @@ function Find-InnoCompiler {
     $candidates = @(
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
         "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
-        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+        "$env:ProgramFiles\Inno Setup 7\ISCC.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 7\ISCC.exe"
     )
     foreach ($candidate in $candidates) {
         if ($candidate -and (Test-Path $candidate)) { return $candidate }
     }
-    throw "Inno Setup 6 (ISCC.exe) not found. Install it or pass -InnoCompiler."
+    throw "Inno Setup (ISCC.exe) not found. Install it or pass -InnoCompiler."
 }
 
 $Version = & $Python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
@@ -81,13 +87,20 @@ Write-Host ("App folder: {0} ({1:N0} MB)" -f $AppDir, ($Size / 1MB))
 if ($Installer) {
     $Iscc = Find-InnoCompiler
     Write-Host "Inno Setup: $Iscc"
-    Invoke-Checked $Iscc @(
-        "/Qp",
-        "/DAppVersion=$Version",
-        "/DSourceDir=$AppDir",
-        "/DOutputDir=$(Join-Path $Root 'build\installer')",
-        "packaging\hams.iss"
-    )
-    $Setup = Join-Path $Root "build\installer\Hams-Setup-$Version.exe"
+    # A test build (smoke_test.ps1 on a developer machine) goes to its own folder, never over the real setup.
+    $OutputDir = Join-Path $Root $(if ($TestInstance) { "build\installer-test" } else { "build\installer" })
+    $arguments = @("/DAppVersion=$Version", "/DSourceDir=$AppDir", "/DOutputDir=$OutputDir")
+    if ($TestInstance) { $arguments += "/DTestInstance=$TestInstance" }
+    # Not /Qp: the build log must name the compiler version (hams.iss depends on it for RedirectionGuard). The full
+    # output is long, so only the lines that matter are shown, and all of it when the build fails.
+    $output = & $Iscc @($arguments + "packaging\hams.iss") 2>&1
+    $code = $LASTEXITCODE
+    if ($code -ne 0) {
+        $output | ForEach-Object { Write-Host $_ }
+        throw "$Iscc failed with exit code $code"
+    }
+    $output | Where-Object { "$_" -match "Compiler engine version|compiled with Inno Setup|Warning" } |
+        ForEach-Object { Write-Host "$_".Trim() }
+    $Setup = Join-Path $OutputDir "Hams-Setup-$Version.exe"
     Write-Host ("Installer: {0} ({1:N0} MB)" -f $Setup, ((Get-Item $Setup).Length / 1MB))
 }

@@ -16,7 +16,7 @@ import tkinter as tk
 
 import numpy as np
 
-from hams import branding, transcription, update_install
+from hams import branding, test_instance, transcription, update_install
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
@@ -212,7 +212,11 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
 
     def _register_hotkeys(self) -> None:
         """Through `RegisterHotKey` first (survives standby and long pauses); only what fails there goes through
-        the hook of the `keyboard` library."""
+        the hook of the `keyboard` library. A test instance (`test_instance`) takes none: next to the user's Hams it
+        would start a recording on the user's key as well."""
+        if test_instance.name():
+            logger.info("Test instance %s: no hotkeys", test_instance.name())
+            return
         entries = (
             (CFG.hotkey_transcript, self.toggle_recording, "transcript"),
             (CFG.hotkey_prompt, self.toggle_recording_generate, "prompt"),
@@ -836,8 +840,11 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self._update_tray_tooltip()
 
     def _on_model_error(self) -> None:
+        # A known reason (a folder Windows will not let Hams into: 448, OneDrive) says what to do; otherwise the
+        # general sentence with the way to the diagnostic report.
+        detail = getattr(self.models, "model_error_detail", None)
         self.apply_state(
-            "error", t("error.model_load_failed"), t("error.model_load_failed_detail", model=CFG.model_size)
+            "error", t("error.model_load_failed"), detail or t("error.model_load_failed_detail", model=CFG.model_size)
         )
 
     def download_progress(self) -> None:

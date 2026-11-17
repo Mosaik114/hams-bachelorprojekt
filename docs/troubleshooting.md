@@ -204,13 +204,18 @@ Symptoms: *No microphone signal*, *No speech detected*, or *"…" isn't picking 
   makes the download fail (for example HTTP 416 after an uninstall) is removed by Hams itself, which then starts
   once more from the beginning (since 1.3.5). Leftovers show up under *Downloaded models* as *incomplete* and can be
   deleted there.
-- *Windows won't let Hams into the folder for speech models* (code 448, or a number between 358 and 405): Windows
-  refuses a path in the model cache. Usually that was a link the Hugging Face cache creates on Windows with
-  developer mode, combined with Windows' *RedirectionGuard*, which older Hams setups (1.3.5 and before) handed on to
-  the Hams they started. Since 1.3.6 the setup does not, Hams restarts itself without it, and the cache holds plain
-  files only. If the message still appears: quit Hams (tray → *Quit*), open it from the Start menu, try again. The
-  numbers 358–405 mean a OneDrive file that is not available; a cache on OneDrive must be set to *Always keep on
-  this device*. The diagnostic report shows `info windows redirection guard: on|off`.
+- *Windows won't let Hams into the folder for speech models* (code 448, 1920, 1921): Windows refuses a path in the
+  model cache. Usually that was a link the Hugging Face cache creates on Windows with developer mode, combined with
+  Windows' *RedirectionGuard*, which older Hams setups (1.3.5 and before) handed on to the Hams they started. Since
+  1.3.6 the setup does not, Hams restarts itself without it, and the cache holds plain files only. If the message
+  still appears (when downloading or when loading the model): quit Hams (tray → *Quit*), open it from the Start
+  menu, try again. The diagnostic report shows `info windows redirection guard: on|off`.
+- *OneDrive isn't handing over the folder for speech models* (a number between 358 and 405): the model cache is in
+  a folder OneDrive manages and OneDrive does not hand the file over – not running, not signed in, or the file not
+  on this device. Start OneDrive and sign in; a cache on OneDrive should be set to *Always keep on this device*.
+- A setup started *as administrator* asks first whether to install anyway (Hams installs per user and needs no
+  administrator rights); *No* and a normal double-click is the safe way. Silent installs with administrator rights
+  need `/ALLOWADMIN=1`.
 - The code at the end of a message (*(416)*, *(ConnectError)*; in the setup assistant its own grey line *Code 416*)
   is for support: the HTTP status or the type of the innermost error. In the setup assistant, *Create help report*
   under the failed download writes the diagnostic report and shows it selected in Explorer, ready to send; *Copy*

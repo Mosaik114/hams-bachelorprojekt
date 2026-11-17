@@ -37,9 +37,29 @@
 #define AppUrl "https://github.com/Mosaik114/hams-bachelorprojekt"
 ; Same name as MUTEX_NAME in hams\instance.py: setup and uninstall wait until Hams is closed.
 #define AppMutexName "Global\Hams-SingleInstance-7a3f2c1b"
+; Nothing for the Hams it starts: only a test build passes a test instance on.
+#define TestArgument ""
+
+#ifdef TestInstance
+; A test build for packaging\smoke_test.ps1 on a developer machine (/DTestInstance=<name>): its own AppId, program
+; folder, Start menu entry, autostart value and lock, and every Hams it starts runs as that test instance
+; (hams\test_instance.py: own settings, data, lock and events). The real Hams of the machine is never touched.
+  #undef AppName
+  #define AppName "Hams-test-" + TestInstance
+  #undef AppDisplayName
+  #define AppDisplayName "Hams Dictate Test " + TestInstance
+  #undef AppMutexName
+  #define AppMutexName "Global\Hams-SingleInstance-7a3f2c1b-test-" + TestInstance
+  #undef TestArgument
+  #define TestArgument " --test-instance=" + TestInstance
+#endif
 
 [Setup]
+#ifndef TestInstance
 AppId={{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C93}
+#else
+AppId={{5B0C7E7A-3C1D-4F7B-9E57-2B8E6A1D4C94}
+#endif
 AppName={#AppDisplayName}
 AppVersion={#AppVersion}
 AppVerName={#AppDisplayName} {#AppVersion}
@@ -76,6 +96,9 @@ WizardStyle=modern
 ; with error 448 ("untrusted mount point"). This setup only writes to the user's own folders, where the guard
 ; protects nothing a normal user could not change anyway. Hams itself also restarts without it
 ; (hams\redirection_guard.py) and stores its models without links (hams\models.py).
+; Remove this line (and its #if) once an Inno Setup release stops handing RedirectionGuard on for setups with
+; PrivilegesRequired=lowest as well: then the setup may keep its own protection again. A setup started with
+; administrator rights asks first (AdminAllowed below): only there would the missing protection matter.
 RedirectionGuard=no
 #endif
 
@@ -92,6 +115,8 @@ english.RemoveUserData=Also delete your Hams settings, transcripts, logs and dow
 german.RemoveUserData=Auch die Hams-Einstellungen, Transkripte, Logs und heruntergeladenen GPU-Bibliotheken löschen?%n%nSie liegen in den Hams-Ordnern unter AppData\Roaming und AppData\Local. Mit Nein bleiben sie für eine spätere Neuinstallation erhalten.
 english.RemoveModels=Also delete the downloaded speech models (about %1 GB)?%n%nThese are the Whisper models Hams downloaded into the Hugging Face cache:%n%2%n%nOther programs that use the same models would download them again. Choose No to keep them.
 german.RemoveModels=Auch die heruntergeladenen Sprachmodelle löschen (etwa %1 GB)?%n%nDas sind die Whisper-Modelle, die Hams in den Hugging-Face-Cache geladen hat:%n%2%n%nAndere Programme, die dieselben Modelle nutzen, laden sie dann erneut. Mit Nein bleiben sie erhalten.
+english.AdminWarning=This setup is running with administrator rights. Hams installs just for you and does not need them.%n%nSafest: choose No and start the setup again with a normal double-click.%n%nInstall anyway?
+german.AdminWarning=Das Setup läuft mit Administratorrechten. Hams wird nur für dich installiert und braucht diese Rechte nicht.%n%nAm sichersten: Nein wählen und das Setup mit einem normalen Doppelklick neu starten.%n%nTrotzdem installieren?
 
 [Tasks]
 Name: "autostart"; Description: "{cm:AutostartTask}"; GroupDescription: "{cm:ExtraOptions}"
@@ -114,10 +139,10 @@ Name: "{autodesktop}\{#AppDisplayName}"; Filename: "{app}\{#AppExe}"; Tasks: des
 [Registry]
 ; The same entry hams\setup_autostart.py writes for a source install, so there is only ever one.
 ; --background: at sign-in Hams starts in the tray; started from the Start menu it shows its window.
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#AppName}"; ValueData: """{app}\{#AppExe}"" --background"; Tasks: autostart
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#AppName}"; ValueData: """{app}\{#AppExe}"" --background{#TestArgument}"; Tasks: autostart
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Parameters: "{#TestArgument}"; Description: "{cm:LaunchProgram,{#AppName}}"; Flags: nowait postinstall skipifsilent
 ; After a one-click update (silent, so the entry above is skipped): Hams comes back as it was.
 Filename: "{app}\{#AppExe}"; Parameters: "{code:RestartParameters}"; Flags: nowait; Check: RestartAfterUpdate
 
@@ -149,6 +174,55 @@ begin
     Result := '--background'
   else
     Result := '';
+  Result := Trim(Result + '{#TestArgument}');
+end;
+
+{ UAC switched off: every program of an administrator runs with full rights, so there is no boundary a missing
+  RedirectionGuard could weaken. }
+function UacIsOff(): Boolean;
+var
+  Value: Cardinal;
+begin
+  Result := RegQueryDWordValue(HKLM, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System', 'EnableLUA', Value)
+    and (Value = 0);
+end;
+
+{ This setup switches RedirectionGuard off (see [Setup]). That is safe for a setup with the user's own rights, the
+  normal case. Run "as administrator", it would write into the user's folders with more rights than the user, and a
+  link planted there could send that elsewhere. So it asks first - with "No" as the answer offered - and a silent
+  setup with administrator rights stops, unless:
+  - UAC is off (no boundary to protect),
+  - it is Hams' own one-click update (/RESTARTHAMS: that Hams ran with these rights already; stopping would leave
+    the user with no Hams at all),
+  - /ALLOWADMIN says so explicitly.
+  Nobody is locked out: a normal double-click always installs. }
+function AdminAllowed(): Boolean;
+begin
+  Result := True;
+  if not IsAdmin() then
+    Exit;
+  if UacIsOff() then
+  begin
+    Log('Running with administrator rights, UAC is off: no boundary to protect');
+    Exit;
+  end;
+  if RestartAfterUpdate() then
+  begin
+    Log('Running with administrator rights: one-click update of a Hams that had them already');
+    Exit;
+  end;
+  if ExpandConstant('{param:ALLOWADMIN|}') <> '' then
+  begin
+    Log('Running with administrator rights: allowed by /ALLOWADMIN');
+    Exit;
+  end;
+  if WizardSilent() then
+  begin
+    Log('Running with administrator rights in silent mode: stopped (start it normally, or pass /ALLOWADMIN=1)');
+    Result := False;
+    Exit;
+  end;
+  Result := MsgBox(CustomMessage('AdminWarning'), mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
 end;
 
 { The Hams that started this update quits right after starting it; wait (at most a minute) until it has, so its
@@ -157,7 +231,9 @@ function InitializeSetup(): Boolean;
 var
   Waited: Integer;
 begin
-  Result := True;
+  Result := AdminAllowed();
+  if not Result then
+    Exit;
   if not RestartAfterUpdate() then
     Exit;
   Waited := 0;

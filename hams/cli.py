@@ -89,6 +89,10 @@ def _output(report: Path | None) -> _Tee:
 
 def run(argv: list[str] | None = None) -> int:
     """Entry point; returns the process exit code."""
+    from hams import test_instance
+
+    # Before anything reads the configuration: a test instance has folders of its own.
+    test_instance.apply(argv)
     args, _unknown = _parser().parse_known_args(sys.argv[1:] if argv is None else argv)
     if args.self_test or args.install_gpu_support:
         from hams import bootstrap

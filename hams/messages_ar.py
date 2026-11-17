@@ -322,6 +322,10 @@ MESSAGES: dict[str, str] = {
     "download.error.blocked_folder": (
         "لا يسمح Windows لـ Hams بفتح مجلد نماذج الكلام. أغلق Hams، ثم افتحه من جديد من قائمة ابدأ وحاول مرة أخرى."
     ),
+    "download.error.cloud_folder": (
+        "لا يتيح OneDrive الوصول إلى مجلد نماذج الكلام حاليًا. "
+        "تأكد من أن OneDrive يعمل وأنك مسجّل الدخول، ثم حاول مرة أخرى."
+    ),
     "download.error.blocked": "برنامج حماية أو الشبكة يمنع التنزيل. جرّب شبكة واي فاي أخرى، مثل نقطة اتصال الهاتف.",
     "download.error.code_note": "الرمز {code}",
     "download.retry_in": "محاولة جديدة خلال {seconds} ث …",

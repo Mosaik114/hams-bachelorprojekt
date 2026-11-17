@@ -76,6 +76,31 @@ class TestReplaceLinks:
         models.replace_cache_links([TINY])
         assert cache["link"].read_bytes() == b"real model"
 
+    def test_a_copy_that_breaks_off_leaves_nothing_behind(self, cache, monkeypatch):
+        """A full disk in the middle of a copy: no half file of gigabytes stays next to the link."""
+
+        def no_hard_links(*_a):
+            raise OSError("another drive")
+
+        def copy_breaks_off(_source, target):
+            Path(target).write_bytes(b"half")
+            raise OSError(28, "No space left on device")
+
+        monkeypatch.setattr(models.os, "link", no_hard_links)
+        monkeypatch.setattr(models.shutil, "copyfile", copy_breaks_off)
+        assert models.replace_cache_links([TINY]) == 0  # logged, left for the caller's own error
+        assert not Path(str(cache["link"]) + ".hams-plain").exists()
+        assert cache["link"].read_bytes() == b"LINK"  # the link stays as it was
+        assert cache["blob"].read_bytes() == b"real model"
+
+    def test_the_link_is_replaced_in_one_step(self, cache, monkeypatch):
+        """Renamed over the link: no moment without a file at that place, and no extra removal first."""
+        removed = []
+        real_unlink = models.os.unlink
+        monkeypatch.setattr(models.os, "unlink", lambda path: removed.append(str(path)) or real_unlink(path))
+        models.replace_cache_links([TINY])
+        assert str(cache["link"]) not in removed
+
     def test_a_link_without_its_blob_is_removed(self, cache):
         cache["blob"].unlink()
         assert models.replace_cache_links([TINY]) == 1
@@ -127,6 +152,36 @@ class TestPrepare:
         models.prepare_cache(force=True)
         assert len(calls) == 2
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="the links are a Windows matter")
+    def test_the_hubs_own_switch_is_set_too(self):
+        """``HF_HUB_DISABLE_SYMLINKS``: newer hub versions read it themselves, whatever becomes of the patch."""
+        models.prepare_cache()
+        assert os.environ.get("HF_HUB_DISABLE_SYMLINKS") == "1"
+
+    @pytest.mark.skipif(sys.platform != "win32", reason="the links are a Windows matter")
+    def test_a_second_caller_waits_for_the_first(self, monkeypatch):
+        """Start load, download and settings may ask at once: the second waits, then finds the work done."""
+        import threading
+        import time
+
+        started, calls = threading.Event(), []
+
+        def slow_replace():
+            calls.append(1)
+            started.set()
+            time.sleep(0.3)
+            return 1
+
+        monkeypatch.setattr(models, "replace_cache_links", slow_replace)
+        first = threading.Thread(target=models.prepare_cache)
+        first.start()
+        started.wait(5)
+        began = time.monotonic()
+        assert models.prepare_cache() == 0
+        assert time.monotonic() - began >= 0.15, "the second caller returned before the first had finished"
+        first.join(5)
+        assert calls == [1]
+
     @pytest.mark.skipif(sys.platform == "win32", reason="elsewhere only")
     def test_elsewhere_nothing_changes(self, monkeypatch):
         from huggingface_hub import file_download
@@ -151,9 +206,72 @@ class TestErrors:
         except RuntimeError as outer:
             assert models.error_kind(outer) == "blocked_folder"
 
-    @pytest.mark.parametrize("number", [362, 395, 1920])
-    def test_onedrive_and_unreachable_files_count_too(self, number):
+    @pytest.mark.parametrize("number", [1920, 1921, 4390])
+    def test_unreachable_files_count_too(self, number):
         assert models.error_kind(Untrusted(number)) == "blocked_folder"
+
+    @pytest.mark.parametrize("number", [358, 362, 395, 405])
+    def test_onedrive_has_its_own_advice(self, number):
+        """OneDrive not handing a file over is no link: "open from the Start menu" would not help there."""
+        assert models.error_kind(Untrusted(number)) == "cloud_folder"
+        text = models.describe_download_error(Untrusted(number))
+        assert text.startswith("OneDrive gibt den Ordner für Sprachmodelle gerade nicht frei.")
+        assert "Startmenü" not in text
+        assert models.split_code(text)[1] == str(number)
+
+    def test_the_folder_sentence_for_a_failed_load(self):
+        """The same sentences when the model does not load (not only when it does not download)."""
+        assert models.describe_folder_problem(Untrusted(448)).startswith("Windows lässt Hams nicht")
+        assert models.describe_folder_problem(Untrusted(362)).startswith("OneDrive gibt")
+        assert models.describe_folder_problem(RuntimeError("CUDA out of memory")) == ""
+
+    @pytest.mark.parametrize(("number", "start"), [(448, "Windows lässt Hams nicht"), (362, "OneDrive gibt")])
+    def test_a_failed_load_says_it_too(self, monkeypatch, number, start):
+        """Not "neither on GPU nor on CPU" when Windows does not let Hams into the model folder."""
+        from hams import whisper_model
+
+        def blocked(*_a, **_k):
+            raise Untrusted(number)
+
+        monkeypatch.setattr(whisper_model, "WhisperModel", blocked)
+        monkeypatch.setattr(whisper_model, "usable_devices", lambda _priority: ["cpu"])
+        monkeypatch.setattr(whisper_model, "_installed_here", lambda *_a: False)
+        monkeypatch.setattr(models, "prepare_cache", lambda **_k: 0)
+        manager = whisper_model.ModelManager(lambda f: f(), object())
+        model, _device, info = manager._build_model("tiny")
+        assert model is None and info
+        manager._commit(manager._generation, "tiny", None, None, info)
+        assert manager.model_error_detail.startswith(start)
+        assert models.split_code(manager.model_error_detail)[1] == str(number)
+
+    def test_other_load_errors_keep_the_general_sentence(self, monkeypatch):
+        from hams import whisper_model
+
+        def broken(*_a, **_k):
+            raise RuntimeError("CUDA failed")
+
+        monkeypatch.setattr(whisper_model, "WhisperModel", broken)
+        monkeypatch.setattr(whisper_model, "usable_devices", lambda _priority: ["cpu"])
+        monkeypatch.setattr(whisper_model, "_installed_here", lambda *_a: False)
+        monkeypatch.setattr(models, "prepare_cache", lambda **_k: 0)
+        manager = whisper_model.ModelManager(lambda f: f(), object())
+        _model, _device, info = manager._build_model("tiny")
+        manager._commit(manager._generation, "tiny", None, None, info)
+        assert manager.model_error_detail is None
+
+    def test_the_app_shows_the_folder_sentence(self):
+        from hams import app
+
+        states = []
+
+        class Fake:
+            models = type("M", (), {"model_error_detail": "Windows lässt Hams nicht … (448)"})()
+
+            def apply_state(self, *args):
+                states.append(args)
+
+        app.FloatingTranscriberApp._on_model_error(Fake())
+        assert states[0][0] == "error" and states[0][2] == "Windows lässt Hams nicht … (448)"
 
     def test_not_for_a_full_disk_or_rights(self):
         assert models.error_kind(PermissionError(13, "denied")) == "permission"
@@ -280,6 +398,27 @@ class TestForReal:
         assert models.replace_cache_links([TINY]) == 1
         assert not os.path.islink(link)
         assert link.read_bytes() == b"real"
+
+    @pytest.mark.skipif(
+        os.environ.get("HAMS_ONLINE_TESTS") != "1", reason="downloads Tiny (78 MB); set HAMS_ONLINE_TESTS=1"
+    )
+    def test_a_real_download_creates_no_links(self, monkeypatch, tmp_path):
+        """Tiny from the model server into an empty cache: every file in the snapshot is a plain file.
+
+        Where Windows lets the user create links (developer mode), the hub would have linked them to the blobs.
+        """
+        from huggingface_hub import constants
+
+        monkeypatch.setattr(constants, "HF_HUB_CACHE", str(tmp_path))
+        monkeypatch.setattr(models, "cache_root", lambda: tmp_path)
+        downloader, finished = models.ModelDownloader(), []
+        assert downloader.start(TINY, lambda *_a: None, lambda m, e: finished.append((m, e))) == ""
+        downloader._thread.join(timeout=600)
+        assert finished == [("tiny", "")]
+        files = [p for p in (tmp_path / REPO / "snapshots").rglob("*") if not p.is_dir()]
+        assert {p.name for p in files} >= {models.MODEL_FILE, "config.json"}
+        assert not [p for p in (tmp_path / REPO).rglob("*") if models._link_kind(str(p))], "a link in the cache"
+        assert (files[0].stat().st_size > 0) and all(p.read_bytes()[:1] for p in files if p.name == models.MODEL_FILE)
 
     def test_a_revision_junction_is_removed_not_followed(self, monkeypatch, tmp_path):
         monkeypatch.setattr(models, "cache_root", lambda: tmp_path)

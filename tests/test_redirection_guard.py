@@ -17,15 +17,19 @@ from hams import redirection_guard as rg
 ROOT = Path(__file__).resolve().parent.parent
 
 
+#: No other Hams, and the new one shows up at once: the usual case. Tests never ask the real lock.
+QUIET = {"running": lambda: False, "confirmed": lambda: True}
+
+
 class TestRestart:
     def test_only_the_installed_app_restarts(self):
         started = []
-        assert not rg.restart_without_guard([], check=lambda: True, start=started.append, frozen=False)
+        assert not rg.restart_without_guard([], check=lambda: True, start=started.append, frozen=False, **QUIET)
         assert started == []
 
     def test_without_the_guard_nothing_happens(self):
         started = []
-        assert not rg.restart_without_guard([], check=lambda: False, start=started.append, frozen=True)
+        assert not rg.restart_without_guard([], check=lambda: False, start=started.append, frozen=True, **QUIET)
         assert started == []
 
     def test_with_the_guard_it_restarts_with_the_same_options_and_the_marker(self, monkeypatch):
@@ -36,20 +40,70 @@ class TestRestart:
             calls.append((command, cwd))
             return True
 
-        assert rg.restart_without_guard(["--background"], check=lambda: True, start=start, frozen=True)
+        assert rg.restart_without_guard(["--background"], check=lambda: True, start=start, frozen=True, **QUIET)
         command, cwd = calls[0]
         assert command == [sys.executable, "--background", rg.RESTART_ARGUMENT]
-        assert cwd == os.getcwd()
+
+    def test_it_starts_in_the_program_folder(self, monkeypatch, tmp_path):
+        """Not in whatever folder the starting program happened to be in (a setup's temporary folder, say)."""
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.chdir(tmp_path)
+        calls = []
+        rg.restart_without_guard(
+            [], check=lambda: True, start=lambda c, *, cwd: calls.append(cwd) or True, frozen=True, **QUIET
+        )
+        assert calls == [os.path.dirname(sys.executable)] != [str(tmp_path)]
 
     def test_never_a_second_time(self):
         started = []
         assert not rg.restart_without_guard(
-            ["--background", rg.RESTART_ARGUMENT], check=lambda: True, start=started.append, frozen=True
+            ["--background", rg.RESTART_ARGUMENT], check=lambda: True, start=started.append, frozen=True, **QUIET
         )
         assert started == []
 
     def test_if_the_restart_fails_this_hams_keeps_running(self):
-        assert not rg.restart_without_guard([], check=lambda: True, start=lambda *a, **k: False, frozen=True)
+        assert not rg.restart_without_guard([], check=lambda: True, start=lambda *a, **k: False, frozen=True, **QUIET)
+
+    def test_if_the_new_hams_never_shows_up_this_one_keeps_running(self):
+        """The shell does not say whether it really started Hams: without the new lock this Hams stays."""
+        assert not rg.restart_without_guard(
+            [],
+            check=lambda: True,
+            start=lambda *a, **k: True,
+            frozen=True,
+            running=lambda: False,
+            confirmed=lambda: False,
+        )
+
+    def test_no_restart_when_another_hams_runs(self):
+        """That one is asked to show itself (main); a restart would only start a second asker."""
+        started = []
+        assert not rg.restart_without_guard(
+            [], check=lambda: True, start=started.append, frozen=True, running=lambda: True, confirmed=lambda: True
+        )
+        assert started == []
+
+    def test_the_wait_ends_when_the_lock_appears(self, monkeypatch):
+        from hams import instance
+
+        answers = iter([False, False, True])
+        monkeypatch.setattr(instance, "held_elsewhere", lambda: next(answers))
+        assert rg._lock_taken(5, poll=0.01) is True
+
+    def test_the_wait_has_an_end(self, monkeypatch):
+        from hams import instance
+
+        monkeypatch.setattr(instance, "held_elsewhere", lambda: False)
+        assert rg._lock_taken(0.05, poll=0.01) is False
+
+    def test_a_test_instance_stays_one_after_the_restart(self, monkeypatch):
+        """Explorer starts the new Hams with its own environment: the name must travel on the command line."""
+        from hams import test_instance
+
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setenv(test_instance.ENV, "smoke")
+        assert rg.restart_command(["--background"]) == [sys.executable, "--background", "--test-instance=smoke"]
+        assert rg.restart_command(["--test-instance=smoke"]) == [sys.executable, "--test-instance=smoke"]
 
     def test_from_source_the_module_is_started(self, monkeypatch):
         monkeypatch.delattr(sys, "frozen", raising=False)
