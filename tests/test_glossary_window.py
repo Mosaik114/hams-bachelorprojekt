@@ -239,6 +239,10 @@ class TestWindow:
 
     def test_text_field_placeholder(self, window):
         field = window.word_field
+        # The window puts the focus into this field when it opens, which clears the placeholder wherever a window
+        # manager delivers that FocusIn (xvfb does, the hidden test desktop on Windows does not). Leaving the field
+        # brings it back; start from there so the test does not depend on the desktop.
+        field._show_placeholder()
         assert field.value == "" and field.entry.get() == "Neues Wort"
         field._focus_in()
         assert field.entry.get() == ""

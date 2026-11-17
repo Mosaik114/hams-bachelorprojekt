@@ -7,6 +7,7 @@ hand on a renamed test build of packaging/hams.iss; see the 1.3.4 section of CHA
 import hashlib
 import io
 import subprocess
+import sys
 import urllib.error
 
 import pytest
@@ -208,6 +209,7 @@ class TestSetup:
         assert command[5] == f"/LOG={app_paths.default_log_dir() / 'update-setup.log'}"
         assert "/RESTARTHAMS=window" in update_install.setup_command(tmp_path / NAME, background=False)
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="the creation flags are Win32")
     def test_launch_is_detached(self, tmp_path):
         started = []
         update_install.launch_setup(

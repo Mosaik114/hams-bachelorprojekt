@@ -50,7 +50,9 @@ class TestConstruction:
 
     def test_the_window_has_the_calculated_size(self, live_app):
         width, height = live_app._window_size
-        assert width == uk.px(live_app.WINDOW_WIDTH)
+        # 360 logical pixels, unless the shortcut rows need more: a long name, or a wide font such as DejaVu on Linux
+        assert width == max(uk.px(live_app.WINDOW_WIDTH), live_app._footer_width())
+        assert width >= uk.px(live_app.WINDOW_WIDTH)
         assert height >= uk.px(live_app.WINDOW_MIN_HEIGHT)
 
     def test_the_tray_exists(self, live_app):
