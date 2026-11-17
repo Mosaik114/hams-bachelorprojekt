@@ -69,8 +69,17 @@ function Get-FileList([string]$Folder) {
     Get-ChildItem $Folder -Recurse -File | ForEach-Object { $_.FullName.Substring($Folder.Length) } | Sort-Object
 }
 
+# A setup with administrator rights (a CI runner runs elevated) stops when silent unless told it may (hams.iss,
+# AdminAllowed): the test first checks that it does stop, then passes /ALLOWADMIN=1 to every setup it runs. With UAC
+# off there is no boundary, and the setup goes on by itself.
+$Elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+$Lua = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" -Name EnableLUA -ErrorAction SilentlyContinue).EnableLUA
+$UacOn = $Lua -ne 0
+$AdminSwitch = if ($Elevated) { "/ALLOWADMIN=1" } else { "" }
+
 function Install([string]$Arguments, [string]$Log) {
-    $all = "/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART $Arguments /LOG=`"$Logs\$Log`""
+    $all = "/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART $Arguments $AdminSwitch /LOG=`"$Logs\$Log`""
     # Not -Wait: that would also wait for the Hams the update starts again (a child of the setup).
     $process = Start-Process $Setup -ArgumentList $all -PassThru
     $process.WaitForExit()
@@ -132,6 +141,20 @@ if ($TestInstance) {
 }
 
 try {
+    # --- with administrator rights: the silent setup stops on its own --------------------
+    if ($Elevated -and $UacOn) {
+        $all = "/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART /TASKS=autostart /LOG=`"$Logs\admin-refused.log`""
+        $process = Start-Process $Setup -ArgumentList $all -PassThru
+        $process.WaitForExit()
+        Assert-That ($process.ExitCode -ne 0) "with administrator rights the silent setup stops (exit $($process.ExitCode))"
+        Assert-That (-not (Test-Path $AppDir)) "and installs nothing"
+        Assert-That ($null -eq (Get-Autostart)) "and writes no autostart entry"
+        Write-Host "     the remaining setups run with $AdminSwitch"
+    }
+    elseif ($Elevated) {
+        Write-Host "     administrator rights with UAC off: the setup goes on by itself (no boundary to protect)"
+    }
+
     # --- install -------------------------------------------------------------------------
     Write-Host "Installing $Setup"
     Install "/TASKS=autostart" "install.log"
@@ -180,7 +203,7 @@ public static class Guard {
 '@
 `$flags = [uint32]1
 if (-not [Guard]::SetProcessMitigationPolicy(16, [ref]`$flags, [UIntPtr]4)) { exit 3 }
-`$setup = Start-Process '$Setup' -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART /RESTARTHAMS=background /LOG="$Logs\update-guarded.log"' -PassThru
+`$setup = Start-Process '$Setup' -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART /RESTARTHAMS=background $AdminSwitch /LOG="$Logs\update-guarded.log"' -PassThru
 `$setup.WaitForExit()
 exit `$setup.ExitCode
 "@ | Set-Content -Path $helper -Encoding UTF8

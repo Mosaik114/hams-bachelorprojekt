@@ -469,5 +469,9 @@ class TestForReal:
         assert out.returncode == 0, out.stderr
         if "NO-GUARD" in out.stdout:
             pytest.skip("this Windows has no RedirectionGuard")
+        if "OPENED" in out.stdout:
+            # A junction an administrator made counts as trusted, or the edition does not enforce the guard here
+            # (Windows Server 2025 on CI, elevated): there is no 448 to answer.
+            pytest.skip("RedirectionGuard does not refuse this junction here (administrator, or not enforced)")
         assert out.stdout.startswith("448 Windows lässt Hams nicht")
         assert "(448)" in out.stdout
