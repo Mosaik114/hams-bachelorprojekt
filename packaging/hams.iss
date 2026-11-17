@@ -65,6 +65,19 @@ UninstallDisplayName={#AppDisplayName}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+; Every build log names the compiler: the RedirectionGuard below depends on it.
+#pragma message "Hams setup compiled with Inno Setup " + DecodeVer(Ver)
+#if Ver >= EncodeVer(6, 7, 0)
+; Inno Setup 6.7.0 and later switch on Windows' RedirectionGuard for the setup by default, and Windows hands it
+; on to every program the setup starts - Hams after the install, after "Update now" (/RESTARTHAMS) and from the
+; "Start Hams" tick. Inno Setup 7.1.1 exempts those only when the setup asked for administrator rights; Hams
+; installs without them (PrivilegesRequired=lowest), so it would still inherit it. A Hams with RedirectionGuard
+; cannot follow the links the Hugging Face cache creates on Windows with developer mode: every model access failed
+; with error 448 ("untrusted mount point"). This setup only writes to the user's own folders, where the guard
+; protects nothing a normal user could not change anyway. Hams itself also restarts without it
+; (hams\redirection_guard.py) and stores its models without links (hams\models.py).
+RedirectionGuard=no
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

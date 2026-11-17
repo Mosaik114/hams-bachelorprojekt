@@ -133,6 +133,11 @@ def write_report(path: Path | None = None, *, checks: tuple | None = None, now: 
     print(f"Hams {updates.app_version()} diagnostic report, {stamp}", file=stream)
     print("Contains versions, paths and device names; never dictated text. Check it before posting.", file=stream)
     print("", file=stream)
+    if sys.platform == "win32":
+        from hams import redirection_guard
+
+        # "on" means: links in the user's folders do not open (error 448); see redirection_guard.
+        print(f"info windows redirection guard: {redirection_guard.describe()}", file=stream)
     failures = self_test.run(stream, checks)
     tail = log_tail(log_dir() / LOG_NAME)
     print("", file=stream)
@@ -156,7 +161,9 @@ def redact_home(text: str, home: str | os.PathLike | None = None) -> str:
     if len(home_text) < 4:  # "/", "C:" or empty: replacing that would mangle every path
         return text
     stand_in = "%USERPROFILE%" if sys.platform == "win32" or "\\" in home_text else "~"
-    variants = {home_text, home_text.replace("\\", "/"), home_text.replace("/", "\\")}
+    backslashed = home_text.replace("/", "\\")
+    # Tracebacks in the log quote paths as Python writes them, with every backslash doubled ('C:\\Users\\anna').
+    variants = {home_text, home_text.replace("\\", "/"), backslashed, backslashed.replace("\\", "\\\\")}
     alternatives = "|".join(re.escape(variant) for variant in sorted(variants, key=len, reverse=True))
     # Not inside a longer name: C:\Users\anna must leave C:\Users\annabelle alone.
     pattern = f"(?:{alternatives})(?![\\w.-])"

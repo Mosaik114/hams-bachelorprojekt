@@ -15,8 +15,12 @@ Anwendung reicht den String unverändert an faster-whisper durch.
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
 import shutil
+import stat
+import sys
 import threading
 import time
 from pathlib import Path
@@ -88,9 +92,7 @@ def installed_whisper_models() -> set[str]:
     lädt.
     """
     try:
-        from huggingface_hub import scan_cache_dir
-
-        cache = scan_cache_dir()
+        cache = scan_cache()
     except Exception:  # Cache fehlt, ist beschädigt oder die API änderte sich
         logger.warning("Hugging Face cache unreadable - no model counts as installed", exc_info=True)
         return set()
@@ -153,9 +155,7 @@ def cached_whisper_models() -> tuple[CachedModel, ...]:
     vorsichtige Haltung wie bei der Installationserkennung: nichts erfinden.
     """
     try:
-        from huggingface_hub import scan_cache_dir
-
-        cache = scan_cache_dir()
+        cache = scan_cache()
     except Exception:
         logger.warning("Hugging Face cache unreadable - no cached models known", exc_info=True)
         return ()
@@ -206,9 +206,17 @@ def delete_whisper_model(model_id: str) -> tuple[bool, int, str]:
     try:
         from huggingface_hub import scan_cache_dir
 
-        strategy = scan_cache_dir().delete_revisions(*entry.revisions)
-        expected = int(getattr(strategy, "expected_freed_size", 0) or 0)
-        strategy.execute()
+        try:
+            strategy = scan_cache_dir().delete_revisions(*entry.revisions)
+        except OSError as exc:
+            if isinstance(exc, PermissionError) or not untrusted_path(exc):
+                raise
+            # Another program's links make the whole cache unreadable while Windows blocks them; this model's
+            # folder is all there is to delete (the revisions are all of it), as the uninstaller does.
+            expected = _remove_repo_folder(info) if info else 0
+        else:
+            expected = int(getattr(strategy, "expected_freed_size", 0) or 0)
+            strategy.execute()
     except PermissionError:
         # Windows gibt eine geladene Modelldatei nicht her. Das ist der einzige
         # Fehler, der eine verstaendliche eigene Meldung verdient.
@@ -235,6 +243,224 @@ def cache_root() -> Path | None:
         return Path(constants.HF_HUB_CACHE)
     except Exception:  # pragma: no cover - nur bei kaputter Installation
         return None
+
+
+# ------------------------------------------------------------- Cache ohne Links
+#
+# huggingface_hub legt im Cache Verknuepfungen an (snapshots/<rev>/model.bin -> ../../blobs/<hash>), wenn Windows
+# es zulaesst: mit Entwicklermodus oder als Administrator. Windows' RedirectionGuard (siehe `redirection_guard`)
+# folgt solchen Links nicht; jeder Zugriff endet dann mit Fehler 448, und der Download half nicht, weil der Hub den
+# Link nur neu anlegte. Deshalb: neue Dateien immer als echte Dateien, vorhandene Links still ersetzen.
+
+#: Windows errors of a path that leads through a link or a cloud placeholder Windows will not follow: 448
+#: (untrusted mount point, RedirectionGuard), 1920/1921 (cannot access or resolve the file), the reparse-point
+#: errors, and the cloud-file range (OneDrive provider not running, file not synced, access to it denied).
+UNTRUSTED_PATH_ERRORS = frozenset({448, 1920, 1921, 4390, 4392, 4393, 4394, *range(358, 406)})
+
+_IO_REPARSE_TAG_SYMLINK = 0xA000000C
+_IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003  # junction
+
+#: Set once `prepare_cache` replaced the links of the catalog models in this process.
+_LINKS_CHECKED = False
+
+
+def untrusted_path(exc: BaseException) -> int | None:
+    """The Windows error number if `exc` (or what it was raised from) is one of `UNTRUSTED_PATH_ERRORS`."""
+    for item in _exception_chain(exc):
+        number = getattr(item, "winerror", None)
+        if isinstance(item, OSError) and number in UNTRUSTED_PATH_ERRORS:
+            return number
+    return None
+
+
+def _no_symlinks(cache_dir=None) -> bool:  # noqa: ARG001 - same signature as the hub's function
+    return False
+
+
+def store_plain_files() -> bool:
+    """Lets the hub store downloads as plain files, never as links (Windows). True if the switch is set.
+
+    The hub decides per folder with `are_symlinks_supported`; `_create_symlink` asks it through the module, so
+    replacing it there is enough. Without links the hub moves a new file into the snapshot folder, as on any
+    Windows without developer mode.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        from huggingface_hub import file_download
+
+        file_download.are_symlinks_supported = _no_symlinks
+        return True
+    except Exception:  # pragma: no cover - nur bei kaputter Installation
+        logger.warning("Hub links could not be switched off", exc_info=True)
+        return False
+
+
+def _link_kind(path: str) -> int:
+    """The reparse tag if `path` itself is a symbolic link or junction, else 0. Never follows it."""
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return 0
+    if stat.S_ISLNK(info.st_mode):
+        return _IO_REPARSE_TAG_SYMLINK
+    tag = getattr(info, "st_reparse_tag", 0)
+    attributes = getattr(info, "st_file_attributes", 0)
+    if attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400) and tag in (
+        _IO_REPARSE_TAG_SYMLINK,
+        _IO_REPARSE_TAG_MOUNT_POINT,
+    ):
+        return tag
+    return 0  # a plain file, or a OneDrive placeholder: not ours to change
+
+
+def _link_target(path: str) -> str:
+    """Where a link points, as an absolute path, read from the link itself (works while Windows blocks it)."""
+    target = os.readlink(path)
+    for prefix in ("\\\\?\\UNC\\", "\\\\?\\"):
+        if target.startswith(prefix):
+            target = ("\\\\" if prefix.endswith("UNC\\") else "") + target[len(prefix) :]
+            break
+    if not os.path.isabs(target):
+        target = os.path.join(os.path.dirname(path), target)
+    return os.path.normpath(target)
+
+
+def _replace_link(path: str) -> bool:
+    """Puts a plain file where the link `path` is: a hard link to its blob (no extra space), else a copy.
+
+    A link whose blob is gone is just removed; the next download fetches that file again. True if changed.
+    """
+    try:
+        target = _link_target(path)
+    except OSError:
+        target = ""
+    if not target or not os.path.isfile(target) or _link_kind(target):
+        os.unlink(path)
+        logger.info("Removed a link without its file: %s", os.path.basename(path))
+        return True
+    temporary = path + ".hams-plain"
+    with contextlib.suppress(FileNotFoundError):
+        os.unlink(temporary)
+    try:
+        os.link(target, temporary)
+    except OSError:
+        shutil.copyfile(target, temporary)
+    os.unlink(path)  # the link itself, never what it points to
+    os.replace(temporary, path)
+    return True
+
+
+def replace_cache_links(infos=None) -> int:
+    """Replaces the links in the snapshot folders of the catalog models by plain files. Returns how many.
+
+    Links Windows will not follow - RedirectionGuard, see `redirection_guard` - made every model access fail with
+    error 448. Only the catalog models are touched; other programs' models in the same cache stay as they are.
+    A link that cannot be replaced is logged and left; the caller's own error then says the rest.
+    """
+    root = cache_root()
+    if root is None:
+        return 0
+    changed = 0
+    for info in CATALOG if infos is None else infos:
+        snapshots = os.path.join(str(root), "models--" + info.repo_id.replace("/", "--"), "snapshots")
+        try:
+            revisions = list(os.scandir(snapshots))
+        except OSError:
+            continue  # not downloaded (or the folder itself is blocked: nothing to repair from here)
+        for revision in revisions:
+            try:
+                changed += _replace_revision_links(revision)
+            except OSError:
+                logger.warning("Links of %s could not all be replaced", info.model_id, exc_info=True)
+    if changed:
+        logger.info("Replaced %d link(s) in the model cache by plain files", changed)
+    return changed
+
+
+def _replace_revision_links(revision: os.DirEntry) -> int:
+    """One snapshot folder: its links replaced by plain files. Returns how many."""
+    kind = _link_kind(revision.path)
+    if kind:
+        # A whole revision as a link: away with it (never what it points to); the download brings it back as files.
+        if kind == _IO_REPARSE_TAG_MOUNT_POINT:
+            os.rmdir(revision.path)
+        else:
+            os.unlink(revision.path)
+        return 1
+    if not revision.is_dir(follow_symlinks=False):
+        return 0
+    return sum(1 for entry in os.scandir(revision.path) if _link_kind(entry.path) and _replace_link(entry.path))
+
+
+def prepare_cache(*, force: bool = False) -> int:
+    """Before a model access: downloads as plain files, existing links replaced (once per process, or `force`).
+
+    Returns how many links were replaced.
+    """
+    global _LINKS_CHECKED
+    if sys.platform != "win32":
+        return 0
+    store_plain_files()
+    if _LINKS_CHECKED and not force:
+        return 0
+    _LINKS_CHECKED = True
+    try:
+        return replace_cache_links()
+    except Exception:  # noqa: BLE001 - never in the way of a start; the access itself reports what is wrong
+        logger.warning("Model cache links not checked", exc_info=True)
+        return 0
+
+
+class _CatalogCache:
+    """What `scan_cache_dir` returns, for the catalog models only: `repos` with the hub's own repo entries."""
+
+    def __init__(self, repos) -> None:
+        self.repos = repos
+
+
+def scan_cache():
+    """`scan_cache_dir`, after `prepare_cache`. If links of other programs make the whole cache unreadable (Windows
+    blocks them), the catalog models' folders are scanned one by one instead."""
+    from huggingface_hub import scan_cache_dir
+
+    prepare_cache()
+    try:
+        return scan_cache_dir()
+    except OSError as exc:
+        if not untrusted_path(exc):
+            raise
+        logger.warning("Hugging Face cache partly blocked by Windows (error %s); reading the models alone", exc)
+    from huggingface_hub.utils._cache_manager import _scan_cached_repo
+
+    root = cache_root()
+    repos = []
+    for info in CATALOG:
+        folder = None if root is None else root / ("models--" + info.repo_id.replace("/", "--"))
+        if folder is None or not os.path.isdir(folder):
+            continue
+        try:
+            repos.append(_scan_cached_repo(folder))
+        except Exception:  # noqa: BLE001 - this one model stays unknown, the others count
+            logger.warning("Cache folder of %s unreadable", info.model_id, exc_info=True)
+    return _CatalogCache(repos)
+
+
+def _remove_repo_folder(info: WhisperModelInfo) -> int:
+    """Deletes a model's cache folder and its lock folder by hand. Returns the bytes freed (as far as known)."""
+    folder = repo_folder(info)
+    if folder is None or not os.path.isdir(folder):
+        return 0
+    size = 0
+    for base, _dirs, files in os.walk(folder):
+        for name in files:
+            with contextlib.suppress(OSError):
+                size += os.lstat(os.path.join(base, name)).st_size
+    shutil.rmtree(folder)
+    locks = folder.parent / ".locks" / folder.name
+    if os.path.isdir(locks):
+        shutil.rmtree(locks, ignore_errors=True)
+    return size
 
 
 def free_space_bytes() -> int | None:
@@ -412,6 +638,7 @@ class ModelDownloader:
     def _run(self, info: WhisperModelInfo, on_progress, on_finished, on_wait=None) -> None:
         disable_xet_transfer()  # sonst greift der Abbruch erst nach Minuten
         use_system_certificates()
+        prepare_cache()  # plain files, no links Windows may refuse to follow
         last = [0.0]
 
         def report(done: int, total: int) -> None:
@@ -450,7 +677,7 @@ class ModelDownloader:
         Returns:
             "" on success, `CANCELLED`, or the sentence for the window.
         """
-        repaired = False
+        repairs: set[str] = set()  # each repair once per download
         delays = list(self.RETRY_DELAYS)
         attempt = 0
         while True:
@@ -468,13 +695,9 @@ class ModelDownloader:
                     logger.info("Download of %s cancelled", info.model_id)
                     return CANCELLED
                 logger.exception("Download of %s failed (attempt %d)", info.model_id, attempt)
+                if self._repair(info, exc, repairs):
+                    continue
                 if leftover_can_cause(exc):
-                    if not repaired and remove_partial_downloads(info):
-                        repaired = True
-                        logger.info(
-                            "Download of %s: broken leftover removed, starting again from the beginning", info.model_id
-                        )
-                        continue
                     self._start_clean.add(info.model_id)
                     return describe_download_error(exc)
                 if passes_by_itself(exc) and delays:
@@ -487,6 +710,25 @@ class ModelDownloader:
             else:
                 logger.info("Download of %s finished", info.model_id)
                 return ""
+
+    @staticmethod
+    def _repair(info: WhisperModelInfo, exc: BaseException, done: set[str]) -> bool:
+        """Repairs what may be behind `exc`, each kind once per download (`done`). True: try once more.
+
+        * Error 448 and kin: links Windows will not follow become plain files.
+        * A failure a broken leftover can cause: the unfinished pieces go, the next attempt starts from nothing.
+        """
+        if "links" not in done and untrusted_path(exc):
+            done.add("links")
+            if replace_cache_links([info]):
+                logger.info("Download of %s: links replaced by plain files, trying again", info.model_id)
+                return True
+        if "leftover" not in done and leftover_can_cause(exc):
+            done.add("leftover")
+            if remove_partial_downloads(info):
+                logger.info("Download of %s: broken leftover removed, starting again from the beginning", info.model_id)
+                return True
+        return False
 
     def _cancelled(self) -> bool:
         return self._cancel is not None and self._cancel.is_set()
@@ -563,7 +805,12 @@ def describe_download_error(exc: BaseException) -> str:
     # Everything else carries a short number for the support: the HTTP status, else the type of the innermost
     # exception (`ConnectError`, `SSLCertVerificationError`, `ProxyError`), which tells more than the wrapper.
     status = http_status(exc)
-    code = str(status) if status is not None else type(_exception_chain(exc)[-1]).__name__
+    if status is not None:
+        code = str(status)
+    elif kind == "blocked_folder":
+        code = str(untrusted_path(exc))  # 448 says more than "OSError"
+    else:
+        code = type(_exception_chain(exc)[-1]).__name__
     return t("download.error.with_code", message=t(f"download.error.{kind}"), code=code)
 
 
@@ -644,8 +891,8 @@ def http_status(exc: BaseException) -> int | None:
 def error_kind(exc: BaseException) -> str:
     """One word for what went wrong.
 
-    permission, disk_full, blocked (a protection program or the network stops it), network, server_busy, server,
-    not_found or generic.
+    blocked_folder (Windows will not enter the model folder: error 448 and kin), permission, disk_full, blocked
+    (a protection program or the network stops it), network, server_busy, server, not_found or generic.
     """
     chain = _exception_chain(exc)
     text = " ".join(f"{type(item).__name__} {item}" for item in chain).lower()
@@ -659,7 +906,9 @@ def error_kind(exc: BaseException) -> str:
 
 
 def _local_kind(chain: list[BaseException], text: str) -> str:
-    """Trouble on this computer: missing write rights or a full disk; "" if neither."""
+    """Trouble on this computer: a folder Windows will not enter, missing write rights or a full disk; "" if none."""
+    if any(isinstance(item, OSError) and getattr(item, "winerror", None) in UNTRUSTED_PATH_ERRORS for item in chain):
+        return "blocked_folder"
     if any(isinstance(item, PermissionError) for item in chain):
         return "permission"
     if any(isinstance(item, OSError) and getattr(item, "errno", None) == 28 for item in chain):

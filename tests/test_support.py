@@ -118,6 +118,16 @@ class TestReport:
         assert "line 399" in text
         assert "line 249\n" not in text
 
+    @pytest.mark.skipif(sys.platform != "win32", reason="RedirectionGuard is Windows")
+    def test_the_report_says_whether_redirection_guard_is_on(self, monkeypatch, tmp_path):
+        from hams import redirection_guard
+
+        monkeypatch.setattr(support, "LOG_DIR", tmp_path / "missing")
+        monkeypatch.setattr(redirection_guard, "enforced", lambda: True)
+        target = tmp_path / "report.txt"
+        support.write_report(target, checks=(("one", ok_check),))
+        assert "info windows redirection guard: on" in target.read_text(encoding="utf-8")
+
     def test_without_a_log_the_report_still_works(self, monkeypatch, tmp_path):
         monkeypatch.setattr(support, "LOG_DIR", tmp_path / "missing")
         target = tmp_path / "report.txt"
@@ -147,6 +157,8 @@ class TestReport:
             ("c:/users/ANNA/.cache/huggingface", "%USERPROFILE%/.cache/huggingface"),
             ("C:\\Users\\anna", "%USERPROFILE%"),
             ("C:\\Users\\annabelle\\x", "C:\\Users\\annabelle\\x"),  # someone else, not a prefix match
+            # A traceback in the log quotes the path with doubled backslashes; the user's name leaked through that.
+            ("'C:\\\\Users\\\\anna\\\\.cache\\\\x'", "'%USERPROFILE%\\\\.cache\\\\x'"),
             ("nothing here", "nothing here"),
         ],
     )

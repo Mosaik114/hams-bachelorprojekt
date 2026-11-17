@@ -210,9 +210,31 @@ def setup_command(setup: Path, *, background: bool) -> list[str]:
     return [str(setup), *SETUP_ARGS, f"/RESTARTHAMS={restart}", f"/LOG={setup_log()}"]
 
 
-def launch_setup(setup: Path, *, background: bool, popen: Callable = subprocess.Popen) -> None:
-    """Starts the setup detached, so it outlives this process. Raises `UpdateError(LAUNCH)` if it does not start."""
+def launch_setup(
+    setup: Path,
+    *,
+    background: bool,
+    popen: Callable = subprocess.Popen,
+    guarded: Callable[[], bool | None] | None = None,
+    from_shell: Callable[[list[str]], int | None] | None = None,
+) -> None:
+    """Starts the setup detached, so it outlives this process. Raises `UpdateError(LAUNCH)` if it does not start.
+
+    If this Hams runs with Windows' RedirectionGuard (see `redirection_guard`), the setup starts from the Windows
+    shell instead: as a child of this process it would inherit the guard and hand it on to the Hams it restarts.
+    """
     command = setup_command(setup, background=background)
+    if sys.platform == "win32":
+        from hams import redirection_guard
+
+        guarded = redirection_guard.enforced if guarded is None else guarded
+        from_shell = redirection_guard.start_from_shell if from_shell is None else from_shell
+    if guarded is not None and guarded() and from_shell is not None:
+        with contextlib.suppress(OSError):
+            setup_log().parent.mkdir(parents=True, exist_ok=True)
+        if from_shell(command) is not None:
+            logger.info("Update setup started from the Windows shell: %s", setup.name)
+            return
     flags = {}
     if sys.platform == "win32":
         flags["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP

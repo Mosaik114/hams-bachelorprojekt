@@ -221,6 +221,42 @@ class TestSetup:
         expected = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         assert options.get("creationflags", expected) == expected
 
+    def test_with_redirection_guard_the_setup_starts_from_the_shell(self, tmp_path):
+        """As a child of a guarded Hams the setup would hand the guard on to the Hams it restarts."""
+        shell, popen = [], []
+        update_install.launch_setup(
+            tmp_path / NAME,
+            background=True,
+            popen=lambda cmd, **kw: popen.append(cmd),
+            guarded=lambda: True,
+            from_shell=lambda cmd: shell.append(cmd) or 99,
+        )
+        assert popen == []
+        assert shell[0][0] == str(tmp_path / NAME)
+        assert "/RESTARTHAMS=background" in shell[0]
+
+    def test_if_the_shell_start_fails_the_normal_start_follows(self, tmp_path):
+        popen = []
+        update_install.launch_setup(
+            tmp_path / NAME,
+            background=False,
+            popen=lambda cmd, **kw: popen.append(cmd),
+            guarded=lambda: True,
+            from_shell=lambda cmd: None,
+        )
+        assert popen and popen[0][0] == str(tmp_path / NAME)
+
+    def test_without_the_guard_the_normal_start(self, tmp_path):
+        shell, popen = [], []
+        update_install.launch_setup(
+            tmp_path / NAME,
+            background=False,
+            popen=lambda cmd, **kw: popen.append(cmd),
+            guarded=lambda: False,
+            from_shell=lambda cmd: shell.append(cmd) or 1,
+        )
+        assert shell == [] and len(popen) == 1
+
     def test_a_setup_that_does_not_start(self, tmp_path, caplog):
         def broken(command, **options):
             raise OSError("blocked")

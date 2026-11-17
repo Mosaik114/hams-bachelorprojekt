@@ -266,6 +266,7 @@ class ModelManager:
         Returns:
             (model, device, compute type) or (None, None, error text).
         """
+        whisper_models.prepare_cache()  # links Windows will not follow become plain files first (error 448)
         local = _installed_here(self, model_id)
         model, device, info = _load_on_devices(model_id, local=local)
         if model is None and local:

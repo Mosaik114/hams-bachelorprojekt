@@ -15,7 +15,7 @@ if _PROJECT_ROOT not in sys.path:
 
 import contextlib
 
-from hams import bootstrap, branding, config, i18n, setup_wizard
+from hams import bootstrap, branding, config, i18n, redirection_guard, setup_wizard
 from hams import ui_kit as uk
 from hams.activation import SETTINGS_EVENT, SHOW_EVENT, SettingsRequests, request_settings, request_show
 from hams.app import FloatingTranscriberApp
@@ -125,6 +125,11 @@ def main(*, show_settings: bool = False, show_setup: bool = False, background: b
     logger.info("User configuration %s (%s)", CONFIG_PATH, state)
     # Vor jedem sichtbaren Text, auch vor der Meldung an eine zweite Instanz.
     logger.info("UI language: %s (setting %s)", bootstrap.apply_language(CFG.ui_language), CFG.ui_language)
+
+    # Before the lock: a Hams that inherited Windows' RedirectionGuard (from an older setup) starts itself once more
+    # without it and quits, so the new one can take the lock. With it, no link in the user's folders would open.
+    if redirection_guard.restart_without_guard():
+        return
 
     mutex_handle = _acquire_single_instance_mutex()
     if mutex_handle is None:

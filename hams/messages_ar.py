@@ -319,6 +319,9 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "كثيرون يقومون بالتنزيل الآن. حاول مرة أخرى بعد بضع دقائق.",
     "download.error.server": "يواجه موقع التنزيل مشكلة الآن. حاول لاحقًا.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked_folder": (
+        "لا يسمح Windows لـ Hams بفتح مجلد نماذج الكلام. أغلق Hams، ثم افتحه من جديد من قائمة ابدأ وحاول مرة أخرى."
+    ),
     "download.error.blocked": "برنامج حماية أو الشبكة يمنع التنزيل. جرّب شبكة واي فاي أخرى، مثل نقطة اتصال الهاتف.",
     "download.error.code_note": "الرمز {code}",
     "download.retry_in": "محاولة جديدة خلال {seconds} ث …",

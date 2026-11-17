@@ -327,6 +327,10 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Şu anda çok kişi indiriyor. Birkaç dakika sonra tekrar deneyin.",
     "download.error.server": "İndirme sitesinde şu anda bir sorun var. Daha sonra tekrar deneyin.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked_folder": (
+        "Windows, Hams'in konuşma modelleri klasörüne girmesine izin vermiyor. "
+        "Lütfen Hams'i kapatın, Başlat menüsünden yeniden açın ve tekrar deneyin."
+    ),
     "download.error.blocked": (
         "Bir koruma programı veya ağ indirmeyi engelliyor. "
         "Lütfen başka bir Wi-Fi deneyin, örneğin telefonun hotspot'unu."

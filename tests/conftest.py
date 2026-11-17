@@ -146,6 +146,19 @@ def no_repair_in_the_real_cache(monkeypatch, tmp_path_factory):
 
 
 @pytest.fixture(autouse=True)
+def hub_links_untouched(monkeypatch):
+    """`prepare_cache` switches the hub's links off for the whole process and runs once: per test, from scratch."""
+    from hams import models as whisper_models
+
+    monkeypatch.setattr(whisper_models, "_LINKS_CHECKED", False)
+    try:
+        from huggingface_hub import file_download
+    except ImportError:  # pragma: no cover - the hub belongs to faster-whisper
+        return
+    monkeypatch.setattr(file_download, "are_symlinks_supported", file_download.are_symlinks_supported)
+
+
+@pytest.fixture(autouse=True)
 def no_waiting_for_a_new_download_attempt(monkeypatch):
     """A failed download tries again by itself after 5 and 20 s; tests of that set their own, short delays.
 

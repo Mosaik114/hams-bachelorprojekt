@@ -329,6 +329,10 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Ahora mismo hay muchas descargas. Vuelve a intentarlo en unos minutos.",
     "download.error.server": "El sitio de descargas tiene un problema. Vuelve a intentarlo más tarde.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked_folder": (
+        "Windows no deja que Hams entre en la carpeta de los modelos de voz. "
+        "Cierra Hams, ábrelo de nuevo desde el menú Inicio y vuelve a intentarlo."
+    ),
     "download.error.blocked": (
         "Un programa de protección o la red bloquea la descarga. "
         "Prueba otra red wifi, por ejemplo el punto de acceso del móvil."

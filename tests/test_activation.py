@@ -119,6 +119,7 @@ class TestStartupActivation(unittest.TestCase):
                 _acquire_single_instance_mutex=Mock(return_value=1),
                 _release_single_instance_mutex=self.release,
             ),
+            "hams.redirection_guard": types.SimpleNamespace(restart_without_guard=Mock(return_value=False)),
         }
         spec = importlib.util.spec_from_file_location("hams_main_test", ROOT / "hams" / "main.py")
         self.main = importlib.util.module_from_spec(spec)
@@ -131,6 +132,18 @@ class TestStartupActivation(unittest.TestCase):
         self.main.SettingsRequests = Mock()
         self.main.request_settings = Mock(return_value=True)
         self.main.request_show = Mock(return_value=True)
+
+    def test_a_start_with_redirection_guard_hands_over_before_taking_the_lock(self):
+        """It restarted itself without the guard: this process quits, the new one takes the lock."""
+        self.main.redirection_guard.restart_without_guard.return_value = True
+        self.main.main()
+        self.main._acquire_single_instance_mutex.assert_not_called()
+        self.main.tk.Tk.assert_not_called()
+
+    def test_a_start_without_redirection_guard_goes_on(self):
+        self.main.main()
+        self.main.redirection_guard.restart_without_guard.assert_called_once_with()
+        self.main._acquire_single_instance_mutex.assert_called_once_with()
 
     def test_existing_instance_receives_settings_request_without_another_window(self):
         self.main._acquire_single_instance_mutex.return_value = None
