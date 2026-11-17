@@ -62,6 +62,17 @@ class TestOpenPath:
         support.open_path(tmp_path, platform="win32", launch=launched.append)
         assert launched == [str(tmp_path)]
 
+    def test_windows_shows_a_file_selected_in_explorer(self, tmp_path):
+        launched = []
+        report = tmp_path / "hams-report.txt"
+        support.reveal_file(report, platform="win32", launch=launched.append)
+        assert launched == [["explorer.exe", f"/select,{report}"]]
+
+    def test_elsewhere_the_folder_of_the_file_opens(self, tmp_path):
+        launched = []
+        support.reveal_file(tmp_path / "hams-report.txt", platform="linux", launch=launched.append)
+        assert launched == [str(tmp_path)]
+
     def test_linux_uses_xdg_open(self, monkeypatch, tmp_path):
         calls = []
         monkeypatch.setattr(support.subprocess, "Popen", lambda args, **_kw: calls.append(args))

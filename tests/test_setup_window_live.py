@@ -253,7 +253,8 @@ class TestHardware:
         win._start_gpu_download()
         live_app.root.update()
         row = win.gpu_row
-        assert status(row.row) == ("error", "Keine Verbindung zum Modell-Server")
+        assert status(row.row) == ("error", "Keine Internetverbindung. Internet prüfen und nochmal versuchen.")
+        assert row.help_row is not None and row.help_row.box.winfo_manager() == "pack"
         assert row.button.cget("text") == "Erneut versuchen"
         assert "Traceback" not in page_text(win)
         win._start_gpu_download()
@@ -320,6 +321,69 @@ class TestModel:
         assert status(win.model_row.row) == ("error", "Die Festplatte ist voll")
         assert win.model_row.button.cget("text") == "Erneut versuchen"
         assert not win.next_button.enabled
+
+    def test_a_failure_offers_the_help_report_below_the_retry(self, wizard, live_app):
+        win = wizard()
+        go_to(win, "model")
+        assert win.model_row.help_row is None  # nothing to help with yet
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished(
+            "small", "Der Download hat nicht geklappt. Bitte nochmal versuchen. (416)"
+        )
+        live_app.root.update()
+        help_row = win.model_row.help_row
+        assert help_row is not None and help_row.box.winfo_manager() == "pack"
+        assert help_row.button.cget("text") == "Hilfe-Bericht erstellen"
+        assert help_row.row.sub_text == "Schick den Hilfe-Bericht an den Support."
+        # One main button: "Try again" stays in the row itself.
+        assert win.model_row.row._control is win.model_row.button
+
+    def test_the_help_report_is_written_and_shown_in_its_folder(self, wizard, live_app, monkeypatch, tmp_path):
+        report = tmp_path / "hams-report.txt"
+        shown = []
+        monkeypatch.setattr(window_mod.support, "write_report", lambda: (report, 0))
+        monkeypatch.setattr(window_mod.support, "reveal_file", shown.append)
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished(
+            "small", "Keine Internetverbindung. Internet prüfen und nochmal versuchen."
+        )
+        live_app.root.update()
+        win.model_row.help_row.button._invoke()
+        live_app.root.update()
+        assert shown == [report]
+        assert win.model_row.help_row.row.sub_text == (
+            "Die Datei „hams-report.txt“ ist im Ordner markiert. Schick sie an den Support."
+        )
+
+    def test_a_failed_help_report_says_so(self, wizard, live_app, monkeypatch):
+        def broken():
+            raise OSError("read-only")
+
+        monkeypatch.setattr(window_mod.support, "write_report", broken)
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("small", "Fehler")
+        live_app.root.update()
+        win.model_row.help_row.button._invoke()
+        live_app.root.update()
+        assert win.model_row.help_row.row.sub_text == "Der Bericht ließ sich nicht speichern. Bitte nochmal versuchen."
+
+    def test_retrying_hides_the_help_report(self, wizard, live_app):
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("small", "Fehler")
+        live_app.root.update()
+        win._start_model_download()
+        live_app.root.update()
+        assert win.model_row.help_row.box.winfo_manager() == ""
 
     def test_cancelled_download(self, wizard, live_app):
         win = wizard()

@@ -132,6 +132,19 @@ def no_implicit_model_download(monkeypatch):
     monkeypatch.setattr(ModelManager, "needs_download", staticmethod(lambda model_id: False))
 
 
+@pytest.fixture(autouse=True)
+def no_repair_in_the_real_cache(monkeypatch, tmp_path_factory):
+    """The download repairs leftovers in the model cache (`models.remove_partial_downloads`): never in the real one.
+
+    Only the cache root of that repair (and of the space check) moves; loading a model still reads the real cache,
+    so no test downloads one.
+    """
+    from hams import models as whisper_models
+
+    root = tmp_path_factory.mktemp("hub-cache")
+    monkeypatch.setattr(whisper_models, "cache_root", lambda: root)
+
+
 @pytest.fixture
 def model_cache_check(monkeypatch):
     """The real check against the cache; `installed` is the set of cached models the test pretends."""

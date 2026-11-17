@@ -259,21 +259,21 @@ class TestDownloader:
             raise ConnectionError("Failed to resolve huggingface.co")
 
         _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
-        assert finished == [("tiny", "Keine Verbindung zum Modell-Server")]
+        assert finished == [("tiny", "Keine Internetverbindung. Internet prüfen und nochmal versuchen.")]
 
     def test_write_error_is_translated(self, monkeypatch):
         def behaviour(_bar_class):
             raise PermissionError("Zugriff verweigert")
 
         _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
-        assert finished == [("tiny", "Kein Schreibrecht im Modellordner")]
+        assert finished == [("tiny", "Hams darf hier nicht speichern. Bitte Hams neu starten und nochmal versuchen.")]
 
     def test_full_disk_is_translated(self, monkeypatch):
         def behaviour(_bar_class):
             raise OSError(28, "No space left on device")
 
         _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
-        assert finished == [("tiny", "Kein Speicherplatz mehr frei")]
+        assert finished == [("tiny", "Die Festplatte ist voll. Etwas Platz freimachen und nochmal versuchen.")]
 
     def test_only_one_download_at_a_time(self, monkeypatch):
         release = threading.Event()
@@ -299,20 +299,185 @@ class TestDownloader:
         models.ModelDownloader().cancel()
 
 
+NETWORK = "Keine Internetverbindung. Internet prüfen und nochmal versuchen."
+GENERIC = "Der Download hat nicht geklappt. Bitte nochmal versuchen."
+
+
+class HubError(Exception):
+    """Like `HfHubHTTPError`: the status sits on `response`."""
+
+    def __init__(self, status, message="Client error"):
+        super().__init__(f"{message} for url 'https://cdn.example/resolve/abc'")
+        self.response = SimpleNamespace(status_code=status)
+
+
 class TestErrorTexts:
     @pytest.mark.parametrize(
         "exc,expected",
         [
-            (ConnectionError("connection reset"), "Keine Verbindung zum Modell-Server"),
-            (TimeoutError("Read timed out"), "Keine Verbindung zum Modell-Server"),
-            (OSError("getaddrinfo failed"), "Keine Verbindung zum Modell-Server"),
-            (PermissionError("denied"), "Kein Schreibrecht im Modellordner"),
-            (ValueError("404 Client Error"), "Modell nicht gefunden"),
-            (RuntimeError("irgendwas"), "Download fehlgeschlagen"),
+            (ConnectionError("connection reset"), NETWORK),
+            (TimeoutError("Read timed out"), NETWORK),
+            (OSError("getaddrinfo failed"), NETWORK),
+            (
+                PermissionError("denied"),
+                "Hams darf hier nicht speichern. Bitte Hams neu starten und nochmal versuchen.",
+            ),
+            (ValueError("404 Client Error"), "Dieses Modell gibt es gerade nicht. Bitte ein anderes wählen. (404)"),
+            (RuntimeError("irgendwas"), f"{GENERIC} (RuntimeError)"),
+            (HubError(416, "Client error '416 Range Not Satisfiable'"), f"{GENERIC} (416)"),
+            (
+                HubError(429),
+                "Gerade laden sehr viele gleichzeitig. In ein paar Minuten nochmal versuchen. (429)",
+            ),
+            (HubError(503), "Die Download-Seite hat gerade eine Störung. Später nochmal versuchen. (503)"),
         ],
     )
-    def test_every_text_is_actionable(self, exc, expected):
+    def test_every_text_says_what_to_do(self, exc, expected):
         assert models._describe_download_error(exc) == expected
+
+    def test_the_status_is_read_from_the_message_too(self):
+        exc = RuntimeError("Client error '416 Range Not Satisfiable' for url 'https://cdn.example/x'")
+        assert models.http_status(exc) == 416
+
+    def test_an_url_with_resolve_is_not_a_network_error(self):
+        """Hub URLs contain "/resolve/"; with a status the server answered, so the connection worked."""
+        assert models.error_kind(HubError(416)) == "generic"
+
+    def test_errno_numbers_are_no_status(self):
+        assert models.http_status(OSError("[Errno 11001] getaddrinfo failed")) is None
+
+    @pytest.mark.parametrize(
+        "exc,expected",
+        [
+            (HubError(416), True),
+            (RuntimeError("irgendwas"), True),
+            (ConnectionError("connection reset"), False),
+            (PermissionError("denied"), False),
+            (OSError(28, "No space left on device"), False),
+            (HubError(429), False),
+            (HubError(502), False),
+            (HubError(404), False),
+        ],
+    )
+    def test_only_unexplained_failures_blame_a_leftover(self, exc, expected):
+        assert models.leftover_can_cause(exc) is expected
+
+
+# ---------------------------------------------------------------- self-repair
+
+
+@pytest.fixture
+def hub_cache(monkeypatch, tmp_path):
+    """A model cache of our own, with the blobs folder of Tiny."""
+    monkeypatch.setattr(models, "cache_root", lambda: tmp_path)
+    blobs = tmp_path / "models--Systran--faster-whisper-tiny" / "blobs"
+    blobs.mkdir(parents=True)
+    return blobs
+
+
+class TestSelfRepair:
+    def test_a_broken_leftover_is_removed_and_the_download_runs_again(self, monkeypatch, hub_cache):
+        piece = hub_cache / "abc.incomplete"
+        piece.write_bytes(b"x" * 100)
+        (hub_cache / "finished").write_bytes(b"keep")
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(piece.exists())
+            if piece.exists():
+                raise HubError(416, "Client error '416 Range Not Satisfiable'")
+
+        _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
+        assert calls == [True, False]  # second attempt without the leftover
+        assert finished == [("tiny", "")]
+        assert (hub_cache / "finished").exists()  # finished files stay
+
+    def test_it_tries_again_only_once(self, monkeypatch, hub_cache):
+        (hub_cache / "abc.incomplete").write_bytes(b"x")
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            raise HubError(416)
+
+        _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
+        assert len(calls) == 2
+        assert finished == [("tiny", f"{GENERIC} (416)")]
+
+    def test_without_a_leftover_there_is_no_second_attempt(self, monkeypatch, hub_cache):
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            raise RuntimeError("irgendwas")
+
+        _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
+        assert len(calls) == 1
+        assert finished == [("tiny", f"{GENERIC} (RuntimeError)")]
+
+    def test_network_trouble_keeps_the_leftover_for_resuming(self, monkeypatch, hub_cache):
+        piece = hub_cache / "abc.incomplete"
+        piece.write_bytes(b"x" * 100)
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            raise ConnectionError("connection reset")
+
+        _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
+        assert len(calls) == 1
+        assert piece.exists()
+        assert finished == [("tiny", NETWORK)]
+
+    def test_try_again_after_such_a_failure_starts_clean(self, monkeypatch, hub_cache):
+        """The leftover appeared after the repair (written by the failed second attempt): the next start clears it."""
+        seen = []
+
+        def failing(_bar_class):
+            (hub_cache / "late.incomplete").write_bytes(b"x")
+            raise HubError(416)
+
+        downloader, _p, _pr, finished = run_download(monkeypatch, failing)
+        assert finished[-1][1] == f"{GENERIC} (416)"
+        assert (hub_cache / "late.incomplete").exists()
+
+        def succeeding(_bar_class):
+            seen.append((hub_cache / "late.incomplete").exists())
+
+        _d, _p, _pr, finished = run_download(monkeypatch, succeeding, downloader=downloader)
+        assert seen == [False]
+        assert finished == [("tiny", "")]
+
+    def test_a_cancel_never_removes_anything(self, monkeypatch, hub_cache):
+        piece = hub_cache / "abc.incomplete"
+        piece.write_bytes(b"x")
+
+        def behaviour(_bar_class):
+            raise RuntimeError("A future raised: DownloadCancelled")
+
+        downloader = models.ModelDownloader()
+        fake_hub(monkeypatch, behaviour)
+        downloader._cancel = threading.Event()
+        downloader._cancel.set()
+        finished = []
+        downloader._run(TINY, lambda *_a: None, lambda m, e: finished.append((m, e)))
+        assert finished == [("tiny", models.CANCELLED)]
+        assert piece.exists()
+
+    def test_only_this_models_pieces_are_removed(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(models, "cache_root", lambda: tmp_path)
+        mine = tmp_path / "models--Systran--faster-whisper-tiny" / "blobs"
+        other = tmp_path / "models--Systran--faster-whisper-small" / "blobs"
+        for folder in (mine, other):
+            folder.mkdir(parents=True)
+            (folder / "p.incomplete").write_bytes(b"x")
+        assert models.remove_partial_downloads(TINY) == 1
+        assert not (mine / "p.incomplete").exists()
+        assert (other / "p.incomplete").exists()
+
+    def test_no_cache_folder_is_no_problem(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(models, "cache_root", lambda: tmp_path / "missing")
+        assert models.remove_partial_downloads(TINY) == 0
 
 
 class TestFormatBytes:

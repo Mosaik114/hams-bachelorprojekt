@@ -66,6 +66,21 @@ def open_path(path: Path, *, platform: str | None = None, launch: Callable[[str]
     launch(str(path))
 
 
+def reveal_file(path: Path, *, platform: str | None = None, launch: Callable | None = None) -> None:
+    """Shows a file in its folder, selected (Windows Explorer); elsewhere opens the folder.
+
+    For the help report: the user sees the file at once and can drag it into a mail or chat.
+
+    Raises:
+        OSError: no program could be started.
+    """
+    platform = platform or sys.platform
+    if platform == "win32":
+        (launch or subprocess.Popen)(["explorer.exe", f"/select,{path}"])
+        return
+    open_path(Path(path).parent, platform=platform, launch=launch)
+
+
 def log_dir() -> Path:
     return LOG_DIR
 

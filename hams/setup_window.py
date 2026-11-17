@@ -19,7 +19,7 @@ import sys
 import tkinter as tk
 from typing import TYPE_CHECKING
 
-from hams import bootstrap, branding, setup_wizard
+from hams import bootstrap, branding, setup_wizard, support
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
@@ -38,12 +38,105 @@ if TYPE_CHECKING:
 OLLAMA_DOWNLOAD_URL = "https://ollama.com/download"
 
 
+class HelpReport:
+    """Der Hilfe-Bericht aus dem Assistenten: der Diagnosebericht aus `support`, danach die Datei im Ordner.
+
+    Für Menschen ohne Technikwissen: ein Klick erstellt die Datei und zeigt sie markiert im Explorer, damit sie
+    sich leicht verschicken lässt. Der Zustand lebt hier und nicht in den Zeilen, weil jede Seite neu gebaut wird.
+    """
+
+    def __init__(self, post, on_change) -> None:
+        self._post = post
+        self._on_change = on_change
+        self.running = False
+        self.failed = False
+        self.path = None
+
+    @property
+    def text(self) -> str:
+        if self.running:
+            return t("setup.help.running")
+        if self.failed:
+            return t("setup.help.failed")
+        if self.path is not None:
+            return t("setup.help.done", name=self.path.name)
+        return t("setup.help.hint")
+
+    def create(self) -> None:
+        if self.running:
+            return
+        self.running, self.failed = True, False
+        self._on_change()
+
+        def work() -> None:
+            try:
+                path, _failures = support.write_report()
+            except Exception as exc:  # noqa: BLE001 - becomes a sentence in the row
+                logger.warning("Help report failed: %s", type(exc).__name__, exc_info=True)
+                self._post(lambda: self._finished(None))
+                return
+            self._post(lambda: self._finished(path))
+
+        setup_wizard.TaskThread(target=work, daemon=True, name="hams-help-report").start()
+
+    def _finished(self, path) -> None:
+        self.running = False
+        if path is None:
+            self.failed = True
+            return
+        self.path = path
+        try:
+            support.reveal_file(path)
+        except OSError as exc:
+            logger.warning("Help report could not be shown: %s", type(exc).__name__)
+
+
+class HelpRow:
+    """Unter einer fehlgeschlagenen Zeile: „Hilfe-Bericht erstellen“ und ein Satz, was man damit tut."""
+
+    BUTTON_WIDTH = 188  # logisch; „Hilfe-Bericht erstellen“ plus Luft
+
+    def __init__(self, body: tk.Misc, report: HelpReport) -> None:
+        self.report = report
+        self.box = tk.Frame(body, bg=Theme.GROUP_SURFACE)
+        self.hairline = tk.Frame(self.box, bg=Theme.HAIRLINE, height=max(1, uk.px(1)))
+        self.hairline.pack(fill="x", padx=uk.px(uk.Space.ROW_X))
+        self.row = uk.SettingRow(
+            self.box,
+            t("setup.help.title"),
+            variant="description",
+            description=report.text,
+            hairline=False,
+            stacked=True,
+        )
+        self.row.pack(fill="x")
+        self.button = uk.SecondaryButton(
+            self.box, t("setup.help.button"), report.create, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
+        )
+        self.button.stretch_stacked = False
+        uk.keep_logical_width(self.button, self.BUTTON_WIDTH)
+        self.row.set_control(self.button)
+
+    def refresh(self) -> None:
+        self.row.set_description(self.report.text)
+        self.button.set_enabled(not self.report.running)
+
+
 class TaskRow:
-    """Eine Zeile für einen Download: Statuspunkt mit Text, Knopf oder Abbruch, Balken darunter."""
+    """Eine Zeile für einen Download: Statuspunkt mit Text, Knopf oder Abbruch, Balken darunter.
+
+    Mit `help_report` erscheint nach einem Fehler darunter der Hilfe-Bericht (`HelpRow`); der Hauptknopf bleibt
+    „Erneut versuchen“ in der Zeile selbst.
+    """
 
     BUTTON_WIDTH = 132  # logisch; „Erneut versuchen“ plus Luft
 
-    def __init__(self, body: tk.Misc, title: str, *, start, cancel, hairline: bool = False) -> None:
+    def __init__(
+        self, body: tk.Misc, title: str, *, start, cancel, hairline: bool = False, help_report: HelpReport | None = None
+    ) -> None:
+        self.body = body
+        self.help_report = help_report
+        self.help_row: HelpRow | None = None
         self.row = uk.SettingRow(body, title, variant="status", hairline=hairline)
         self.row.pack(fill="x")
         self.button = uk.SecondaryButton(
@@ -72,6 +165,19 @@ class TaskRow:
         else:
             self.bar_box.pack(fill="x", after=self.row)
             self.bar.set_fraction(view.fraction)
+        self._show_help(view.status == "error")
+
+    def _show_help(self, shown: bool) -> None:
+        if self.help_report is None:
+            return
+        if not shown:
+            if self.help_row is not None:
+                self.help_row.box.pack_forget()
+            return
+        if self.help_row is None:
+            self.help_row = HelpRow(self.body, self.help_report)
+        self.help_row.refresh()
+        self.help_row.box.pack(fill="x", after=self.row)
 
 
 class SetupWindow:
@@ -96,6 +202,8 @@ class SetupWindow:
             # Ein Abbruch beim ersten Start soll den Assistenten beim nächsten Start wieder zeigen.
             setup_wizard.write_marker(self.marker, False)
         self.model_task = Task()
+        #: The help report under a failed download; one for all pages.
+        self.help_report = HelpReport(self.post, self._after_task_change)
         self.completed = False
         #: Microphone select and level on the microphone page; runs only while that page is shown.
         self.monitor: LevelMonitor | None = None
@@ -511,7 +619,11 @@ class SetupWindow:
         if hardware == setup_wizard.GPU_DOWNLOAD or self.controller.gpu_task.state != setup_wizard.IDLE:
             group = self._group(body)
             self.gpu_row = TaskRow(
-                group.body, t("setup.gpu.row"), start=self._start_gpu_download, cancel=self.controller.gpu_task.cancel
+                group.body,
+                t("setup.gpu.row"),
+                start=self._start_gpu_download,
+                cancel=self.controller.gpu_task.cancel,
+                help_report=self.help_report,
             )
             self._refresh_hardware()
 
@@ -557,7 +669,11 @@ class SetupWindow:
         )
         row.set_control(self.model_select)
         self.model_row = TaskRow(
-            group.body, t("setup.model.row"), start=self._start_model_download, cancel=self.app.models.cancel_download
+            group.body,
+            t("setup.model.row"),
+            start=self._start_model_download,
+            cancel=self.app.models.cancel_download,
+            help_report=self.help_report,
         )
         self._refresh_model()
 
@@ -753,7 +869,11 @@ class SetupWindow:
             row.set_control(switch)
             return
         self.pull_row = TaskRow(
-            group.body, t("settings.cleanup_model.title"), start=self._start_pull, cancel=controller.pull_task.cancel
+            group.body,
+            t("settings.cleanup_model.title"),
+            start=self._start_pull,
+            cancel=controller.pull_task.cancel,
+            help_report=self.help_report,
         )
         self._show_pull()
 

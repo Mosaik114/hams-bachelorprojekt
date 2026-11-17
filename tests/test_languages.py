@@ -62,6 +62,7 @@ class TestCatalogs:
         """Right to left, a message that starts with a Latin name would put that name on the wrong side."""
         exceptions = {key for key in DE if key.startswith(("language.", "dictation.", "key."))}
         exceptions |= {"setup.cleanup.service", "settings.download.failed", "number.decimal_separator"}
+        exceptions.add("download.error.with_code")  # only joins an Arabic sentence and its support number
         catalog = i18n.CATALOGS["ar"]
         latin = [
             key

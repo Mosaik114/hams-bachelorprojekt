@@ -301,6 +301,8 @@ class ModelDownloader:
         self._thread = None
         self._cancel = None
         self.model_id: str | None = None
+        #: Models whose last attempt failed in a way a leftover piece can cause: the next start clears it first.
+        self._start_clean: set[str] = set()
 
     @property
     def active(self) -> bool:
@@ -361,32 +363,93 @@ class ModelDownloader:
 
         error = ""
         try:
-            from huggingface_hub import snapshot_download
-
-            folder = snapshot_download(info.repo_id, tqdm_class=_ProgressBar, allow_patterns=list(ALLOW_PATTERNS))
-            if not (Path(folder) / MODEL_FILE).is_file():
-                # Erfolg heisst "installiert": dieselbe Probe wie `installed_whisper_models`.
-                raise IncompleteDownload(f"{MODEL_FILE} missing in {info.repo_id}")
-        except IncompleteDownload:
-            error = t("download.incomplete")
-            logger.warning("Download of %s finished without %s", info.model_id, MODEL_FILE)
-        except Exception as exc:  # noqa: BLE001 - in Klartext uebersetzen
-            if self._cancel is not None and self._cancel.is_set():
-                # Der Abbruch kommt aus einem Arbeitsthread zurueck und ist
-                # unterwegs schon einmal eingepackt worden — die Ursache steht
-                # im Flag, nicht im Ausnahmetyp.
-                error = CANCELLED
-                logger.info("Download of %s cancelled", info.model_id)
-            else:
-                error = describe_download_error(exc)
-                logger.exception("Download of %s failed", info.model_id)
-        else:
-            logger.info("Download of %s finished", info.model_id)
+            if info.model_id in self._start_clean:
+                # "Try again" after a failure a leftover piece can cause: begin from nothing.
+                self._start_clean.discard(info.model_id)
+                remove_partial_downloads(info)
+            error = self._download_healing(info)
         finally:
             _ProgressBar.cancel_flag = None
             _ProgressBar.report = None
             self.model_id = None
         on_finished(info.model_id, error)
+
+    def _download_healing(self, info: WhisperModelInfo) -> str:
+        """Downloads, and on a failure a broken leftover can cause, clears it and tries once more.
+
+        Without this, a leftover `.incomplete` file larger than the real one made every attempt fail the same way
+        (the hub resumes it and the server answers 416), and "Try again" could never help. Network trouble keeps
+        the leftover: the next attempt resumes it.
+
+        Returns:
+            "" on success, `CANCELLED`, or the sentence for the window.
+        """
+        for attempt in (1, 2):
+            try:
+                self._fetch(info)
+            except IncompleteDownload:
+                logger.warning("Download of %s finished without %s", info.model_id, MODEL_FILE)
+                return t("download.incomplete")
+            except Exception as exc:  # noqa: BLE001 - in Klartext uebersetzen
+                if self._cancel is not None and self._cancel.is_set():
+                    # Der Abbruch kommt aus einem Arbeitsthread zurueck und ist
+                    # unterwegs schon einmal eingepackt worden — die Ursache steht
+                    # im Flag, nicht im Ausnahmetyp.
+                    logger.info("Download of %s cancelled", info.model_id)
+                    return CANCELLED
+                logger.exception("Download of %s failed (attempt %d)", info.model_id, attempt)
+                if not leftover_can_cause(exc):
+                    return describe_download_error(exc)
+                if attempt == 1 and remove_partial_downloads(info):
+                    logger.info(
+                        "Download of %s: broken leftover removed, starting again from the beginning", info.model_id
+                    )
+                    continue
+                self._start_clean.add(info.model_id)
+                return describe_download_error(exc)
+            else:
+                logger.info("Download of %s finished", info.model_id)
+                return ""
+        return describe_download_error(RuntimeError("unreachable"))  # pragma: no cover - the loop always returns
+
+    @staticmethod
+    def _fetch(info: WhisperModelInfo) -> None:
+        from huggingface_hub import snapshot_download
+
+        folder = snapshot_download(info.repo_id, tqdm_class=_ProgressBar, allow_patterns=list(ALLOW_PATTERNS))
+        if not (Path(folder) / MODEL_FILE).is_file():
+            # Erfolg heisst "installiert": dieselbe Probe wie `installed_whisper_models`.
+            raise IncompleteDownload(f"{MODEL_FILE} missing in {info.repo_id}")
+
+
+def repo_folder(info: WhisperModelInfo) -> Path | None:
+    """The model's folder in the Hugging Face cache (``models--owner--name``), or None without a cache root."""
+    root = cache_root()
+    if root is None:
+        return None
+    return root / ("models--" + info.repo_id.replace("/", "--"))
+
+
+def remove_partial_downloads(info: WhisperModelInfo) -> int:
+    """Deletes the unfinished pieces (``blobs/*.incomplete``) of one model. Returns how many were removed.
+
+    Only these files: finished files and the other models stay. A piece another process still holds is left
+    alone (logged); the hub then reports its own error.
+    """
+    folder = repo_folder(info)
+    if folder is None:
+        return 0
+    removed = 0
+    for piece in (folder / "blobs").glob("*.incomplete"):
+        try:
+            size = piece.stat().st_size
+            piece.unlink()
+        except OSError as exc:
+            logger.warning("Leftover %s of %s could not be removed: %s", piece.name, info.model_id, exc)
+            continue
+        removed += 1
+        logger.info("Removed leftover %s of %s (%s)", piece.name, info.model_id, format_bytes(size))
+    return removed
 
 
 def describe_download_error(exc: BaseException) -> str:
@@ -395,31 +458,76 @@ def describe_download_error(exc: BaseException) -> str:
     Der vollstaendige Stacktrace bleibt im Log; hier steht nur, was der Nutzer
     daraus machen kann.
     """
+    kind = error_kind(exc)
+    if kind in ("permission", "disk_full", "network"):
+        return t(f"download.error.{kind}")
+    # Everything else carries a short number for the support (the HTTP status, else the exception type).
+    status = http_status(exc)
+    code = str(status) if status is not None else type(exc).__name__
+    return t("download.error.with_code", message=t(f"download.error.{kind}"), code=code)
+
+
+#: Words in an exception that mean: the connection itself is the problem.
+_NETWORK_MARKERS = (
+    "connection",
+    "timed out",
+    "timeout",
+    "network",
+    "dns",
+    "resolve",
+    "unreachable",
+    "getaddrinfo",
+    "offline",
+    "proxy",
+    "ssl",
+)
+
+
+def http_status(exc: BaseException) -> int | None:
+    """The HTTP status behind a hub error, if there is one (from the response, else from the message)."""
+    import re
+
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    if isinstance(status, int) and 100 <= status <= 599:
+        return status
+    match = re.search(r"(?<![\d.])([45]\d\d)(?:\s+(?:client|server)\s+error|\s+[A-Z][a-z])", str(exc))
+    if match:
+        return int(match.group(1))
+    match = re.search(r"'([45]\d\d) ", str(exc))
+    return int(match.group(1)) if match else None
+
+
+def error_kind(exc: BaseException) -> str:
+    """One word for what went wrong: permission, disk_full, network, server_busy, server, not_found or generic."""
     text = f"{type(exc).__name__} {exc}".lower()
     if isinstance(exc, PermissionError):
-        return t("download.error.permission")
+        return "permission"
     if isinstance(exc, OSError) and getattr(exc, "errno", None) == 28:
-        return t("download.error.disk_full")
+        return "disk_full"
     if "no space" in text or "not enough space" in text or "errno 28" in text:
-        return t("download.error.disk_full")
-    for marker in (
-        "connection",
-        "timed out",
-        "timeout",
-        "network",
-        "dns",
-        "resolve",
-        "unreachable",
-        "getaddrinfo",
-        "offline",
-        "proxy",
-        "ssl",
-    ):
-        if marker in text:
-            return t("download.error.network")
-    if "404" in text or "not found" in text or "repositorynotfound" in text:
-        return t("download.error.not_found")
-    return t("download.error.generic")
+        return "disk_full"
+    status = http_status(exc)
+    if status == 429:
+        return "server_busy"
+    if status is not None and status >= 500:
+        return "server"
+    if status == 404 or "repositorynotfound" in text or "entrynotfound" in text:
+        return "not_found"
+    if status is None and any(marker in text for marker in _NETWORK_MARKERS):
+        return "network"
+    if status is None and ("404" in text or "not found" in text):
+        return "not_found"
+    return "generic"
+
+
+def leftover_can_cause(exc: BaseException) -> bool:
+    """Whether a broken unfinished piece in the cache may be behind this failure.
+
+    Not for network trouble (the piece is what lets the next attempt resume), a full disk, missing write rights,
+    a busy or broken server, or a model that does not exist: deleting the piece would not change any of them.
+    """
+    return error_kind(exc) == "generic"
 
 
 #: Former name, kept for callers outside the package.

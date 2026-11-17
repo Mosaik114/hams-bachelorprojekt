@@ -188,11 +188,19 @@ Symptoms: *No microphone signal*, *No speech detected*, or *"…" isn't picking 
 
 ## The model download fails
 
-- *Can't reach the model server*: Hams needs `huggingface.co` once per model. Check proxies and firewalls.
+- *No internet connection*: Hams needs `huggingface.co` once per model. Check the connection, proxies and
+  firewalls.
+- *Lots of people are downloading right now* (429) or *The download site has a problem right now* (5xx): the
+  download site is busy or has a fault. Try again in a few minutes.
 - *Not enough disk space — needs …*: the model goes to `%USERPROFILE%\.cache\huggingface\hub`, on the system
   drive. Free up space or choose a smaller model.
-- A cancelled or broken download continues where it stopped when you select the model again. Leftovers show up under
-  *Downloaded models* as *incomplete* and can be deleted there.
+- A cancelled download continues where it stopped when you select the model again. A broken unfinished piece that
+  makes the download fail (for example HTTP 416 after an uninstall) is removed by Hams itself, which then starts
+  once more from the beginning (since 1.3.5). Leftovers show up under *Downloaded models* as *incomplete* and can be
+  deleted there.
+- The number in brackets at the end of a message (*(416)*, *(ValueError)*) is for support: the HTTP status or the
+  type of the error. In the setup assistant, *Create help report* under the failed download writes the diagnostic
+  report and shows it selected in Explorer, ready to send.
 
 ## The model doesn't load
 

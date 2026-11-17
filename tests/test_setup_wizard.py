@@ -213,16 +213,16 @@ class TestRunTask:
 class TestDescribeError:
     def test_network(self, english):
         error = sw.describe_error(urllib.error.URLError("getaddrinfo failed"))
-        assert error == "Can't reach the model server"
+        assert error == "No internet connection. Check your internet and try again."
 
     def test_disk_full(self, english):
-        assert sw.describe_error(OSError(errno.ENOSPC, "voll")) == "The disk is full"
+        assert sw.describe_error(OSError(errno.ENOSPC, "voll")) == "The disk is full. Free up some space and try again."
 
     def test_ollama_message_is_kept(self):
         assert sw.describe_error(ollama_api.PullError("Ollama sagt nein")) == "Ollama sagt nein"
 
     def test_unknown_error_has_no_traceback(self, english):
-        assert sw.describe_error(ValueError("x" * 500)) == "Download failed"
+        assert sw.describe_error(ValueError("x" * 500)) == "The download didn't work. Please try again. (ValueError)"
 
     def test_a_wrapped_gpu_error_keeps_its_cause(self, english):
         from hams import gpu_support
@@ -233,7 +233,7 @@ class TestDescribeError:
             except OSError as cause:
                 raise gpu_support.GpuSupportError("PermissionError: Access is denied") from cause
         except gpu_support.GpuSupportError as wrapped:
-            assert sw.describe_error(wrapped) == "No write access to the model folder"
+            assert sw.describe_error(wrapped) == "Hams can't save here. Restart Hams and try again."
 
     def test_a_running_gpu_install_elsewhere(self, english):
         from hams import gpu_support
@@ -376,7 +376,7 @@ class TestGpuDownload:
 
         wizard = controller(install_gpu=install)
         wizard.start_gpu_download(immediate)
-        assert wizard.gpu_task.error == "Can't reach the model server"
+        assert wizard.gpu_task.error == "No internet connection. Check your internet and try again."
 
     def test_a_second_start_while_running_does_nothing(self):
         wizard = controller()
