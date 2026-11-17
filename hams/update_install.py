@@ -216,12 +216,13 @@ def launch_setup(
     background: bool,
     popen: Callable = subprocess.Popen,
     guarded: Callable[[], bool | None] | None = None,
-    from_shell: Callable[[list[str]], int | None] | None = None,
+    from_shell: Callable[[list[str]], bool] | None = None,
 ) -> None:
     """Starts the setup detached, so it outlives this process. Raises `UpdateError(LAUNCH)` if it does not start.
 
     If this Hams runs with Windows' RedirectionGuard (see `redirection_guard`), the setup starts from the Windows
-    shell instead: as a child of this process it would inherit the guard and hand it on to the Hams it restarts.
+    shell (Explorer starts it, see `redirection_guard.start_from_shell`): as a child of this process it would
+    inherit the guard and hand it on to the Hams it restarts.
     """
     command = setup_command(setup, background=background)
     if sys.platform == "win32":
@@ -232,7 +233,7 @@ def launch_setup(
     if guarded is not None and guarded() and from_shell is not None:
         with contextlib.suppress(OSError):
             setup_log().parent.mkdir(parents=True, exist_ok=True)
-        if from_shell(command) is not None:
+        if from_shell(command):
             logger.info("Update setup started from the Windows shell: %s", setup.name)
             return
     flags = {}
