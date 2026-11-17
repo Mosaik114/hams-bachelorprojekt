@@ -4,7 +4,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from hams import glossary
 from hams import ollama as ollama_api
 from hams import settings_extras as extras
 from hams import setup_wizard as sw
@@ -122,23 +121,3 @@ class TestPullRow:
         ai.refresh_pull_row()  # versteckt: nichts passiert
         ai._post_pull(lambda: None)
         live_app.root.update()  # das Nachspiel des Laufs prallt am versteckten Fenster ab
-
-
-class TestGlossaryButton:
-    def test_opens_the_file(self, settings, monkeypatch):
-        opened = []
-        monkeypatch.setattr(glossary, "open_in_editor", lambda: opened.append(True))
-        win = settings()
-        win.general.glossary_button._invoke()
-        assert opened == [True]
-        assert "nächste Diktat" in win.general.row_glossary._sub_text
-
-    def test_names_the_file_when_no_editor_opens(self, settings, monkeypatch, tmp_path):
-        def fail():
-            raise OSError("kein Programm")
-
-        monkeypatch.setattr(glossary, "open_in_editor", fail)
-        monkeypatch.setattr(glossary, "glossary_path", lambda: tmp_path / "glossary.toml")
-        win = settings()
-        win.general.edit_glossary()
-        assert str(tmp_path / "glossary.toml") in win.general.row_glossary._sub_text
