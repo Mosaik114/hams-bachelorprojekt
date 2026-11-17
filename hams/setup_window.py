@@ -45,12 +45,19 @@ class HelpReport:
     sich leicht verschicken lässt. Der Zustand lebt hier und nicht in den Zeilen, weil jede Seite neu gebaut wird.
     """
 
-    def __init__(self, post, on_change) -> None:
+    def __init__(self, post, on_change, copy_text=None) -> None:
         self._post = post
         self._on_change = on_change
+        #: Puts a text on the clipboard (on the Tk thread); None: no "Copy".
+        self._copy_text = copy_text
         self.running = False
         self.failed = False
+        self.copied = False
         self.path = None
+
+    @property
+    def can_copy(self) -> bool:
+        return self._copy_text is not None
 
     @property
     def text(self) -> str:
@@ -58,43 +65,72 @@ class HelpReport:
             return t("setup.help.running")
         if self.failed:
             return t("setup.help.failed")
+        if self.copied:
+            return t("setup.help.copied")
         if self.path is not None:
             return t("setup.help.done", name=self.path.name)
         return t("setup.help.hint")
 
     def create(self) -> None:
+        """Writes the report and shows the file selected in its folder, ready to drag into a mail."""
+        self._write(then=self._reveal, read=False)
+
+    def copy(self) -> None:
+        """Writes the report and puts it on the clipboard, ready to paste into a mail or a chat."""
+        if self._copy_text is not None:
+            self._write(then=self._to_clipboard, read=True)
+
+    def _write(self, then, *, read: bool) -> None:
         if self.running:
             return
-        self.running, self.failed = True, False
+        self.running, self.failed, self.copied = True, False, False
         self._on_change()
 
         def work() -> None:
             try:
                 path, _failures = support.write_report()
+                text = path.read_text(encoding="utf-8") if read else ""
             except Exception as exc:  # noqa: BLE001 - becomes a sentence in the row
                 logger.warning("Help report failed: %s", type(exc).__name__, exc_info=True)
-                self._post(lambda: self._finished(None))
+                self._post(lambda: self._finished(None, "", then))
                 return
-            self._post(lambda: self._finished(path))
+            self._post(lambda: self._finished(path, text, then))
 
         setup_wizard.TaskThread(target=work, daemon=True, name="hams-help-report").start()
 
-    def _finished(self, path) -> None:
+    def _finished(self, path, text: str, then) -> None:
         self.running = False
         if path is None:
             self.failed = True
             return
         self.path = path
+        then(path, text)
+
+    def _reveal(self, path, _text: str) -> None:
         try:
             support.reveal_file(path)
         except OSError as exc:
             logger.warning("Help report could not be shown: %s", type(exc).__name__)
 
+    def _to_clipboard(self, _path, text: str) -> None:
+        try:
+            self._copy_text(text)
+        except (tk.TclError, RuntimeError) as exc:
+            logger.warning("Help report could not be copied: %s", type(exc).__name__)
+            self.failed = True
+            return
+        self.copied = True
+        logger.info("Help report copied to the clipboard (%d characters)", len(text))
+
 
 class HelpRow:
-    """Unter einer fehlgeschlagenen Zeile: „Hilfe-Bericht erstellen“ und ein Satz, was man damit tut."""
+    """Unter einer fehlgeschlagenen Zeile: „Hilfe-Bericht erstellen“, daneben „Kopieren“, und ein Satz dazu.
+
+    Beides sind Nebenknöpfe; der Hauptknopf bleibt „Erneut versuchen“ in der Zeile darüber.
+    """
 
     BUTTON_WIDTH = 188  # logisch; „Hilfe-Bericht erstellen“ plus Luft
+    COPY_WIDTH = 104  # logisch; „Kopieren“ plus Luft, auch in den längeren Sprachen
 
     def __init__(self, body: tk.Misc, report: HelpReport) -> None:
         self.report = report
@@ -110,16 +146,28 @@ class HelpRow:
             stacked=True,
         )
         self.row.pack(fill="x")
+        # Both buttons side by side in one control: the row holds one control, stacked under the text.
+        self.buttons = tk.Frame(self.box, bg=Theme.GROUP_SURFACE)
+        self.buttons.stretch_stacked = False
         self.button = uk.SecondaryButton(
-            self.box, t("setup.help.button"), report.create, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
+            self.buttons, t("setup.help.button"), report.create, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
         )
-        self.button.stretch_stacked = False
         uk.keep_logical_width(self.button, self.BUTTON_WIDTH)
-        self.row.set_control(self.button)
+        self.button.pack(side=uk.mirror_side("left"))
+        self.copy_button: uk.SecondaryButton | None = None
+        if report.can_copy:
+            self.copy_button = uk.SecondaryButton(
+                self.buttons, t("setup.help.copy"), report.copy, bg_under=Theme.GROUP_SURFACE, height=uk.Height.STANDARD
+            )
+            uk.keep_logical_width(self.copy_button, self.COPY_WIDTH)
+            self.copy_button.pack(side=uk.mirror_side("left"), padx=uk.mirror_pad((uk.px(uk.Space.MD), 0)))
+        self.row.set_control(self.buttons)
 
     def refresh(self) -> None:
         self.row.set_description(self.report.text)
         self.button.set_enabled(not self.report.running)
+        if self.copy_button is not None:
+            self.copy_button.set_enabled(not self.report.running)
 
 
 class TaskRow:
@@ -152,7 +200,9 @@ class TaskRow:
         self.bar.pack(fill="x", padx=uk.px(uk.Space.ROW_X), pady=(0, uk.px(uk.Space.ROW_Y)))
 
     def show(self, view: setup_wizard.TaskView) -> None:
-        self.row.set_status(view.status, view.text)
+        text, code = whisper_models.split_code(view.text) if view.status == "error" else (view.text, "")
+        # The support code stands apart, quieter than the sentence: the sentence is for the user, the code for us.
+        self.row.set_status(view.status, text, t("download.error.code_note", code=code) if code else "")
         if view.action == "cancel":
             self.row.set_control(self.cancel_button)
         elif view.action is None:
@@ -203,7 +253,7 @@ class SetupWindow:
             setup_wizard.write_marker(self.marker, False)
         self.model_task = Task()
         #: The help report under a failed download; one for all pages.
-        self.help_report = HelpReport(self.post, self._after_task_change)
+        self.help_report = HelpReport(self.post, self._after_task_change, self._copy_to_clipboard)
         self.completed = False
         #: Microphone select and level on the microphone page; runs only while that page is shown.
         self.monitor: LevelMonitor | None = None
@@ -254,8 +304,20 @@ class SetupWindow:
         self.controller.model_suggested = True
         self.model_task.begin()
         self.model_task.advance(self.app.models.download_done, self.app.models.download_total)
+        self.model_task.wait(getattr(self.app.models, "retry_in", 0))
 
     # ---------------------------------------------------------- lifecycle
+
+    @staticmethod
+    def _copy_to_clipboard(text: str) -> None:
+        """The help report on the clipboard, the same way Hams copies a dictation (pyperclip, Unicode).
+
+        Raises:
+            RuntimeError: the clipboard is held by another program (pyperclip's error is a RuntimeError).
+        """
+        import pyperclip
+
+        pyperclip.copy(text)
 
     def alive(self) -> bool:
         try:
@@ -720,6 +782,7 @@ class SetupWindow:
         """Von der Anwendung, auf dem Tk-Thread."""
         if self.alive():
             self.model_task.advance(done, total)
+            self.model_task.wait(getattr(self.app.models, "retry_in", 0))
             self._after_task_change()
 
     def on_download_finished(self, model_id: str, error: str, _switching: bool) -> None:

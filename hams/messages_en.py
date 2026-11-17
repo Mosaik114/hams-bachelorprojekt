@@ -321,6 +321,12 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Lots of people are downloading right now. Try again in a few minutes.",
     "download.error.server": "The download site has a problem right now. Try again later.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked": (
+        "A protection program or the network is blocking the download. "
+        "Please try another Wi-Fi, such as your phone's hotspot."
+    ),
+    "download.error.code_note": "Code {code}",
+    "download.retry_in": "Trying again in {seconds} s …",
     # --- Ollama
     "ollama.unreachable": "Ollama isn't reachable",
     "ollama.http_error": "Ollama returned error {code}",
@@ -387,6 +393,8 @@ MESSAGES: dict[str, str] = {
     "setup.help.running": "Creating the report …",
     "setup.help.done": "The file “{name}” is selected in its folder. Send it to support.",
     "setup.help.failed": "The report couldn't be saved. Please try again.",
+    "setup.help.copy": "Copy",
+    "setup.help.copied": "The report is copied. Paste it into an email or message to support.",
     "setup.welcome.title": "Welcome",
     "setup.welcome.body": (
         "{product} turns your speech into text right where the cursor is. Speech recognition runs entirely on this "

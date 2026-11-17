@@ -189,18 +189,25 @@ Symptoms: *No microphone signal*, *No speech detected*, or *"…" isn't picking 
 ## The model download fails
 
 - *No internet connection*: Hams needs `huggingface.co` once per model. Check the connection, proxies and
-  firewalls.
+  firewalls. A dropped connection is tried again by itself after 5 and after 20 seconds (*Trying again in 5 s …*)
+  before this message appears.
+- *A protection program or the network is blocking the download*: there is a connection, but a certificate or a
+  proxy stops the download. Hams checks certificates against the Windows certificate store (since 1.3.5), so an
+  antivirus that looks into HTTPS (Avast, Kaspersky, ESET) is usually trusted; a school or company network may still
+  block `huggingface.co`. Another network, such as the phone's hotspot, is the quickest way round. An installed model
+  loads without any connection.
 - *Lots of people are downloading right now* (429) or *The download site has a problem right now* (5xx): the
-  download site is busy or has a fault. Try again in a few minutes.
+  download site is busy or has a fault. Hams tries again by itself twice; otherwise try again in a few minutes.
 - *Not enough disk space — needs …*: the model goes to `%USERPROFILE%\.cache\huggingface\hub`, on the system
   drive. Free up space or choose a smaller model.
 - A cancelled download continues where it stopped when you select the model again. A broken unfinished piece that
   makes the download fail (for example HTTP 416 after an uninstall) is removed by Hams itself, which then starts
   once more from the beginning (since 1.3.5). Leftovers show up under *Downloaded models* as *incomplete* and can be
   deleted there.
-- The number in brackets at the end of a message (*(416)*, *(ValueError)*) is for support: the HTTP status or the
-  type of the error. In the setup assistant, *Create help report* under the failed download writes the diagnostic
-  report and shows it selected in Explorer, ready to send.
+- The code at the end of a message (*(416)*, *(ConnectError)*; in the setup assistant its own grey line *Code 416*)
+  is for support: the HTTP status or the type of the innermost error. In the setup assistant, *Create help report*
+  under the failed download writes the diagnostic report and shows it selected in Explorer, ready to send; *Copy*
+  puts the same report on the clipboard. The report shows your user folder as `%USERPROFILE%`.
 
 ## The model doesn't load
 

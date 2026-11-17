@@ -326,6 +326,12 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Gerade laden sehr viele gleichzeitig. In ein paar Minuten nochmal versuchen.",
     "download.error.server": "Die Download-Seite hat gerade eine Störung. Später nochmal versuchen.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked": (
+        "Ein Schutzprogramm oder das Netzwerk blockiert den Download. "
+        "Bitte ein anderes WLAN probieren, etwa den Handy-Hotspot."
+    ),
+    "download.error.code_note": "Code {code}",
+    "download.retry_in": "Neuer Versuch in {seconds} s …",
     # --- Ollama
     "ollama.unreachable": "Ollama nicht erreichbar",
     "ollama.http_error": "Ollama antwortet mit Fehler {code}",
@@ -393,6 +399,8 @@ MESSAGES: dict[str, str] = {
     "setup.help.running": "Der Bericht wird erstellt …",
     "setup.help.done": "Die Datei „{name}“ ist im Ordner markiert. Schick sie an den Support.",
     "setup.help.failed": "Der Bericht ließ sich nicht speichern. Bitte nochmal versuchen.",
+    "setup.help.copy": "Kopieren",
+    "setup.help.copied": "Der Bericht ist kopiert. Füg ihn in eine Mail oder Nachricht an den Support ein.",
     "setup.welcome.title": "Willkommen",
     "setup.welcome.body": (
         "{product} macht aus Sprache Text, direkt an der Cursorposition. Die Spracherkennung läuft vollständig auf "

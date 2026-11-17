@@ -38,6 +38,8 @@ dependencies = [
     "pystray>=0.19.5",
     "Pillow>=10.0.0",
     "tomlkit>=0.13",
+    # Model downloads check HTTPS against the system certificate store (antivirus and company networks).
+    "truststore>=0.10",
 ]
 
 [project.optional-dependencies]

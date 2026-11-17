@@ -213,7 +213,7 @@ class TestRunTask:
 class TestDescribeError:
     def test_network(self, english):
         error = sw.describe_error(urllib.error.URLError("getaddrinfo failed"))
-        assert error == "No internet connection. Check your internet and try again."
+        assert error == "No internet connection. Check your internet and try again. (URLError)"
 
     def test_disk_full(self, english):
         assert sw.describe_error(OSError(errno.ENOSPC, "voll")) == "The disk is full. Free up some space and try again."
@@ -233,7 +233,7 @@ class TestDescribeError:
             except OSError as cause:
                 raise gpu_support.GpuSupportError("PermissionError: Access is denied") from cause
         except gpu_support.GpuSupportError as wrapped:
-            assert sw.describe_error(wrapped) == "Hams can't save here. Restart Hams and try again."
+            assert sw.describe_error(wrapped) == "Hams can't save here. Restart Hams and try again. (PermissionError)"
 
     def test_a_running_gpu_install_elsewhere(self, english):
         from hams import gpu_support
@@ -376,7 +376,7 @@ class TestGpuDownload:
 
         wizard = controller(install_gpu=install)
         wizard.start_gpu_download(immediate)
-        assert wizard.gpu_task.error == "No internet connection. Check your internet and try again."
+        assert wizard.gpu_task.error == "No internet connection. Check your internet and try again. (URLError)"
 
     def test_a_second_start_while_running_does_nothing(self):
         wizard = controller()

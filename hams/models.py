@@ -285,6 +285,60 @@ def disable_xet_transfer() -> bool:
         return False
 
 
+#: Whether the hub checks HTTPS against the system's certificate store; None until `use_system_certificates` ran.
+_SYSTEM_CERTIFICATES: bool | None = None
+
+
+def use_system_certificates() -> bool:
+    """Lets the hub check HTTPS against the system's certificate store (Windows: the one the browser uses).
+
+    httpx brings its own list (certifi). Antivirus programs that look into HTTPS (Avast, Kaspersky, ESET) and
+    company networks sign the connection with a certificate of their own, which they add to the Windows store
+    only: the browser and Hams' update check (urllib) trusted it, the model download did not, and failed with
+    an SSL error although the internet worked. `truststore` asks the operating system instead.
+
+    Called once before the first model access; later calls return the first answer. Without `truststore` (or
+    with a hub that has no client factory) the hub keeps certifi, as before.
+
+    Returns:
+        True if the system store is used.
+    """
+    global _SYSTEM_CERTIFICATES
+    if _SYSTEM_CERTIFICATES is not None:
+        return _SYSTEM_CERTIFICATES
+    try:
+        import ssl
+
+        import httpx
+        import truststore
+        from huggingface_hub import set_client_factory
+        from huggingface_hub.utils import _http as hub_http
+
+        context = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        # The hub's own request hook (user agent, request id): without it the client would differ in more than
+        # the certificates. Missing in another hub version: keep certifi rather than a half-equal client.
+        hook = hub_http.hf_request_event_hook
+
+        def client_factory() -> httpx.Client:
+            # As `huggingface_hub.utils._http.default_client_factory`, plus `verify`. No timeout there either: the
+            # hub sets its own per request, and a model file takes minutes.
+            return httpx.Client(
+                event_hooks={"request": [hook]},
+                follow_redirects=True,
+                timeout=None,  # noqa: S113 - as the hub's own client, see above
+                verify=context,
+            )
+
+        set_client_factory(client_factory)
+    except Exception:  # noqa: BLE001 - certifi stays: as safe as before, just not as forgiving
+        logger.warning("System certificate store not used for model downloads", exc_info=True)
+        _SYSTEM_CERTIFICATES = False
+    else:
+        logger.info("Model downloads check HTTPS against the system certificate store")
+        _SYSTEM_CERTIFICATES = True
+    return _SYSTEM_CERTIFICATES
+
+
 class ModelDownloader:
     """Laedt genau ein Modell zur Zeit in den Hugging-Face-Cache.
 
@@ -296,6 +350,11 @@ class ModelDownloader:
     SPACE_MARGIN = 1.2
     #: Nicht bei jedem Datenblock melden — ein paar Mal je Sekunde reicht.
     REPORT_INTERVAL = 0.25
+    #: Seconds before each automatic new attempt after trouble that often passes by itself (connection, a busy or
+    #: broken server). Two attempts: a short hiccup and a slightly longer one; after that the user decides.
+    RETRY_DELAYS: tuple[float, ...] = (5, 20)
+    #: The countdown ticks once a second; tests make it faster.
+    WAIT_TICK = 1.0
 
     def __init__(self) -> None:
         self._thread = None
@@ -318,7 +377,7 @@ class ModelDownloader:
             return t("download.no_space", needed=format_bytes(needed), free=format_bytes(free))
         return ""
 
-    def start(self, info: WhisperModelInfo, on_progress, on_finished) -> str:
+    def start(self, info: WhisperModelInfo, on_progress, on_finished, on_wait=None) -> str:
         """Startet den Download. Leerer String heisst: laeuft.
 
         Args:
@@ -326,6 +385,8 @@ class ModelDownloader:
                 `gesamt` waechst noch, solange der Hub Dateien anmeldet.
             on_finished: (model_id, fehlertext) — leerer Text heisst Erfolg,
                 `CANCELLED` heisst Abbruch durch den Nutzer.
+            on_wait: (Sekunden) vor einem automatischen neuen Versuch, jede
+                Sekunde einmal; 0, sobald es weitergeht. Aus dem Download-Thread.
 
         Returns:
             Der Grund, warum nicht gestartet wurde — oder "".
@@ -339,7 +400,7 @@ class ModelDownloader:
         self._cancel = threading.Event()
         self.model_id = info.model_id
         self._thread = threading.Thread(
-            target=self._run, args=(info, on_progress, on_finished), daemon=True, name="model-download"
+            target=self._run, args=(info, on_progress, on_finished, on_wait), daemon=True, name="model-download"
         )
         self._thread.start()
         return ""
@@ -348,8 +409,9 @@ class ModelDownloader:
         if self._cancel is not None:
             self._cancel.set()
 
-    def _run(self, info: WhisperModelInfo, on_progress, on_finished) -> None:
+    def _run(self, info: WhisperModelInfo, on_progress, on_finished, on_wait=None) -> None:
         disable_xet_transfer()  # sonst greift der Abbruch erst nach Minuten
+        use_system_certificates()
         last = [0.0]
 
         def report(done: int, total: int) -> None:
@@ -367,50 +429,87 @@ class ModelDownloader:
                 # "Try again" after a failure a leftover piece can cause: begin from nothing.
                 self._start_clean.discard(info.model_id)
                 remove_partial_downloads(info)
-            error = self._download_healing(info)
+            error = self._download_healing(info, on_wait)
         finally:
             _ProgressBar.cancel_flag = None
             _ProgressBar.report = None
             self.model_id = None
         on_finished(info.model_id, error)
 
-    def _download_healing(self, info: WhisperModelInfo) -> str:
-        """Downloads, and on a failure a broken leftover can cause, clears it and tries once more.
+    def _download_healing(self, info: WhisperModelInfo, on_wait=None) -> str:
+        """Downloads, and repairs on its own what it can before the user hears of it.
 
-        Without this, a leftover `.incomplete` file larger than the real one made every attempt fail the same way
-        (the hub resumes it and the server answers 416), and "Try again" could never help. Network trouble keeps
-        the leftover: the next attempt resumes it.
+        * A failure a broken leftover can cause: the leftover goes and the download starts once more from the
+          beginning. Without this, a leftover `.incomplete` file larger than the real one made every attempt fail
+          the same way (the hub resumes it and the server answers 416), and "Try again" could never help.
+        * Trouble that often passes by itself (connection, a busy or broken server): after `RETRY_DELAYS` seconds,
+          with a countdown through `on_wait`, it tries again. The leftover stays: the next attempt resumes it.
+
+        Only when that did not help does the window show a sentence.
 
         Returns:
             "" on success, `CANCELLED`, or the sentence for the window.
         """
-        for attempt in (1, 2):
+        repaired = False
+        delays = list(self.RETRY_DELAYS)
+        attempt = 0
+        while True:
+            attempt += 1
             try:
                 self._fetch(info)
             except IncompleteDownload:
                 logger.warning("Download of %s finished without %s", info.model_id, MODEL_FILE)
                 return t("download.incomplete")
             except Exception as exc:  # noqa: BLE001 - in Klartext uebersetzen
-                if self._cancel is not None and self._cancel.is_set():
+                if self._cancelled():
                     # Der Abbruch kommt aus einem Arbeitsthread zurueck und ist
                     # unterwegs schon einmal eingepackt worden — die Ursache steht
                     # im Flag, nicht im Ausnahmetyp.
                     logger.info("Download of %s cancelled", info.model_id)
                     return CANCELLED
                 logger.exception("Download of %s failed (attempt %d)", info.model_id, attempt)
-                if not leftover_can_cause(exc):
+                if leftover_can_cause(exc):
+                    if not repaired and remove_partial_downloads(info):
+                        repaired = True
+                        logger.info(
+                            "Download of %s: broken leftover removed, starting again from the beginning", info.model_id
+                        )
+                        continue
+                    self._start_clean.add(info.model_id)
                     return describe_download_error(exc)
-                if attempt == 1 and remove_partial_downloads(info):
-                    logger.info(
-                        "Download of %s: broken leftover removed, starting again from the beginning", info.model_id
-                    )
+                if passes_by_itself(exc) and delays:
+                    if not self._wait(delays.pop(0), on_wait):
+                        logger.info("Download of %s cancelled while waiting for a new attempt", info.model_id)
+                        return CANCELLED
+                    logger.info("Download of %s: trying again", info.model_id)
                     continue
-                self._start_clean.add(info.model_id)
                 return describe_download_error(exc)
             else:
                 logger.info("Download of %s finished", info.model_id)
                 return ""
-        return describe_download_error(RuntimeError("unreachable"))  # pragma: no cover - the loop always returns
+
+    def _cancelled(self) -> bool:
+        return self._cancel is not None and self._cancel.is_set()
+
+    def _wait(self, seconds: float, on_wait) -> bool:
+        """Counts down to a new attempt, once a tick. False if the user cancelled meanwhile.
+
+        Every tick reports the seconds left (`on_wait`), the last one 0: the window then shows progress again.
+        """
+        remaining = max(0, round(seconds))
+        try:
+            while remaining > 0:
+                if on_wait is not None:
+                    on_wait(remaining)
+                if self._cancel is not None and self._cancel.wait(self.WAIT_TICK):
+                    return False
+                if self._cancel is None:
+                    time.sleep(self.WAIT_TICK)
+                remaining -= 1
+            return not self._cancelled()
+        finally:
+            if on_wait is not None:
+                on_wait(0)
 
     @staticmethod
     def _fetch(info: WhisperModelInfo) -> None:
@@ -459,12 +558,29 @@ def describe_download_error(exc: BaseException) -> str:
     daraus machen kann.
     """
     kind = error_kind(exc)
-    if kind in ("permission", "disk_full", "network"):
-        return t(f"download.error.{kind}")
-    # Everything else carries a short number for the support (the HTTP status, else the exception type).
+    if kind == "disk_full":
+        return t("download.error.disk_full")  # says it all; a number would not help anybody
+    # Everything else carries a short number for the support: the HTTP status, else the type of the innermost
+    # exception (`ConnectError`, `SSLCertVerificationError`, `ProxyError`), which tells more than the wrapper.
     status = http_status(exc)
-    code = str(status) if status is not None else type(exc).__name__
+    code = str(status) if status is not None else type(_exception_chain(exc)[-1]).__name__
     return t("download.error.with_code", message=t(f"download.error.{kind}"), code=code)
+
+
+def split_code(text: str) -> tuple[str, str]:
+    """A download sentence and its support number apart: ("…", "416"), or (text, "") without one.
+
+    The window shows the number on its own, quieter than the sentence; it is for the support, not for the user.
+    Relies on the form of ``download.error.with_code`` ("{message} ({code})"), the same in every language.
+    """
+    import re
+
+    # Arabic on Windows: `t()` embeds every stretch in direction marks, the number included.
+    marks = "[‎‏‪-‮⁦-⁩]*"
+    match = re.fullmatch(rf"(.*\S)\s+{marks}\(([A-Za-z0-9_.]+)\){marks}", text or "", flags=re.DOTALL)
+    if match is None:
+        return text, ""
+    return match.group(1), match.group(2)
 
 
 #: Words in an exception that mean: the connection itself is the problem.
@@ -478,45 +594,104 @@ _NETWORK_MARKERS = (
     "unreachable",
     "getaddrinfo",
     "offline",
-    "proxy",
     "ssl",
 )
 
+#: Words that mean: there is a connection, but something in between does not let the download through - an
+#: antivirus that looks into HTTPS, a company proxy, a network filter. Checked before `_NETWORK_MARKERS`.
+_BLOCKED_MARKERS = (
+    "certificate",
+    "cert_verify",
+    "self signed",
+    "self-signed",
+    "local issuer",
+    "proxy",
+)
+
+
+def _exception_chain(exc: BaseException) -> list[BaseException]:
+    """The exception and those it was raised from (`__cause__`, else `__context__`), outermost first.
+
+    The hub wraps the real cause: an `SSLCertVerificationError` arrives as a `LocalEntryNotFoundError` that only
+    says "check your connection".
+    """
+    chain: list[BaseException] = []
+    current: BaseException | None = exc
+    while current is not None and all(current is not seen for seen in chain) and len(chain) < 12:
+        chain.append(current)
+        current = current.__cause__ or current.__context__
+    return chain
+
 
 def http_status(exc: BaseException) -> int | None:
-    """The HTTP status behind a hub error, if there is one (from the response, else from the message)."""
+    """The HTTP status behind a hub error, if there is one (from a response, else from a message, outermost first)."""
     import re
 
-    response = getattr(exc, "response", None)
-    status = getattr(response, "status_code", None)
-    if isinstance(status, int) and 100 <= status <= 599:
-        return status
-    match = re.search(r"(?<![\d.])([45]\d\d)(?:\s+(?:client|server)\s+error|\s+[A-Z][a-z])", str(exc))
-    if match:
-        return int(match.group(1))
-    match = re.search(r"'([45]\d\d) ", str(exc))
-    return int(match.group(1)) if match else None
+    for item in _exception_chain(exc):
+        response = getattr(item, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int) and 100 <= status <= 599:
+            return status
+        match = re.search(r"(?<![\d.])([45]\d\d)(?:\s+(?:client|server)\s+error|\s+[A-Z][a-z])", str(item))
+        if match:
+            return int(match.group(1))
+        match = re.search(r"'([45]\d\d) ", str(item))
+        if match:
+            return int(match.group(1))
+    return None
 
 
 def error_kind(exc: BaseException) -> str:
-    """One word for what went wrong: permission, disk_full, network, server_busy, server, not_found or generic."""
-    text = f"{type(exc).__name__} {exc}".lower()
-    if isinstance(exc, PermissionError):
+    """One word for what went wrong.
+
+    permission, disk_full, blocked (a protection program or the network stops it), network, server_busy, server,
+    not_found or generic.
+    """
+    chain = _exception_chain(exc)
+    text = " ".join(f"{type(item).__name__} {item}" for item in chain).lower()
+    local = _local_kind(chain, text)
+    if local:
+        return local
+    status = http_status(exc)
+    if status is not None:
+        return _status_kind(status, text)
+    return _text_kind(text)
+
+
+def _local_kind(chain: list[BaseException], text: str) -> str:
+    """Trouble on this computer: missing write rights or a full disk; "" if neither."""
+    if any(isinstance(item, PermissionError) for item in chain):
         return "permission"
-    if isinstance(exc, OSError) and getattr(exc, "errno", None) == 28:
+    if any(isinstance(item, OSError) and getattr(item, "errno", None) == 28 for item in chain):
         return "disk_full"
     if "no space" in text or "not enough space" in text or "errno 28" in text:
         return "disk_full"
-    status = http_status(exc)
+    return ""
+
+
+def _status_kind(status: int, text: str) -> str:
+    """The server answered: what its status says."""
     if status == 429:
         return "server_busy"
-    if status is not None and status >= 500:
+    if status >= 500:
         return "server"
-    if status == 404 or "repositorynotfound" in text or "entrynotfound" in text:
+    if status == 407:
+        return "blocked"  # Proxy Authentication Required
+    if status == 404 or "repositorynotfound" in text:
         return "not_found"
-    if status is None and any(marker in text for marker in _NETWORK_MARKERS):
+    return "generic"
+
+
+def _text_kind(text: str) -> str:
+    """No answer from the server: what the exceptions say."""
+    if "repositorynotfound" in text:
+        return "not_found"
+    if any(marker in text for marker in _BLOCKED_MARKERS):
+        return "blocked"
+    # Before "entry not found": offline, the hub reports a missing local entry and names the connection.
+    if any(marker in text for marker in _NETWORK_MARKERS):
         return "network"
-    if status is None and ("404" in text or "not found" in text):
+    if "entrynotfound" in text or "404" in text or "not found" in text:
         return "not_found"
     return "generic"
 
@@ -524,10 +699,20 @@ def error_kind(exc: BaseException) -> str:
 def leftover_can_cause(exc: BaseException) -> bool:
     """Whether a broken unfinished piece in the cache may be behind this failure.
 
-    Not for network trouble (the piece is what lets the next attempt resume), a full disk, missing write rights,
-    a busy or broken server, or a model that does not exist: deleting the piece would not change any of them.
+    Not for network trouble (the piece is what lets the next attempt resume), a blocked connection, a full disk,
+    missing write rights, a busy or broken server, or a model that does not exist: deleting the piece would not
+    change any of them.
     """
     return error_kind(exc) == "generic"
+
+
+def passes_by_itself(exc: BaseException) -> bool:
+    """Whether the same download may well work in a few seconds: a dropped connection, a busy or broken server.
+
+    Not a blocked connection (an antivirus or proxy does not change its mind in 20 seconds), and nothing on this
+    computer.
+    """
+    return error_kind(exc) in ("network", "server_busy", "server")
 
 
 #: Former name, kept for callers outside the package.

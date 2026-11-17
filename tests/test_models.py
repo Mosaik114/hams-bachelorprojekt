@@ -149,7 +149,7 @@ class FakeDownloader:
     def __init__(self):
         self.model_id, self.active, self.started = None, False, []
 
-    def start(self, info, on_progress, on_finished):
+    def start(self, info, on_progress, on_finished, on_wait=None):
         self.started.append(info.model_id)
         self.model_id, self.active = info.model_id, True
         return ""

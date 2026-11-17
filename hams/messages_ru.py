@@ -323,6 +323,11 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Сейчас скачивают очень многие. Попробуйте через несколько минут.",
     "download.error.server": "На сайте загрузки сейчас сбой. Попробуйте позже.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked": (
+        "Защитная программа или сеть блокирует загрузку. Попробуйте другую сеть Wi-Fi, например точку доступа телефона."
+    ),
+    "download.error.code_note": "Код {code}",
+    "download.retry_in": "Новая попытка через {seconds} с …",
     # --- Ollama
     "ollama.unreachable": "Нет связи с Ollama",
     "ollama.http_error": "Ollama: ошибка {code}",
@@ -389,6 +394,8 @@ MESSAGES: dict[str, str] = {
     "setup.help.running": "Отчёт создаётся …",
     "setup.help.done": "Файл «{name}» выделен в папке. Отправьте его в поддержку.",
     "setup.help.failed": "Не удалось сохранить отчёт. Попробуйте ещё раз.",
+    "setup.help.copy": "Копировать",
+    "setup.help.copied": "Отчёт скопирован. Вставьте его в письмо или сообщение для поддержки.",
     "setup.welcome.title": "Добро пожаловать",
     "setup.welcome.body": (
         "{product} превращает вашу речь в текст прямо там, где стоит курсор. Распознавание речи работает "

@@ -33,7 +33,7 @@ class FakeDownloader:
         self.active = False
         self.cancelled = False
 
-    def start(self, info, on_progress, on_finished):
+    def start(self, info, on_progress, on_finished, on_wait=None):
         if self.problem:
             return self.problem
         self.model_id, self.active = info.model_id, True
@@ -338,6 +338,84 @@ class TestModel:
         assert help_row.row.sub_text == "Schick den Hilfe-Bericht an den Support."
         # One main button: "Try again" stays in the row itself.
         assert win.model_row.row._control is win.model_row.button
+        assert help_row.copy_button is not None and help_row.copy_button.cget("text") == "Kopieren"
+
+    def test_the_support_code_stands_apart_and_quiet(self, wizard, live_app):
+        """The sentence is for the user, the code for the support: its own line, in the quietest text colour."""
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished(
+            "small", "Der Download hat nicht geklappt. Bitte nochmal versuchen. (416)"
+        )
+        live_app.root.update()
+        row = win.model_row.row
+        assert status(row) == ("error", "Der Download hat nicht geklappt. Bitte nochmal versuchen.")
+        assert row.note_text == "Code 416"
+        assert row.note_label.cget("fg") == uk.Theme.TEXT_DISABLED
+        # Without a code there is no second line.
+        live_app.models._on_download_finished("small", "Die Festplatte ist voll")
+        win.model_task.fail("Die Festplatte ist voll")
+        win._after_task_change()
+        live_app.root.update()
+        assert row.note_text == ""
+
+    def test_a_new_attempt_counts_down_in_the_row(self, wizard, live_app):
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models._on_download_wait(5)
+        live_app.root.update()
+        assert status(win.model_row.row) == ("processing", "Neuer Versuch in 5 s …")
+        live_app.models._on_download_wait(0)
+        live_app.models._on_download_progress(10, 100)
+        live_app.root.update()
+        assert status(win.model_row.row)[1] != "Neuer Versuch in 5 s …"
+
+    def test_copy_puts_the_report_on_the_clipboard(self, wizard, live_app, monkeypatch, tmp_path):
+        import pyperclip
+
+        report = tmp_path / "hams-report.txt"
+        report.write_text("Hams 1.3.5 diagnostic report", encoding="utf-8")
+        copied, shown = [], []
+        monkeypatch.setattr(window_mod.support, "write_report", lambda: (report, 0))
+        monkeypatch.setattr(window_mod.support, "reveal_file", shown.append)
+        monkeypatch.setattr(pyperclip, "copy", copied.append)
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("small", "Fehler")
+        live_app.root.update()
+        win.model_row.help_row.copy_button._invoke()
+        live_app.root.update()
+        assert copied == ["Hams 1.3.5 diagnostic report"]
+        assert shown == []  # copying opens no folder
+        assert win.model_row.help_row.row.sub_text == (
+            "Der Bericht ist kopiert. Füg ihn in eine Mail oder Nachricht an den Support ein."
+        )
+
+    def test_a_busy_clipboard_says_so(self, wizard, live_app, monkeypatch, tmp_path):
+        import pyperclip
+
+        report = tmp_path / "hams-report.txt"
+        report.write_text("x", encoding="utf-8")
+
+        def busy(_text):
+            raise pyperclip.PyperclipException("clipboard busy")
+
+        monkeypatch.setattr(window_mod.support, "write_report", lambda: (report, 0))
+        monkeypatch.setattr(pyperclip, "copy", busy)
+        win = wizard()
+        go_to(win, "model")
+        win._start_model_download()
+        live_app.models.downloader.active = False
+        live_app.models._on_download_finished("small", "Fehler")
+        live_app.root.update()
+        win.model_row.help_row.copy_button._invoke()
+        live_app.root.update()
+        assert win.model_row.help_row.row.sub_text == "Der Bericht ließ sich nicht speichern. Bitte nochmal versuchen."
 
     def test_the_help_report_is_written_and_shown_in_its_folder(self, wizard, live_app, monkeypatch, tmp_path):
         report = tmp_path / "hams-report.txt"

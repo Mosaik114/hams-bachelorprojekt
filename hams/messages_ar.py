@@ -319,6 +319,9 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "كثيرون يقومون بالتنزيل الآن. حاول مرة أخرى بعد بضع دقائق.",
     "download.error.server": "يواجه موقع التنزيل مشكلة الآن. حاول لاحقًا.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked": "برنامج حماية أو الشبكة يمنع التنزيل. جرّب شبكة واي فاي أخرى، مثل نقطة اتصال الهاتف.",
+    "download.error.code_note": "الرمز {code}",
+    "download.retry_in": "محاولة جديدة خلال {seconds} ث …",
     # --- Ollama
     "ollama.unreachable": "يتعذر الوصول إلى Ollama",
     "ollama.http_error": "أعاد Ollama الخطأ {code}",
@@ -383,6 +386,8 @@ MESSAGES: dict[str, str] = {
     "setup.help.running": "جارٍ إنشاء التقرير …",
     "setup.help.done": "الملف «{name}» محدد في مجلده. أرسله إلى الدعم.",
     "setup.help.failed": "تعذّر حفظ التقرير. حاول مرة أخرى.",
+    "setup.help.copy": "نسخ",
+    "setup.help.copied": "تم نسخ التقرير. الصقه في بريد أو رسالة إلى الدعم.",
     "setup.welcome.title": "مرحبًا",
     "setup.welcome.body": (
         "يحوّل {product} كلامك إلى نص في موضع المؤشر مباشرة. ويعمل التعرف على الكلام بالكامل على هذا "

@@ -327,6 +327,12 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Şu anda çok kişi indiriyor. Birkaç dakika sonra tekrar deneyin.",
     "download.error.server": "İndirme sitesinde şu anda bir sorun var. Daha sonra tekrar deneyin.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked": (
+        "Bir koruma programı veya ağ indirmeyi engelliyor. "
+        "Lütfen başka bir Wi-Fi deneyin, örneğin telefonun hotspot'unu."
+    ),
+    "download.error.code_note": "Kod {code}",
+    "download.retry_in": "{seconds} sn sonra yeniden denenecek …",
     # --- Ollama
     "ollama.unreachable": "Ollama'ya ulaşılamıyor",
     "ollama.http_error": "Ollama {code} hatası döndürdü",
@@ -393,6 +399,8 @@ MESSAGES: dict[str, str] = {
     "setup.help.running": "Rapor oluşturuluyor …",
     "setup.help.done": "“{name}” dosyası klasöründe seçili. Onu desteğe gönderin.",
     "setup.help.failed": "Rapor kaydedilemedi. Lütfen tekrar deneyin.",
+    "setup.help.copy": "Kopyala",
+    "setup.help.copied": "Rapor kopyalandı. Desteğe gönderdiğiniz bir e-postaya veya mesaja yapıştırın.",
     "setup.welcome.title": "Hoş geldiniz",
     "setup.welcome.body": (
         "{product}, konuşmanızı tam imlecin olduğu yerde metne dönüştürür. Konuşma tanıma tamamen bu bilgisayarda "

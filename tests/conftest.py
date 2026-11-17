@@ -145,6 +145,31 @@ def no_repair_in_the_real_cache(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(whisper_models, "cache_root", lambda: root)
 
 
+@pytest.fixture(autouse=True)
+def no_waiting_for_a_new_download_attempt(monkeypatch):
+    """A failed download tries again by itself after 5 and 20 s; tests of that set their own, short delays.
+
+    Elsewhere a failure ends at once, as before the automatic attempts, so no test waits half a minute.
+    """
+    from hams import models as whisper_models
+
+    monkeypatch.setattr(whisper_models.ModelDownloader, "RETRY_DELAYS", ())
+
+
+@pytest.fixture(autouse=True)
+def hub_client_untouched(monkeypatch):
+    """`use_system_certificates` sets the hub's HTTP client for the whole process: per test, from scratch."""
+    from hams import models as whisper_models
+
+    monkeypatch.setattr(whisper_models, "_SYSTEM_CERTIFICATES", None)
+    try:
+        from huggingface_hub.utils import _http as hub_http
+    except ImportError:  # pragma: no cover - the hub belongs to faster-whisper
+        return
+    monkeypatch.setattr(hub_http, "_GLOBAL_CLIENT_FACTORY", hub_http._GLOBAL_CLIENT_FACTORY)
+    monkeypatch.setattr(hub_http, "_GLOBAL_CLIENT", hub_http._GLOBAL_CLIENT)
+
+
 @pytest.fixture
 def model_cache_check(monkeypatch):
     """The real check against the cache; `installed` is the set of cached models the test pretends."""

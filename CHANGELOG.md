@@ -13,15 +13,32 @@ follow [Semantic Versioning](https://semver.org/).
   help: the download resumed the piece and the server refused it (HTTP 416). Now Hams removes that piece by itself
   and starts once more from the beginning; the user only sees normal progress. Network trouble still keeps the
   piece, so the next attempt resumes it. After such a failure, *Try again* starts clean.
+- **Model downloads work behind antivirus programs and company networks that look into HTTPS.** Avast, Kaspersky,
+  ESET or a company proxy sign the connection with a certificate of their own, which only the Windows certificate
+  store knows. The update check trusted it, the model download (its own certificate list, certifi) did not, and
+  failed although the internet worked. Model downloads now check against the Windows store too (`truststore`, a
+  new dependency); certificates are still checked, never switched off.
+- **An installed model loads without internet.** faster-whisper asked the model server at every start, even with
+  the model on the disk; behind a broken proxy the model then never loaded. Hams now loads an installed model from
+  the disk alone and only asks the server if that fails.
 
 ### Changed
 - **Download messages in everyday words:** each says what is wrong and what to do now ("No internet connection.
   Check your internet and try again."). New messages for a busy download site (HTTP 429, *try again in a few
-  minutes*) and for a fault there (HTTP 5xx). Unexplained failures end with a small number in brackets, the HTTP
-  status or the error type, for support.
+  minutes*), for a fault there (HTTP 5xx), and for a download that a protection program or the network blocks
+  (a certificate or proxy problem, *try another Wi-Fi such as the phone's hotspot*), which used to say "No
+  internet connection". Every failure but a full disk carries a short code for support (the HTTP status or the
+  innermost error type); the setup assistant shows it as its own quiet line under the sentence.
+- **A dropped connection or a busy download site is tried again by itself:** after 5 and after 20 seconds, with
+  a visible countdown ("Trying again in 5 s …") in the setup assistant, the settings and the main window. Cancel
+  works during the countdown. Only when that did not help does the message appear. A blocked connection is not
+  tried again: an antivirus does not change its mind in 20 seconds.
 - **Help report in the setup assistant:** under a failed download (Whisper model, GPU libraries, Ollama model)
-  the assistant offers *Create help report*. It writes the same diagnostic report as *Settings → Info & help*
-  and shows the file selected in Explorer, ready to send. *Try again* stays the main button.
+  the assistant offers *Create help report*, which writes the same diagnostic report as *Settings → Info & help*
+  and shows the file selected in Explorer, and *Copy*, which puts the report on the clipboard to paste into a mail
+  or a chat. *Try again* stays the main button.
+- **The diagnostic report names no account:** the user's own folder (`C:\Users\<name>`) appears as
+  `%USERPROFILE%`, since the report is meant to be sent.
 
 ## [1.3.4] – 2026-11-17
 

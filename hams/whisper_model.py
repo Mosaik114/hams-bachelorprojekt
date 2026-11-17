@@ -32,6 +32,46 @@ def usable_devices(priority) -> tuple[str, ...]:
     return tuple(priority)
 
 
+def _installed_here(manager, model_id: str) -> bool:
+    """Whether `model_id` lies complete in the cache, as far as the manager knows; False if it cannot tell."""
+    installed = getattr(manager, "installed_models", None)
+    if not callable(installed):
+        return False
+    try:
+        return model_id in installed()
+    except Exception:  # noqa: BLE001 - not knowing means the normal way, never a failed load
+        logger.warning("Could not tell whether %s is installed", model_id, exc_info=True)
+        return False
+
+
+def _load_on_devices(model_id: str, *, local: bool) -> tuple:
+    """One pass over the devices and compute types. `local`: from the disk only, no question to the server.
+
+    Returns:
+        (model, device, compute type) or (None, None, error text).
+    """
+    errors: list[str] = []
+    # Only when needed: test doubles and older faster-whisper versions know no `local_files_only`.
+    options = {"local_files_only": True} if local else {}
+    for device in usable_devices(CFG.model_device_priority):
+        for compute_type in COMPUTE_PRIORITY.get(device, ()):
+            try:
+                logger.info(
+                    "Loading Whisper model %s on %s/%s%s",
+                    model_id,
+                    device,
+                    compute_type,
+                    " (disk only)" if local else "",
+                )
+                model = WhisperModel(model_id, device=device, compute_type=compute_type, **options)
+                logger.info("Model ready (%s/%s)", device, compute_type)
+                return model, device, compute_type
+            except Exception as exc:  # noqa: BLE001 - try the next device or compute type
+                errors.append(f"{device}/{compute_type}: {exc}")
+                logger.warning("Model load failed: %s", errors[-1])
+    return None, None, " | ".join(errors)
+
+
 #: How long a finished recording waits for the model before it gives up. Warm it is there after ~2 s, cold after
 #: ~20 s; the limit is generous, but it exists, so no thread hangs forever.
 MODEL_WAIT_SECONDS = 120.0
@@ -94,7 +134,10 @@ class ModelManager:
         self.downloader = whisper_models.ModelDownloader()
         # Before the first model access; the switch holds for the whole process.
         whisper_models.disable_xet_transfer()
+        whisper_models.use_system_certificates()
         self.download_done = 0
+        #: Seconds until the download tries again by itself after a dropped connection or a busy server, else 0.
+        self.retry_in = 0
         self.download_total = 0
         #: The hub reports the total size bit by bit; without this floor the percentage would run backwards.
         self.download_percent = 0
@@ -215,21 +258,20 @@ class ModelManager:
     def _build_model(self, model_id: str) -> tuple:
         """Loads a model through the configured devices and compute types.
 
+        An installed model loads from the disk alone (`local_files_only`): faster-whisper otherwise asks the
+        model server first at every start, and behind a broken proxy or without internet the model on the disk
+        never loaded. If that fails all the same (a cache that lies about itself), the load runs once more the
+        normal way.
+
         Returns:
             (model, device, compute type) or (None, None, error text).
         """
-        errors: list[str] = []
-        for device in usable_devices(CFG.model_device_priority):
-            for compute_type in COMPUTE_PRIORITY.get(device, ()):
-                try:
-                    logger.info("Loading Whisper model %s on %s/%s", model_id, device, compute_type)
-                    model = WhisperModel(model_id, device=device, compute_type=compute_type)
-                    logger.info("Model ready (%s/%s)", device, compute_type)
-                    return model, device, compute_type
-                except Exception as exc:  # noqa: BLE001 - try the next device or compute type
-                    errors.append(f"{device}/{compute_type}: {exc}")
-                    logger.warning("Model load failed: %s", errors[-1])
-        return None, None, " | ".join(errors)
+        local = _installed_here(self, model_id)
+        model, device, info = _load_on_devices(model_id, local=local)
+        if model is None and local:
+            logger.warning("Loading %s from the disk alone failed; trying once more with the model server", model_id)
+            model, device, info = _load_on_devices(model_id, local=False)
+        return model, device, info
 
     def _switch_worker(self, model_id: str, generation: int, persist: bool = True) -> None:
         """Loads in the background, after a running transcription and an older load.
@@ -330,8 +372,11 @@ class ModelManager:
         self.download_done = 0
         self.download_total = info.size_bytes
         self.download_percent = 0
+        self.retry_in = 0
         self._download_generation = self._generation
-        problem = self.downloader.start(info, self._on_download_progress, self._on_download_finished)
+        problem = self.downloader.start(
+            info, self._on_download_progress, self._on_download_finished, self._on_download_wait
+        )
         if problem:
             logger.info("Download of %s not started: %s", model_id, problem)
         else:
@@ -365,8 +410,14 @@ class ModelManager:
             self.download_percent = max(self.download_percent, min(99, share))
         self._post(self.events.download_progress)
 
+    def _on_download_wait(self, seconds: int) -> None:
+        """On the download thread: the countdown to a new attempt; the windows read `retry_in` with the progress."""
+        self.retry_in = max(0, int(seconds))
+        self._post(self.events.download_progress)
+
     def _on_download_finished(self, model_id: str, error: str) -> None:
         """On the download thread."""
+        self.retry_in = 0
         if not error:
             self.download_percent = 100
 

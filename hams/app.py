@@ -779,6 +779,10 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         model_id = self.models.load_after_download
         if model_id is None or self._state != "model_loading":
             return  # a recording or an error comes first; the next progress shows up again
+        retry_in = getattr(self.models, "retry_in", 0)
+        if retry_in:
+            self.status_label.config(text=t("download.retry_in", seconds=retry_in))
+            return
         info = whisper_models.find(model_id)
         label = info.label if info else model_id
         self.status_label.config(text=t("status.model_downloading", model=label, percent=self.models.download_percent))

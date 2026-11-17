@@ -123,6 +123,21 @@ class SettingRow(tk.Frame):
                 pady=0,
             )
             self.sub_label.pack(side=mirror_side("left"), fill="x")
+        #: Status only: a quiet line under the text (a support code); packed only while it has text.
+        self.note_label: tk.Label | None = None
+        if variant == "status":
+            self.note_label = tk.Label(
+                self._text_box,
+                text="",
+                bg=Theme.GROUP_SURFACE,
+                fg=Theme.TEXT_DISABLED,
+                font=font("description"),
+                anchor=mirror_anchor("w"),
+                justify=text_justify(),
+                bd=0,
+                padx=0,
+                pady=0,
+            )
 
     def _build_value(self, value: str, variant: str) -> None:
         """`display`: der Wert rechts statt eines Controls."""
@@ -247,6 +262,9 @@ class SettingRow(tk.Frame):
         wrap = max(1, width - used)
         if int(str(self.sub_label.cget("wraplength")) or 0) != wrap:
             self.sub_label.configure(wraplength=wrap)
+        if self.note_label is not None and int(str(self.note_label.cget("wraplength")) or 0) != wrap:
+            # A long code ("SSLCertVerificationError") breaks onto a second line instead of being cut off.
+            self.note_label.configure(wraplength=wrap)
         if self.sub_label.cget("text") != self._sub_text:
             self.sub_label.configure(text=self._sub_text)
 
@@ -255,11 +273,31 @@ class SettingRow(tk.Frame):
         """Die vollständige Unterzeile, unabhängig vom Umbruch."""
         return self._sub_text
 
-    def set_status(self, status: str, text: str) -> None:
+    def set_status(self, status: str, text: str, note: str = "") -> None:
+        """Status dot and text; `note` is a quiet second line under the text (a support code), "" hides it."""
         if self.status_dot is not None:
             self.status_dot.set_status(status)
         self._sub_text = text
+        self._show_note(note)
         self._refit()
+
+    def _show_note(self, note: str) -> None:
+        if self.note_label is None:
+            return
+        if not note:
+            self.note_label.pack_forget()
+            return
+        self.note_label.configure(text=note)
+        # Under the text, not under the dot: the same left edge as the sentence it belongs to.
+        indent = px(StatusDot.SIZE_ROW) + px(Space.ICON_GAP)
+        self.note_label.pack(anchor=mirror_anchor("w"), padx=mirror_pad((indent, 0)), after=self.sub_box)
+
+    @property
+    def note_text(self) -> str:
+        """The quiet line under the status, "" when hidden."""
+        if self.note_label is None or not self.note_label.winfo_manager():
+            return ""
+        return str(self.note_label.cget("text"))
 
     def set_title(self, text: str) -> None:
         """Ein neuer Titel (eine Zeile, die ihren Zustand wechselt, etwa „Updates“ → „Update verfügbar“)."""
@@ -283,6 +321,8 @@ class SettingRow(tk.Frame):
             # Ein Status („Ollama erreichbar“) ist Auskunft, keine Bedienung: er bleibt lesbar wie er ist.
             informs = self.status_dot is not None
             self.sub_label.configure(fg=Theme.TEXT_TERTIARY if enabled or informs else Theme.TEXT_DISABLED)
+        if self.note_label is not None:
+            self.note_label.configure(fg=Theme.TEXT_DISABLED)  # always the quietest text: for the support
         if self.value_label is not None:
             self.value_label.configure(fg=Theme.TEXT_SECONDARY if enabled else Theme.TEXT_DISABLED)
         if self._control is not None and hasattr(self._control, "set_enabled"):
@@ -300,7 +340,15 @@ class SettingRow(tk.Frame):
 
     def _paint(self, colour: str) -> None:
         self._round_corners(colour)
-        for widget in (self._line, self._text_box, self.title_label, self.sub_box, self.sub_label, self.value_label):
+        for widget in (
+            self._line,
+            self._text_box,
+            self.title_label,
+            self.sub_box,
+            self.sub_label,
+            self.note_label,
+            self.value_label,
+        ):
             if widget is not None:
                 # Tk-Kinder erben keinen Hintergrund; jedes muss einzeln gesetzt
                 # werden, sonst bleiben Textkästchen in der alten Farbe stehen.
@@ -408,6 +456,10 @@ class SettingRow(tk.Frame):
             self.title_label.configure(font=font("row_title"))
             if self.sub_label is not None:
                 self.sub_label.configure(font=font("description"))
+            if self.note_label is not None:
+                self.note_label.configure(font=font("description"))
+                if self.note_label.winfo_manager():
+                    self._show_note(str(self.note_label.cget("text")))
             if self.value_label is not None:
                 self.value_label.configure(font=font("row_title"))
             self._refit()

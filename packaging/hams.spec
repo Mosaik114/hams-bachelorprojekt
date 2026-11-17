@@ -47,6 +47,9 @@ hiddenimports = [
 hiddenimports += ["pystray._win32"]
 # Imported at module level by hams.config_toml, so the analysis finds it anyway; listed so it is never dropped.
 hiddenimports += collect_submodules("tomlkit")
+# Imported inside a function (hams.models.use_system_certificates); listed so the Windows certificate store is
+# never silently missing from the frozen app, which would bring back certifi's own list.
+hiddenimports += collect_submodules("truststore")
 
 excludes = [
     "torch",

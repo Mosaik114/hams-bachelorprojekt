@@ -1,5 +1,6 @@
 """Hilfe in der App: Doku-Links, Log-Ordner, Diagnosebericht (support.py, settings_about.py, Tray)."""
 
+import sys
 from datetime import datetime
 from types import SimpleNamespace
 
@@ -123,6 +124,37 @@ class TestReport:
         _path, failures = support.write_report(target, checks=(("one", ok_check),))
         assert failures == 0
         assert "--- last 0 lines of hams.log ---" in target.read_text(encoding="utf-8")
+
+    def test_the_report_names_no_account(self, monkeypatch, tmp_path):
+        """The report is meant to be sent: C:\\Users\\<name> becomes %USERPROFILE%."""
+        home = tmp_path / "Anna Beispiel"
+        logs = tmp_path / "logs"
+        logs.mkdir()
+        (logs / "hams.log").write_text(f"User configuration {home}\\AppData\\Roaming\\Hams\\config.toml\n", "utf-8")
+        monkeypatch.setattr(support, "LOG_DIR", logs)
+        monkeypatch.setattr(support.Path, "home", classmethod(lambda cls: home))
+        target = tmp_path / "report.txt"
+        support.write_report(target, checks=(("one", ok_check),))
+        text = target.read_text(encoding="utf-8")
+        assert "Anna Beispiel" not in text
+        stand_in = "%USERPROFILE%" if sys.platform == "win32" else "~"
+        assert f"{stand_in}\\AppData\\Roaming\\Hams\\config.toml" in text
+
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("C:\\Users\\anna\\AppData\\x", "%USERPROFILE%\\AppData\\x"),
+            ("c:/users/ANNA/.cache/huggingface", "%USERPROFILE%/.cache/huggingface"),
+            ("C:\\Users\\anna", "%USERPROFILE%"),
+            ("C:\\Users\\annabelle\\x", "C:\\Users\\annabelle\\x"),  # someone else, not a prefix match
+            ("nothing here", "nothing here"),
+        ],
+    )
+    def test_the_home_folder_is_replaced_in_any_spelling(self, text, expected):
+        assert support.redact_home(text, home="C:\\Users\\anna") == expected
+
+    def test_a_too_short_home_changes_nothing(self):
+        assert support.redact_home("C:\\Windows", home="C:\\") == "C:\\Windows"
 
     def test_the_default_runs_the_in_app_checks(self, monkeypatch, tmp_path):
         monkeypatch.setenv("HAMS_DATA_DIR", str(tmp_path))

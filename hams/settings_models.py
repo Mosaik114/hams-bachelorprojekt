@@ -464,6 +464,11 @@ class TranscriptionSection(Section):
     def on_download_progress(self, done: int, total: int, percent: int) -> None:
         if not self.alive() or not self.downloading:
             return
+        retry_in = getattr(self.app.models, "retry_in", 0)
+        if retry_in:
+            # A dropped connection: the download tries again by itself, and says so.
+            self.row_model.set_description(t("download.retry_in", seconds=retry_in))
+            return
         info = whisper_models.find(self.downloading)
         label = info.label if info else self.downloading
         self.row_model.set_description(download_text(label, done, total, percent))

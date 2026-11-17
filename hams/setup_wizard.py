@@ -129,6 +129,8 @@ class Task:
         self.total = 0
         self.stage = ""
         self.error = ""
+        #: Seconds until the download tries again by itself (a dropped connection), else 0.
+        self.retry_in = 0
         self.cancel_event = threading.Event()
 
     @property
@@ -147,6 +149,7 @@ class Task:
     def begin(self, total: int = 0) -> None:
         self.state = RUNNING
         self.done, self.total, self.stage, self.error = 0, total, "", ""
+        self.retry_in = 0
         self.cancel_event = threading.Event()
 
     def advance(self, done: int, total: int, stage: str = "") -> None:
@@ -155,17 +158,24 @@ class Task:
         self.done, self.stage = done, stage
         self.total = total or self.total
 
+    def wait(self, seconds: int) -> None:
+        """The download waits `seconds` before it tries again by itself; 0 when it goes on."""
+        self.retry_in = max(0, int(seconds)) if self.state == RUNNING else 0
+
     def succeed(self) -> None:
         self.state = DONE
         self.error = ""
+        self.retry_in = 0
 
     def fail(self, message: str) -> None:
         self.state = FAILED
         self.error = message
+        self.retry_in = 0
 
     def cancelled(self) -> None:
         self.state = CANCELLED
         self.error = ""
+        self.retry_in = 0
 
     def cancel(self) -> None:
         self.cancel_event.set()
@@ -184,6 +194,8 @@ class TaskView:
 def running_text(task: Task) -> str:
     from hams.models import format_progress
 
+    if task.retry_in > 0:
+        return t("download.retry_in", seconds=task.retry_in)
     if task.total <= 0:
         return t("setup.task.starting")
     if task.stage == "extract":

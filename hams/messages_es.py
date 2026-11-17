@@ -329,6 +329,12 @@ MESSAGES: dict[str, str] = {
     "download.error.server_busy": "Ahora mismo hay muchas descargas. Vuelve a intentarlo en unos minutos.",
     "download.error.server": "El sitio de descargas tiene un problema. Vuelve a intentarlo más tarde.",
     "download.error.with_code": "{message} ({code})",
+    "download.error.blocked": (
+        "Un programa de protección o la red bloquea la descarga. "
+        "Prueba otra red wifi, por ejemplo el punto de acceso del móvil."
+    ),
+    "download.error.code_note": "Código {code}",
+    "download.retry_in": "Nuevo intento en {seconds} s …",
     # --- Ollama
     "ollama.unreachable": "Ollama no está disponible",
     "ollama.http_error": "Ollama devolvió el error {code}",
@@ -395,6 +401,8 @@ MESSAGES: dict[str, str] = {
     "setup.help.running": "Creando el informe …",
     "setup.help.done": "El archivo «{name}» está marcado en su carpeta. Envíalo al soporte.",
     "setup.help.failed": "No se pudo guardar el informe. Vuelve a intentarlo.",
+    "setup.help.copy": "Copiar",
+    "setup.help.copied": "El informe está copiado. Pégalo en un correo o mensaje para el soporte.",
     "setup.welcome.title": "Te damos la bienvenida",
     "setup.welcome.body": (
         "{product} convierte tu voz en texto justo donde está el cursor. El reconocimiento de voz se ejecuta por "

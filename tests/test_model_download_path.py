@@ -20,7 +20,7 @@ class FakeDownloader:
         self.active = False
         self.started = []
 
-    def start(self, info, on_progress, on_finished):
+    def start(self, info, on_progress, on_finished, on_wait=None):
         if self.problem:
             return self.problem
         self.started.append(info.model_id)

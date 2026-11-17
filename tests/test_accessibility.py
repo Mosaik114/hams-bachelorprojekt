@@ -428,8 +428,10 @@ class TestGreyscale:
     def test_every_status_dot_has_a_text_beside_it(self):
         """`set_status` verlangt immer beides - ohne Text laesst er sich nicht rufen."""
         parameter = inspect.signature(uk.SettingRow.set_status).parameters
-        assert list(parameter)[1:] == ["status", "text"]
+        assert list(parameter)[1:3] == ["status", "text"]
         assert parameter["text"].default is inspect.Parameter.empty, "SettingRow.set_status muss Text mitfuehren"
+        # Anything after the text (the quiet support code) is optional and never replaces it.
+        assert all(parameter[name].default is not inspect.Parameter.empty for name in list(parameter)[3:])
 
     def test_a_download_shows_numbers_not_only_a_bar(self):
         from hams.settings_models import download_text

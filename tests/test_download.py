@@ -259,14 +259,14 @@ class TestDownloader:
             raise ConnectionError("Failed to resolve huggingface.co")
 
         _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
-        assert finished == [("tiny", "Keine Internetverbindung. Internet prüfen und nochmal versuchen.")]
+        assert finished == [("tiny", f"{NETWORK} (ConnectionError)")]
 
     def test_write_error_is_translated(self, monkeypatch):
         def behaviour(_bar_class):
             raise PermissionError("Zugriff verweigert")
 
         _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
-        assert finished == [("tiny", "Hams darf hier nicht speichern. Bitte Hams neu starten und nochmal versuchen.")]
+        assert finished == [("tiny", f"{PERMISSION} (PermissionError)")]
 
     def test_full_disk_is_translated(self, monkeypatch):
         def behaviour(_bar_class):
@@ -301,6 +301,12 @@ class TestDownloader:
 
 NETWORK = "Keine Internetverbindung. Internet prüfen und nochmal versuchen."
 GENERIC = "Der Download hat nicht geklappt. Bitte nochmal versuchen."
+PERMISSION = "Hams darf hier nicht speichern. Bitte Hams neu starten und nochmal versuchen."
+DISK_FULL = "Die Festplatte ist voll. Etwas Platz freimachen und nochmal versuchen."
+BLOCKED = (
+    "Ein Schutzprogramm oder das Netzwerk blockiert den Download. Bitte ein anderes WLAN probieren, etwa den "
+    "Handy-Hotspot."
+)
 
 
 class HubError(Exception):
@@ -315,13 +321,17 @@ class TestErrorTexts:
     @pytest.mark.parametrize(
         "exc,expected",
         [
-            (ConnectionError("connection reset"), NETWORK),
-            (TimeoutError("Read timed out"), NETWORK),
-            (OSError("getaddrinfo failed"), NETWORK),
+            (ConnectionError("connection reset"), f"{NETWORK} (ConnectionError)"),
+            (TimeoutError("Read timed out"), f"{NETWORK} (TimeoutError)"),
+            (OSError("getaddrinfo failed"), f"{NETWORK} (OSError)"),
+            (PermissionError("denied"), f"{PERMISSION} (PermissionError)"),
+            (OSError(28, "No space left on device"), DISK_FULL),  # says it all: no number
             (
-                PermissionError("denied"),
-                "Hams darf hier nicht speichern. Bitte Hams neu starten und nochmal versuchen.",
+                ConnectionError("[SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate"),
+                f"{BLOCKED} (ConnectionError)",
             ),
+            (ConnectionError("Unable to connect to proxy"), f"{BLOCKED} (ConnectionError)"),
+            (HubError(407), f"{BLOCKED} (407)"),
             (ValueError("404 Client Error"), "Dieses Modell gibt es gerade nicht. Bitte ein anderes wählen. (404)"),
             (RuntimeError("irgendwas"), f"{GENERIC} (RuntimeError)"),
             (HubError(416, "Client error '416 Range Not Satisfiable'"), f"{GENERIC} (416)"),
@@ -361,6 +371,222 @@ class TestErrorTexts:
     )
     def test_only_unexplained_failures_blame_a_leftover(self, exc, expected):
         assert models.leftover_can_cause(exc) is expected
+
+    @staticmethod
+    def wrapped(inner: BaseException, outer: BaseException) -> BaseException:
+        """`outer` raised from `inner`, the way the hub wraps the real cause."""
+        try:
+            try:
+                raise inner
+            except BaseException as cause:
+                raise outer from cause
+        except BaseException as exc:  # noqa: BLE001 - the test wants the chained exception
+            return exc
+
+    def test_a_certificate_problem_behind_the_hubs_wrapper_is_named(self):
+        """Offline-looking on the outside ("check your connection"), an antivirus certificate on the inside."""
+        import ssl
+
+        inner = ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] unable to get local issuer")
+        outer = RuntimeError("LocalEntryNotFoundError: cannot find the requested files. Check your connection.")
+        exc = self.wrapped(inner, outer)
+        assert models.error_kind(exc) == "blocked"
+        assert models.describe_download_error(exc) == f"{BLOCKED} (SSLCertVerificationError)"
+
+    def test_offline_the_innermost_cause_is_the_code(self):
+        exc = self.wrapped(
+            OSError("[Errno 11001] getaddrinfo failed"), RuntimeError("entry not found, check connection")
+        )
+        assert models.error_kind(exc) == "network"  # not "not found": the connection is the problem
+        assert models.describe_download_error(exc) == f"{NETWORK} (OSError)"
+
+    def test_a_dropped_tls_connection_is_network_trouble_not_a_block(self):
+        """ "ssl" alone (an EOF in _ssl.c) passes by itself; only a certificate or a proxy blocks."""
+        exc = ConnectionError("EOF occurred in violation of protocol (_ssl.c:2427)")
+        assert models.error_kind(exc) == "network"
+
+    @pytest.mark.parametrize(
+        "exc,expected",
+        [
+            (ConnectionError("connection reset"), True),
+            (HubError(429), True),
+            (HubError(503), True),
+            (HubError(416), False),
+            (HubError(404), False),
+            (ConnectionError("CERTIFICATE_VERIFY_FAILED"), False),
+            (PermissionError("denied"), False),
+            (OSError(28, "No space left on device"), False),
+        ],
+    )
+    def test_only_passing_trouble_is_tried_again_by_itself(self, exc, expected):
+        assert models.passes_by_itself(exc) is expected
+
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            (f"{GENERIC} (416)", (GENERIC, "416")),
+            (f"{NETWORK} (ConnectionError)", (NETWORK, "ConnectionError")),
+            (DISK_FULL, (DISK_FULL, "")),
+            ("Zu wenig Speicherplatz — 2 GB nötig, 1 GB frei", ("Zu wenig Speicherplatz — 2 GB nötig, 1 GB frei", "")),
+            ("‫فشل التنزيل ‫(416)", ("‫فشل التنزيل", "416")),
+            ("", ("", "")),
+        ],
+    )
+    def test_the_code_comes_apart_from_the_sentence(self, text, expected):
+        assert models.split_code(text) == expected
+
+
+# ------------------------------------------------------------- new attempts
+
+
+@pytest.fixture
+def quick_retries(monkeypatch):
+    """Two new attempts that wait one short tick each, instead of 5 and 20 seconds."""
+    monkeypatch.setattr(models.ModelDownloader, "RETRY_DELAYS", (2, 3))
+    monkeypatch.setattr(models.ModelDownloader, "WAIT_TICK", 0.001)
+
+
+def run_with_wait(monkeypatch, behaviour, downloader=None):
+    """Like `run_download`, plus the countdown the downloader reports."""
+    downloader = downloader or models.ModelDownloader()
+    monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
+    fake_hub(monkeypatch, behaviour)
+    waits, finished = [], []
+    problem = downloader.start(TINY, lambda *_a: None, lambda m, e: finished.append((m, e)), waits.append)
+    assert problem == ""
+    downloader._thread.join(timeout=10)
+    return downloader, waits, finished
+
+
+class TestNewAttempts:
+    def test_a_dropped_connection_is_tried_again_with_a_countdown(self, monkeypatch, quick_retries):
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            if len(calls) == 1:
+                raise ConnectionError("connection reset")
+
+        _d, waits, finished = run_with_wait(monkeypatch, behaviour)
+        assert len(calls) == 2
+        assert waits == [2, 1, 0]  # every second, then 0: progress again
+        assert finished == [("tiny", "")]
+
+    def test_after_two_new_attempts_the_user_hears_of_it(self, monkeypatch, quick_retries):
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            raise ConnectionError("connection reset")
+
+        _d, waits, finished = run_with_wait(monkeypatch, behaviour)
+        assert len(calls) == 3
+        assert waits == [2, 1, 0, 3, 2, 1, 0]
+        assert finished == [("tiny", f"{NETWORK} (ConnectionError)")]
+
+    def test_a_busy_server_is_tried_again_too(self, monkeypatch, quick_retries):
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            if len(calls) < 3:
+                raise HubError(429)
+
+        _d, _waits, finished = run_with_wait(monkeypatch, behaviour)
+        assert len(calls) == 3
+        assert finished == [("tiny", "")]
+
+    def test_a_blocked_connection_is_not_tried_again(self, monkeypatch, quick_retries):
+        """An antivirus does not change its mind in 20 seconds: say so at once."""
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            raise ConnectionError("[SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate in chain")
+
+        _d, waits, finished = run_with_wait(monkeypatch, behaviour)
+        assert len(calls) == 1
+        assert waits == []
+        assert finished == [("tiny", f"{BLOCKED} (ConnectionError)")]
+
+    def test_cancel_during_the_countdown_ends_it(self, monkeypatch):
+        monkeypatch.setattr(models.ModelDownloader, "RETRY_DELAYS", (30,))
+        monkeypatch.setattr(models.ModelDownloader, "WAIT_TICK", 0.05)
+        downloader = models.ModelDownloader()
+        calls = []
+
+        def behaviour(_bar_class):
+            calls.append(1)
+            raise ConnectionError("connection reset")
+
+        def on_wait(seconds):
+            if seconds == 29:
+                downloader.cancel()
+
+        monkeypatch.setattr(models, "free_space_bytes", lambda: 500 * 1024**3)
+        fake_hub(monkeypatch, behaviour)
+        finished = []
+        downloader.start(TINY, lambda *_a: None, lambda m, e: finished.append((m, e)), on_wait)
+        downloader._thread.join(timeout=10)
+        assert finished == [("tiny", models.CANCELLED)]
+        assert len(calls) == 1
+
+    def test_the_manager_counts_down_for_the_windows(self, monkeypatch):
+        posted = []
+        manager = SimpleNamespace(retry_in=0, _post=posted.append, events=SimpleNamespace(download_progress="tick"))
+        from hams.whisper_model import ModelManager
+
+        ModelManager._on_download_wait(manager, 5)
+        assert manager.retry_in == 5
+        ModelManager._on_download_wait(manager, 0)
+        assert manager.retry_in == 0
+        assert posted == ["tick", "tick"]
+
+
+# --------------------------------------------------------- system certificates
+
+
+class TestSystemCertificates:
+    def test_the_hub_gets_a_client_with_the_system_store(self, monkeypatch):
+        import truststore
+        from huggingface_hub.utils import _http as hub_http
+
+        assert models.use_system_certificates() is True
+        client = hub_http._GLOBAL_CLIENT_FACTORY()
+        try:
+            verify = client._transport._pool._ssl_context
+            assert isinstance(verify, truststore.SSLContext)
+            assert client.follow_redirects is True
+            assert hub_http.hf_request_event_hook in client.event_hooks["request"]
+        finally:
+            client.close()
+
+    def test_it_is_set_once(self, monkeypatch):
+        calls = []
+        import huggingface_hub
+
+        monkeypatch.setattr(huggingface_hub, "set_client_factory", calls.append)
+        models.use_system_certificates()
+        models.use_system_certificates()
+        assert len(calls) == 1
+
+    def test_without_truststore_certifi_stays(self, monkeypatch):
+        import builtins
+
+        real_import = builtins.__import__
+
+        def no_truststore(name, *args, **kwargs):
+            if name == "truststore":
+                raise ImportError("not installed")
+            return real_import(name, *args, **kwargs)
+
+        calls = []
+        import huggingface_hub
+
+        monkeypatch.setattr(huggingface_hub, "set_client_factory", calls.append)
+        monkeypatch.setattr(builtins, "__import__", no_truststore)
+        assert models.use_system_certificates() is False
+        assert calls == []
 
 
 # ---------------------------------------------------------------- self-repair
@@ -427,7 +653,7 @@ class TestSelfRepair:
         _d, _p, _pr, finished = run_download(monkeypatch, behaviour)
         assert len(calls) == 1
         assert piece.exists()
-        assert finished == [("tiny", NETWORK)]
+        assert finished == [("tiny", f"{NETWORK} (ConnectionError)")]
 
     def test_try_again_after_such_a_failure_starts_clean(self, monkeypatch, hub_cache):
         """The leftover appeared after the repair (written by the failed second attempt): the next start clears it."""
@@ -608,7 +834,7 @@ class FakeDownloader:
         self.model_id, self.active = None, False
         self.started, self.cancelled = [], []
 
-    def start(self, info, on_progress, on_finished):
+    def start(self, info, on_progress, on_finished, on_wait=None):
         if self.problem:
             return self.problem
         self.started.append(info.model_id)
@@ -678,6 +904,16 @@ class TestSettingsDownload:
         tr.on_download_progress(39_000_000, 78_000_000, 49)
         text = description(tr)
         assert "Tiny" in text and "49 %" in text and "39/78 MB" in text
+
+    def test_a_new_attempt_counts_down_instead_of_the_progress(self, settings):
+        tr = settings.open()
+        tr.begin_download("tiny")
+        settings.app.models.retry_in = 5
+        tr.on_download_progress(39_000_000, 78_000_000, 49)
+        assert description(tr) == "Neuer Versuch in 5 s …"
+        settings.app.models.retry_in = 0
+        tr.on_download_progress(39_000_000, 78_000_000, 49)
+        assert "49 %" in description(tr)
 
     def test_progress_without_a_known_total(self, settings):
         tr = settings.open()
@@ -779,7 +1015,7 @@ class _Downloader:
     def __init__(self):
         self.model_id, self.active, self.started = None, False, []
 
-    def start(self, info, on_progress, on_finished):
+    def start(self, info, on_progress, on_finished, on_wait=None):
         self.started.append(info.model_id)
         self.model_id, self.active = info.model_id, True
         return ""
@@ -839,3 +1075,62 @@ class TestALateDownloadNeverOverridesANewerChoice:
         self.settle(app)
         assert app.loaded == ["small"], "the recording waits for this model: load it"
         assert app._state == "recording"
+
+
+# ------------------------------------------------------------- load from disk
+
+
+class TestLoadFromDisk:
+    """An installed model loads without asking the model server: behind a broken proxy it loads all the same."""
+
+    @pytest.fixture
+    def tried(self, monkeypatch):
+        from hams import whisper_model
+
+        calls = []
+
+        class FakeModel:
+            fail_local = False
+
+            def __init__(self, model_id, device, compute_type, **options):
+                calls.append(options.get("local_files_only", False))
+                if options.get("local_files_only") and FakeModel.fail_local:
+                    raise OSError("snapshot folder missing")
+
+        monkeypatch.setattr(whisper_model, "WhisperModel", FakeModel)
+        monkeypatch.setattr(whisper_model, "cuda_libraries_found", lambda: False)
+        monkeypatch.setattr(CFG, "model_device_priority", ["cpu"])
+        return SimpleNamespace(calls=calls, model=FakeModel)
+
+    def test_an_installed_model_loads_from_the_disk_alone(self, tried):
+        from hams import whisper_model
+
+        manager = SimpleNamespace(installed_models=lambda: {"tiny"})
+        model, device, _info = whisper_model.ModelManager._build_model(manager, "tiny")
+        assert model is not None and device == "cpu"
+        assert tried.calls == [True]
+
+    def test_a_model_not_yet_installed_asks_the_server(self, tried):
+        from hams import whisper_model
+
+        manager = SimpleNamespace(installed_models=lambda: set())
+        whisper_model.ModelManager._build_model(manager, "tiny")
+        assert tried.calls == [False]
+
+    def test_if_the_disk_alone_fails_the_normal_way_follows_once(self, tried):
+        from hams import whisper_model
+
+        tried.model.fail_local = True
+        manager = SimpleNamespace(installed_models=lambda: {"tiny"})
+        model, _device, _info = whisper_model.ModelManager._build_model(manager, "tiny")
+        assert model is not None
+        assert tried.calls == [True, True, False]  # int8 and float32 from the disk, then the normal way
+
+    def test_not_knowing_what_is_installed_means_the_normal_way(self, tried):
+        from hams import whisper_model
+
+        def broken():
+            raise OSError("cache unreadable")
+
+        whisper_model.ModelManager._build_model(SimpleNamespace(installed_models=broken), "tiny")
+        assert tried.calls == [False]

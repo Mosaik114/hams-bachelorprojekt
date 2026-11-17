@@ -9,6 +9,7 @@ paths, and the log records text lengths only.
 
 from __future__ import annotations
 
+import io
 import os
 import subprocess
 import sys
@@ -128,15 +129,35 @@ def write_report(path: Path | None = None, *, checks: tuple | None = None, now: 
     checks = in_app_checks() if checks is None else checks
     stamp = (now or datetime.now()).isoformat(timespec="seconds")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as stream:
-        print(f"Hams {updates.app_version()} diagnostic report, {stamp}", file=stream)
-        print("Contains versions, paths and device names; never dictated text. Check it before posting.", file=stream)
-        print("", file=stream)
-        failures = self_test.run(stream, checks)
-        tail = log_tail(log_dir() / LOG_NAME)
-        print("", file=stream)
-        print(f"--- last {len(tail)} lines of {LOG_NAME} ---", file=stream)
-        for line in tail:
-            print(line, file=stream)
+    stream = io.StringIO()
+    print(f"Hams {updates.app_version()} diagnostic report, {stamp}", file=stream)
+    print("Contains versions, paths and device names; never dictated text. Check it before posting.", file=stream)
+    print("", file=stream)
+    failures = self_test.run(stream, checks)
+    tail = log_tail(log_dir() / LOG_NAME)
+    print("", file=stream)
+    print(f"--- last {len(tail)} lines of {LOG_NAME} ---", file=stream)
+    for line in tail:
+        print(line, file=stream)
+    path.write_text(redact_home(stream.getvalue()), encoding="utf-8")
     logger.info("Diagnostic report written: %s (%d failed checks)", path, failures)
     return path, failures
+
+
+def redact_home(text: str, home: str | os.PathLike | None = None) -> str:
+    """Replaces the user's own folder by ``%USERPROFILE%`` (Linux: ``~``), so the report names no account.
+
+    The folder holds the account name (``C:\\Users\\<name>``); the report is meant to be sent to someone. Both
+    slash directions and any letter case are replaced, the way Windows treats paths.
+    """
+    import re
+
+    home_text = str(home if home is not None else Path.home()).rstrip("\\/")
+    if len(home_text) < 4:  # "/", "C:" or empty: replacing that would mangle every path
+        return text
+    stand_in = "%USERPROFILE%" if sys.platform == "win32" or "\\" in home_text else "~"
+    variants = {home_text, home_text.replace("\\", "/"), home_text.replace("/", "\\")}
+    alternatives = "|".join(re.escape(variant) for variant in sorted(variants, key=len, reverse=True))
+    # Not inside a longer name: C:\Users\anna must leave C:\Users\annabelle alone.
+    pattern = f"(?:{alternatives})(?![\\w.-])"
+    return re.sub(pattern, lambda _match: stand_in, text, flags=re.IGNORECASE)
