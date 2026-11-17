@@ -5,6 +5,24 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.5] – 2026-11-17
+
+### Fixed
+- **A model download that kept failing repairs itself.** A broken unfinished piece left in the model cache (for
+  example after an uninstall or a cut connection) made every attempt fail the same way, and *Try again* could not
+  help: the download resumed the piece and the server refused it (HTTP 416). Now Hams removes that piece by itself
+  and starts once more from the beginning; the user only sees normal progress. Network trouble still keeps the
+  piece, so the next attempt resumes it. After such a failure, *Try again* starts clean.
+
+### Changed
+- **Download messages in everyday words:** each says what is wrong and what to do now ("No internet connection.
+  Check your internet and try again."). New messages for a busy download site (HTTP 429, *try again in a few
+  minutes*) and for a fault there (HTTP 5xx). Unexplained failures end with a small number in brackets, the HTTP
+  status or the error type, for support.
+- **Help report in the setup assistant:** under a failed download (Whisper model, GPU libraries, Ollama model)
+  the assistant offers *Create help report*. It writes the same diagnostic report as *Settings → Info & help*
+  and shows the file selected in Explorer, ready to send. *Try again* stays the main button.
+
 ## [1.3.4] – 2026-11-17
 
 ### Added
