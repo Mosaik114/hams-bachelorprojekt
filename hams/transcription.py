@@ -1,6 +1,7 @@
 """From the audio to the pasted text (`Pipeline`): Whisper, cleanup with Ollama, pasting, transcript files."""
 
 import collections
+import os
 import re
 import sys
 import threading
@@ -526,26 +527,51 @@ class Pipeline:
             logger.warning("Ollama warmup failed for %s: %s", model, exc)
 
 
+def transcripts_folder() -> Path:
+    """Where transcripts are saved: `[output] transcripts_dir`, or the data folder (`OUTPUT_DIR`) when empty."""
+    return Path(CFG.transcripts_dir) if CFG.transcripts_dir else OUTPUT_DIR
+
+
+def usable_transcripts_folder(folder: Path) -> bool:
+    """Whether Hams can keep transcripts in `folder`: an absolute path it can create and write a file in.
+
+    Checked before the settings store a new folder, so a bad choice never silently loses dictations.
+    """
+    if not folder.is_absolute():
+        return False
+    probe = folder / f".hams-write-test-{os.getpid()}"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError:
+        logger.warning("Transcript folder not writable: %s", folder)
+        return False
+    return True
+
+
 def save_transcript_file(text: str) -> None:
     """Saves the transcript to a timestamped file in the transcripts folder, then applies the retention.
 
     Two dictations within the same second get their own files: the name is created exclusively and a counter is
     added when it is taken, so nothing is ever overwritten.
     """
+    folder = transcripts_folder()
     try:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        folder.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        out_file = create_transcript_file(stamp, text)
+        out_file = create_transcript_file(stamp, text, folder=folder)
         logger.info("Saved transcript: %s (%d chars)", out_file.name, len(text))
     except OSError:
         logger.exception("Failed to save transcript file")
-    prune_transcripts(OUTPUT_DIR, CFG.transcripts_keep_days)
+    prune_transcripts(folder, CFG.transcripts_keep_days)
 
 
-def create_transcript_file(stamp: str, text: str, attempts: int = 1000) -> Path:
-    """Writes `text` to `<stamp>.txt`, or `<stamp>_2.txt` and so on if that name exists."""
+def create_transcript_file(stamp: str, text: str, attempts: int = 1000, *, folder: Path | None = None) -> Path:
+    """Writes `text` to `<stamp>.txt`, or `<stamp>_2.txt` and so on if that name exists (in `transcripts_folder`)."""
+    folder = transcripts_folder() if folder is None else folder
     for number in range(1, attempts + 1):
-        out_file = OUTPUT_DIR / (f"{stamp}.txt" if number == 1 else f"{stamp}_{number}.txt")
+        out_file = folder / (f"{stamp}.txt" if number == 1 else f"{stamp}_{number}.txt")
         try:
             with out_file.open("x", encoding="utf-8") as handle:
                 handle.write(text)
@@ -560,7 +586,7 @@ def prune_transcripts_async() -> None:
     if CFG.transcripts_keep_days > 0:
         threading.Thread(
             target=prune_transcripts,
-            args=(OUTPUT_DIR, CFG.transcripts_keep_days),
+            args=(transcripts_folder(), CFG.transcripts_keep_days),
             daemon=True,
             name="prune-transcripts",
         ).start()

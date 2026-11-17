@@ -42,6 +42,7 @@ FIELDS = [
     ("clipboard", "paste_timeout", "clipboard_paste_timeout", "number"),
     ("output", "save_transcripts", "save_transcripts", "bool"),
     ("output", "keep_days", "transcripts_keep_days", "days"),
+    ("output", "transcripts_dir", "transcripts_dir", "text"),
     ("ui", "sound_feedback", "sound_feedback", "bool"),
     ("updates", "check", "update_check", "bool"),
     ("ui", "cursor_level", "cursor_level", "bool"),

@@ -30,7 +30,7 @@ def _load(tmp_path, monkeypatch, text: str):
 class TestDefaults:
     def test_the_template_saves_nothing_and_keeps_30_days(self):
         template = tomllib.loads(config_mod.DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
-        assert template["output"] == {"save_transcripts": False, "keep_days": 30}
+        assert template["output"] == {"save_transcripts": False, "keep_days": 30, "transcripts_dir": ""}
 
     def test_a_new_user_file_saves_nothing(self, tmp_path, monkeypatch):
         cfg = _load(tmp_path, monkeypatch, config_mod.DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
@@ -152,3 +152,96 @@ class TestSettingsSwitch:
         from hams.settings_sections import GeneralSection
 
         assert GeneralSection.transcripts_hint(0) == "Behält jeden eingefügten Text als Datei"
+
+
+class TestFolder:
+    """`[output] transcripts_dir` and the row "Speicherort" (Settings -> General)."""
+
+    def test_empty_means_the_data_folder(self, tmp_path, monkeypatch):
+        cfg = _load(tmp_path, monkeypatch, "[output]\ntranscripts_dir = \"\"\n")
+        assert cfg.transcripts_dir == ""
+        monkeypatch.setattr(CFG, "transcripts_dir", "")
+        assert transcription_mod.transcripts_folder() == transcription_mod.OUTPUT_DIR
+
+    def test_an_absolute_folder_is_used(self, tmp_path, monkeypatch):
+        folder = tmp_path / "Diktate"
+        cfg = _load(tmp_path, monkeypatch, f"[output]\ntranscripts_dir = '{folder}'\n")
+        assert cfg.transcripts_dir == str(folder)
+
+    @pytest.mark.parametrize("value", ["'relativ\\ordner'", "3"])
+    def test_a_relative_or_wrong_value_is_ignored(self, tmp_path, monkeypatch, caplog, value):
+        cfg = _load(tmp_path, monkeypatch, f"[output]\ntranscripts_dir = {value}\n")
+        assert cfg.transcripts_dir == ""
+        assert "transcripts_dir" in caplog.text
+
+    def test_saving_and_pruning_use_the_chosen_folder(self, tmp_path, monkeypatch):
+        folder = tmp_path / "eigener Ordner"
+        monkeypatch.setattr(CFG, "transcripts_dir", str(folder))
+        monkeypatch.setattr(CFG, "transcripts_keep_days", 30)
+        now = time.time()
+        old = _transcript(folder, "2020-01-01_10-00-00.txt", 40, now)
+        transcription_mod.save_transcript_file("Hallo")
+        saved = [p for p in folder.iterdir() if p != old]
+        assert len(saved) == 1 and saved[0].read_text(encoding="utf-8") == "Hallo"
+        assert not old.exists(), "the retention applies to the chosen folder"
+
+    def test_usable_folder(self, tmp_path):
+        assert transcription_mod.usable_transcripts_folder(tmp_path / "neu" / "tiefer")
+        assert not transcription_mod.usable_transcripts_folder(tmp_path.relative_to(tmp_path.anchor))
+        blocker = tmp_path / "datei"
+        blocker.write_text("x", encoding="utf-8")
+        assert not transcription_mod.usable_transcripts_folder(blocker / "drin")
+
+    def _general(self, live_app):
+        live_app._open_settings()
+        live_app.root.update()
+        return live_app.settings_win.general
+
+    def test_the_row_shows_the_path_and_changes_it(self, live_app, hams, tmp_path, monkeypatch):
+        monkeypatch.setattr(CFG, "transcripts_dir", "")
+        general = self._general(live_app)
+        assert general.row_folder._title_text == "Speicherort"
+        assert general.row_folder.sub_text == str(transcription_mod.transcripts_folder())
+        chosen = tmp_path / "Diktate"
+        asked = []
+        monkeypatch.setattr(general, "choose_folder", lambda **kw: asked.append(kw) or str(chosen))
+        general.folder_change_button._invoke()
+        assert asked[0]["title"] == "Ordner für die Transkripte wählen"
+        assert CFG.transcripts_dir == str(chosen)
+        assert ("output", "transcripts_dir", str(chosen)) in hams.saved
+        assert general.row_folder.sub_text == str(chosen)
+        monkeypatch.setattr(general, "choose_folder", lambda **kw: str(transcription_mod.OUTPUT_DIR))
+        general.change_transcripts_folder()
+        assert CFG.transcripts_dir == "", "the data folder itself is stored as empty"
+
+    def test_a_cancelled_or_unusable_choice_changes_nothing(self, live_app, hams, tmp_path, monkeypatch):
+        monkeypatch.setattr(CFG, "transcripts_dir", "")
+        general = self._general(live_app)
+        monkeypatch.setattr(general, "choose_folder", lambda **kw: "")
+        general.change_transcripts_folder()
+        blocker = tmp_path / "datei"
+        blocker.write_text("x", encoding="utf-8")
+        monkeypatch.setattr(general, "choose_folder", lambda **kw: str(blocker / "drin"))
+        general.change_transcripts_folder()
+        assert CFG.transcripts_dir == ""
+        assert general.row_folder.sub_text == "Dort kann Hams nicht schreiben · der bisherige Ordner bleibt"
+        assert not [entry for entry in hams.saved if entry[1] == "transcripts_dir"]
+
+    def test_open_creates_and_opens_the_folder(self, live_app, tmp_path, monkeypatch):
+        folder = tmp_path / "noch nicht da"
+        monkeypatch.setattr(CFG, "transcripts_dir", str(folder))
+        general = self._general(live_app)
+        opened = []
+        monkeypatch.setattr(transcription_mod, "OUTPUT_DIR", transcription_mod.OUTPUT_DIR)
+        from hams import support
+
+        monkeypatch.setattr(support, "open_path", opened.append)
+        general.folder_open_button._invoke()
+        assert opened == [folder] and folder.is_dir()
+
+        def fail(path):
+            raise OSError("kein Explorer")
+
+        monkeypatch.setattr(support, "open_path", fail)
+        general.open_transcripts_folder()
+        assert general.row_folder.sub_text == f"Ordner ließ sich nicht öffnen · {folder}"

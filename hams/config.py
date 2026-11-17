@@ -183,6 +183,8 @@ class Config:
     save_transcripts: bool = False
     #: Saved transcripts older than this many days are deleted at start and after each save; 0 keeps them forever.
     transcripts_keep_days: int = 30
+    #: Where transcripts are saved (`[output] transcripts_dir`, an absolute path); "" is `OUTPUT_DIR`.
+    transcripts_dir: str = ""
     sound_feedback: bool = True
     #: Darstellungsmodus, "light" oder "dark". Ohne Eintrag in der Nutzerdatei
     #: gilt hell — bewusst nicht das Windows-Systemtheme, der Nutzer waehlt
@@ -664,6 +666,16 @@ def _apply_clipboard(cfg: Config, clipboard: SectionReader) -> None:
 def _apply_output(cfg: Config, output: SectionReader) -> None:
     cfg.save_transcripts = output.boolean("save_transcripts", cfg.save_transcripts)
     cfg.transcripts_keep_days = output.integer("keep_days", cfg.transcripts_keep_days, 0, MAX_KEEP_DAYS)
+    cfg.transcripts_dir = _clean_transcripts_dir(output, cfg.transcripts_dir)
+
+
+def _clean_transcripts_dir(output: SectionReader, current: str) -> str:
+    """`output.transcripts_dir`: "" (the data folder) or an absolute path. A relative one would depend on the
+    folder Hams happens to start in, so it is reported and ignored."""
+    value = output.text("transcripts_dir", current).strip()
+    if value and not Path(value).expanduser().is_absolute():
+        return output.reject("transcripts_dir", "an absolute folder path or an empty text", value, current)
+    return str(Path(value).expanduser()) if value else ""
 
 
 def _apply_ui(cfg: Config, ui: SectionReader) -> None:
