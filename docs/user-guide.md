@@ -110,7 +110,8 @@ notification says so. Right-click the tray icon for:
 - **Quit**
 
 With *Settings → General → Save transcripts* on, every pasted text is also saved as a plain-text file in
-`%LOCALAPPDATA%\Hams\transcripts`, named after the date and time (`2026-11-13_09-41-07.txt`), and deleted after
+`%LOCALAPPDATA%\Hams\transcripts` (or the folder you pick under *Settings → General → Location* with *Change*;
+*Open* shows it in Explorer), named after the date and time (`2026-11-13_09-41-07.txt`), and deleted after
 30 days (`[output] keep_days`, `0` keeps them forever). It is off in a new installation; an installation from
 before this option keeps saving, without a time limit, until you change it. Delete these files whenever you like;
 Hams does not read them back.
@@ -129,7 +130,7 @@ to your configuration file.
 | Transcription | Whisper model (download, switch, delete downloaded models), dictation language, hardware in use |
 | AI | text cleanup on/off, cleanup model, Ask AI model, Ollama status; *Download* for a cleanup model that isn't installed yet |
 | Shortcuts | both hotkeys, each with *Change* (see [Changing the hotkeys](#changing-the-hotkeys)); *Restart* button for when hotkeys stop responding |
-| General | sound on start/stop, *Save transcripts*, *Level at the pointer*, light or dark appearance, interface language, *Check for updates*, *Edit* for the glossary, *Run again* for the setup assistant |
+| General | sound on start/stop, *Save transcripts* and their *Location*, *Level at the pointer*, light or dark appearance, interface language, *Tell me about updates*, *Check for updates now* / *Update now*, *Edit* for the glossary, *Run again* for the setup assistant |
 | About & help | the installed version, *Open* for this user guide and for [troubleshooting](troubleshooting.md), *Open* for the log folder, *Create* for a diagnostic report (see [Reporting a bug](troubleshooting.md#reporting-a-bug)) |
 
 Model switches and dictation language apply from the next recording. The interface language applies after a
@@ -191,13 +192,16 @@ The most useful keys:
 | `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `url`, `cleanup_prompt_file`, `cleanup_temperature` | `cleanup_enabled = false` pastes the raw text, the fastest option; `cleanup_temperature` (default `0`, up to `2`) only affects cleanup, not *Ask AI* |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts (dictation and *Ask AI*) |
 | `[audio]` | `device`, `max_recording_seconds` | microphone by name or index, auto-stop |
-| `[output]` | `save_transcripts`, `keep_days` | keep each pasted text as a file (default off) and for how many days (default 30, `0` forever) |
-| `[ui]` | `language`, `appearance`, `sound_feedback`, `cursor_level` | interface language `"auto"` (default), `"en"` or `"de"`; light or dark; beeps; the level animation beside the mouse pointer while recording (default `true`, Windows only) |
-| `[updates]` | `check` | daily update notice via `api.github.com` (default `true`, `false` turns it off) |
+| `[output]` | `save_transcripts`, `keep_days`, `transcripts_dir` | keep each pasted text as a file (default off), for how many days (default 30, `0` forever) and where (an absolute folder; empty is `%LOCALAPPDATA%\Hams\transcripts`) |
+| `[ui]` | `language`, `appearance`, `sound_feedback`, `cursor_level` | interface language `"auto"` (default), `"de"`, `"en"`, `"ru"`, `"es"`, `"fr"`, `"ar"` or `"tr"`; light or dark; beeps; the level animation beside the mouse pointer while recording (default `true`, Windows only) |
+| `[updates]` | `check` | daily update check via `api.github.com` (default `true`, `false` turns it off) |
 
-**Interface language.** With `language = "auto"` (*System language* in the settings), Hams uses German when the operating system's display language is
-German (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and English otherwise. A new
-language applies after a restart; the settings window says so and has a *Restart* button.
+**Interface language.** Hams speaks German, English, Russian, Spanish, French, Arabic and Turkish (*Settings →
+General → Language*, each language named in itself). With `language = "auto"` (*Automatic*), Hams follows the
+operating system's display language (Windows: the user's UI language; Linux: `LC_ALL`, `LC_MESSAGES` or `LANG`) and
+uses English for any other. Arabic is laid out right to left: text on the right, controls on its left. On Linux,
+Tk cannot shape Arabic, so *Automatic* picks English there. A new language applies after a restart; the settings
+window says so and has a *Restart* button.
 
 **Cleanup prompts.** The instructions to Ollama are [`hams/prompts/cleanup.txt`](../hams/prompts/cleanup.txt)
 (German dictation) and [`hams/prompts/cleanup.en.txt`](../hams/prompts/cleanup.en.txt) (all other languages). A
@@ -208,9 +212,12 @@ copies `%APPDATA%\Wisper` (Linux: `~/.config/Wisper`) to the new folder once; th
 
 ## Dictation languages
 
-The interface language (English or German) and the language you *speak* are separate settings.
+The interface language and the language you *speak* are separate settings. Without a choice of its own, the
+dictation language follows the interface (Russian, which has no dictation language of its own here, gets
+*Automatic*).
 
-Dictation languages: German, English, French, Spanish, Italian, Dutch, Polish, Portuguese, or **Automatic**, where
+Dictation languages: German, English, French, Spanish, Italian, Dutch, Polish, Portuguese, Turkish, Arabic, or
+**Automatic**, where
 Whisper detects the language of each recording before transcribing it. Change it under *Settings → Transcription →
 Dictation language*, or set `[transcription] language` to `"de"`, `"en"`, `"fr"`, `"es"`, `"it"`, `"nl"`, `"pl"`,
 `"pt"` or `"auto"`.
@@ -228,9 +235,14 @@ Dictation language*, or set `[transcription] language` to `"de"`, `"en"`, `"fr"`
 ## Glossary: names and special words
 
 Whisper sometimes misspells names, products or jargon. The glossary fixes that. Open it with *Settings → General →
-Glossary → Edit*: Hams opens the file in your default editor for `.toml` files (on Linux via `xdg-open`) and creates it
-first from a template (German or English, depending on your dictation language) if it doesn't exist yet. The file
-is
+Glossary → Edit*: a window lists the **words** Hams spells exactly as written and the **fixed corrections** ("heard
+as → correct"). Type into the field and press *Add* (any script works: "Hüseyin", "عبد الله"); click an entry to
+change it, the bin deletes it. With more than a dozen entries a search field narrows both lists. Every change is
+saved at once and applies from the next dictation.
+
+The glossary stays a plain file, created from a template (German or English, depending on your dictation language)
+the first time; the window keeps its comments and order, and *Open as file* opens it in your default editor for
+anyone who prefers the text. The file is
 
 ```
 %APPDATA%\Hams\glossary.toml          (Linux: ~/.config/hams/glossary.toml)
@@ -300,15 +312,24 @@ If Ollama is slow (more than 30 s for cleanup) or not running, Hams pastes the r
 ## Updating Hams
 
 When a new version is out, Hams says so once with a tray notification and keeps a notice in the tray menu and under
-*Settings → General* (see [Privacy](#privacy) for how the check works and how to turn it off). Hams never updates
-itself. To update:
+*Settings → General* (see [Privacy](#privacy) for how the check works and how to turn it off). *Check for updates
+now* asks at once and says whether you have the latest version.
 
-1. Click *View* on the notice (or open the
-   [latest release](https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest)) and download
-   `Hams-Setup-<version>.exe`.
-2. Run it. If Hams is running, the setup asks you to quit it first (tray icon → *Quit*).
-3. The setup replaces the program in place. Your settings, glossary, transcripts, downloaded speech models and GPU
-   libraries are kept, and the setup assistant doesn't open again.
+**With one click** (the installed Windows app): *Update now*, in the settings row or in the tray menu.
+
+1. Hams downloads `Hams-Setup-<version>.exe` (about 75 MB) in the background; the row shows the progress, and the
+   cross cancels it.
+2. It checks the file against the release's `Hams-Setup-<version>.exe.sha256`. Only files from this repository's
+   releases are accepted; without a matching checksum nothing is installed, and the row says why.
+3. If you are dictating, the update waits until the text is pasted. Then Hams quits, the setup installs silently
+   with the options you chose before, and Hams starts again (in the tray if it was there).
+
+Your settings, glossary, transcripts, downloaded speech models and GPU libraries are kept, and the setup assistant
+doesn't open again. The setup's log is `%LOCALAPPDATA%\Hams\logs\update-setup.log`.
+
+**By hand** (and from a source checkout or on Linux, where one-click updates are not offered): click *View* (or open
+the [latest release](https://github.com/Mosaik114/hams-bachelorprojekt/releases/latest)), download the setup, quit
+Hams (tray icon → *Quit*) and run it.
 
 To go back to an older version, uninstall Hams (answer *No* when asked about your data) and install the older setup
 from the [releases page](https://github.com/Mosaik114/hams-bachelorprojekt/releases).
@@ -434,7 +455,8 @@ only check-in is an update check that you can turn off (see below).
 | `--install-gpu-support` / GPU step of the setup assistant | `files.pythonhosted.org` (PyPI) | download of three pinned NVIDIA wheels (cuBLAS, cuDNN, NVRTC) |
 | Cleanup step of the setup assistant or *Download* in *Settings → AI*, if you start the model download | your local Ollama, which then downloads the model from its own registry (`ollama.com`) | the model name |
 | *Get Ollama* in the setup assistant | opens `https://ollama.com/download` in your web browser | nothing from Hams |
-| Update check: at start, at most once every 24 hours, unless turned off | `api.github.com` (`/repos/Mosaik114/hams-bachelorprojekt/releases/latest`) | a plain HTTPS request without account or identifier (generic user agent `Hams-update-check`); the answer is the latest version number. Nothing is downloaded; offline or on errors nothing is shown |
+| Update check: at start, at most once every 24 hours unless turned off, and when you click *Check for updates now* | `api.github.com` (`/repos/Mosaik114/hams-bachelorprojekt/releases/latest`) | a plain HTTPS request without account or identifier (generic user agent `Hams-update-check`); the answer is the latest version number and the names of its files. Nothing is downloaded; offline or on errors the daily check shows nothing |
+| *Update now* (only when you click it) | `github.com` release downloads of this repository, redirected to GitHub's download CDN | standard requests for the setup file and its `.sha256` file |
 | *View* on the update notice | opens the release page on `github.com` in your web browser | nothing from Hams |
 | *User guide*, *Troubleshooting* in *Settings → About & help*, *Help …* in the tray menu | opens the page on `github.com` in your web browser | nothing from Hams |
 | Text cleanup, *Ask AI*, warm-up at start, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
@@ -442,10 +464,10 @@ only check-in is an update check that you can turn off (see below).
 Nothing else; Hams has no crash reporting. The level animation at the mouse pointer is drawn by Hams itself and
 sends nothing anywhere. `api.github.com` is the one outbound host the update check adds.
 When GitHub lists a newer release, Hams says so once as a tray notification and keeps a calm notice in the tray
-menu and under *Settings → General* until you open it or dismiss it (×) for that version. It never downloads or
-installs anything itself. The time of the last check and the dismissed version are kept in
-`%LOCALAPPDATA%\Hams\update-check.json`. **To turn the check off**, switch off *Settings → General → Check for
-updates*, or set `check = false` under `[updates]` in `config.toml`; Hams then makes no request to GitHub at all. If you point
+menu and under *Settings → General* until you update, open it or dismiss it (×) for that version. It downloads
+and installs only when you click *Update now* (see [Updating Hams](#updating-hams)). The time of the last check and
+the dismissed version are kept in `%LOCALAPPDATA%\Hams\update-check.json`. **To turn the check off**, switch off
+*Settings → General → Tell me about updates*, or set `check = false` under `[updates]` in `config.toml`; Hams then makes no request to GitHub at all. If you point
 `[ollama] url` at another machine, your transcripts go to that machine; Hams then requires HTTPS.
 
 Ollama itself is a separate program with its own network behaviour (for example `ollama pull` downloads from

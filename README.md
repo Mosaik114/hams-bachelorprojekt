@@ -41,8 +41,12 @@
   local LLM.
 - **Fully local.** [faster-whisper](https://github.com/SYSTRAN/faster-whisper) on the GPU (or CPU) and
   [Ollama](https://ollama.com) for the cleanup. No account, no telemetry; logs record text lengths, never the text.
-- **Eight dictation languages and a glossary.** German, English, French, Spanish, Italian, Dutch, Polish, Portuguese
-  or *Automatic*; names and jargon from the glossary keep their spelling.
+- **Ten dictation languages and a glossary.** German, English, French, Spanish, Italian, Dutch, Polish, Portuguese,
+  Turkish, Arabic or *Automatic*; names and jargon keep their spelling. The glossary is edited right in the app.
+- **Seven interface languages.** German, English, Russian, Spanish, French, Arabic (right to left) and Turkish, or
+  *Automatic*, which follows Windows.
+- **One-click updates** (Windows). *Update now* downloads the new setup, checks it against the release's SHA-256
+  file, installs it silently and starts Hams again, never in the middle of a dictation.
 - **Level at the pointer** (Windows). While you dictate, a small level pill follows the mouse, so you see that Hams is
   listening without looking for its window.
 - **Fails soft.** If Ollama is slow or offline, the raw transcript is pasted anyway; without a suitable GPU,
@@ -73,8 +77,9 @@ admin rights needed. An NVIDIA GPU is recommended, not required; plan for about 
 ([requirements](docs/hardware.md#requirements)). The installer is not code-signed, so SmartScreen may warn:
 **More info → Run anyway**.
 
-**Verify the download:** the release page lists the SHA-256 of each installer (compare with
-`Get-FileHash Hams-Setup-<version>.exe`), and every installer carries a build provenance attestation from CI:
+**Verify the download:** every release has `Hams-Setup-<version>.exe.sha256` next to the installer (compare with
+`Get-FileHash Hams-Setup-<version>.exe`; *Update now* in the app does exactly that and refuses anything that does
+not match), and every installer carries a build provenance attestation from CI:
 `gh attestation verify Hams-Setup-<version>.exe --repo Mosaik114/hams-bachelorprojekt`.
 
 On first start, a setup assistant picks the languages, checks the graphics card, downloads the speech model, tests

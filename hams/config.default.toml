@@ -29,9 +29,10 @@ device_priority = ["cuda", "cpu"]
 
 [transcription]
 # Diktiersprache / dictation language: "auto" (Whisper erkennt sie bei jeder
-# Aufnahme), "de", "en", "fr", "es", "it", "nl", "pl" oder "pt".
+# Aufnahme), "de", "en", "fr", "es", "it", "nl", "pl", "pt", "tr" oder "ar".
 # Ohne Eintrag folgt sie der Sprache der Oberfläche: Deutsch auf einem
-# deutschen System, sonst Englisch. Umgestellt wird in den Einstellungen unter
+# deutschen System, Türkisch auf einem türkischen und so weiter; zu einer
+# Oberfläche ohne eigene Diktiersprache (Russisch) "auto". Umgestellt wird in den Einstellungen unter
 # Transkription; Hams schreibt die Wahl dann in die Nutzerkonfiguration.
 # language = "de"
 # Stille vor der Erkennung herausschneiden (Silero VAD).
@@ -79,6 +80,10 @@ save_transcripts = false
 # Gespeicherte Transkripte nach so vielen Tagen löschen (beim Start und nach jedem
 # Speichern); 0 behält sie für immer.
 keep_days = 30
+# Ordner für die Transkripte, als vollständiger Pfad (z. B. "D:\\Diktate"). Leer
+# heisst: der Ordner oben. Umgestellt wird in den Einstellungen unter Allgemein →
+# Speicherort. keep_days löscht dort nur Dateien, die Hams selbst angelegt hat.
+transcripts_dir = ""
 
 [ui]
 # Sound-Feedback (Beeps) bei Start/Stop aktivieren.
@@ -87,9 +92,9 @@ sound_feedback = true
 # Umgestellt wird im Einstellungsfenster unter Allgemein; Hams schreibt
 # die Wahl dann in die Nutzerkonfiguration, nicht hierher.
 appearance = "light"
-# Sprache der Oberfläche / interface language: "auto", "de" oder "en".
-# "auto" folgt der Systemsprache: Deutsch auf einem deutschen System, sonst
-# Englisch. Eine Änderung gilt nach einem Neustart von Hams.
+# Sprache der Oberfläche / interface language: "auto", "de", "en", "ru", "es",
+# "fr", "ar" oder "tr". "auto" folgt der Sprache von Windows (eine andere als
+# diese sieben ergibt Englisch). Eine Änderung gilt nach einem Neustart von Hams.
 language = "auto"
 # Beim Diktieren eine kleine Pegel-Animation neben dem Mauszeiger zeigen
 # (nur Windows). Umgestellt wird auch in den Einstellungen unter Allgemein.
@@ -100,7 +105,9 @@ cursor_level = true
 
 [updates]
 # Einmal am Tag beim Start fragt Hams bei GitHub (api.github.com) nach, ob es
-# eine neue Version gibt, und zeigt dann einen Hinweis mit Link zur
-# Release-Seite. Heruntergeladen wird nie etwas. false schaltet die Abfrage ab
-# (auch in den Einstellungen unter Allgemein).
+# eine neue Version gibt, und zeigt dann einen Hinweis. Heruntergeladen wird
+# nur, wenn du „Jetzt aktualisieren“ klickst: die Setup-Datei des Releases,
+# geprüft gegen ihre SHA-256-Datei. false schaltet die tägliche Abfrage ab
+# (auch in den Einstellungen unter Allgemein); „Jetzt nach Updates suchen“
+# fragt trotzdem, wenn du es klickst.
 check = true

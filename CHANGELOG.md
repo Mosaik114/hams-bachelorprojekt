@@ -5,6 +5,37 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.4] – 2026-11-17
+
+### Added
+- **Updates with one click** (Windows app): *Settings → General* has *Check for updates now*, which says at once
+  whether you have the latest version. With a newer one, *Update now* (in that row or in the tray menu) downloads
+  `Hams-Setup-<version>.exe` in the background with visible progress, checks it against the release's
+  `Hams-Setup-<version>.exe.sha256`, waits if a dictation is running, then quits, installs silently and starts
+  Hams again. Without a matching checksum, or from any address other than this repository's release downloads,
+  nothing is installed and the row says why. The daily check is now called *Tell me about updates*.
+- **SHA-256 file with every release:** the release workflow publishes `Hams-Setup-<version>.exe.sha256` next to
+  the installer and checks the two against each other before publishing.
+- **Seven interface languages:** German, English, Russian, Spanish, French, Arabic and Turkish, each named in
+  itself under *Settings → General → Language*; *Automatic* follows the Windows display language. Arabic reads
+  right to left: Windows shapes and orders the text (no extra library), the layout is mirrored (text on the right,
+  controls on its left, tabs from the right), and every text uses a font with Arabic letters. The main window
+  grows a little where a language needs longer shortcut names.
+- **Dictation in Turkish and Arabic,** each with a Whisper hint sentence in its own language. German is unchanged
+  word for word.
+- **The glossary in the app:** *Settings → General → Glossary → Edit* opens a window with the words and the fixed
+  corrections: add, change (click the entry) and delete, a search field for long lists, any script in the text
+  fields ("Hüseyin", "عبد الله"). It saves into the same `glossary.toml` and keeps its comments and order; *Open as
+  file* is still there.
+- **Where transcripts are saved:** a *Location* row under *Save transcripts* shows the folder, with *Change* (folder
+  picker, only folders Hams can write to) and *Open* (Explorer, created if needed); `[output] transcripts_dir` in
+  `config.toml`. The retention (`keep_days`) applies to the chosen folder.
+
+### Changed
+- **Dictation language without a choice** follows the interface language where Hams has one (Turkish, Arabic,
+  Spanish, French), else *Automatic* (Russian).
+- **README, user guide and SECURITY.md** describe the one-click update and its single new network access.
+
 ## [1.3.3] – 2026-11-16
 
 ### Changed
