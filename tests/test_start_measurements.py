@@ -6,7 +6,8 @@ memory Hams holds itself (`gpu_memory`, DXGI). Both are only figures for the log
 The start budget runs a real Hams as a test instance, off unless asked for (`set HAMS_PERF=1`) like the other time
 budgets, and only with a model cache to load from (`set HAMS_BUDGET_HF_CACHE=<folder with the turbo model>`): it never
 downloads. It fails when the start grows clearly beyond what was measured for 1.3.7 on the development PC
-(RTX 5070, warm disk cache): hotkeys ready after about 0.6 s, the model ready after about 4-5 s.
+(RTX 5070, warm disk cache, as a test instance): hotkeys ready after 0.94 s, the model ready (warm-up included)
+after 3.3 s. 1.3.6 had its hotkeys after 1.1 s; it logged no process times.
 """
 
 import os
@@ -24,8 +25,8 @@ from hams import gpu_memory, process_clock
 PROJECT_ROOT = Path(__file__).parent.parent
 
 #: Seconds after the process began; about twice what was measured, so only a clear growth fails.
-HOTKEYS_BUDGET = 1.5
-MODEL_READY_BUDGET = 10.0
+HOTKEYS_BUDGET = 2.0
+MODEL_READY_BUDGET = 6.5
 
 
 class TestProcessClock:
