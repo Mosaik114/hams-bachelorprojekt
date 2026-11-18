@@ -5,6 +5,36 @@ follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.7] – 2026-11-18
+
+### Added
+- **Hams gives the graphics memory back while you don't dictate.** After 10 minutes without dictation the speech
+  model hands its memory to games and other programs (measured with *Turbo* on an RTX 5070: about 2.2 GB down to
+  0.15 GB; the rest is the graphics driver's own share and stays). The hotkey loads it again while you speak, so a
+  normal dictation does not wait; only a very short one right after the pause may take a moment. New in *Settings →
+  Transcription*: **Free graphics memory after** (*Never*, 2, 5, 10, 30 minutes, 1 hour) and **Free it at once for
+  games** (on: while a game runs full screen, after 30 seconds, and the AI cleanup model in Ollama too if Hams loaded
+  it). New in the tray menu: **Free memory now**. In the configuration file: `[model] release_after` and
+  `release_for_games`.
+- If loading the model again fails (a game filled the graphics memory, a driver reset), Hams loads it anew and falls
+  back to the processor if it must, and says so calmly; if nothing works, the window says *The speech model no
+  longer loads* with a **Restart** button. A dictation is never lost because the model was resting: every
+  transcription checks for it and loads it itself.
+
+### Changed
+- **Faster start.** A second start (Start menu while Hams runs) and the restart without RedirectionGuard no longer
+  load the speech engine (faster-whisper, CTranslate2 and the CUDA libraries, about half a gigabyte) only to quit;
+  the running Hams loads it on its model thread, after the window, the hotkeys and the tray are there.
+- **The first dictation after the start is no longer slower:** on the GPU the model transcribes one second of
+  silence right after loading (measured 1.8 s for the first transcription without it, 0.13 s after it).
+- **Ollama is warmed up when you press the hotkey, not at the start of Hams,** where it loaded 2–8 GB next to the
+  speech model also on days nobody dictated. It keeps its model for 10 minutes instead of 30 (`[ollama]
+  keep_alive`); a configuration with the old default `"30m"` gets the new one, any other value stays.
+- **Ollama on this computer is reached past the system proxy,** so a company proxy or a missing network no longer
+  makes it "unreachable".
+- The log names the time since the process began at the start, the graphics memory Hams itself holds (loaded,
+  parked, loaded again) and the compute type CTranslate2 really uses. CTranslate2 4.8.5 or later is required.
+
 ## [1.3.6] – 2026-11-17
 
 ### Fixed
