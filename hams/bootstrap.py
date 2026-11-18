@@ -8,7 +8,7 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
-from hams import audio_devices, config, i18n
+from hams import audio_devices, config, i18n, process_clock
 from hams import ui_kit as uk
 from hams.config import CFG
 from hams.ui_kit import Theme
@@ -73,7 +73,9 @@ def start() -> str:
 
     Returns what `config.ensure_user_config` did (`CONFIG_EXISTING`, `CONFIG_CREATED`, ...).
     """
-    setup_logging()
+    log = setup_logging()
+    # The first line of every start, with the time the imports before it took (they used to be invisible).
+    log.info("Hams starting, %.2f s after the process began", process_clock.seconds_since_start())
     state = config.ensure_user_config()
     load()
     return state
