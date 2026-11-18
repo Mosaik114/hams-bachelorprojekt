@@ -83,10 +83,11 @@ class TestModelThread:
         gate.set()
 
     def test_stop_and_start_again(self, worker):
-        first = worker.call(threading.get_ident)
+        # Thread objects, not get_ident(): Linux hands the id of a finished thread to the next one.
+        first = worker.call(threading.current_thread)
         worker.stop()
         assert wait_for(lambda: not worker.started)
-        assert worker.call(threading.get_ident) != first
+        assert worker.call(threading.current_thread) is not first
 
     def test_drain_without_a_thread(self):
         assert ModelThread().drain(0) is True
