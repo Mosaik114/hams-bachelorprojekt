@@ -31,6 +31,9 @@ classifiers = [
 ]
 dependencies = [
     "faster-whisper>=1.1.0",
+    # 4.8.5 fixes the crash when the caching allocator shuts down after the thread that allocated has ended
+    # (CTranslate2 #2136): the pattern of a model parked while idle and loaded again on a short-lived thread.
+    "ctranslate2>=4.8.5",
     "numpy>=1.26.0",
     "pyperclip>=1.9.0",
     "sounddevice>=0.4.6",

@@ -308,7 +308,9 @@ ctranslate2==4.8.5 \
     --hash=sha256:eb0d63683530a664955ffa54f3d0706c6123fe03dd15499af9d03cf76c230c31 \
     --hash=sha256:ee052b9c7e4d210b93735f4f5955ad9e864091a17f03aafcdeeb5ba60a6f79fe \
     --hash=sha256:f590841d72417bc71556a0669712b8d52b7048e8233422b846a69f967d9aa63b
-    # via faster-whisper
+    # via
+    #   hams (pyproject.toml)
+    #   faster-whisper
 faster-whisper==1.2.1 \
     --hash=sha256:79a66ad50688c0b794dd501dc340a736992a6342f7f95e5811be60b5224a26a7
     # via hams (pyproject.toml)
