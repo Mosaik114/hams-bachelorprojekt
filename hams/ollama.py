@@ -11,11 +11,14 @@ The model lists in the settings show only what is installed and never download a
 from __future__ import annotations
 
 import http.client
+import ipaddress
 import json
 import logging
 import re
+import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 
@@ -233,17 +236,48 @@ def probe_or_offline(probe) -> OllamaState:
         return OllamaState(False, (), (), t("ollama.bad_response"))
 
 
+def is_loopback(url: str) -> bool:
+    """Whether `url` points at this machine (127.0.0.0/8, ::1 or `localhost`)."""
+    try:
+        host = urllib.parse.urlsplit(url).hostname or ""
+    except ValueError:
+        return False
+    if host.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+#: Requests to this machine never go through a proxy. urllib follows the system proxy (Windows: the Internet
+#: settings, or HTTP_PROXY) and does not leave out 127.0.0.1 by itself, so behind a company proxy, or with the network
+#: gone, the local Ollama counted as unreachable.
+DIRECT_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+_DIRECT = DIRECT_OPENER
+
+
+def _model_key(name: str) -> str:
+    """A model name as Ollama lists it: without a tag it is `:latest`."""
+    name = name.strip()
+    return name if ":" in name.rsplit("/", 1)[-1] else f"{name}:latest"
+
+
 class OllamaClient:
     """The one HTTP client for the local Ollama service.
 
     `base` is the service address (`http://127.0.0.1:11434`), or a function returning it, so a client created at
     start follows the setting. `opener` replaces `urllib.request.urlopen` (tests, `tools/cleanup_eval.py`); without
-    one, `urlopen` is looked up at every request.
+    one, `urlopen` is looked up at every request, except for this machine, which is always asked directly.
     """
 
     def __init__(self, base: str | Callable[[], str], *, opener=None) -> None:
         self._base = base
         self._opener = opener
+        #: The models Hams has had Ollama load in this session (`generate`, `warm_up`), as Ollama names them: only
+        #: these does `release_own_models` unload, never one another program uses.
+        self._used: set[str] = set()
+        self._used_lock = threading.Lock()
 
     @classmethod
     def for_url(cls, generate_url: str | Callable[[], str], *, opener=None) -> OllamaClient:
@@ -257,8 +291,15 @@ class OllamaClient:
         return self._base() if callable(self._base) else self._base
 
     def _open(self, request: urllib.request.Request, timeout: float):
-        opener = self._opener or urllib.request.urlopen
-        return opener(request, timeout=timeout)
+        if self._opener is not None:
+            return self._opener(request, timeout=timeout)
+        if is_loopback(request.full_url):
+            return _DIRECT.open(request, timeout=timeout)
+        return urllib.request.urlopen(request, timeout=timeout)  # noqa: S310 - the address is checked in the config
+
+    def _note_used(self, model: str) -> None:
+        with self._used_lock:
+            self._used.add(_model_key(model))
 
     def _post(self, path: str, body: dict, timeout: float):
         # The address comes from the settings; scheme and host are checked in config_validation.ollama_url_problem.
@@ -310,6 +351,7 @@ class OllamaClient:
             body["system"] = system
         if options:
             body["options"] = options
+        self._note_used(model)
         with self._post("/api/generate", body, timeout) as response:
             if on_progress is None:
                 return _plain_answer(json.loads(response.read()))
@@ -318,8 +360,37 @@ class OllamaClient:
     def warm_up(self, model: str, keep_alive: str, timeout: float = 60.0) -> None:
         """Loads `model` into memory with an empty prompt, so the first dictation does not wait for a cold start."""
         body = {"model": model, "prompt": "", "stream": False, "keep_alive": keep_alive}
+        self._note_used(model)
         with self._post("/api/generate", body, timeout) as response:
             response.read()
+
+    def unload(self, model: str, timeout: float = TIMEOUT) -> None:
+        """Asks Ollama to unload `model` now (`keep_alive` 0, the documented way); raises like `generate`."""
+        with self._post("/api/generate", {"model": model, "keep_alive": 0}, timeout) as response:
+            response.read()
+
+    def release_own_models(self, timeout: float = TIMEOUT) -> list[str]:
+        """Unloads the models Hams had Ollama load, if Ollama still holds them (`/api/ps`). Returns their names.
+
+        Never another model: one in memory that Hams did not use belongs to another program. Ollama not running,
+        or too old for `/api/ps`, means nothing to do. Never raises.
+        """
+        with self._used_lock:
+            used = set(self._used)
+        if not used:
+            return []
+        loaded = {_model_key(name) for name in self.running_models(timeout)}
+        released = []
+        for name in sorted(used & loaded):
+            try:
+                self.unload(name, timeout)
+            except OLLAMA_ERRORS as exc:
+                logger.warning("Ollama model %s not unloaded: %s", name, type(exc).__name__)
+                continue
+            released.append(name)
+            with self._used_lock:
+                self._used.discard(name)
+        return released
 
     # ------------------------------------------------------------------ models
 

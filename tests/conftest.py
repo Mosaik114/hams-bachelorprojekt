@@ -10,6 +10,7 @@ import tempfile
 import time
 import tkinter as tk
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -197,6 +198,22 @@ def model_cache_check(monkeypatch):
     monkeypatch.setattr(whisper_models, "installed_whisper_models", lambda: set(installed))
     monkeypatch.setattr(ModelManager, "needs_download", _REAL_NEEDS_DOWNLOAD)
     return installed
+
+
+@pytest.fixture(autouse=True)
+def ollama_requests_through_urlopen(monkeypatch):
+    """Requests to this machine skip the system proxy through an opener of their own (`ollama._DIRECT`). In the
+    tests they go through `urllib.request.urlopen`, looked up at each request, so a test that replaces `urlopen`
+    catches them as before and none reaches an Ollama running on the developer's machine. The proxy itself is
+    checked in test_ollama_address.py with the real opener (`ollama.DIRECT_OPENER`)."""
+    import urllib.request
+
+    from hams import ollama
+
+    def through_urlopen(request, timeout=None):
+        return urllib.request.urlopen(request, timeout=timeout)  # noqa: S310 - whatever the test put there
+
+    monkeypatch.setattr(ollama, "_DIRECT", SimpleNamespace(open=through_urlopen))
 
 
 @pytest.fixture(autouse=True)
