@@ -123,7 +123,11 @@ class TestStartupActivation(unittest.TestCase):
         }
         spec = importlib.util.spec_from_file_location("hams_main_test", ROOT / "hams" / "main.py")
         self.main = importlib.util.module_from_spec(spec)
-        with patch.dict(sys.modules, modules), patch.object(sys, "path", list(sys.path)):
+        # For the whole test, not only the import: main() imports hams.app only once it holds the lock.
+        modules_patch = patch.dict(sys.modules, modules)
+        modules_patch.start()
+        self.addCleanup(modules_patch.stop)
+        with patch.object(sys, "path", list(sys.path)):
             spec.loader.exec_module(self.main)
         self.root = Mock()
         self.main.tk = types.SimpleNamespace(Tk=Mock(return_value=self.root))

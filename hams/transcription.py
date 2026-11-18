@@ -20,12 +20,24 @@ else:
 
 from hams import cleanup_guard, dictation_language, glossary
 from hams import ollama as ollama_api
-from hams.backend import BatchedInferencePipeline
 from hams.config import CFG, OUTPUT_DIR, logger
 from hams.i18n import t
 from hams.recording import SAMPLE_RATE, _normalize_audio
 from hams.status import StatusSink
 from hams.whisper_model import MODEL_WAIT_SECONDS
+
+#: faster-whisper's batched pipeline, imported on first use like the model itself (`whisper_model.model_class`):
+#: by then the model is loaded and faster-whisper long imported. Tests put their double here.
+BatchedInferencePipeline = None
+
+
+def batched_pipeline_class():
+    if BatchedInferencePipeline is not None:
+        return BatchedInferencePipeline
+    from hams.backend import BatchedInferencePipeline as loaded
+
+    return loaded
+
 
 #: Ab dieser Aufnahmelaenge wird die gebatchte Auswertung benutzt.
 #: Gemessen (turbo/float16, RTX 5070, gegen bekannten Referenztext):
@@ -331,7 +343,7 @@ class Pipeline:
                 # The batched pipeline transcribes the speech chunks independently; faster-whisper ignores
                 # `condition_on_previous_text` there. The sequential path has it off as well (WHISPER_OPTIONS),
                 # so both paths treat every chunk without the text before it.
-                segments, info = BatchedInferencePipeline(model=model).transcribe(
+                segments, info = batched_pipeline_class()(model=model).transcribe(
                     normalised, batch_size=BATCH_SIZE, **options
                 )
             else:

@@ -6,11 +6,26 @@ import threading
 import time
 from typing import Protocol
 
+from hams import gpu_memory
 from hams import models as whisper_models
-from hams.backend import WhisperModel
 from hams.backend_preload import cuda_libraries_found
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
+
+#: faster-whisper's model class, imported by the first load on the load thread (`model_class`): faster-whisper,
+#: CTranslate2 and the CUDA libraries cost a few tenths of a second and half a gigabyte, which neither the Tk thread
+#: at start nor a second Hams that only wakes the running one should pay. Tests put their double here.
+WhisperModel = None
+
+
+def model_class():
+    """`WhisperModel` (a test double if one is set), importing faster-whisper on first use."""
+    if WhisperModel is not None:
+        return WhisperModel
+    from hams.backend import WhisperModel as loaded
+
+    return loaded
+
 
 #: Compute types per device, tried in this order: the first one the device supports wins. float16 is the fast
 #: path on an NVIDIA GPU; int8 runs on cards without float16 and on any CPU.
@@ -66,15 +81,68 @@ def _load_on_devices(model_id: str, *, local: bool, problems: list | None = None
                     compute_type,
                     " (disk only)" if local else "",
                 )
-                model = WhisperModel(model_id, device=device, compute_type=compute_type, **options)
-                logger.info("Model ready (%s/%s)", device, compute_type)
-                return model, device, compute_type
+                model = model_class()(model_id, device=device, compute_type=compute_type, **options)
+                # The type CTranslate2 really uses: it may switch silently (int8 on a card without it).
+                actual = actual_compute_type(model, compute_type)
+                note = "" if actual == compute_type else f", asked for {compute_type}"
+                logger.info("Model ready (%s/%s%s)", device, actual, note)
+                return model, device, actual
             except Exception as exc:  # noqa: BLE001 - try the next device or compute type
                 if problems is not None:
                     problems.append(exc)
                 errors.append(f"{device}/{compute_type}: {exc}")
                 logger.warning("Model load failed: %s", errors[-1])
     return None, None, " | ".join(errors)
+
+
+def engine(model):
+    """CTranslate2's model inside a faster-whisper model, the part that is parked and loaded; None for a double."""
+    inner = getattr(model, "model", None)
+    if all(hasattr(inner, name) for name in ("unload_model", "load_model", "model_is_loaded")):
+        return inner
+    return None
+
+
+def actual_compute_type(model, requested: str) -> str:
+    """The compute type of a loaded model as CTranslate2 reports it; `requested` when it says nothing."""
+    value = getattr(getattr(model, "model", None), "compute_type", None)
+    return value if isinstance(value, str) and value else requested
+
+
+def log_graphics_memory(moment: str, device: str | None) -> None:
+    """Hams' own graphics memory in the log (DXGI, see `gpu_memory`); only on the GPU."""
+    if device == "cuda":
+        logger.info("Graphics memory of Hams %s: %s", moment, gpu_memory.describe())
+
+
+#: The warm-up after a load on the GPU: one second of silence. The first transcription on a GPU sets up cuBLAS and
+#: cuDNN; measured on an RTX 5070 (turbo, float16) 1.8 s for the first and 0.13 s for the second, so without the
+#: warm-up the first dictation after the start paid for it.
+WARM_UP_SAMPLES = 16_000
+
+
+def warm_up(model, device: str | None) -> None:
+    """Transcribes a short silence once on the GPU; the result is thrown away. Never raises."""
+    if device != "cuda" or engine(model) is None:
+        return
+    import numpy as np
+
+    started = time.monotonic()
+    try:
+        segments, _info = model.transcribe(
+            np.zeros(WARM_UP_SAMPLES, dtype=np.float32),
+            language="en",
+            beam_size=1,
+            vad_filter=False,
+            without_timestamps=True,
+            condition_on_previous_text=False,
+        )
+        for _segment in segments:
+            pass
+    except Exception:  # noqa: BLE001 - only a head start; the first dictation then sets it up itself
+        logger.warning("Model warm-up failed", exc_info=True)
+        return
+    logger.info("Model warmed up in %.2f s", time.monotonic() - started)
 
 
 #: How long a finished recording waits for the model before it gives up. Warm it is there after ~2 s, cold after
@@ -187,7 +255,7 @@ class ModelManager:
         """Whether `model_id` is a catalog model that isn't in the local cache yet."""
         return whisper_models.find(model_id) is not None and model_id not in whisper_models.installed_whisper_models()
 
-    def current_model(self) -> WhisperModel | None:
+    def current_model(self):
         """A stable reference to the active model.
 
         A transcription takes it exactly once and works with it to the end, so a switch cannot swap the model out
@@ -326,6 +394,8 @@ class ModelManager:
             model, device, info = self._build_model(previous)
             if model is not None:
                 model_id = previous
+        if model is not None and self._is_current(generation):
+            warm_up(model, device)
         return self._commit(generation, model_id, model, device, info)
 
     def _commit(self, generation: int, model_id: str, model, device, info) -> tuple[str, bool] | None:
@@ -352,6 +422,8 @@ class ModelManager:
             return None
         if model is None:
             logger.error("All model-load attempts failed: %s", info)
+        else:
+            log_graphics_memory("with the model loaded", device)
         return model_id, model is not None
 
     def _finish_load(self, model_id: str, ok: bool, *, persist: bool, requested: str) -> None:

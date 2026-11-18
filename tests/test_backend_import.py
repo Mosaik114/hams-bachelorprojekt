@@ -1,5 +1,8 @@
 """The CUDA libraries must be reachable once faster-whisper is imported, and the start must not pull in torch.
 
+faster-whisper itself comes late: not with `hams.main`, not with `hams.app`, but on the model-load thread
+(`whisper_model.model_class`). A second Hams that only wakes the running one never loads it.
+
 CTranslate2 needs cuBLAS and cuDNN for the GPU but does not bring them; `backend_preload` registers them from the
 NVIDIA wheels or the app's download before `hams.backend` imports faster-whisper. Hams' own dependencies never
 include torch: the start has to stay without it.
@@ -49,7 +52,9 @@ class TestTheStart:
         bericht = _in_a_fresh_interpreter(
             """
             import json, sys
-            import hams.main
+            import hams.main, hams.app
+            from hams import whisper_model
+            whisper_model.model_class()  # what the load thread does
             print(json.dumps({
                 "torch": "torch" in sys.modules,
                 "transformers": "transformers" in sys.modules,
@@ -61,6 +66,43 @@ class TestTheStart:
         assert bericht["backend"] is True, "faster-whisper muss geladen sein"
         assert bericht["torch"] is False
         assert bericht["transformers"] is False
+
+    def test_neither_main_nor_the_app_import_faster_whisper(self, tmp_path):
+        """faster-whisper, CTranslate2 and the CUDA libraries load on the model thread, not before the window."""
+        bericht = _in_a_fresh_interpreter(
+            """
+            import json, sys
+            import hams.main
+            after_main = {name: name in sys.modules for name in ("faster_whisper", "ctranslate2", "hams.app")}
+            import hams.app
+            after_app = {name: name in sys.modules for name in ("faster_whisper", "ctranslate2", "hams.backend")}
+            print(json.dumps({"main": after_main, "app": after_app}))
+        """,
+            tmp_path,
+        )
+        assert bericht["main"] == {"faster_whisper": False, "ctranslate2": False, "hams.app": False}
+        assert bericht["app"] == {"faster_whisper": False, "ctranslate2": False, "hams.backend": False}
+
+    def test_a_second_instance_loads_neither_the_app_nor_faster_whisper(self, tmp_path):
+        """Another Hams holds the lock: this one only wakes it and quits, without the half gigabyte."""
+        bericht = _in_a_fresh_interpreter(
+            """
+            import json, sys
+            from hams import main
+            woken = []
+            main._acquire_single_instance_mutex = lambda: None  # another Hams holds the lock
+            main._second_instance = woken.append
+            main.main()
+            print(json.dumps({
+                "woken": woken,
+                "app": "hams.app" in sys.modules,
+                "backend": "faster_whisper" in sys.modules,
+                "ctranslate2": "ctranslate2" in sys.modules,
+            }))
+        """,
+            tmp_path,
+        )
+        assert bericht == {"woken": [False], "app": False, "backend": False, "ctranslate2": False}
 
     def test_the_backend_is_usable(self, tmp_path):
         bericht = _in_a_fresh_interpreter(

@@ -1,4 +1,12 @@
-"""Startpunkt von Hams: Konfiguration vorbereiten, eine Instanz sichern, Fenster starten."""
+"""Startpunkt von Hams: Konfiguration vorbereiten, eine Instanz sichern, Fenster starten.
+
+The app itself (`hams.app`, with numpy, the microphone and the tray) is imported only once this Hams is sure to stay:
+after the RedirectionGuard restart and the single-instance lock. A second start from the Start menu only wakes the
+running Hams and quits, and should not load half the program for that. faster-whisper, CTranslate2 and the CUDA
+libraries come later still, on the model-load thread (`whisper_model.model_class`).
+"""
+
+from __future__ import annotations
 
 import ctypes
 import sys
@@ -14,13 +22,16 @@ if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
 import contextlib
+from typing import TYPE_CHECKING
 
 from hams import bootstrap, branding, config, i18n, redirection_guard, setup_wizard
 from hams import ui_kit as uk
 from hams.activation import SETTINGS_EVENT, SHOW_EVENT, SettingsRequests, request_settings, request_show
-from hams.app import FloatingTranscriberApp
 from hams.config import CFG, CONFIG_PATH, logger
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex
+
+if TYPE_CHECKING:
+    from hams.app import FloatingTranscriberApp
 
 
 def _second_instance(show_settings: bool) -> None:
@@ -137,6 +148,9 @@ def main(*, show_settings: bool = False, show_setup: bool = False, background: b
         return
 
     receivers: list[SettingsRequests] = []
+    # Only now: this Hams stays (see the module docstring).
+    from hams.app import FloatingTranscriberApp
+
     _warn_about_broken_config()
     # Nach dem Schloss: eine zweite Instanz darf die Markierung nicht anlegen.
     setup = show_setup or setup_wizard.needs_setup(state, setup_wizard.marker_path(CONFIG_PATH))
