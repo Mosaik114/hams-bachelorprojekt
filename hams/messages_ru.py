@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "Начать запись",
     "button.stop": "Остановить",
     "button.retry": "Повторить",
+    "button.restart": "Перезапустить",
     "button.open_setup": "Мастер настройки",
     "status.model_loading": "Загрузка модели…",
     "status.model_loading_named": "Загрузка {model}…",
@@ -49,6 +50,7 @@ MESSAGES: dict[str, str] = {
     "status.error": "Ошибка – подробности в журнале",
     "status.no_recording": "Ничего не записано",
     "status.no_speech": "Речь не распознана",
+    "status.restart_needed": "Модель речи больше не загружается",
     "status.model_still_loading": "Модель еще загружается…",
     "status.characters.one": "{count} символ",
     "status.characters.other": "Символов: {count}",
@@ -57,6 +59,10 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Диктовка",
     "shortcut.prompt": "Спросить ИИ",
     # --- hints and errors in the main window
+    "hint.restart_needed": "Обычно помогает перезапуск {product}.",
+    "hint.gpu_lost": (
+        "Видеокарта не отвечает. {product} теперь работает на процессоре, это медленнее. Перезапуск вернёт видеокарту."
+    ),
     "hint.see_log": "Подробнее: Параметры → Справка → Диагностический отчет.",
     "hint.model_fallback": "Пока используется {active}. Подробнее: Параметры → Справка → Диагностический отчет.",
     "hint.try_again": "Попробуйте еще раз.",
@@ -110,6 +116,7 @@ MESSAGES: dict[str, str] = {
     "tray.update": "Обновить сейчас: {product} {version}",
     "update.notify_title": "Доступна версия {product} {version}",
     "update.notify_body": "Установка в один щелчок: меню в области уведомлений или Параметры → Общие.",
+    "tray.release_memory": "Освободить память сейчас",
     "tray.quit": "Выход",
     "tray.hidden.title": "{product} продолжает работать в области уведомлений",
     "tray.hidden.body": (
@@ -174,6 +181,21 @@ MESSAGES: dict[str, str] = {
     "settings.storage.confirm": "Удалить {model}? Освободится {size}",
     "settings.storage.confirm_partial": "Удалить остатки {model}?",
     "settings.storage.deleting": "Удаление…",
+    "settings.release.title": "Освобождать видеопамять через",
+    "settings.release.hint": (
+        "Освобождает память, если вы столько не диктуете. При следующей диктовке модель снова загрузится, пока "
+        "вы говорите."
+    ),
+    "settings.release.0": "Никогда",
+    "settings.release.2": "2 минуты",
+    "settings.release.5": "5 минут",
+    "settings.release.10": "10 минут",
+    "settings.release.30": "30 минут",
+    "settings.release.60": "1 час",
+    "settings.release_games.title": "Сразу освобождать для игр",
+    "settings.release_games.hint": (
+        "Если игра запущена на весь экран, память освобождается уже через 30 секунд, в том числе для очистки текста ИИ"
+    ),
     "settings.hardware.title": "Оборудование",
     "settings.hardware.auto": "Автоматически · {device}",
     "settings.hardware.error": "Не загружено · см. «Устранение неполадок»",

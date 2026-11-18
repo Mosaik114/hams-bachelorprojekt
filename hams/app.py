@@ -16,13 +16,14 @@ import tkinter as tk
 
 import numpy as np
 
-from hams import branding, test_instance, transcription, update_install
+from hams import branding, process_clock, test_instance, transcription, update_install
 from hams import models as whisper_models
 from hams import ollama as ollama_api
 from hams import ui_kit as uk
 from hams.config import APP_DIR, CFG, CONFIG_PATH, logger
 from hams.cursor_level import CursorLevel
 from hams.i18n import Text, t, tn
+from hams.idle_release import IdleRelease
 from hams.instance import _acquire_single_instance_mutex, _release_single_instance_mutex, restart_command
 from hams.main_window import MainWindowMixin
 from hams.recording import SILENCE_PEAK_THRESHOLD, MicrophoneUnavailable, Recorder, _display_level
@@ -70,6 +71,11 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self.cursor_level = CursorLevel(self.root)
         self._fit_window()
         self.apply_state("model_loading")
+        # Hotkeys and tray first: recording works before the model is there (see `_may_record`), and the model
+        # loads on a thread of its own. Ollama is warmed up at the hotkey, not here (`Pipeline.warm_up_ollama_async`).
+        self._register_hotkeys()
+        logger.info("Hotkeys ready, %.2f s after the process began", process_clock.seconds_since_start())
+        self._setup_tray()
         if setup and CFG.model_size not in whisper_models.installed_whisper_models():
             # faster-whisper would download the missing model silently. The assistant downloads it with progress;
             # until then the status line says what it is waiting for.
@@ -77,19 +83,17 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             self.apply_state("setup_pending")
         else:
             self._load_model_async()
-        self.pipeline.warm_up_ollama_async()
         transcription.prune_transcripts_async()
-        self._register_hotkeys()
 
         logger.info("Window corners: %s", uk.round_window_corners(self.root))
         self.root.bind("<Configure>", self._on_root_configure)
         self.root.protocol("WM_DELETE_WINDOW", self._hide_window)
-        self._setup_tray()
         self.updates.start()
+        self.idle_release.start()
         if sys.platform != "win32":
             linux.on_show_request(lambda: self.ui_call(self._show_window))
         self.root.withdraw()
-        logger.info("Hams started")
+        logger.info("Hams started, %.2f s after the process began", process_clock.seconds_since_start())
 
     def _init_window(self) -> None:
         """Borderless window, scaling and fonts, position from the settings."""
@@ -131,6 +135,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         #: "unreachable" until its own first check is back.
         self.ollama_state = ollama_api.OllamaState(False)
         self.ollama_checked = False
+        #: Gives the graphics memory back while Hams is idle (idle_release.py).
+        self.idle_release = IdleRelease(self)
 
     def _init_runtime_state(self) -> None:
         """Interface state, timers, history and shortcuts."""
@@ -454,6 +460,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
 
     def _release_resources(self) -> None:
         """Stream, hotkeys, model and the level at the pointer."""
+        self.idle_release.stop()
         self._stop_elapsed_ticker()
         self.cursor_level.close()
         self._cancel_done_reset()
@@ -481,6 +488,9 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         "generating": ("ai", "status.generating", "secondary", "button.start_recording", False),
         "done": ("ready", "status.done", "primary", "button.start_recording", True),
         "error": ("error", "status.error", "secondary", "button.retry", True),  # a detail replaces the text
+        # The speech model could not be loaded again after it was parked (a driver reset, say): only a new process
+        # gets the graphics card back, so the button restarts Hams.
+        "restart_needed": ("error", "status.restart_needed", "secondary", "button.restart", True),
         "no_signal": ("warning", "status.no_signal", "primary", "button.start_recording", True),
     }
 
@@ -556,7 +566,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             return palette["RECORDING"]
         if state in ("recording_prompt", "generating"):
             return palette["AI"]
-        if state == "error":
+        if state in ("error", "restart_needed"):
             return palette["ERROR"]
         return palette["ACCENT_TINT"]
 
@@ -580,6 +590,8 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         """The button does what its text promises."""
         if self._state == "error":
             self._retry()
+        elif self._state == "restart_needed":
+            self._restart_from_window()
         elif self._state == "setup_pending":
             self._open_setup()
         else:
@@ -591,6 +603,12 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             self.reload_model()
         else:
             self.apply_state("ready")
+
+    def _restart_from_window(self) -> None:
+        """The button of `restart_needed`; a reason it cannot restart now (a dictation runs) stands in its place."""
+        problem = self.restart_app()
+        if problem:
+            self.apply_state("restart_needed", None, problem)
 
     def _beep(self, freq: int, duration: int) -> None:
         if not CFG.sound_feedback:
@@ -636,7 +654,13 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         return True
 
     def start_recording(self) -> None:
-        """Opens the microphone and shows the recording; it stops by itself after `max_recording_seconds`."""
+        """Opens the microphone and shows the recording; it stops by itself after `max_recording_seconds`.
+
+        The models this recording needs load while the user speaks: the parked speech model and Ollama's.
+        """
+        self.idle_release.touch()
+        self.models.wake()
+        self.pipeline.warm_up_ollama_async(self._prompt_mode)
         try:
             self.recorder.start(max_seconds=CFG.max_recording_seconds, on_limit=self._on_max_duration_reached)
         except MicrophoneUnavailable:
@@ -677,6 +701,7 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         self.apply_state("transcribing")
         logger.info("Recording stopped after %.1fs", duration)
         prompt_mode, self._prompt_mode = self._prompt_mode, False
+        self.idle_release.touch()
 
         if audio is None:
             self.apply_state("no_signal", t("status.no_recording"), t("hint.no_audio"))
@@ -818,11 +843,18 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
             if fallback:
                 self._model_notice(lambda: self._on_model_fallback(requested, model_id))
             elif ok:
-                logger.info("Model ready for UI (%s/%s)", self.models.active_device, self.models.active_compute_type)
+                logger.info(
+                    "Model ready for UI (%s/%s), %.2f s after the process began",
+                    self.models.active_device,
+                    self.models.active_compute_type,
+                    process_clock.seconds_since_start(),
+                )
                 self._pending_model_notice = None  # an older error notice no longer applies
                 if not self.is_recording:
                     self.apply_state("ready")
                 self._update_tray_tooltip()
+                if self.models.reload_trouble == "device":
+                    self._after_dictation(self._on_gpu_lost)
             else:
                 self._model_notice(self._on_model_error)
         if self.settings_win is not None and self.settings_win.alive():
@@ -839,7 +871,24 @@ class FloatingTranscriberApp(MainWindowMixin, TrayMixin):
         )
         self._update_tray_tooltip()
 
+    def _after_dictation(self, show) -> None:
+        """A model message that comes while a dictation is recorded or still in the pipeline waits for it."""
+        if self.is_recording:
+            self._pending_model_notice = show
+        elif self.pipeline.pending():
+            self._notice_after_pipeline = show
+        else:
+            show()
+
+    def _on_gpu_lost(self) -> None:
+        """Loading the parked model failed, and the new one runs on another device (the CPU): say so, calmly."""
+        logger.warning("The speech model now runs on %s; a restart brings the GPU back", self.models.active_device)
+        self.apply_state("ready", None, t("hint.gpu_lost", product=branding.PRODUCT_NAME), calm=True)
+
     def _on_model_error(self) -> None:
+        if getattr(self.models, "reload_trouble", None) == "failed":
+            self.apply_state("restart_needed", None, t("hint.restart_needed", product=branding.PRODUCT_NAME))
+            return
         # A known reason (a folder Windows will not let Hams into: 448, OneDrive) says what to do; otherwise the
         # general sentence with the way to the diagnostic report.
         detail = getattr(self.models, "model_error_detail", None)

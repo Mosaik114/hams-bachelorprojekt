@@ -175,13 +175,19 @@ class ModelManager:
     Phases (`phase`): idle -> loading (no model yet) or switching (one was loaded before) -> ready or failed. A new
     request while busy supersedes the running one instead of being refused or starting a second, parallel load.
 
+    Parking (`park`, `wake`, `ensure_loaded`): while Hams is idle the model's weights can be given back to the
+    graphics card (phase `parked`). The model stays the active one and `model_ready` stays set, because everything
+    that reads it means "usable": the tray, the settings, the assistant and the pipeline. The next hotkey loads the
+    weights again while the user speaks (`wake`); every transcription checks under `transcribe_lock` and loads them
+    itself if they are still missing (`ensure_loaded`), because a parked CTranslate2 model raises at its first use.
+
     Results reach `events` on the Tk thread through `ui_call`; after `close()` nothing is reported any more.
     """
 
     def __init__(self, ui_call, events: ModelEvents) -> None:
         self._ui_call = ui_call
         self.events = events
-        self.model: WhisperModel | None = None
+        self.model = None
         #: Which model is loaded. `CFG.model_size` is the *choice*; the two differ during and after a failed switch.
         self.active_model_size: str | None = None
         self.active_device: str | None = None
@@ -206,6 +212,17 @@ class ModelManager:
         self._switching_to: str | None = None
         self._phase = "idle"
         self._closed = False
+        #: The active model's weights were given back (`park`); it stays active and loads again on use.
+        self._parked = False
+        #: True while `park` is giving the weights back; a hotkey then has to load them again afterwards.
+        self._parking = False
+        #: A thread is loading the parked model again (`wake`).
+        self._waking = False
+        #: Rises with every hotkey (`wake`): a park that started before it loads the weights straight back.
+        self._wake_requests = 0
+        #: After loading a parked model failed: "device" (it runs on another device now, the CPU) or "failed"
+        #: (none could be loaded); a restart of Hams is the way back. None otherwise.
+        self.reload_trouble: str | None = None
         #: Known installed models (`installed_models`); None until first asked.
         self._installed: set[str] | None = None
         # The download belongs to the app, not to a window: it goes on when the settings are closed meanwhile.
@@ -228,8 +245,13 @@ class ModelManager:
 
     @property
     def phase(self) -> str:
-        """idle, loading, switching, ready or failed."""
+        """idle, loading, switching, ready, parked or failed."""
         return self._phase
+
+    @property
+    def parked(self) -> bool:
+        """The active model's weights are given back; it is still usable and loads again on use."""
+        return self._parked
 
     @property
     def is_switching(self) -> bool:
@@ -305,6 +327,7 @@ class ModelManager:
             generation = self._generation
             self._switching_to = model_id
             self._phase = "switching" if self.active_model_size else "loading"
+            self.reload_trouble = None
         if self.load_after_download not in (None, model_id):
             # A download that a start or retry waited for no longer decides which model is loaded.
             logger.info("Model request %s supersedes the awaited download of %s", model_id, self.load_after_download)
@@ -313,16 +336,32 @@ class ModelManager:
         self._start_switch_thread(model_id, generation, persist)
         return generation
 
+    #: How long `close` waits for a load (or transcription) that is still running, in seconds.
+    CLOSE_WAIT_SECONDS = 5.0
+
     def close(self) -> None:
-        """At shutdown: invalidate running loads, free the model, report nothing any more."""
+        """At shutdown: invalidate running loads, free the model, report nothing any more.
+
+        A load still running is waited for, briefly: a process that ends while CTranslate2 is loading or freeing a
+        model on another thread is where its shutdown crashes were (CTranslate2 4.8.5, #2136).
+        """
         self._closed = True
         self.downloader.cancel()  # unfinished files stay, the next download resumes them
         with self._lock:
             self._generation += 1
             self._switching_to = None
-            self.model = None
-            self.model_ready.clear()
             self._phase = "idle"
+        acquired = self.transcribe_lock.acquire(timeout=self.CLOSE_WAIT_SECONDS)
+        if not acquired:
+            logger.warning("Quit: a model load still runs after %.0f s, not waiting longer", self.CLOSE_WAIT_SECONDS)
+        try:
+            with self._lock:
+                self.model = None
+                self.model_ready.clear()
+                self._parked = False
+        finally:
+            if acquired:
+                self.transcribe_lock.release()
 
     def _start_switch_thread(self, model_id: str, generation: int, persist: bool = True) -> None:
         """A method of its own, so tests can run the load synchronously."""
@@ -405,6 +444,7 @@ class ModelManager:
             if current:
                 self._switching_to = None
                 self._phase = "ready" if model is not None else "failed"
+                self._parked = False
                 if model is not None:
                     self.model = model
                     self.active_device = device
@@ -439,6 +479,146 @@ class ModelManager:
             CFG.model_size = model_id
             _persist_config_value("model", "size", model_id)
         self.events.model_loaded(model_id, ok, requested)
+
+    # ------------------------------------------------------------------ parking
+
+    def can_park(self) -> bool:
+        """Whether the weights could be given back now: a loaded model, nothing loading or downloading."""
+        return (
+            not self._closed
+            and self._phase == "ready"
+            and not self.is_switching
+            and not self.downloader.active
+            and engine(self.model) is not None
+        )
+
+    def wake_count(self) -> int:
+        """The hotkeys so far (`wake`); `park` takes it to notice a hotkey that came after the decision to park."""
+        return self._wake_requests
+
+    def park(self, wakes: int | None = None) -> bool:
+        """Gives the active model's weights back to the graphics card; it stays the active model. Never waits.
+
+        False when there is nothing to give back, when a transcription or a load holds `transcribe_lock`, or when
+        CTranslate2 kept the weights (it does so silently while it still runs a batch). A hotkey that came after
+        `wakes` (the `wake_count` when the decision was taken) loads the weights straight back. Not on the Tk thread:
+        freeing takes up to a tenth of a second.
+        """
+        expected = self._wake_requests if wakes is None else wakes
+        if not self.can_park() or not self.transcribe_lock.acquire(blocking=False):
+            return False
+        try:
+            with self._lock:
+                self._parking = True
+            return self._park_locked(expected)
+        finally:
+            with self._lock:
+                self._parking = False
+            self.transcribe_lock.release()
+
+    def _park_locked(self, wakes: int) -> bool:
+        if not self.can_park() or self._wake_requests != wakes:
+            return False
+        model = self.model
+        inner = engine(model)
+        started = time.monotonic()
+        try:
+            inner.unload_model()
+        except Exception:  # noqa: BLE001 - the model may be half given back; `ensure_loaded` looks at it again
+            logger.exception("Parking the model failed")
+        if inner.model_is_loaded:
+            logger.info("Model not parked: CTranslate2 kept it")
+            return False
+        with self._lock:
+            self._parked = True
+            self._phase = "parked"
+        logger.info("Model parked in %.2f s", time.monotonic() - started)
+        log_graphics_memory("with the model parked", self.active_device)
+        if self._wake_requests != wakes:
+            logger.info("A hotkey came while parking: loading the model again")
+            self.ensure_loaded()
+        return True
+
+    def wake(self) -> None:
+        """At the hotkey: a parked model loads again in the background while the user speaks.
+
+        The load runs under `transcribe_lock` and only for the generation it was started in: a switch, the
+        assistant or `close` that came meanwhile brings its own model or none.
+        """
+        with self._lock:
+            self._wake_requests += 1
+            needed = (self._parked or self._parking) and not self._closed and not self._waking
+            if needed:
+                self._waking = True
+            generation = self._generation
+        if needed:
+            threading.Thread(target=self._wake_worker, args=(generation,), daemon=True, name="model-reload").start()
+
+    def _wake_worker(self, generation: int) -> None:
+        try:
+            with self.transcribe_lock:
+                if self._is_current(generation):
+                    self.ensure_loaded()
+        except Exception:  # noqa: BLE001 - boundary of the thread; the transcription checks again
+            logger.exception("Loading the parked model crashed")
+        finally:
+            with self._lock:
+                self._waking = False
+
+    def ensure_loaded(self) -> bool:
+        """The caller holds `transcribe_lock`: the active model's weights are in memory afterwards, or False.
+
+        The safety net of every transcription: a parked model is loaded here, right away, because CTranslate2
+        raises at the first use of a model whose weights are gone and the dictation would be lost. If loading it
+        fails (a game took the graphics memory, a driver reset, a deleted cache), the model is built anew through
+        the whole device list down to the CPU; if that fails too, False and the app offers a restart.
+        """
+        model = self.current_model()
+        if model is None:
+            return False
+        inner = engine(model)
+        if inner is None or inner.model_is_loaded:
+            if self._parked:
+                self._mark_loaded()
+            return True
+        started = time.monotonic()
+        try:
+            inner.load_model()
+        except Exception as exc:  # noqa: BLE001 - the fallback below says what happened
+            logger.warning("Loading the parked model failed (%s: %s); loading it anew", type(exc).__name__, exc)
+            return self._rebuild_locked()
+        self._mark_loaded()
+        logger.info("Parked model loaded again in %.2f s", time.monotonic() - started)
+        log_graphics_memory("with the model loaded again", self.active_device)
+        return True
+
+    def _mark_loaded(self) -> None:
+        with self._lock:
+            self._parked = False
+            if self._phase == "parked":
+                self._phase = "ready"
+
+    def _rebuild_locked(self) -> bool:
+        """Under `transcribe_lock`: the active model anew, as a load of its own (generation, devices, commit)."""
+        model_id = self.active_model_size or CFG.model_size
+        device_before = self.active_device
+        with self._lock:
+            self._generation += 1
+            generation = self._generation
+            self._switching_to = model_id
+            self._phase = "switching"
+            self._parked = False
+        outcome = self._load_for(model_id, generation)
+        if outcome is None:
+            return False
+        loaded_id, ok = outcome
+        if not ok:
+            self.reload_trouble = "failed"
+        elif self.active_device != device_before:
+            self.reload_trouble = "device"
+        logger.warning("Model after the failed reload: %s on %s", loaded_id if ok else "none", self.active_device)
+        self._post(lambda: self._finish_load(loaded_id, ok, persist=False, requested=model_id))
+        return ok
 
     # ------------------------------------------------------------------ download
 

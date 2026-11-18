@@ -212,6 +212,8 @@ class Pipeline:
         self._cleanup_offline_noted = False
         #: (status text, hint) for the next delivery, or None.
         self._delivery_note: tuple | None = None
+        #: Ollama model -> when the hotkey may warm it up again (monotonic), see `warm_up_ollama_async`.
+        self._warm_until: dict[str, float] = {}
 
     # ------------------------------------------------------------------ queue
 
@@ -286,6 +288,9 @@ class Pipeline:
             return
         # Take one stable reference and finish the run with it; the lock holds a model switch back meanwhile.
         with self.models.transcribe_lock:
+            # A model parked while idle has given its weights back and would raise at its first use: load them now
+            # (usually the hotkey has done that long ago, while the user spoke).
+            self.models.ensure_loaded()
             model = self.models.current_model()
             if model is None:
                 self._state("error", t("error.no_model"), t("hint.try_again"))
@@ -524,19 +529,43 @@ class Pipeline:
 
     # ------------------------------------------------------------------ Ollama warm-up
 
-    def warm_up_ollama_async(self) -> None:
-        threading.Thread(target=self.warm_up_ollama, daemon=True, name="ollama-warmup").start()
+    #: The hotkey warms the same Ollama model up at most this often (s); Ollama keeps it for `keep_alive` anyway.
+    WARM_UP_INTERVAL_SECONDS = 120.0
 
-    def warm_up_ollama(self) -> None:
-        """Loads the cleanup model into VRAM ahead, so the first real request doesn't pay a 10-30 s cold start."""
-        if not CFG.ollama_cleanup_enabled:
+    @staticmethod
+    def _ollama_model_for(prompt_mode: bool) -> str | None:
+        """The Ollama model a recording will need: the prompt model, the cleanup model, or none (cleanup off)."""
+        if prompt_mode:
+            return CFG.ollama_model_prompt or None
+        return CFG.ollama_model_cleanup if CFG.ollama_cleanup_enabled and CFG.ollama_model_cleanup else None
+
+    def warm_up_ollama_async(self, prompt_mode: bool = False) -> None:
+        """At the hotkey, not at start: Ollama loads the model this recording needs while the user speaks.
+
+        At start it would load 2-8 GB next to the speech model, also on days nobody dictates. Not again within
+        `WARM_UP_INTERVAL_SECONDS`, and not while Ollama was just found missing.
+        """
+        model = self._ollama_model_for(prompt_mode)
+        now = time.monotonic()
+        if model is None or now < self._cleanup_retry_at or now < self._warm_until.get(model, 0.0):
             return
-        model = CFG.ollama_model_cleanup
+        self._warm_until[model] = now + self.WARM_UP_INTERVAL_SECONDS
+        threading.Thread(target=self.warm_up_ollama, args=(prompt_mode,), daemon=True, name="ollama-warmup").start()
+
+    def forget_warm_up(self) -> None:
+        """Ollama's model was unloaded: the next hotkey warms it up again."""
+        self._warm_until.clear()
+
+    def warm_up_ollama(self, prompt_mode: bool = False) -> None:
+        """Loads the model ahead, so the first real request does not pay a 10-30 s cold start."""
+        model = self._ollama_model_for(prompt_mode)
+        if model is None:
+            return
         try:
             self.ollama.warm_up(model, CFG.ollama_keep_alive)
             logger.info("Ollama warmed up: %s", model)
         except Exception as exc:  # noqa: BLE001 - boundary of the thread: warming up is only an attempt
-            logger.warning("Ollama warmup failed for %s: %s", model, exc)
+            logger.warning("Ollama warmup failed for %s: %s", model, type(exc).__name__)
 
 
 def transcripts_folder() -> Path:

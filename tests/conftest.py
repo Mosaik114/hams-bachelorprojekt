@@ -271,11 +271,11 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     from setup_fakes import InlineThread
 
     from hams import app as app_mod
+    from hams import idle_release, update_notice
     from hams import ollama as ollama_api
     from hams import recording as recording_mod
     from hams import settings_status as status_mod
     from hams import transcription as transcription_mod
-    from hams import update_notice
     from hams.app import FloatingTranscriberApp as App
     from hams.config import CFG
 
@@ -346,7 +346,9 @@ def hams(monkeypatch, patch_everywhere, tmp_path):
     #: The real start of a model load, for the tests of that path (`hams.load_model(app)`).
     fakes.load_model = App._load_model_async
     monkeypatch.setattr(App, "_load_model_async", load)
-    monkeypatch.setattr(transcription_mod.Pipeline, "warm_up_ollama_async", lambda self: None)
+    monkeypatch.setattr(transcription_mod.Pipeline, "warm_up_ollama_async", lambda self, prompt_mode=False: None)
+    # No timer that parks the model or asks Ollama: test_idle_release.py drives the decisions itself.
+    monkeypatch.setattr(idle_release.IdleRelease, "start", lambda self: None)
     # Never online: test_updates.py and test_update_notice.py check the update query with fakes.
     monkeypatch.setattr(update_notice.UpdateNotice, "start", lambda self: None)
     monkeypatch.setattr(App, "_setup_tray", lambda self: setattr(self, "tray_icon", FakeTray()))

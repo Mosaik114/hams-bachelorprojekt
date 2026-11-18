@@ -28,6 +28,8 @@ from hams.config_validation import SectionReader
 FIELDS = [
     ("audio", "max_recording_seconds", "max_recording_seconds", "int"),
     ("model", "size", "model_size", "text"),
+    ("model", "release_after", "model_release_minutes", "release"),
+    ("model", "release_for_games", "model_release_for_games", "bool"),
     ("transcription", "vad_filter", "transcription_vad_filter", "bool"),
     ("hotkeys", "transcript", "hotkey_transcript", "text"),
     ("hotkeys", "prompt", "hotkey_prompt", "text"),
@@ -54,6 +56,8 @@ WRONG_VALUES = {
     "number": ["0.3", True, [0.3], {"a": 1}, -1.0, 99.0, math.nan, math.inf],
     "text": [42, 1.5, True, ["x"], {"a": 1}],
     "keep_alive": [1.5, True, ["30m"], {"a": 1}],
+    # Only the minutes the settings offer: 0, 2, 5, 10, 30, 60.
+    "release": ["10m", "10", True, 1.5, [10], {"a": 1}, -5, 7, 10**9],
     "bool": ["yes", "nein", 1, 0, 1.0, ["true"], {"a": 1}],
 }
 

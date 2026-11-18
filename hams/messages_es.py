@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "Iniciar grabación",
     "button.stop": "Detener",
     "button.retry": "Reintentar",
+    "button.restart": "Reiniciar",
     "button.open_setup": "Abrir asistente",
     "status.model_loading": "Cargando modelo …",
     "status.model_loading_named": "Cargando {model} …",
@@ -49,6 +50,7 @@ MESSAGES: dict[str, str] = {
     "status.error": "Error – detalles en el registro",
     "status.no_recording": "No se grabó nada",
     "status.no_speech": "No se detectó voz",
+    "status.restart_needed": "El modelo de voz ya no se carga",
     "status.model_still_loading": "El modelo aún se está cargando …",
     "status.characters.one": "{count} carácter",
     "status.characters.other": "{count} caracteres",
@@ -57,6 +59,11 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Dictar",
     "shortcut.prompt": "Preguntar a la IA",
     # --- hints and errors in the main window
+    "hint.restart_needed": "Reiniciar {product} suele solucionarlo.",
+    "hint.gpu_lost": (
+        "La tarjeta gráfica no responde. {product} usa ahora el procesador, que es más lento. Al reiniciar "
+        "vuelve a usar la tarjeta gráfica."
+    ),
     "hint.see_log": "Detalles: Configuración → Acerca de y ayuda → Informe de diagnóstico.",
     "hint.model_fallback": (
         "Se sigue usando {active}. Detalles: Configuración → Acerca de y ayuda → Informe de diagnóstico."
@@ -113,6 +120,7 @@ MESSAGES: dict[str, str] = {
     "tray.update": "Actualizar ahora: {product} {version}",
     "update.notify_title": "{product} {version} ya está disponible",
     "update.notify_body": "Instálalo con un clic en el menú del área de notificación o en Configuración → General.",
+    "tray.release_memory": "Liberar memoria ahora",
     "tray.quit": "Salir",
     "tray.hidden.title": "{product} sigue en el área de notificación",
     "tray.hidden.body": (
@@ -179,6 +187,22 @@ MESSAGES: dict[str, str] = {
     "settings.storage.confirm": "¿Eliminar {model}? Libera {size}",
     "settings.storage.confirm_partial": "¿Quitar los restos de {model}?",
     "settings.storage.deleting": "Eliminando …",
+    "settings.release.title": "Liberar memoria gráfica tras",
+    "settings.release.hint": (
+        "Libera la memoria si no dictas durante ese tiempo. En el siguiente dictado, el modelo se vuelve a "
+        "cargar mientras hablas."
+    ),
+    "settings.release.0": "Nunca",
+    "settings.release.2": "2 minutos",
+    "settings.release.5": "5 minutos",
+    "settings.release.10": "10 minutos",
+    "settings.release.30": "30 minutos",
+    "settings.release.60": "1 hora",
+    "settings.release_games.title": "Liberar enseguida al jugar",
+    "settings.release_games.hint": (
+        "Si un juego está en pantalla completa, la memoria se libera ya a los 30 segundos, también la de la "
+        "limpieza con IA"
+    ),
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automático · {device}",
     "settings.hardware.error": "No se pudo cargar · consulta Solución de problemas",

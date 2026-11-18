@@ -47,6 +47,7 @@ class TestStateTable:
             "generating",
             "done",
             "error",
+            "restart_needed",
             "no_signal",
         }
 

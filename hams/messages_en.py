@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "Start recording",
     "button.stop": "Stop",
     "button.retry": "Try again",
+    "button.restart": "Restart",
     "button.open_setup": "Open setup",
     "status.model_loading": "Loading model …",
     "status.model_loading_named": "Loading {model} …",
@@ -49,6 +50,7 @@ MESSAGES: dict[str, str] = {
     "status.error": "Error – details in the log",
     "status.no_recording": "Nothing recorded",
     "status.no_speech": "No speech detected",
+    "status.restart_needed": "The speech model no longer loads",
     "status.model_still_loading": "Model is still loading …",
     "status.characters.one": "{count} character",
     "status.characters.other": "{count} characters",
@@ -57,6 +59,11 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Dictate",
     "shortcut.prompt": "Ask AI",
     # --- hints and errors in the main window
+    "hint.restart_needed": "Restarting {product} usually fixes this.",
+    "hint.gpu_lost": (
+        "The graphics card isn't answering. {product} now uses the processor, which is slower. A restart brings "
+        "the graphics card back."
+    ),
     "hint.see_log": "Details: Settings → About & help → Diagnostic report.",
     "hint.model_fallback": "Still using {active}. Details: Settings → About & help → Diagnostic report.",
     "hint.try_again": "Please try again.",
@@ -110,6 +117,7 @@ MESSAGES: dict[str, str] = {
     "tray.update": "Update now: {product} {version}",
     "update.notify_title": "{product} {version} is available",
     "update.notify_body": "One click in the tray menu or under Settings → General installs it.",
+    "tray.release_memory": "Free memory now",
     "tray.quit": "Quit",
     "tray.hidden.title": "{product} keeps running in the tray",
     "tray.hidden.body": (
@@ -173,6 +181,21 @@ MESSAGES: dict[str, str] = {
     "settings.storage.confirm": "Delete {model}? Frees {size}",
     "settings.storage.confirm_partial": "Remove the leftovers of {model}?",
     "settings.storage.deleting": "Deleting …",
+    "settings.release.title": "Free graphics memory after",
+    "settings.release.hint": (
+        "Frees the memory when you haven't dictated for this long. Your next dictation loads the model again "
+        "while you speak."
+    ),
+    "settings.release.0": "Never",
+    "settings.release.2": "2 minutes",
+    "settings.release.5": "5 minutes",
+    "settings.release.10": "10 minutes",
+    "settings.release.30": "30 minutes",
+    "settings.release.60": "1 hour",
+    "settings.release_games.title": "Free it at once for games",
+    "settings.release_games.hint": (
+        "When a game runs full screen, the memory is freed after 30 seconds, also the memory for AI cleanup"
+    ),
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automatic · {device}",
     "settings.hardware.error": "Couldn't load · see Troubleshooting",

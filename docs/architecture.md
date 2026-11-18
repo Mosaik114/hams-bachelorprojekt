@@ -50,15 +50,22 @@ flowchart TB
 | Object | Owns | Talks to the UI through |
 |---|---|---|
 | `Recorder` | the input stream, recorded blocks, level, microphone consumers (level meters), length limit | return values and `MicrophoneUnavailable`; the app shows the states |
-| `ModelManager` | the Whisper model, load generations, fallback, download numbers | `ModelEvents` (`model_loaded`, `download_progress`, `download_finished`), always on the Tk thread via `ui_call` |
+| `ModelManager` | the Whisper model, load generations, fallback, download numbers, parking (weights given back while idle, loaded again by `wake` at the hotkey or by `ensure_loaded` in the transcription) | `ModelEvents` (`model_loaded`, `download_progress`, `download_finished`), always on the Tk thread via `ui_call` |
+| `IdleRelease` | when the model parks: the idle time (`[model] release_after`), 30 s while a game runs full screen, *Free memory now* | decides on the Tk thread, gives back on a worker; nothing to report |
 | `Pipeline` | the job queue, Whisper, cleanup and its guard, *Ask AI*, delivery | `StatusSink` (`apply_state`, `ui_call`, `is_recording`, `show_answer_length`) and `on_delivered` (tray history) |
-| `OllamaClient` | every HTTP request to Ollama: generate (streamed or not), warm-up, tags, ps, pull | nothing; callers translate errors |
+| `OllamaClient` | every HTTP request to Ollama: generate (streamed or not), warm-up, tags, ps, pull, unloading the models Hams loaded; this machine is asked past any proxy | nothing; callers translate errors |
 | `UpdateNotice` | the update check and the pending release | `on_found`, `on_change` callbacks |
 
 The app keeps the decisions that are about the window: which state to show, holding a model message back until a
 recording stops, the recording flow (start, stop, queue the job). Importing `hams.config` defines the settings and
 nothing else; `hams.bootstrap` sets up the log, creates or migrates the user file, reads the settings into the one
 `CFG` object in place, resolves the microphone and applies the colour scheme.
+
+**Start order.** `hams.main` imports the app only once this Hams holds the single-instance lock (a second start only
+wakes the running one), the app registers the hotkeys and the tray before it starts the model load, and faster-whisper,
+CTranslate2 and the CUDA libraries are imported on the model-load thread (`whisper_model.model_class`). On the GPU the
+load ends with one transcription of a second of silence, so the first dictation does not pay for setting up cuBLAS
+and cuDNN. Ollama is warmed up at the hotkey, not at start.
 
 ## Pipeline
 

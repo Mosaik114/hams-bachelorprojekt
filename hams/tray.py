@@ -204,8 +204,13 @@ class TrayMixin:
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.history"), pystray.Menu(*history_items)),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem(t("tray.release_memory"), self._release_memory_now),
             pystray.MenuItem(t("tray.quit"), self._quit_app),
         )
+
+    def _release_memory_now(self, icon=None, item=None) -> None:
+        """Tray "Free memory now": on pystray's thread, the decision belongs to the Tk thread."""
+        self.ui_call(self.idle_release.release_now)
 
     def _refresh_tray(self) -> None:
         """Baut das Tray-Menü neu.

@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "Aufnahme starten",
     "button.stop": "Stoppen",
     "button.retry": "Erneut versuchen",
+    "button.restart": "Neu starten",
     "button.open_setup": "Einrichtung öffnen",
     "status.model_loading": "Modell wird geladen …",
     "status.model_loading_named": "{model} wird geladen …",
@@ -49,6 +50,7 @@ MESSAGES: dict[str, str] = {
     "status.error": "Fehler – Details im Log",
     "status.no_recording": "Keine Aufnahme erkannt",
     "status.no_speech": "Keine Sprache erkannt",
+    "status.restart_needed": "Das Sprachmodell lädt nicht mehr",
     "status.model_still_loading": "Modell wird noch geladen …",
     "status.characters.one": "{count} Zeichen",
     "status.characters.other": "{count} Zeichen",
@@ -57,6 +59,11 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Diktieren",
     "shortcut.prompt": "KI fragen",
     # --- Hinweise und Fehler im Hauptfenster
+    "hint.restart_needed": "Ein Neustart von {product} behebt das meist.",
+    "hint.gpu_lost": (
+        "Die Grafikkarte antwortet nicht. {product} nutzt jetzt den Prozessor, das dauert länger. Ein Neustart "
+        "holt die Grafikkarte zurück."
+    ),
     "hint.see_log": "Einzelheiten: Einstellungen → Info & Hilfe → Diagnosebericht.",
     "hint.model_fallback": "Weiter mit {active}. Einzelheiten: Einstellungen → Info & Hilfe → Diagnosebericht.",
     "hint.try_again": "Versuch es erneut.",
@@ -113,6 +120,7 @@ MESSAGES: dict[str, str] = {
     "tray.update": "Jetzt aktualisieren: {product} {version}",
     "update.notify_title": "{product} {version} ist verfügbar",
     "update.notify_body": "Ein Klick im Tray-Menü oder unter Einstellungen → Allgemein installiert es.",
+    "tray.release_memory": "Speicher jetzt freigeben",
     "tray.quit": "Beenden",
     "tray.hidden.title": "{product} läuft im Tray weiter",
     "tray.hidden.body": (
@@ -179,6 +187,21 @@ MESSAGES: dict[str, str] = {
     "settings.storage.confirm": "{model} löschen? {size} frei",
     "settings.storage.confirm_partial": "Rest von {model} entfernen?",
     "settings.storage.deleting": "Wird gelöscht …",
+    "settings.release.title": "Grafikspeicher freigeben nach",
+    "settings.release.hint": (
+        "Gibt den Speicher frei, wenn du so lange nicht diktierst. Beim nächsten Diktat lädt das Modell wieder, "
+        "während du sprichst."
+    ),
+    "settings.release.0": "Nie",
+    "settings.release.2": "2 Minuten",
+    "settings.release.5": "5 Minuten",
+    "settings.release.10": "10 Minuten",
+    "settings.release.30": "30 Minuten",
+    "settings.release.60": "1 Stunde",
+    "settings.release_games.title": "Bei Spielen sofort freigeben",
+    "settings.release_games.hint": (
+        "Läuft ein Spiel im Vollbild, wird der Speicher schon nach 30 Sekunden frei, auch der für die KI-Bereinigung"
+    ),
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automatisch · {device}",
     "settings.hardware.error": "Nicht geladen · siehe Fehlerbehebung",

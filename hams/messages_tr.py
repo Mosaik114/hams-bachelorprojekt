@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "Kaydı başlat",
     "button.stop": "Durdur",
     "button.retry": "Tekrar dene",
+    "button.restart": "Yeniden başlat",
     "button.open_setup": "Kurulumu aç",
     "status.model_loading": "Model yükleniyor …",
     "status.model_loading_named": "{model} yükleniyor …",
@@ -49,6 +50,7 @@ MESSAGES: dict[str, str] = {
     "status.error": "Hata – ayrıntılar günlükte",
     "status.no_recording": "Hiçbir şey kaydedilmedi",
     "status.no_speech": "Konuşma algılanmadı",
+    "status.restart_needed": "Konuşma modeli artık yüklenmiyor",
     "status.model_still_loading": "Model hâlâ yükleniyor …",
     "status.characters.one": "{count} karakter",
     "status.characters.other": "{count} karakter",
@@ -57,6 +59,11 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "Dikte et",
     "shortcut.prompt": "Yapay zekaya sor",
     # --- hints and errors in the main window
+    "hint.restart_needed": "{product} uygulamasını yeniden başlatmak genellikle sorunu çözer.",
+    "hint.gpu_lost": (
+        "Ekran kartı yanıt vermiyor. {product} artık işlemciyi kullanıyor, bu daha yavaş. Yeniden başlatmak "
+        "ekran kartını geri getirir."
+    ),
     "hint.see_log": "Ayrıntılar: Ayarlar → Hakkında ve yardım → Tanılama raporu.",
     "hint.model_fallback": (
         "{active} kullanılmaya devam ediyor. Ayrıntılar: Ayarlar → Hakkında ve yardım → Tanılama raporu."
@@ -112,6 +119,7 @@ MESSAGES: dict[str, str] = {
     "tray.update": "Şimdi güncelle: {product} {version}",
     "update.notify_title": "{product} {version} kullanıma sunuldu",
     "update.notify_body": "Bildirim alanı menüsünde veya Ayarlar → Genel altında tek tıkla yüklenir.",
+    "tray.release_memory": "Belleği şimdi boşalt",
     "tray.quit": "Çık",
     "tray.hidden.title": "{product} bildirim alanında çalışmaya devam ediyor",
     "tray.hidden.body": (
@@ -179,6 +187,20 @@ MESSAGES: dict[str, str] = {
     "settings.storage.confirm": "{model} silinsin mi? {size} boşalır",
     "settings.storage.confirm_partial": "{model} kalıntıları kaldırılsın mı?",
     "settings.storage.deleting": "Siliniyor …",
+    "settings.release.title": "Grafik belleğini boşaltma süresi",
+    "settings.release.hint": (
+        "Bu süre boyunca dikte etmezseniz belleği boşaltır. Bir sonraki diktede model, siz konuşurken yeniden yüklenir."
+    ),
+    "settings.release.0": "Hiçbir zaman",
+    "settings.release.2": "2 dakika",
+    "settings.release.5": "5 dakika",
+    "settings.release.10": "10 dakika",
+    "settings.release.30": "30 dakika",
+    "settings.release.60": "1 saat",
+    "settings.release_games.title": "Oyunlarda hemen boşalt",
+    "settings.release_games.hint": (
+        "Bir oyun tam ekran çalışırken bellek 30 saniye sonra boşaltılır, yapay zeka düzenlemesininki de"
+    ),
     "settings.hardware.title": "Donanım",
     "settings.hardware.auto": "Otomatik · {device}",
     "settings.hardware.error": "Yüklenemedi · bkz. Sorun giderme",

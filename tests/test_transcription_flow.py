@@ -378,10 +378,11 @@ class TestSaveAndWarmup:
         live_app.pipeline.warm_up_ollama()
 
     def test_the_warmup_runs_in_its_own_thread(self, live_app, monkeypatch):
+        CFG.ollama_cleanup_enabled = True
         started = []
-        monkeypatch.setattr(live_app.pipeline, "warm_up_ollama", lambda: started.append(1))
+        monkeypatch.setattr(live_app.pipeline, "warm_up_ollama", lambda prompt_mode=False: started.append(prompt_mode))
         REAL_WARM_UP_ASYNC(live_app.pipeline)
         ende = time.monotonic() + 2
         while not started and time.monotonic() < ende:
             time.sleep(0.01)
-        assert started == [1]
+        assert started == [False]

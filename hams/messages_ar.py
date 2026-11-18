@@ -28,6 +28,7 @@ MESSAGES: dict[str, str] = {
     "button.start_recording": "بدء التسجيل",
     "button.stop": "إيقاف",
     "button.retry": "إعادة المحاولة",
+    "button.restart": "إعادة التشغيل",
     "button.open_setup": "فتح الإعداد",
     "status.model_loading": "جارٍ تحميل النموذج …",
     "status.model_loading_named": "جارٍ تحميل {model} …",
@@ -49,6 +50,7 @@ MESSAGES: dict[str, str] = {
     "status.error": "خطأ – التفاصيل في السجل",
     "status.no_recording": "لم يُسجَّل شيء",
     "status.no_speech": "لم يُكتشف أي كلام",
+    "status.restart_needed": "لم يعد نموذج الكلام يُحمَّل",
     "status.model_still_loading": "لا يزال النموذج قيد التحميل …",
     "status.characters.one": "عدد الأحرف: {count}",
     "status.characters.other": "عدد الأحرف: {count}",
@@ -57,6 +59,10 @@ MESSAGES: dict[str, str] = {
     "shortcut.transcript": "إملاء",
     "shortcut.prompt": "اسأل الذكاء الاصطناعي",
     # --- hints and errors in the main window
+    "hint.restart_needed": "عادةً ما تحل إعادة تشغيل {product} هذه المشكلة.",
+    "hint.gpu_lost": (
+        "بطاقة الرسوميات لا تستجيب. يستخدم {product} المعالج الآن، وهو أبطأ. تعيد إعادة التشغيل بطاقة الرسوميات."
+    ),
     "hint.see_log": "التفاصيل: الإعدادات ← حول ومساعدة ← تقرير التشخيص.",
     "hint.model_fallback": "لا يزال {active} قيد الاستخدام. التفاصيل: الإعدادات ← حول ومساعدة ← تقرير التشخيص.",
     "hint.try_again": "حاول مرة أخرى.",
@@ -109,6 +115,7 @@ MESSAGES: dict[str, str] = {
     "tray.update": "التحديث الآن إلى {product} {version}",
     "update.notify_title": "يتوفر الآن {product} {version}",
     "update.notify_body": "ثبّته بنقرة واحدة من قائمة منطقة الإعلامات أو من الإعدادات ← عام.",
+    "tray.release_memory": "تحرير الذاكرة الآن",
     "tray.quit": "إنهاء",
     "tray.hidden.title": "يواصل {product} العمل في منطقة الإعلامات",
     "tray.hidden.body": (
@@ -172,6 +179,20 @@ MESSAGES: dict[str, str] = {
     "settings.storage.confirm": "حذف {model}؟ ستتحرر مساحة {size}",
     "settings.storage.confirm_partial": "إزالة بقايا {model}؟",
     "settings.storage.deleting": "جارٍ الحذف …",
+    "settings.release.title": "تحرير ذاكرة الرسوميات بعد",
+    "settings.release.hint": (
+        "يحرر الذاكرة إذا لم تُملِ طوال هذه المدة. عند الإملاء التالي يُحمَّل النموذج من جديد أثناء حديثك."
+    ),
+    "settings.release.0": "أبدًا",
+    "settings.release.2": "دقيقتان",
+    "settings.release.5": "خمس دقائق",
+    "settings.release.10": "عشر دقائق",
+    "settings.release.30": "ثلاثون دقيقة",
+    "settings.release.60": "ساعة واحدة",
+    "settings.release_games.title": "التحرير فورًا أثناء الألعاب",
+    "settings.release_games.hint": (
+        "عند تشغيل لعبة بملء الشاشة تُحرَّر الذاكرة بعد 30 ثانية، ومنها ذاكرة التنقيح بالذكاء الاصطناعي"
+    ),
     "settings.hardware.title": "العتاد",
     "settings.hardware.auto": "تلقائي · {device}",
     "settings.hardware.error": "تعذّر التحميل · راجع حل المشكلات",

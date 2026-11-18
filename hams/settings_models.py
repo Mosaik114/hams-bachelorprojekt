@@ -1,4 +1,5 @@
-"""The settings group "Transcription": Whisper model (choose, download, delete), dictation language, hardware.
+"""The settings group "Transcription": Whisper model (choose, download, delete), dictation language, hardware and
+when the model gives the graphics memory back.
 
 What lies in the model cache is read in a background thread (`scan_inventory`): the first scan after a while can
 take half a second on a cold disk, and the Tk thread must never wait for it. Until the answer arrives, the rows
@@ -13,7 +14,7 @@ import tkinter as tk
 from hams import dictation_language
 from hams import models as whisper_models
 from hams import ui_kit as uk
-from hams.config import CFG, logger
+from hams.config import CFG, RELEASE_CHOICES, _persist_config_value, logger
 from hams.i18n import Text, t, tn
 from hams.settings_sections import CONTROL_WIDTH, Section, choose_dictation_language, dictation_options, group
 from hams.ui_kit import Theme
@@ -67,6 +68,11 @@ def download_text(label: str, done: int, total: int, percent: int) -> str:
     return t("settings.download.loaded", model=label, size=whisper_models.format_bytes(done))
 
 
+def release_options() -> list:
+    """`[model] release_after` as select options: never, minutes, an hour."""
+    return [uk.Option(minutes, t(f"settings.release.{minutes}")) for minutes in RELEASE_CHOICES]
+
+
 def dictation_hint(setting: str) -> str:
     """Description of the dictation language: with "auto" the notice that every recording is detected anew."""
     if setting == dictation_language.AUTO:
@@ -115,10 +121,9 @@ class TranscriptionSection(Section):
         self.cancel_button.set_hover_colour(Theme.ERROR)
         self._build_dictation_language(body)
         self._build_storage(body)
-        self.row_hardware = uk.SettingRow(
-            body, t("settings.hardware.title"), variant="display", value="—", hairline=False
-        )
+        self.row_hardware = uk.SettingRow(body, t("settings.hardware.title"), variant="display", value="—")
         self.row_hardware.pack(fill="x")
+        self._build_release(body)
         self.scan_inventory()
 
     def _build_dictation_language(self, body: tk.Misc) -> None:
@@ -174,9 +179,53 @@ class TranscriptionSection(Section):
         )
         self.delete_cancel.pack(side=uk.mirror_side("left"), padx=uk.mirror_pad((uk.px(uk.Space.XS), 0)))
 
+    def _build_release(self, body: tk.Misc) -> None:
+        """When the speech model gives the graphics memory back (`[model] release_after`, idle_release.py), and
+        whether a game in full screen gets it after 30 seconds (`[model] release_for_games`). Both apply at once."""
+        self.row_release = uk.SettingRow(
+            body, t("settings.release.title"), variant="description", description=t("settings.release.hint")
+        )
+        self.row_release.pack(fill="x")
+        self.select_release = uk.Select(
+            body,
+            bg_under=Theme.GROUP_SURFACE,
+            options=release_options(),
+            value=CFG.model_release_minutes,
+            on_change=self.select_release_minutes,
+        )
+        uk.keep_logical_width(self.select_release, self.select_release.fitting_width(CONTROL_WIDTH))
+        self.row_release.set_control(self.select_release)
+        self.row_games = uk.SettingRow(
+            body,
+            t("settings.release_games.title"),
+            variant="description",
+            description=t("settings.release_games.hint"),
+            interactive=True,
+            command=lambda: self.switch_games.toggle(),
+            hairline=False,
+        )
+        self.row_games.pack(fill="x")
+        self.switch_games = uk.Switch(
+            body, bg_under=Theme.GROUP_SURFACE, value=CFG.model_release_for_games, command=self._on_games
+        )
+        self.row_games.set_control(self.switch_games)
+
+    def select_release_minutes(self, minutes) -> None:
+        if minutes not in RELEASE_CHOICES or minutes == CFG.model_release_minutes:
+            return
+        CFG.model_release_minutes = minutes
+        _persist_config_value("model", "release_after", minutes)
+        logger.info("Free graphics memory after: %s min", minutes or "never")
+
+    def _on_games(self, value: bool) -> None:
+        CFG.model_release_for_games = value
+        _persist_config_value("model", "release_for_games", value)
+
     # ---------------------------------------------------------- show / hide
 
     def sync(self) -> None:
+        self.select_release.set_value(CFG.model_release_minutes)
+        self.switch_games.set(CFG.model_release_for_games, animate=False)
         self.select_dictation.set_value(CFG.transcription_language)
         self.row_dictation.set_description(dictation_hint(CFG.transcription_language))
         self.downloading = ""

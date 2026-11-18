@@ -107,6 +107,8 @@ notification says so. Right-click the tray icon for:
 - **Help …**: opens this user guide in your browser
 - **Recent transcripts**: the last five texts of this session. Clicking one copies it to the clipboard again. This
   list lives in memory only and is empty after a restart.
+- **Free memory now**: gives the graphics memory of the speech model back at once, and the memory of the cleanup
+  model in Ollama if Hams loaded it (see [Graphics memory](#graphics-memory))
 - **Quit**
 
 With *Settings → General → Save transcripts* on, every pasted text is also saved as a plain-text file in
@@ -127,7 +129,7 @@ to your configuration file.
 | Section | What you can change |
 |---|---|
 | Recording | microphone, live input level |
-| Transcription | Whisper model (download, switch, delete downloaded models), dictation language, hardware in use |
+| Transcription | Whisper model (download, switch, delete downloaded models), dictation language, hardware in use, *Free graphics memory after* and *Free it at once for games* (see [Graphics memory](#graphics-memory)) |
 | AI | text cleanup on/off, cleanup model, Ask AI model, Ollama status; *Download* for a cleanup model that isn't installed yet |
 | Shortcuts | both hotkeys, each with *Change* (see [Changing the hotkeys](#changing-the-hotkeys)); *Restart* button for when hotkeys stop responding |
 | General | sound on start/stop, *Save transcripts* and their *Location*, *Level at the pointer*, light or dark appearance, interface language, *Tell me about updates*, *Check for updates now* / *Update now*, *Edit* for the glossary, *Run again* for the setup assistant |
@@ -135,6 +137,17 @@ to your configuration file.
 
 Model switches and dictation language apply from the next recording. The interface language applies after a
 restart (the settings offer a *Restart* button).
+
+### Graphics memory
+
+The speech model takes about 2 GB of graphics memory (*Turbo* on an NVIDIA card). When you have not dictated for a
+while, Hams gives that memory back, so games and other programs get it: after 10 minutes by default (*Settings →
+Transcription → Free graphics memory after*: *Never*, 2, 5, 10 or 30 minutes, 1 hour). While a game runs full screen,
+Hams gives it back after 30 seconds already, and also unloads its cleanup model from Ollama if Hams loaded it
+(*Free it at once for games*, on by default). *Free memory now* in the tray menu does both right away.
+
+Nothing changes for dictating: the hotkey loads the model again while you speak (about 3 seconds on an RTX 5070), so
+only a very short dictation right after a long pause waits a moment. On the CPU the same frees main memory instead.
 
 ### Changing the hotkeys
 
@@ -187,7 +200,7 @@ The most useful keys:
 
 | Section | Key | Purpose |
 |---|---|---|
-| `[model]` | `size`, `device_priority` | Whisper model (`tiny` … `large-v3`, `turbo`) and the devices to try (`["cpu"]` keeps the GPU free); on each device Hams tries `float16` → `int8_float16` → `int8` (GPU) or `int8` → `float32` (CPU) |
+| `[model]` | `size`, `device_priority`, `release_after`, `release_for_games` | Whisper model (`tiny` … `large-v3`, `turbo`) and the devices to try (`["cpu"]` keeps the GPU free); on each device Hams tries `float16` → `int8_float16` → `int8` (GPU) or `int8` → `float32` (CPU). Minutes without dictation before the model gives its memory back (`0`, `2`, `5`, `10` (default), `30` or `60`; `0` never), and whether a full-screen game gets it after 30 seconds (default `true`) |
 | `[transcription]` | `language`, `vad_filter` | dictation language (see [Dictation languages](#dictation-languages)); silence removal before recognition |
 | `[ollama]` | `cleanup_enabled`, `model_transcript_cleanup`, `model_prompt_generate`, `keep_alive`, `url`, `cleanup_prompt_file`, `cleanup_temperature` | `cleanup_enabled = false` pastes the raw text, the fastest option; `cleanup_temperature` (default `0`, up to `2`) only affects cleanup, not *Ask AI* |
 | `[hotkeys]` | `transcript`, `prompt` | global shortcuts (dictation and *Ask AI*) |
@@ -459,7 +472,7 @@ only check-in is an update check that you can turn off (see below).
 | *Update now* (only when you click it) | `github.com` release downloads of this repository, redirected to GitHub's download CDN | standard requests for the setup file and its `.sha256` file |
 | *View* on the update notice | opens the release page on `github.com` in your web browser | nothing from Hams |
 | *User guide*, *Troubleshooting* in *Settings → About & help*, *Help …* in the tray menu | opens the page on `github.com` in your web browser | nothing from Hams |
-| Text cleanup, *Ask AI*, warm-up at start, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
+| Text cleanup, *Ask AI*, warm-up at the hotkey, unloading Hams' own model when a game runs full screen or from *Free memory now*, status check every 5 s while the settings window is open | `127.0.0.1:11434` (your local Ollama), or the `[ollama] url` you configured | the transcript and the instructions, only to that address |
 
 Nothing else; Hams has no crash reporting. The level animation at the mouse pointer is drawn by Hams itself and
 sends nothing anywhere. `api.github.com` is the one outbound host the update check adds.

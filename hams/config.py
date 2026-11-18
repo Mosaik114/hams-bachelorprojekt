@@ -128,6 +128,16 @@ SETTINGS_WIDTH, SETTINGS_HEIGHT = 440, 680
 SETTINGS_MIN_WIDTH, SETTINGS_MIN_HEIGHT = 400, 420
 SETTINGS_MAX = 4000
 
+#: The choices for `[model] release_after`: minutes without dictation after which the speech model gives its memory
+#: back (see idle_release.py); 0 is never.
+RELEASE_CHOICES = (0, 2, 5, 10, 30, 60)
+DEFAULT_RELEASE_MINUTES = 10
+#: Ollama keeps the cleanup model this long after the last request (`[ollama] keep_alive`).
+DEFAULT_KEEP_ALIVE = "10m"
+#: What the template said up to 1.3.6. Every user file started as a copy of it and there was no setting for it, so a
+#: user file with exactly this value means the old default, not a choice: it gets the new one.
+OLD_DEFAULT_KEEP_ALIVE = "30m"
+
 
 def normalise_appearance(value: Any) -> str:
     """A known colour scheme; anything else (an old or mistyped file) is light, never a colourless window."""
@@ -146,6 +156,11 @@ class Config:
     model_size: str = "turbo"
     #: Devices tried in this order; `["cpu"]` keeps the GPU free. Compute types per device: whisper_model.py.
     model_device_priority: tuple[str, ...] = ("cuda", "cpu")
+    #: Minutes without dictation after which the speech model gives the graphics memory back
+    #: (`[model] release_after`, one of `RELEASE_CHOICES`); 0 never.
+    model_release_minutes: int = DEFAULT_RELEASE_MINUTES
+    #: While a game runs full screen, give the memory back after 30 seconds already (`[model] release_for_games`).
+    model_release_for_games: bool = True
 
     #: Diktiersprache, siehe `dictation_language.SETTINGS`. Leer heisst: kein Eintrag in Vorlage oder
     #: Nutzerdatei — `_load_config` setzt dann die Sprache der Oberflaeche ein. Bestehende Dateien
@@ -165,7 +180,7 @@ class Config:
     #: Sampling-Temperatur der Bereinigung. 0 = deterministisch (gemessen besser, docs/evaluation.md).
     ollama_cleanup_temperature: float = 0.0
     ollama_cleanup_enabled: bool = True
-    ollama_keep_alive: str = "30m"
+    ollama_keep_alive: str = DEFAULT_KEEP_ALIVE
     #: Zuletzt bekannte Lage des Hauptfensters in physischen Bildschirmpixeln.
     #: None heisst: noch nie gemerkt, es gilt der Rueckfall.
     window_x: int | None = None
@@ -464,6 +479,7 @@ def _load_layers() -> Config:
         if path == CONFIG_PATH and data:
             _keep_legacy_output(cfg, data)
             _take_over_cursor_dot(cfg, data)
+            _renew_old_keep_alive(cfg, data)
 
     if not cfg.transcription_language:
         cfg.transcription_language = dictation_language.default_setting(cfg.ui_language)
@@ -530,6 +546,16 @@ def _take_over_cursor_dot(cfg: Config, data: dict) -> None:
     if isinstance(ui, dict) and "cursor_level" in ui:
         return
     cfg.cursor_level = True
+
+
+def _renew_old_keep_alive(cfg: Config, data: dict) -> None:
+    """`[ollama] keep_alive = "30m"` in a user file is the template's value up to 1.3.6: it gets the new default.
+
+    Read quietly and never written back; any other value is the user's own and stays.
+    """
+    ollama = data.get("ollama")
+    if isinstance(ollama, dict) and ollama.get("keep_alive") == OLD_DEFAULT_KEEP_ALIVE:
+        cfg.ollama_keep_alive = DEFAULT_KEEP_ALIVE
 
 
 def _warn_config(message: str) -> None:
@@ -603,6 +629,17 @@ def _apply_model(cfg: Config, model: SectionReader) -> None:
         if devices is None:
             devices = model.reject("device_priority", "a list of texts", model.raw("device_priority"), None)
         cfg.model_device_priority = devices or cfg.model_device_priority
+    cfg.model_release_minutes = _clean_release_minutes(model, cfg.model_release_minutes)
+    cfg.model_release_for_games = model.boolean("release_for_games", cfg.model_release_for_games)
+
+
+def _clean_release_minutes(model: SectionReader, current: int) -> int:
+    """`model.release_after`: one of the minutes the settings offer (0 = never)."""
+    minutes = model.integer("release_after", current, 0, max(RELEASE_CHOICES))
+    if minutes not in RELEASE_CHOICES:
+        choices = ", ".join(str(choice) for choice in RELEASE_CHOICES)
+        return model.reject("release_after", f"one of {choices}", minutes, current)
+    return minutes
 
 
 def _apply_transcription(cfg: Config, transcription: SectionReader) -> None:

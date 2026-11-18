@@ -137,7 +137,14 @@ On the CPU, the large models need several seconds per sentence. [hardware.md](ha
 - Set the dictation language explicitly instead of *Automatic*; detection costs an extra pass.
 - Turn off text cleanup (*Settings → AI*, or `[ollama] cleanup_enabled = false`) if Ollama runs on the CPU too.
   Cleanup can take longer than transcription.
-- The very first dictation after a start can be slower while everything warms up.
+- The very first dictation after a start can be slower while everything warms up. On the GPU, Hams warms the model
+  up right after loading it, so this mostly happens on the CPU.
+- After a long pause the speech model has given its graphics memory back (*Settings → Transcription → Free graphics
+  memory after*). The hotkey loads it again while you speak; only a very short dictation right after the pause waits
+  a moment. *Never* keeps it loaded.
+- *The speech model no longer loads* with a *Restart* button: loading it again after a pause failed (a graphics
+  driver reset, say) and the CPU did not work either. Restart Hams. If it only fell back to the CPU, the main window
+  says so; a restart brings the GPU back.
 
 ## Ollama is not reachable
 
@@ -155,9 +162,11 @@ Ollama is optional. Without it, dictation still works and pastes the raw text (*
 - Hams uses `127.0.0.1`, not `localhost`, on purpose (see [architecture.md](architecture.md#design-decisions)). If
   you run Ollama on a different port or machine, set `[ollama] url`, for example
   `url = "http://127.0.0.1:11500/api/generate"`. Other machines must be reached over `https://`.
-- The first cleanup after starting Ollama can take 10–30 s while the model loads. Hams warms the model up at start
-  (when cleanup is on) and keeps it loaded for 30 minutes (`keep_alive`). Cleanup gives up after 30 s and
-  pastes the raw text.
+- The first cleanup after starting Ollama can take 10–30 s while the model loads. Hams warms the model up when you
+  press the hotkey (when cleanup is on), so it loads while you speak, and keeps it loaded for 10 minutes
+  (`keep_alive`). Cleanup gives up after 30 s and pastes the raw text.
+- Requests to Ollama on this machine (`127.0.0.1`, `localhost`) never go through a proxy, so a company proxy or a
+  missing network does not cut Hams off from it.
 - After Ollama could not be reached, Hams pastes raw text for the next 60 seconds without asking it again, so dictation
   doesn't keep waiting for a service that is down. Cleanup resumes by itself after that.
 - If you don't want Ollama at all, switch cleanup off; Hams then doesn't contact it for dictation.
