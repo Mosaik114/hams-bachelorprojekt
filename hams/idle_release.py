@@ -1,57 +1,43 @@
 """Giving memory back while Hams is idle (`IdleRelease`).
 
 After a while without dictation (`[model] release_after`, default 10 minutes) the speech model gives its weights back
-to the graphics card (`ModelManager.park`); while a game runs full screen (`[model] release_for_games`) already after
-30 seconds, and then the cleanup model in Ollama goes too, if it is one Hams loaded. The next hotkey loads the speech
-model again while the user speaks (`ModelManager.wake`).
+to the graphics card (`ModelManager.park`); while a game runs or the graphics memory is tight (`[model]
+release_for_games`, see `game_detection`) already after 30 seconds, and then the cleanup model in Ollama goes too, if
+it is one Hams loaded. The next hotkey loads the speech model again while the user speaks (`ModelManager.wake`).
 
-The decision is taken on the Tk thread every few seconds and costs a few attribute reads and one Windows call
-(`SHQueryUserNotificationState`, the same as the level at the pointer uses). Giving back runs on a thread of its own
-and never waits: a model in use is simply left for the next round.
+The decision is taken on the Tk thread every few seconds and costs a few attribute reads and the game check (well
+under a millisecond: one shell call, the foreground window's geometry, two memory counters). Giving back runs on a
+thread of its own and never waits: a model in use is simply left for the next round.
 """
 
 from __future__ import annotations
 
 import contextlib
-import sys
 import threading
 import time
 import tkinter as tk
 
 from hams.config import CFG, logger
 
-#: Idle time after which the memory goes while a full-screen application (a game, also a video) is in front.
+#: Idle time after which the memory goes while a game runs (or a video in full screen) or graphics memory is tight.
 GAME_SECONDS = 30.0
 #: How often the decision is taken (ms).
 CHECK_MS = 10_000
 
 
 def full_screen_detector():
-    """A function telling whether a full-screen application is in front; on Linux always False."""
-    if sys.platform != "win32":
-        return lambda: False
-    from hams.cursor_level import Win32Desktop
+    """A function telling why a game seems to run (a short reason for the log), else None; on Linux always None."""
+    from hams.game_detection import detector
 
-    desktop = None
-
-    def full_screen() -> bool:
-        nonlocal desktop
-        try:
-            if desktop is None:
-                desktop = Win32Desktop()
-            return bool(desktop.fullscreen())
-        except Exception:  # noqa: BLE001 - not knowing means no game
-            logger.debug("Full-screen query failed", exc_info=True)
-            return False
-
-    return full_screen
+    return detector()
 
 
 class IdleRelease:
     """Parks the speech model after the idle time and frees Ollama's model during games. One per app.
 
-    `app` is the running app: its recorder, pipeline, model manager and Ollama client. `full_screen` and `clock` are
-    replaced in tests; `spawn` starts the worker (a thread; tests run it inline).
+    `app` is the running app: its recorder, pipeline, model manager and Ollama client. `full_screen` (the game check:
+    a reason or None, a bool in tests) and `clock` are replaced in tests; `spawn` starts the worker (a thread; tests
+    run it inline).
     """
 
     def __init__(self, app, *, full_screen=None, clock=time.monotonic, spawn=None) -> None:
@@ -117,7 +103,8 @@ class IdleRelease:
         if self.busy():
             self.touch()
             return
-        full_screen = bool(CFG.model_release_for_games) and self._full_screen()
+        signal = self._full_screen() if CFG.model_release_for_games else None
+        full_screen = bool(signal)
         if not full_screen:
             self._game_handled = False
         limit = self.limit(full_screen)
@@ -128,7 +115,8 @@ class IdleRelease:
             return  # parked already, or nothing to give back
         if game:
             self._game_handled = True
-            logger.info("Full-screen application in front: giving memory back")
+            reason = signal if isinstance(signal, str) else "full-screen application"
+            logger.info("Giving memory back after %d s idle: %s", limit, reason)
         self._start(ollama=game)
 
     def release_now(self) -> bool:

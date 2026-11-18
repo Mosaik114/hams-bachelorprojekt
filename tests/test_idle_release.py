@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from live_app import FakeOllama, RecordingSink, make_pipeline, ready_models
 
-from hams import idle_release
+from hams import game_detection, idle_release
 from hams import transcription as transcription_mod
 from hams import whisper_model as whisper_model_mod
 from hams.config import CFG
@@ -22,6 +22,7 @@ from hams.i18n import t
 from hams.idle_release import GAME_SECONDS, IdleRelease
 from hams.whisper_model import ModelManager
 
+GAME_REASONS = (game_detection.SHELL, game_detection.IN_FRONT, game_detection.MEMORY, game_detection.ELSEWHERE)
 SPEECH = (np.sin(np.linspace(0, 400, 16_000)) * 0.3).astype(np.float32)
 
 
@@ -555,7 +556,33 @@ class TestGames:
         assert pipeline._warm_until == {}
 
     def test_the_full_screen_detector_answers_on_every_system(self):
-        assert idle_release.full_screen_detector()() in (True, False)
+        assert idle_release.full_screen_detector()() in (None, *GAME_REASONS)
+
+    @pytest.mark.parametrize("reason", GAME_REASONS)
+    def test_every_signal_gives_the_memory_back_and_says_which(self, idle, caplog, reason):
+        caplog.set_level("INFO", logger="hams")
+        idle.screen.full = reason
+        idle.clock.now += GAME_SECONDS
+        idle.release.check()
+        assert idle.models.parked and idle.app.ollama.release_calls == 1
+        assert f"Giving memory back after 30 s idle: {reason}" in caplog.text
+
+    def test_tight_graphics_memory_alone_waits_the_thirty_seconds(self, idle):
+        idle.screen.full = game_detection.MEMORY
+        idle.clock.now += GAME_SECONDS - 1
+        idle.release.check()
+        assert not idle.models.parked
+        idle.clock.now += 1
+        idle.release.check()
+        assert idle.models.parked
+
+    def test_switched_off_the_detector_is_not_even_asked(self, idle, monkeypatch):
+        monkeypatch.setattr(CFG, "model_release_for_games", False)
+        asked = []
+        idle.release._full_screen = lambda: asked.append(1) or game_detection.MEMORY
+        idle.clock.now += 300
+        idle.release.check()
+        assert asked == [] and not idle.models.parked
 
 
 class TestFreeNow:

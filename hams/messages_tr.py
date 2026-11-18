@@ -199,7 +199,8 @@ MESSAGES: dict[str, str] = {
     "settings.release.60": "1 saat",
     "settings.release_games.title": "Oyunlarda hemen boşalt",
     "settings.release_games.hint": (
-        "Bir oyun tam ekran çalışırken bellek 30 saniye sonra boşaltılır, yapay zeka düzenlemesininki de"
+        "Bir oyun tam ekran çalışırken veya grafik belleği azaldığında bellek 30 saniye sonra boşaltılır, "
+        "yapay zeka düzenlemesininki de"
     ),
     "settings.hardware.title": "Donanım",
     "settings.hardware.auto": "Otomatik · {device}",

@@ -30,8 +30,8 @@ device_priority = ["cuda", "cpu"]
 # frei; der nächste Kurzbefehl lädt es wieder. 0, 2, 5, 10, 30 oder 60 (0 = nie).
 # Umgestellt wird auch in den Einstellungen unter Transkription.
 release_after = 10
-# Läuft ein Spiel im Vollbild, schon nach 30 Sekunden freigeben (auch die KI-Bereinigung
-# in Ollama, wenn Hams sie geladen hat).
+# Läuft ein Spiel im Vollbild oder wird der Grafikspeicher knapp, schon nach 30 Sekunden
+# freigeben (auch die KI-Bereinigung in Ollama, wenn Hams sie geladen hat).
 release_for_games = true
 
 [transcription]

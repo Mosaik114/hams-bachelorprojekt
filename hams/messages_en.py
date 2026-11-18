@@ -194,7 +194,8 @@ MESSAGES: dict[str, str] = {
     "settings.release.60": "1 hour",
     "settings.release_games.title": "Free it at once for games",
     "settings.release_games.hint": (
-        "When a game runs full screen, the memory is freed after 30 seconds, also the memory for AI cleanup"
+        "When a game runs full screen or graphics memory runs low, the memory is freed after 30 seconds, also the "
+        "memory for AI cleanup"
     ),
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automatic · {device}",

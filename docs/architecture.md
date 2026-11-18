@@ -51,7 +51,7 @@ flowchart TB
 |---|---|---|
 | `Recorder` | the input stream, recorded blocks, level, microphone consumers (level meters), length limit | return values and `MicrophoneUnavailable`; the app shows the states |
 | `ModelManager` | the Whisper model, load generations, fallback, download numbers, parking (weights given back while idle, loaded again by `wake` at the hotkey or by `ensure_loaded` in the transcription) | `ModelEvents` (`model_loaded`, `download_progress`, `download_finished`), always on the Tk thread via `ui_call` |
-| `IdleRelease` | when the model parks: the idle time (`[model] release_after`), 30 s while a game runs full screen, *Free memory now* | decides on the Tk thread, gives back on a worker; nothing to report |
+| `IdleRelease` | when the model parks: the idle time (`[model] release_after`), 30 s while a game runs or graphics memory is tight (`game_detection.py`), *Free memory now* | decides on the Tk thread, gives back on a worker; nothing to report |
 | `Pipeline` | the job queue, Whisper, cleanup and its guard, *Ask AI*, delivery | `StatusSink` (`apply_state`, `ui_call`, `is_recording`, `show_answer_length`) and `on_delivered` (tray history) |
 | `OllamaClient` | every HTTP request to Ollama: generate (streamed or not), warm-up, tags, ps, pull, unloading the models Hams loaded; this machine is asked past any proxy | nothing; callers translate errors |
 | `UpdateNotice` | the update check and the pending release | `on_found`, `on_change` callbacks |
@@ -162,6 +162,16 @@ into a queue, which the Tk thread drains every 20 ms, in order. After shutdown, 
   load, and never come back. Registered hotkeys survive.
 - **Batched inference only above 30 s.** Below that it brings no speed-up; above it, it is faster *and* more
   accurate, because sequential decoding dropped words on long audio.
+- **Telling a game without touching it.** Windows has no public "a game runs" signal, and its own full-screen
+  state (`SHQueryUserNotificationState`) misses most borderless games and looks at the primary monitor only.
+  `game_detection.py` adds two signals that only read: a top-level window whose client area covers its whole
+  monitor (any monitor; overlays, cloaked windows, the desktop and Hams' own windows left out), and the card's
+  graphics memory from the `GPU Adapter Memory` performance counter minus Hams' own share (DXGI), on the CUDA card
+  matched by its LUID. A full-monitor window in front counts at once, tight memory (under 1.5 GiB would stay free
+  with the model loaded) alone, a full-monitor window elsewhere only with memory getting tight (2.5 GiB), so a
+  video on a second monitor does not make Hams reload after every pause. No other process is opened or read, so
+  anti-cheat software has nothing to see. The DXGI budget was measured and rejected: for a background CUDA process
+  it drops once in one step and never below Hams' usage.
 - **Privacy.** Logs contain text lengths only. A remote Ollama endpoint must use HTTPS; plain HTTP is accepted only
   for the local machine (`config_validation.py`).
 

@@ -1,8 +1,9 @@
 """How much graphics memory this process uses, as Windows counts it (DXGI `QueryVideoMemoryInfo`).
 
 NVML and `nvidia-smi` give no per-process figures under Windows (WDDM); DXGI does: `CurrentUsage` of the local
-segment group is what this process holds on the adapter, CUDA allocations included. Only for the log: it shows
-whether parking the model really gives the memory back. Every failure is quiet (None), on Linux it is always None.
+segment group is what this process holds on the adapter, CUDA allocations included. For the log it shows whether
+parking the model really gives the memory back; `game_detection` subtracts it from the whole card's usage. Every
+failure is quiet (None or []), on Linux it is always so.
 
 Plain ctypes and COM by vtable index, so no extra package; nothing here creates a device.
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 import ctypes
 import logging
 import sys
+from typing import NamedTuple
 
 logger = logging.getLogger("hams")
 
@@ -87,8 +89,25 @@ def _release(pointer: ctypes.c_void_p) -> None:
         _method(pointer, _RELEASE)(pointer)
 
 
-def _adapter_usage(adapter: ctypes.c_void_p) -> tuple[str, int, int] | None:
-    """(name, dedicated memory, this process' local usage) of one hardware adapter, else None."""
+class Adapter(NamedTuple):
+    """One hardware adapter as DXGI sees it from this process."""
+
+    name: str
+    #: Dedicated video memory in bytes (the card's size).
+    dedicated: int
+    #: What this process holds there, in bytes.
+    usage: int
+    #: The adapter's LUID as the performance counters name it: "luid_0x00000000_0x00014A0C".
+    luid: str
+
+
+def luid_name(high: int, low: int) -> str:
+    """A LUID in the spelling of the GPU performance counters' instance names."""
+    return f"luid_0x{high & 0xFFFFFFFF:08X}_0x{low & 0xFFFFFFFF:08X}"
+
+
+def _adapter_usage(adapter: ctypes.c_void_p) -> Adapter | None:
+    """Name, dedicated memory, this process' local usage and LUID of one hardware adapter, else None."""
     desc = _AdapterDesc1()
     if _method(adapter, _ADAPTER_GET_DESC1, ctypes.POINTER(_AdapterDesc1))(adapter, ctypes.byref(desc)) < 0:
         return None
@@ -105,13 +124,23 @@ def _adapter_usage(adapter: ctypes.c_void_p) -> tuple[str, int, int] | None:
         )
         if call(adapter3, 0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, ctypes.byref(info)) < 0:
             return None
-        return desc.description, int(desc.dedicated_video_memory), int(info.current_usage)
+        return Adapter(
+            desc.description,
+            int(desc.dedicated_video_memory),
+            int(info.current_usage),
+            luid_name(desc.luid_high, desc.luid_low),
+        )
     finally:
         _release(adapter3)
 
 
 def adapters() -> list[tuple[str, int, int]]:
     """(name, dedicated memory in bytes, this process' usage in bytes) per hardware adapter; [] if unknown."""
+    return [(found.name, found.dedicated, found.usage) for found in adapter_details()]
+
+
+def adapter_details() -> list[Adapter]:
+    """Every hardware adapter with its LUID; [] if unknown. About 0.4 ms (measured)."""
     if sys.platform != "win32":
         return []
     try:

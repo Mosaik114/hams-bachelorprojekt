@@ -13,9 +13,16 @@ follow [Semantic Versioning](https://semver.org/).
   0.15 GB; the rest is the graphics driver's own share and stays). The hotkey loads it again while you speak, so a
   normal dictation does not wait; only a very short one right after the pause may take a moment. New in *Settings →
   Transcription*: **Free graphics memory after** (*Never*, 2, 5, 10, 30 minutes, 1 hour) and **Free it at once for
-  games** (on: while a game runs full screen, after 30 seconds, and the AI cleanup model in Ollama too if Hams loaded
-  it). New in the tray menu: **Free memory now**. In the configuration file: `[model] release_after` and
-  `release_for_games`.
+  games** (on: while a game runs or the graphics memory is tight, after 30 seconds, and the AI cleanup model in
+  Ollama too if Hams loaded it). New in the tray menu: **Free memory now**. In the configuration file: `[model]
+  release_after` and `release_for_games`.
+- **Games are recognised on every monitor, also borderless.** Besides Windows' own full-screen state, Hams counts a
+  window in front that fills its whole monitor, and it watches the graphics memory as the Task Manager shows it: when
+  less than 1.5 GB would stay free with the speech model loaded, the model goes after 30 seconds, game or not
+  (Blender, Stable Diffusion, a game in a window). A full-screen window on a second monitor counts once the memory
+  gets low (2.5 GB), so a video there does not make Hams reload after every pause. Hams only reads window positions
+  and the system's memory counters; it opens no other program, so anti-cheat software has nothing to see. The log
+  says which signal freed the memory.
 - If loading the model again fails (a game filled the graphics memory, a driver reset), Hams loads it anew and falls
   back to the processor if it must, and says so calmly; if nothing works, the window says *The speech model no
   longer loads* with a **Restart** button. A dictation is never lost because the model was resting: every

@@ -200,7 +200,8 @@ MESSAGES: dict[str, str] = {
     "settings.release.60": "1 Stunde",
     "settings.release_games.title": "Bei Spielen sofort freigeben",
     "settings.release_games.hint": (
-        "Läuft ein Spiel im Vollbild, wird der Speicher schon nach 30 Sekunden frei, auch der für die KI-Bereinigung"
+        "Läuft ein Spiel im Vollbild oder wird der Grafikspeicher knapp, wird der Speicher schon nach 30 Sekunden "
+        "frei, auch der für die KI-Bereinigung"
     ),
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automatisch · {device}",

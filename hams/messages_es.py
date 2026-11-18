@@ -200,8 +200,8 @@ MESSAGES: dict[str, str] = {
     "settings.release.60": "1 hora",
     "settings.release_games.title": "Liberar enseguida al jugar",
     "settings.release_games.hint": (
-        "Si un juego está en pantalla completa, la memoria se libera ya a los 30 segundos, también la de la "
-        "limpieza con IA"
+        "Si un juego está en pantalla completa o falta memoria gráfica, la memoria se libera ya a los 30 segundos, "
+        "también la de la limpieza con IA"
     ),
     "settings.hardware.title": "Hardware",
     "settings.hardware.auto": "Automático · {device}",
