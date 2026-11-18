@@ -274,11 +274,9 @@ def cold(app, hams, monkeypatch):
     return app
 
 
-def join_loads(timeout=5.0):
-    """Waits for every model-load thread, so none outlives the monkeypatches of its test."""
-    for thread in [t for t in threading.enumerate() if t.name == "model-load"]:
-        thread.join(timeout)
-        assert not thread.is_alive()
+def join_loads(models, timeout=5.0):
+    """Waits for the loads queued on the model thread, so none outlives the monkeypatches of its test."""
+    assert models._thread.drain(timeout)
 
 
 def wait_until(condition, timeout=5.0):
@@ -302,7 +300,7 @@ class TestLifecycle:
         time.sleep(0.05)
         assert cold.models.phase == "loading"
         assert cold.switch_model("turbo") is True
-        join_loads()
+        join_loads(cold.models)
         cold._ui_dispatcher.drain()  # the result reaches the app on the Tk thread
         assert cold.models.model.model_id == "turbo"
         assert cold.models.active_model_size == "turbo"
@@ -326,7 +324,7 @@ class TestLifecycle:
         cold.models.request("small", persist=False)
         time.sleep(0.05)
         cold.switch_model("turbo")
-        join_loads()
+        join_loads(cold.models)
         assert len(refs) == 2
         assert wait_until(lambda: refs[0]() is None), "the discarded model still lives"
         assert refs[1]() is cold.models.model
@@ -386,7 +384,7 @@ class TestLifecycle:
         cold._load_model_async()
         cold.models.close()
         gate.set()
-        join_loads()
+        join_loads(cold.models)
         assert cold.models.model is None and not cold.models.model_ready.is_set()
         assert cold.models.phase == "idle"
         assert cold.states == []

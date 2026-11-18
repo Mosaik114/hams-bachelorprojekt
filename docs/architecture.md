@@ -67,6 +67,13 @@ CTranslate2 and the CUDA libraries are imported on the model-load thread (`whisp
 load ends with one transcription of a second of silence, so the first dictation does not pay for setting up cuBLAS
 and cuDNN. Ollama is warmed up at the hotkey, not at start.
 
+**One model thread.** Loading, parking, loading again and freeing the model all run on one thread that lives as long
+as the process (`model_thread.ModelThread`); transcriptions run on the pipeline's worker. With CTranslate2's default
+CUDA allocator, a model loaded on a thread that had ended and given back from another thread made the process crash
+when it quit (0xC0000409, CTranslate2 4.8.5); on one thread every case ended cleanly. A transcription that holds
+`transcribe_lock` and finds the model parked hands the reload to that thread as urgent work, which the thread also
+runs while it waits for the lock itself.
+
 ## Pipeline
 
 ```mermaid

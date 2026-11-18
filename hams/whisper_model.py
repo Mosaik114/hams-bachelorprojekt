@@ -11,6 +11,7 @@ from hams import models as whisper_models
 from hams.backend_preload import cuda_libraries_found
 from hams.config import CFG, _persist_config_value, logger
 from hams.i18n import t
+from hams.model_thread import ModelThread
 
 #: faster-whisper's model class, imported by the first load on the load thread (`model_class`): faster-whisper,
 #: CTranslate2 and the CUDA libraries cost a few tenths of a second and half a gigabyte, which neither the Tk thread
@@ -181,6 +182,10 @@ class ModelManager:
     weights again while the user speaks (`wake`); every transcription checks under `transcribe_lock` and loads them
     itself if they are still missing (`ensure_loaded`), because a parked CTranslate2 model raises at its first use.
 
+    Everything that loads, gives back or frees the model runs on one thread that lives as long as the process
+    (`ModelThread`): with CTranslate2's default allocator a model loaded on an ended thread and given back from
+    another made Hams crash when it quit.
+
     Results reach `events` on the Tk thread through `ui_call`; after `close()` nothing is reported any more.
     """
 
@@ -212,6 +217,8 @@ class ModelManager:
         self._switching_to: str | None = None
         self._phase = "idle"
         self._closed = False
+        #: Loads, parks, loads again and frees the model (see the class docstring).
+        self._thread = ModelThread()
         #: The active model's weights were given back (`park`); it stays active and loads again on use.
         self._parked = False
         #: True while `park` is giving the weights back; a hotkey then has to load them again afterwards.
@@ -355,19 +362,37 @@ class ModelManager:
         if not acquired:
             logger.warning("Quit: a model load still runs after %.0f s, not waiting longer", self.CLOSE_WAIT_SECONDS)
         try:
-            with self._lock:
-                self.model = None
-                self.model_ready.clear()
-                self._parked = False
+            if acquired and self._thread.started:
+                # Freed where it was loaded; the model thread is idle or waiting for the lock we hold.
+                try:
+                    self._thread.call(self._drop_model, urgent=True, timeout=self.CLOSE_WAIT_SECONDS)
+                except TimeoutError:
+                    logger.warning("Quit: the model thread did not answer, freeing the model here")
+            self._drop_model()
+            self._thread.stop()
         finally:
             if acquired:
                 self.transcribe_lock.release()
 
+    def _drop_model(self) -> None:
+        with self._lock:
+            self.model = None
+            self.model_ready.clear()
+            self._parked = False
+        gc.collect()
+
     def _start_switch_thread(self, model_id: str, generation: int, persist: bool = True) -> None:
-        """A method of its own, so tests can run the load synchronously."""
-        threading.Thread(
-            target=self._switch_worker, args=(model_id, generation, persist), daemon=True, name="model-load"
-        ).start()
+        """Queues the load on the model thread. A method of its own, so tests can run the load synchronously."""
+        self._thread.submit(lambda: self._switch_worker(model_id, generation, persist))
+
+    @contextlib.contextmanager
+    def _holding_transcribe_lock(self):
+        """`transcribe_lock` for a load; on the model thread urgent work (a transcription's reload) runs meanwhile."""
+        self._thread.acquire(self.transcribe_lock)
+        try:
+            yield
+        finally:
+            self.transcribe_lock.release()
 
     def _is_current(self, generation: int) -> bool:
         return generation == self._generation and not self._closed
@@ -406,7 +431,7 @@ class ModelManager:
         fallback to the previous one.
         """
         try:
-            with self.transcribe_lock:
+            with self._holding_transcribe_lock():
                 outcome = self._load_for(model_id, generation)
         except Exception as exc:  # noqa: BLE001 - boundary of the thread: never die silently
             logger.exception("Model load crashed")
@@ -505,7 +530,12 @@ class ModelManager:
         freeing takes up to a tenth of a second.
         """
         expected = self._wake_requests if wakes is None else wakes
-        if not self.can_park() or not self.transcribe_lock.acquire(blocking=False):
+        if not self.can_park():
+            return False
+        return self._thread.call(lambda: self._park_on_thread(expected))
+
+    def _park_on_thread(self, expected: int) -> bool:
+        if not self.transcribe_lock.acquire(blocking=False):
             return False
         try:
             with self._lock:
@@ -552,11 +582,11 @@ class ModelManager:
                 self._waking = True
             generation = self._generation
         if needed:
-            threading.Thread(target=self._wake_worker, args=(generation,), daemon=True, name="model-reload").start()
+            self._thread.submit(lambda: self._wake_worker(generation))
 
     def _wake_worker(self, generation: int) -> None:
         try:
-            with self.transcribe_lock:
+            with self._holding_transcribe_lock():
                 if self._is_current(generation):
                     self.ensure_loaded()
         except Exception:  # noqa: BLE001 - boundary of the thread; the transcription checks again
@@ -581,6 +611,10 @@ class ModelManager:
             if self._parked:
                 self._mark_loaded()
             return True
+        # On the model thread, before anything queued there: it may be waiting for the lock our caller holds.
+        return self._thread.call(lambda: self._reload_on_thread(inner), urgent=True)
+
+    def _reload_on_thread(self, inner) -> bool:
         started = time.monotonic()
         try:
             inner.load_model()
